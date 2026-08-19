@@ -1,6 +1,6 @@
 #include "PostProcessManager.h"
 #include "System/Graphics.h"
-#include "Framework.h" // Untuk akses Window info jika perlu
+#include "Framework.h" 
 
 PostProcessManager::PostProcessManager()
 {

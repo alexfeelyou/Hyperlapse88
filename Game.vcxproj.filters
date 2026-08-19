@@ -162,12 +162,6 @@
     <ClCompile Include="Source\Engine\Windowing\WindowTrackingSystem.cpp">
       <Filter>Source\Engine\Windowing</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Engine\Graphics\Camera.cpp">
-      <Filter>Source\Engine\Graphics</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Engine\Graphics\CameraController.cpp">
-      <Filter>Source\Engine\Graphics</Filter>
-    </ClCompile>
     <ClCompile Include="Source\Engine\Graphics\FreeCameraController.cpp">
       <Filter>Source\Engine\Graphics</Filter>
     </ClCompile>
@@ -248,9 +242,6 @@
     </ClCompile>
     <ClCompile Include="Source\Engine\Windowing\WindowPool.cpp">
       <Filter>Source\Engine\Windowing</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Engine\Helpers\InputHelper.cpp">
-      <Filter>Source\Engine\Helpers</Filter>
     </ClCompile>
     <ClCompile Include="Source\Engine\Windowing\WindowSwarmRenderer.cpp">
       <Filter>Source\Engine\Windowing</Filter>
@@ -338,6 +329,12 @@
     </ClCompile>
     <ClCompile Include="Source\Engine\UI\UIOption.cpp">
       <Filter>Source\Engine\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Engine\Camera\Camera.cpp">
+      <Filter>Source\Engine\Camera</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Engine\Camera\CameraController.cpp">
+      <Filter>Source\Engine\Camera</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -473,12 +470,6 @@
     <ClInclude Include="Source\Engine\Windowing\WindowTrackingSystem.h">
       <Filter>Source\Engine\Windowing</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Engine\Graphics\Camera.h">
-      <Filter>Source\Engine\Graphics</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Engine\Graphics\CameraController.h">
-      <Filter>Source\Engine\Graphics</Filter>
-    </ClInclude>
     <ClInclude Include="Source\Engine\Graphics\FreeCameraController.h">
       <Filter>Source\Engine\Graphics</Filter>
     </ClInclude>
@@ -583,9 +574,6 @@
     </ClInclude>
     <ClInclude Include="Source\Engine\Windowing\WindowPool.h">
       <Filter>Source\Engine\Windowing</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Engine\Helpers\InputHelper.h">
-      <Filter>Source\Engine\Helpers</Filter>
     </ClInclude>
     <ClInclude Include="Source\Engine\Windowing\WindowSwarmRenderer.h">
       <Filter>Source\Engine\Windowing</Filter>
@@ -706,6 +694,12 @@
     <ClInclude Include="Source\Game\Entities\Weapon.h">
       <Filter>Source\Game\Entities</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Engine\Camera\CameraController.h">
+      <Filter>Source\Engine\Camera</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Camera\Camera.h">
+      <Filter>Source\Engine\Camera</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Shader\Basic.hlsli">
@@ -805,6 +799,9 @@
     </Filter>
     <Filter Include="Source\Game\Entities\Boss\Phases">
       <UniqueIdentifier>{8b3db33b-7d37-4885-b836-a31cffc5e5ef}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Engine\Camera">
+      <UniqueIdentifier>{d9e22b29-6c9b-474f-b693-169550bc513e}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

@@ -129,8 +129,8 @@
     <ClInclude Include="External\ImGuizmo\ImSequencer.h" />
     <ClInclude Include="External\SphereCast\Include\SphereCast.h" />
     <ClInclude Include="Source\Engine\Base\Framework.h" />
-    <ClInclude Include="Source\Engine\Graphics\Camera.h" />
-    <ClInclude Include="Source\Engine\Graphics\CameraController.h" />
+    <ClInclude Include="Source\Engine\Camera\Camera.h" />
+    <ClInclude Include="Source\Engine\Camera\CameraController.h" />
     <ClInclude Include="Source\Engine\Graphics\FontTTF.h" />
     <ClInclude Include="Source\Engine\Graphics\FreeCameraController.h" />
     <ClInclude Include="Source\Engine\Graphics\PostProcessManager.h" />
@@ -138,7 +138,6 @@
     <ClInclude Include="Source\Engine\Graphics\stb_truetype.h" />
     <ClInclude Include="Source\Engine\Graphics\UberShader.h" />
     <ClInclude Include="Source\Engine\Helpers\CapeSimulator.h" />
-    <ClInclude Include="Source\Engine\Helpers\InputHelper.h" />
     <ClInclude Include="Source\Engine\Helpers\PerformanceLogger.h" />
     <ClInclude Include="Source\Engine\Helpers\PhysXutils.h" />
     <ClInclude Include="Source\Engine\Helpers\TimeManager.h" />
@@ -246,15 +245,14 @@
     <ClCompile Include="External\ImGuizmo\ImSequencer.cpp" />
     <ClCompile Include="Source\Engine\Base\Framework.cpp" />
     <ClCompile Include="Source\Engine\Base\Main.cpp" />
-    <ClCompile Include="Source\Engine\Graphics\Camera.cpp" />
-    <ClCompile Include="Source\Engine\Graphics\CameraController.cpp" />
+    <ClCompile Include="Source\Engine\Camera\Camera.cpp" />
+    <ClCompile Include="Source\Engine\Camera\CameraController.cpp" />
     <ClCompile Include="Source\Engine\Graphics\FontTTF.cpp" />
     <ClCompile Include="Source\Engine\Graphics\FreeCameraController.cpp" />
     <ClCompile Include="Source\Engine\Graphics\PostProcessManager.cpp" />
     <ClCompile Include="Source\Engine\Graphics\Primitive.cpp" />
     <ClCompile Include="Source\Engine\Graphics\UberShader.cpp" />
     <ClCompile Include="Source\Engine\Helpers\CapeSimulator.cpp" />
-    <ClCompile Include="Source\Engine\Helpers\InputHelper.cpp" />
     <ClCompile Include="Source\Engine\Helpers\PerformanceLogger.cpp" />
     <ClCompile Include="Source\Engine\UI\CursorBlock.cpp" />
     <ClCompile Include="Source\Engine\UI\HUDRenderer.cpp" />
