@@ -10,11 +10,6 @@ void StatusPanel::SetStatus(const std::string& newText) {
     text = newText;
 }
 
-void StatusPanel::Draw(BitmapFont* font) {
-    if (!font) return;
-    font->Draw(text.c_str(), x, y, 0.625f, 1, 1, 1, 1);
-}
-
 // ================= LOG PANEL =================
 LogPanel::LogPanel(float x, float y, int max)
     : UIElement(x, y), maxLines(max), lineSpacing(35.0f)
@@ -24,15 +19,6 @@ void LogPanel::AddLog(const std::string& msg) {
     logs.push_back(msg);
     if (logs.size() > maxLines) {
         logs.pop_front();
-    }
-}
-
-void LogPanel::Draw(BitmapFont* font) {
-    if (!font) return;
-    float currentY = y;
-    for (const auto& line : logs) {
-        font->Draw(line.c_str(), x, currentY, 0.625f, 1, 1, 1, 1);
-        currentY += lineSpacing;
     }
 }
 
@@ -63,22 +49,5 @@ void DirectoryPanel::Update(float dt) {
                 files[selectedIndex].onExecute();
             }
         }
-    }
-}
-
-void DirectoryPanel::Draw(BitmapFont* font) {
-    if (!font) return;
-    float currentY = y;
-    for (int i = 0; i < files.size(); i++) {
-        // Highlight logic
-        if (i == selectedIndex) {
-            // Kuning kalau dipilih
-            font->Draw(files[i].name.c_str(), x, currentY, 0.625f, 1.0f, 1.0f, 0.0f, 1.0f);
-        }
-        else {
-            // Putih biasa
-            font->Draw(files[i].name.c_str(), x, currentY, 0.625f, 1.0f, 1.0f, 1.0f, 1.0f);
-        }
-        currentY += lineSpacing;
     }
 }

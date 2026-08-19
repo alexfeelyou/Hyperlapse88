@@ -162,9 +162,6 @@
     <ClCompile Include="Source\Engine\Windowing\WindowTrackingSystem.cpp">
       <Filter>Source\Engine\Windowing</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Engine\Graphics\BitmapFont.cpp">
-      <Filter>Source\Engine\Graphics</Filter>
-    </ClCompile>
     <ClCompile Include="Source\Engine\Graphics\Camera.cpp">
       <Filter>Source\Engine\Graphics</Filter>
     </ClCompile>
@@ -475,9 +472,6 @@
     </ClInclude>
     <ClInclude Include="Source\Engine\Windowing\WindowTrackingSystem.h">
       <Filter>Source\Engine\Windowing</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Engine\Graphics\BitmapFont.h">
-      <Filter>Source\Engine\Graphics</Filter>
     </ClInclude>
     <ClInclude Include="Source\Engine\Graphics\Camera.h">
       <Filter>Source\Engine\Graphics</Filter>
@@ -793,9 +787,6 @@
     </Filter>
     <Filter Include="Source\Engine\VFX">
       <UniqueIdentifier>{d635e537-d2b2-4346-be02-ce124be0ed2c}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\Engine\Common">
-      <UniqueIdentifier>{7e02c20d-2013-43d5-a05b-a00113f62a39}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source\Engine\Helpers">
       <UniqueIdentifier>{237542ae-86b6-4087-9fef-77b83e15a8bb}</UniqueIdentifier>

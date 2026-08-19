@@ -7,7 +7,6 @@
 #include <cstdint> 
 
 #include "System/Sprite.h"
-#include "BitmapFont.h"
 #include "FontTTF.h"
 
 enum class InputDevice : std::uint8_t;

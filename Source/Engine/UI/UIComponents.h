@@ -4,7 +4,6 @@
 #include <deque>
 #include <functional>
 #include <memory>
-#include "BitmapFont.h" // Untuk BitmapFont
 
 // --- BASE CLASS ---
 class UIElement {
@@ -14,7 +13,6 @@ public:
     virtual ~UIElement() = default;
 
     virtual void Update(float dt) {} // Default kosong
-    virtual void Draw(BitmapFont* font) = 0; // Pure virtual
 };
 
 // --- STATUS PANEL ---
@@ -24,7 +22,6 @@ private:
 public:
     StatusPanel(float x, float y, const std::string& startText);
     void SetStatus(const std::string& newText);
-    void Draw(BitmapFont* font) override;
 };
 
 // --- LOG PANEL ---
@@ -36,7 +33,6 @@ private:
 public:
     LogPanel(float x, float y, int max);
     void AddLog(const std::string& msg);
-    void Draw(BitmapFont* font) override;
 };
 
 // --- DIRECTORY PANEL ---
@@ -56,5 +52,4 @@ public:
     DirectoryPanel(float x, float y);
     void AddFile(std::string name, int size, bool isDir, std::function<void()> action);
     void Update(float dt) override; // Override Update karena butuh Input
-    void Draw(BitmapFont* font) override;
 };

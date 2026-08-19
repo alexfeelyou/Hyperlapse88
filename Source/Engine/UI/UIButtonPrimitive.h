@@ -1,7 +1,6 @@
 #pragma once
 #include "UIButton.h"
 #include "Primitive.h"
-#include "BitmapFont.h"
 #include <string>
 
 enum class TextAlignment {

@@ -129,7 +129,6 @@
     <ClInclude Include="External\ImGuizmo\ImSequencer.h" />
     <ClInclude Include="External\SphereCast\Include\SphereCast.h" />
     <ClInclude Include="Source\Engine\Base\Framework.h" />
-    <ClInclude Include="Source\Engine\Graphics\BitmapFont.h" />
     <ClInclude Include="Source\Engine\Graphics\Camera.h" />
     <ClInclude Include="Source\Engine\Graphics\CameraController.h" />
     <ClInclude Include="Source\Engine\Graphics\FontTTF.h" />
@@ -247,7 +246,6 @@
     <ClCompile Include="External\ImGuizmo\ImSequencer.cpp" />
     <ClCompile Include="Source\Engine\Base\Framework.cpp" />
     <ClCompile Include="Source\Engine\Base\Main.cpp" />
-    <ClCompile Include="Source\Engine\Graphics\BitmapFont.cpp" />
     <ClCompile Include="Source\Engine\Graphics\Camera.cpp" />
     <ClCompile Include="Source\Engine\Graphics\CameraController.cpp" />
     <ClCompile Include="Source\Engine\Graphics\FontTTF.cpp" />

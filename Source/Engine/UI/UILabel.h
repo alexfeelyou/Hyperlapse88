@@ -1,6 +1,5 @@
 #pragma once
 #include "Primitive.h"
-#include "BitmapFont.h"
 #include <string>
 #include <DirectXMath.h>
 
