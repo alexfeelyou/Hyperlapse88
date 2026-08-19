@@ -1,6 +1,5 @@
 #pragma once
 #include "Primitive.h"
-#include "ResourceManager.h"
 #include "BitmapFont.h"
 #include <string>
 #include <DirectXMath.h>
@@ -21,15 +20,6 @@ public:
     void SetText(const std::string& newText)
     {
         text = newText;
-
-        // Hitung lebar teks untuk background
-        BitmapFont* font = ResourceManager::Instance().GetFont("VGA_FONT");
-        if (font)
-        {
-            DirectX::XMFLOAT2 size = font->MeasureText(text, scale);
-            textWidth = size.x;
-            textHeight = size.y;
-        }
     }
 
     void Render(ID3D11DeviceContext* dc)
@@ -46,15 +36,6 @@ public:
             backColor.x, backColor.y, backColor.z, backColor.w);
 
         primitive->Render(dc);
-
-        // 2. Gambar Teks di atasnya
-        BitmapFont* font = ResourceManager::Instance().GetFont("VGA_FONT");
-        if (font)
-        {
-            // Posisi teks digeser sedikit (Padding) dari X background
-            font->Draw(text.c_str(), x + padding, y, scale,
-                textColor.x, textColor.y, textColor.z, textColor.w);
-        }
     }
 
 private:

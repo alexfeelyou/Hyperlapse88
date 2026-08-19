@@ -7,7 +7,6 @@
 #include "Primitive.h"
 #include "UIButtonPrimitive.h"
 #include "BitmapFont.h"
-#include "ResourceManager.h"
 
 // Struct Style biar profesional & gampang ganti tema
 struct PanelStyle {

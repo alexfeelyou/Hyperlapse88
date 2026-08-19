@@ -99,56 +99,9 @@ void UIPanel::Render(ID3D11DeviceContext* dc)
     // =========================================================
     // 2. HEADER BLOCKER (INI YANG HILANG KEMARIN)
     // =========================================================
-    // Fungsinya: Menimpa garis border kuning di tempat Judul berada
-
-    BitmapFont* font = ResourceManager::Instance().GetFont("VGA_FONT");
-    if (font)
-    {
-        DirectX::XMFLOAT2 titleSize = font->MeasureText(title, style.textScale);
-
-        // Offset +25.0f disamakan dengan posisi teks judul di bawah
-        float labelPad = 8.0f;
-        float blockerX = (x + 25.0f) - labelPad;
-        float blockerY = y - (th * 2.0f);
-        float blockerW = titleSize.x + (labelPad * 2.0f);
-        float blockerH = th * 4.0f; // Tinggi cukup untuk nutup garis
-
-        // Gambar kotak hitam kecil
-        primitive->Rect(blockerX, blockerY, blockerW, blockerH,
-            0.0f, 0.0f, 0.0f,
-            style.colorBg.x, style.colorBg.y, style.colorBg.z, style.colorBg.w);
-    }
 
     // PENTING: Flush (Gambar) semua kotak sebelum teks
     primitive->Render(dc);
-
-    // =========================================================
-    // 3. RENDER TEKS
-    // =========================================================
-
-    if (font)
-    {
-        // A. Judul Panel (Kiri Atas + Offset 25px)
-        font->Draw(title.c_str(), x + 25.0f, y - 8.0f, style.textScale,
-            style.colorText.x, style.colorText.y, style.colorText.z, style.colorText.w);
-
-        // B. Pesan Body (CENTER)
-        float startY = y + 80.0f; // Jarak dari atas
-
-        for (const auto& line : formattedLines)
-        {
-            DirectX::XMFLOAT2 lineSize = font->MeasureText(line, style.textScale);
-
-            // RUMUS CENTER MURNI:
-            // Posisi X = Awal Panel + (Setengah Sisa Ruang Kosong)
-            float lineX = x + (width - lineSize.x) / 2.0f;
-
-            font->Draw(line.c_str(), lineX, startY, style.textScale,
-                style.colorText.x, style.colorText.y, style.colorText.z, style.colorText.w);
-
-            startY += 25.0f; // Pindah baris
-        }
-    }
 
     // =========================================================
     // 4. RENDER TOMBOL

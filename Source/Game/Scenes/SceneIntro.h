@@ -11,7 +11,6 @@
 #include "System/Graphics.h"
 #include "BitmapFont.h"
 #include "Framework.h"
-#include "ResourceManager.h"
 #include "UberShader.h"
 
 class SceneIntro : public Scene

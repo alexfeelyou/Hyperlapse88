@@ -1,7 +1,6 @@
 #pragma once
 #include "UIButton.h"
 #include "Primitive.h"
-#include "ResourceManager.h"
 #include "BitmapFont.h"
 #include <string>
 
@@ -107,41 +106,6 @@ public:
             activeStyle.borderColor.x, activeStyle.borderColor.y, activeStyle.borderColor.z, activeStyle.borderColor.w);
 
         primitive->Render(dc);
-
-        // 4. Render Text
-        BitmapFont* font = ResourceManager::Instance().GetFont("VGA_FONT");
-        if (font && visibleChars > 0)
-        {
-            // [KUNCI]: Ukur teks UTUH untuk mendapatkan posisi (Anchor) yang stabil
-            DirectX::XMFLOAT2 fullTextSize = font->MeasureText(labelText, textScale);
-
-            // Siapkan teks POTONGAN untuk digambar
-            std::string drawText = labelText.substr(0, visibleChars);
-
-            // Perhitungan Posisi X (Gunakan fullTextSize, bukan textSize)
-            float textX = 0.0f;
-            switch (alignment)
-            {
-            case TextAlignment::Left:
-                textX = (float)rect.left + paddingX;
-                break;
-            case TextAlignment::Right:
-                // Menggunakan lebar utuh agar anchor point tidak pindah-pindah
-                textX = (float)rect.left + width - fullTextSize.x - paddingX;
-                break;
-            case TextAlignment::Center:
-            default:
-                textX = (float)rect.left + (width - fullTextSize.x) / 2.0f;
-                break;
-            }
-
-            float pressOffset = (currentState == ButtonState::PRESSED) ? 2.0f : 0.0f;
-            float textY = (float)rect.top + (height - fullTextSize.y) / 2.0f + verticalAdjustment + pressOffset;
-
-            // Gambar teks potongan di posisi anchor yang sudah stabil
-            font->Draw(drawText.c_str(), textX, textY, textScale,
-                activeStyle.textColor.x, activeStyle.textColor.y, activeStyle.textColor.z, activeStyle.textColor.w);
-        }
     }
 
 private:

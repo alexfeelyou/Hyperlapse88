@@ -153,9 +153,6 @@
     <ClCompile Include="Source\Engine\Base\Main.cpp">
       <Filter>Source\Engine\Base</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Engine\Base\ResourceManager.cpp">
-      <Filter>Source\Engine\Base</Filter>
-    </ClCompile>
     <ClCompile Include="Source\Engine\Windowing\WindowManager.cpp">
       <Filter>Source\Engine\Windowing</Filter>
     </ClCompile>
@@ -468,9 +465,6 @@
       <Filter>System</Filter>
     </ClInclude>
     <ClInclude Include="Source\Engine\Base\Framework.h">
-      <Filter>Source\Engine\Base</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Engine\Base\ResourceManager.h">
       <Filter>Source\Engine\Base</Filter>
     </ClInclude>
     <ClInclude Include="Source\Engine\Windowing\WindowManager.h">

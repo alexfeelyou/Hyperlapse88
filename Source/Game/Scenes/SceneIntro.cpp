@@ -69,16 +69,6 @@ void SceneIntro::Render(float dt, Camera* targetCamera)
     // =========================================================
     float blendFactor[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
     dc->OMSetBlendState(Graphics::Instance().GetAlphaBlendState(), blendFactor, 0xFFFFFFFF);
-    BitmapFont* text = ResourceManager::Instance().GetFont("VGA_FONT");
-    if (text)
-    {
-        text->Draw(
-            "this is scene title, press enter to continue",
-            500.0f, 540.0f,
-            1.0f,
-            1.0f, 1.0f, 1.0f, 1.0f 
-        );
-    }
 
     // =========================================================
     // APPLY POST-PROCESSING 
