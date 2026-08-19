@@ -5,7 +5,6 @@
 #include "Framework.h"
 #include "PostProcessManager.h"
 #include "Primitive.h"
-#include "ResourceManager.h"
 #include "System/AudioManager.h"
 #include "System/CollisionManager.h"
 #include "System/Graphics.h"

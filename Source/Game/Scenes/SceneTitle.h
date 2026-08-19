@@ -20,7 +20,6 @@
 #include "SceneGame.h"
 #include "Framework.h"
 #include "Primitive.h"
-#include "ResourceManager.h"
 #include "System/Input.h"
 #include "System/Graphics.h"
 #include <imgui.h>
