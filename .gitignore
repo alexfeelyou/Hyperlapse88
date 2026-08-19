@@ -1,0 +1,84 @@
+# =================================
+# Visual Studio & IntelliSense Cache
+# =================================
+.vs/
+*.user
+*.suo
+*.db
+*.opendb
+*.sdf
+*.ipch
+*.aps
+*.ncb
+
+# =================================
+# Build Output & Intermediate Files
+# =================================
+# Folder output utama
+[Bb]in/
+[Oo]bj/
+out/
+x64/
+Debug/
+Release/
+Logs/
+WindowBoss_PoC_WindowTracking/Logs/
+WindowBoss_PoC_WindowTracking/
+
+# File hasil compile C++
+*.obj
+*.iobj
+*.pdb
+*.ipdb
+*.idb
+*.ilk
+*.tlog
+*.lastbuildstate
+*.log
+*.res
+*.pch
+*.exp
+
+# =================================
+# Game & DirectX Specifics
+# =================================
+# Compiled Shader Objects (dibuat dari .hlsl saat build)
+*.cso
+*.cso.recipe
+
+# Image/Asset Thumbnails (Windows)
+Thumbs.db
+ehthumbs.db
+
+# =================================
+# External Library Builds
+# =================================
+# Kita mau track source codenya, tapi ABAIKAN hasil build di dalam folder External
+External/**/x64/
+External/**/Debug/
+External/**/Release/
+External/**/bin/
+External/**/obj/
+External/**/.vs/
+
+# =================================
+# Local Configuration
+# =================================
+# File setting window ImGui (beda tiap komputer, bikin conflict kalau dicommit)
+imgui.ini
+
+# =================================
+# Library Files (.lib / .dll)
+# =================================
+# Abaikan .lib hasil compile sendiri
+*.lib
+*.dll
+*.exe
+External/PhysX/
+
+# PENGECUALIAN:
+# Jika kamu punya file .lib mentahan (Pre-built) yang WAJIB ada di folder External,
+# hapus tanda pagar (#) di baris bawah ini:
+# !External/**/*.lib
+# !External/**/*.dll
+/External/DirectXTex/Bin/Desktop_2022/x64/Debug/DirectXTex.lib

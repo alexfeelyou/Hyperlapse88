@@ -1,0 +1,237 @@
+#include "Enemy.h"
+#include "EnemyManager.h"
+
+using namespace DirectX;
+
+EnemyManager::EnemyManager() {}
+
+EnemyManager::~EnemyManager() { m_enemies.clear(); }
+
+void EnemyManager::Initialize(ID3D11Device* device)
+{
+    for (const auto& config : EnemyLevelData::Spawns)
+    {
+        SpawnEnemy(config);
+    }
+}
+
+void EnemyManager::SpawnEnemy(const EnemySpawnConfig& config)
+{
+    ID3D11Device* device = Graphics::Instance().GetDevice();
+    const char* modelPath{ nullptr };
+    DirectX::XMFLOAT3 finalScale{ config.Scale };
+
+    // ---> Behavior-Driven Model Selection <---
+    switch (config.Type)
+    {
+    case EnemyType::MushroomNone:
+        modelPath = "Data/Model/Character/ENEMY_mdl_EnemyNone.glb";
+        break;
+
+    case EnemyType::MushroomStatic:
+        modelPath = "Data/Model/Character/ENEMY_mdl_EnemyStatic.glb";
+        break;
+
+    case EnemyType::MushroomTracking:
+        modelPath = "Data/Model/Character/ENEMY_mdl_EnemyTracking.glb";
+        break;
+
+    case EnemyType::FakeBoss:
+        modelPath = "Data/Model/Character/ENEMY_mdl_EnemyFakeBoss.glb";
+        if (finalScale.x == 0.5f && finalScale.y == 0.5f && finalScale.z == 0.5f)
+        {
+            finalScale = { 2.0f, 2.0f, 2.0f };
+        }
+        break;
+
+    case EnemyType::Ball:
+        modelPath = "Data/Model/Character/PLACEHOLDER_mdl_Ball.glb";
+        break;
+
+    case EnemyType::Pentagon:
+        modelPath = "Data/Model/Character/PLACEHOLDER_mdl_Pentagon.glb";
+        break;
+
+    case EnemyType::Paddle:
+    default:
+        modelPath = "Data/Model/Character/PLACEHOLDER_mdl_Paddle.glb";
+        break;
+    }
+
+    const int finalHP{ (config.AttackBehavior == AttackType::Tracking) ? 70 : config.MaxHP };
+
+    if (!m_enemyPool.empty())
+    {
+        // FAST PATH: Pull from the pool.
+        std::unique_ptr<Enemy> pooledEnemy{ std::move(m_enemyPool.back()) };
+        m_enemyPool.pop_back();
+
+        pooledEnemy->Reinitialize(
+            device, modelPath, config.Position, config.Rotation, config.Color,
+            config.Type, config.AttackBehavior, config.MinX, config.MaxX,
+            config.MinZ, config.MaxZ, config.Direction
+        );
+
+        pooledEnemy->SetInvincible(config.Type == EnemyType::FakeBoss);
+        pooledEnemy->SetScale(finalScale);
+        pooledEnemy->SetBaseMoveSpeed(config.BaseSpeed);
+        pooledEnemy->SetMaxHP(finalHP); 
+
+        m_enemies.push_back(std::move(pooledEnemy));
+    }
+    else
+    {
+        // SLOW PATH: Allocate new memory 
+        auto newEnemy{ std::make_unique<Enemy>(
+            device, modelPath, config.Position, config.Rotation, config.Color,
+            config.Type, config.AttackBehavior, config.MinX, config.MaxX,
+            config.MinZ, config.MaxZ, config.Direction
+        ) };
+
+        newEnemy->SetInvincible(config.Type == EnemyType::FakeBoss);
+        newEnemy->SetScale(finalScale);
+        newEnemy->SetBaseMoveSpeed(config.BaseSpeed);
+        newEnemy->SetMaxHP(finalHP); 
+
+        m_enemies.push_back(std::move(newEnemy));
+    }
+}
+
+void EnemyManager::Update(const float elapsedTime, Camera* camera, const DirectX::XMFLOAT3& playerPos, const bool allowAttack)
+{
+    for (size_t i{ 0 }; i < m_enemies.size(); ) // Notice: No ++i here!
+    {
+        // We use a reference to avoid copying the unique_ptr
+        auto& currentEnemy{ m_enemies[i] };
+
+        if (!currentEnemy->IsActive())
+        {
+            // Move the dead enemy to the graveyard pool
+            m_enemyPool.push_back(std::move(currentEnemy));
+
+            // SWAP-AND-POP: Overwrite this dead slot with the LAST active enemy in the vector.
+            // This prevents the slow O(N) memory shift of std::vector::erase.
+            if (i != m_enemies.size() - 1)
+            {
+                m_enemies[i] = std::move(m_enemies.back());
+            }
+
+            // Destroy the now-duplicate last element
+            m_enemies.pop_back();
+
+            // DO NOT increment 'i' here! The enemy we just swapped into the 'i' slot 
+            // still needs to be updated this frame.
+        }
+        else
+        {
+            // Only update enemy logic if the player is alive
+            if (allowAttack)
+            {
+                currentEnemy->Update(elapsedTime, camera);
+                currentEnemy->UpdateTracking(elapsedTime, camera, playerPos, allowAttack);
+            }
+
+            // Move to the next element
+            ++i;
+        }
+    }
+}
+
+void EnemyManager::Render(ModelRenderer* renderer, Camera* camera)
+{
+    for (auto& enemy : m_enemies)
+    {
+        bool isBodyVisible = true;
+
+        if (camera)
+        {
+            DirectX::XMFLOAT3 pos = enemy->GetPosition();
+
+            // [PERBAIKAN] Ambil Scale musuh
+            DirectX::XMFLOAT3 scale = enemy->GetScale();
+
+            // Cari nilai scale terbesar (misal kalau X=2, Y=1, Z=2 -> ambil 2)
+            float maxScale = max(scale.x, max(scale.y, scale.z));
+
+            // Base radius 1.5f dikali scale. 
+            // Kalau scale 2.0, radius jadi 3.0. Kalau scale 100, radius jadi 150.
+            float cullingRadius = 150.0f * maxScale;
+
+            // Gunakan radius dinamis
+            if (!camera->CheckSphere(pos.x, pos.y, pos.z, cullingRadius))
+            {
+                isBodyVisible = false;
+            }
+        }
+
+        if (isBodyVisible)
+        {
+            renderer->Draw(ShaderId::Phong, enemy->GetModel(), enemy->GetRenderColor());
+        }
+
+        // Projectiles tetap dirender terpisah (selalu render)
+        enemy->RenderProjectiles(renderer);
+    }
+}
+
+void EnemyManager::RenderDebug(ShapeRenderer* renderer)
+{
+    for (auto& enemy : m_enemies)
+    {
+        enemy->RenderDebugProjectiles(renderer);
+    }
+}
+
+void EnemyManager::RespawnEnemyAs(size_t index, AttackType attack, MoveDir dir, float minX, float maxX, float minZ, float maxZ)
+{
+    if (index >= m_enemies.size()) return;
+
+    auto& e = m_enemies[index];
+
+    EnemySpawnConfig config;
+    config.Position = e->GetPosition();
+    config.Rotation = e->GetRotation();
+    config.Color = e->GetBaseColor();
+    config.Type = e->GetType();
+    config.AttackBehavior = attack;
+    config.Direction = dir;
+    config.MinX = minX; config.MaxX = maxX;
+    config.MinZ = minZ; config.MaxZ = maxZ;
+
+    SpawnEnemy(config); 
+
+    std::swap(m_enemies[index], m_enemies.back());
+    m_enemies.pop_back();
+}
+
+void EnemyManager::ReviveKamikazes()
+{
+    // Search the graveyard pool for the Kamikaze that killed the player
+    for (auto it = m_enemyPool.begin(); it != m_enemyPool.end(); )
+    {
+        if ((*it)->HasKilledPlayer())
+        {
+            // Reset the killer tag
+            (*it)->SetKilledPlayer(false);
+
+            // Fully heal it and revive it
+            (*it)->SetMaxHP(70);
+            (*it)->SetActive(true);
+
+            // Snap it back to its original spawn position
+            (*it)->SetPosition((*it)->GetOriginalPosition());
+            (*it)->SetRotation((*it)->GetOriginalRotation());
+            (*it)->GetProjectiles().clear(); // Wipe any old bullets
+
+            // Move it from the graveyard back to the active enemies list
+            m_enemies.push_back(std::move(*it));
+
+            // Erase the empty shell from the pool
+            it = m_enemyPool.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+}

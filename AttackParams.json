@@ -1,0 +1,140 @@
+{
+  //=================================
+  //           PHASE 01
+  //=================================
+  "Phase01": {
+
+    "RadialNormal": {
+      "count": 20, // Bullet count per burst
+      "speed": 13.0,
+      "burstDelay": 0.4,
+      "burstCount": 7,
+      "damage": 1,
+      "sfxVolume": 1.0,
+      "color": [ 1.0, 0.2, 0.2, 1.0 ],
+      "activeDuration": 0.0,
+      "triggerCount": 1,
+      "triggerDelay": 1.0
+    },
+
+    "RadialContinuous": {
+      "count": 55, // Bullet count per burst
+      "speed": 22.14,
+      "burstDelay": 0.3,
+      "burstCount": 3,
+      "damage": 1,
+      "sfxVolume": 1.0,
+      "color": [ 1.0, 0.5, 0.0, 1.0 ],
+      "activeDuration": 3.0,
+      "triggerCount": 1,
+      "triggerDelay": 1.0
+    },
+
+    "FanNormal": {
+      "rows": 5,
+      "waves": 4,
+      "waveDelay": 0.133,
+      "spreadAngle": 0.13,
+      "speed": 35.617,
+      "damage": 2,
+      "sfxVolume": 1.0,
+      "triggerCount": 1,
+      "triggerDelay": 1.0
+    },
+
+    "FanContinuous": {
+      "rows": 5,
+      "waves": 4,
+      "waveDelay": 0.12,
+      "spreadAngle": 0.13,
+      "speed": 35.617,
+      "damage": 2,
+      "sfxVolume": 1.0,
+      "triggerCount": 3,
+      "triggerDelay": 1.0
+    },
+
+    "Phalanx": {
+      "count": 8,
+      "chargeDelay": 0.2,
+      "holdDuration": 2.5,
+      "fireDelay": 0.05,
+      "speed": 70.0,
+      "hoverRadius": 4.0,
+      "turnSpeed": 3.0,
+      "smoothSpeed": 12.0,
+      "postFireDelay": 1.0,
+      "attackMoveSpeed": 3.0,
+      "returnMoveSpeed": 2.0,
+      "damage": 3,
+      "sfxVolume": 1.0
+    },
+
+    "Rain": {
+      "minSpeed": 50.0,
+      "maxSpeed": 90.0,
+      "warningDuration": 1.2,
+      "activeDuration": 2.0,
+      "width": 25.0,
+      "depth": 40.0,
+      "damage": 0.1,
+      "sfxVolume": 1.0
+    },
+
+    "RainTargeted": {
+      "minSpeed": 50.0,
+      "maxSpeed": 90.0,
+      "warningDuration": 0.7,
+      "activeDuration": 1.0,
+      "width": 12.0,
+      "depth": 45.0,
+      "damage": 0.1,
+      "sfxVolume": 1.0,
+      "triggerCount": 4,
+      "triggerDelay": 1.5
+    },
+
+    "Wave": {
+      "trackCount": 10,
+      "bulletsPerWave": 5,
+      "waves": 6,
+      "waveDelay": 0.8,
+      "speed": 28.0,
+      "trackSpacing": 3.5,
+      "startZ": -15.75,
+      "spawnX": 24.0,
+      "damage": 2,
+      "sfxVolume": 1.0
+    },
+
+    "Meteor": {
+      "count": 8,
+      "spawnDelay": 0.4,
+      "speed": 20.0,
+      "speedVariance": 5.0,
+      "radius": 0.8,
+      "visualScale": 6.0,
+
+      "startX": 24.0,
+      "startZ": 15.0,
+      "targetX": -15.0,
+      "targetZ": -15.0,
+
+      "spreadOffset": 4.0,
+      "damage": 3,
+      "sfxVolume": 1.0
+    },
+
+    "Direct": {
+      "count": 12,
+      "spawnDelay": 0.15,
+      "speed": 45.0,
+      "radius": 0.35,
+      "visualScale": 1.5,
+      "damage": 2,
+      "sfxVolume": 1.0,
+      "triggerCount": 1,
+      "triggerDelay": 1.0
+    }
+  }
+}
