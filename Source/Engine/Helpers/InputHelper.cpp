@@ -1,5 +1,4 @@
 #include "InputHelper.h"
-#include "Engine/Common/Constants.h"
 #include <SDL3/SDL.h>
 
 namespace Beyond {
@@ -20,8 +19,8 @@ namespace Beyond {
         float pixelOffsetY = mouseY - monitorCenterY;
 
         // Konversi ke unit dunia + Tambahkan posisi kamera untuk mendukung scrolling
-        float worldX = (pixelOffsetX / Config::PIXEL_TO_UNIT_RATIO) + cameraPos.x;
-        float worldZ = (-pixelOffsetY / Config::PIXEL_TO_UNIT_RATIO) + cameraPos.z;
+        float worldX = (pixelOffsetX / 40.0f) + cameraPos.x;
+        float worldZ = (-pixelOffsetY / 40.0f) + cameraPos.z;
 
         return DirectX::XMFLOAT3(worldX, 0.0f, worldZ);
     }
