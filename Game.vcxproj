@@ -129,7 +129,6 @@
     <ClInclude Include="External\ImGuizmo\ImSequencer.h" />
     <ClInclude Include="External\SphereCast\Include\SphereCast.h" />
     <ClInclude Include="Source\Engine\Base\Framework.h" />
-    <ClInclude Include="Source\Engine\Base\MathUtils.h" />
     <ClInclude Include="Source\Engine\Base\ResourceManager.h" />
     <ClInclude Include="Source\Engine\Common\Constants.h" />
     <ClInclude Include="Source\Engine\Graphics\BitmapFont.h" />

@@ -470,9 +470,6 @@
     <ClInclude Include="Source\Engine\Base\Framework.h">
       <Filter>Source\Engine\Base</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Engine\Base\MathUtils.h">
-      <Filter>Source\Engine\Base</Filter>
-    </ClInclude>
     <ClInclude Include="Source\Engine\Base\ResourceManager.h">
       <Filter>Source\Engine\Base</Filter>
     </ClInclude>
@@ -617,11 +614,6 @@
     <ClInclude Include="Source\Engine\Helpers\PhysXutils.h">
       <Filter>Source\Engine\Helpers</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Engine\Helpers\CapeSimulator.h" />
-    <ClInclude Include="Source\Engine\Helpers\TimeManager.h" />
-    <ClInclude Include="Source\Engine\VFX\EffectManager.h" />
-    <ClInclude Include="Source\Game\Entities\NaviAlly.h" />
-    <ClInclude Include="Source\Game\Entities\Weapon.h" />
     <ClInclude Include="Source\Engine\UI\UIDialogueBox.h">
       <Filter>Source\Engine\UI</Filter>
     </ClInclude>
@@ -713,6 +705,21 @@
     </ClInclude>
     <ClInclude Include="Source\Engine\UI\UIOption.h">
       <Filter>Source\Engine\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Helpers\CapeSimulator.h">
+      <Filter>Source\Engine\Helpers</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\VFX\EffectManager.h">
+      <Filter>Source\Engine\VFX</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Game\Entities\NaviAlly.h">
+      <Filter>Source\Game\Entities</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Helpers\TimeManager.h">
+      <Filter>Source\Engine\Helpers</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Game\Entities\Weapon.h">
+      <Filter>Source\Game\Entities</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
