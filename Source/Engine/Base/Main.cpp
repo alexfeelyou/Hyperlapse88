@@ -36,17 +36,20 @@ void TestPureWin32Transparency()
     HWND hwnd = CreateWindowExA(
         WS_EX_LAYERED,
         "TestTransparent", "Test Transparent",
-        WS_OVERLAPPEDWINDOW | WS_VISIBLE,  
+        WS_OVERLAPPEDWINDOW | WS_VISIBLE,  // ← pakai border agar kelihatan
         200, 200, 400, 400,
         NULL, NULL, GetModuleHandle(NULL), NULL
     );
 
+    // Alpha 128 = 50% transparan seluruh window
     SetLayeredWindowAttributes(hwnd, 0, 128, LWA_ALPHA);
 
-    Sleep(3000); 
+    Sleep(3000); // Lihat selama 3 detik tanpa MessageBox menghalangi
     DestroyWindow(hwnd);
 }
 
+// Di main(), panggil sebelum framework:
+// TestPureWin32Transparency();
 
 int main(int argc, char* argv[])
 {
@@ -72,12 +75,13 @@ int main(int argc, char* argv[])
         // ==========================================
         // KONFIGURASI FPS CAP
         // ==========================================
-        const double targetFPS = 60.0; 
+        const double targetFPS = 60.0; // Silakan ganti ke 30, 90, atau 120
         const Uint64 targetTicksPerFrame = frequency / targetFPS;
-        const Uint64 yieldThreshold = frequency / 500; 
+        const Uint64 yieldThreshold = frequency / 500; // Batas aman 2ms untuk CPU napas
 
         while (running)
         {
+            // 1. Catat waktu persis saat frame dimulai
             Uint64 frameStart = SDL_GetPerformanceCounter();
 
 
@@ -88,13 +92,16 @@ int main(int argc, char* argv[])
                 //if (event.type == SDL_EVENT_KEY_DOWN && event.key.key == SDLK_ESCAPE) running = false;
                 if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED)
                 {
+                    // Cek window mana yang barusan diklik tombol silangnya
                     SDL_Window* closedWin = SDL_GetWindowFromID(event.window.windowID);
                     Beyond::Window* mainWin = framework ? framework->GetMainWindow() : nullptr;
 
                     if (mainWin && closedWin == mainWin->GetSDLWindow()) {
+                        // Yang disilang adalah MAIN WINDOW -> Matikan game!
                         running = false;
                     }
                     else {
+                        // Yang disilang adalah SUB-WINDOW (Dummy) -> Suruh Framework hapus!
                         if (framework) framework->OnSubWindowClosed(event.window.windowID);
                     }
                 }
@@ -126,16 +133,21 @@ int main(int argc, char* argv[])
                 running = false;
             }
 
+            // ==========================================
+            // 2. LOGIKA PEMBATAS FPS (HYBRID SPIN-WAIT)
+            // ==========================================
             while (true)
             {
                 Uint64 now = SDL_GetPerformanceCounter();
                 Uint64 ticksPassed = now - frameStart;
 
+                // Jika waktu frame sudah mencapai batas (misal 16.66ms), lanjut ke frame berikutnya!
                 if (ticksPassed >= targetTicksPerFrame)
                 {
                     break;
                 }
 
+                // Jika sisa waktu masih > 2ms, suruh thread CPU mengalah sebentar
                 if (targetTicksPerFrame - ticksPassed > yieldThreshold)
                 {
                     std::this_thread::yield();

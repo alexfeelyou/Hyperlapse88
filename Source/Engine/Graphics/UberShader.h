@@ -118,7 +118,7 @@ public:
 
 private:
     // =========================================================
-    // INTERNAL BUFFER 
+    // INTERNAL BUFFER (Matches HLSL)
     // =========================================================
     struct CbUber
     {
