@@ -3,7 +3,6 @@
 #include "System/Input.h"
 #include "WindowManager.h"
 #include "Framework.h"
-#include "InputHelper.h"
 #include "PerformanceLogger.h"
 #include <algorithm>
 #ifdef NAVI_DEBUG_GUI
