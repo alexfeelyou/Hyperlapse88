@@ -210,9 +210,6 @@
     <ClCompile Include="Source\Engine\VFX\AnimationController.cpp">
       <Filter>Source\Engine\VFX</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Engine\VFX\CinematicDirector.cpp">
-      <Filter>Source\Engine\VFX</Filter>
-    </ClCompile>
     <ClCompile Include="Source\Engine\VFX\JuiceEngine.cpp">
       <Filter>Source\Engine\VFX</Filter>
     </ClCompile>
@@ -507,9 +504,6 @@
       <Filter>Source\Game\Scenes</Filter>
     </ClInclude>
     <ClInclude Include="Source\Engine\VFX\AnimationController.h">
-      <Filter>Source\Engine\VFX</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Engine\VFX\CinematicDirector.h">
       <Filter>Source\Engine\VFX</Filter>
     </ClInclude>
     <ClInclude Include="Source\Engine\VFX\JuiceEngine.h">

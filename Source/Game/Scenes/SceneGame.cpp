@@ -1,7 +1,6 @@
 #include "SceneGame.h" 
 
 #include "CameraController.h"
-#include "CinematicDirector.h" 
 #include "Framework.h"
 #include "PostProcessManager.h"
 #include "Primitive.h"
@@ -198,8 +197,6 @@ SceneGame::SceneGame()
         m_currentCheckpointPos = pos;
         m_hasCheckpoint = true;
     });
-
-    m_director = std::make_unique<CinematicDirector>();
 
     m_postProcess = std::make_unique<PostProcessManager>();
     m_postProcess->Initialize(static_cast<int>(screenW), static_cast<int>(screenH));
@@ -653,7 +650,6 @@ void SceneGame::Update(const float elapsedTime)
         if (m_player)
         {
             CameraController::Instance().SetTarget(m_player->GetPosition());
-            m_director->Update(elapsedTime, m_player->GetMovement()->GetPosition());
         }
 
         // 2. Furi style cinematic combat zoom 

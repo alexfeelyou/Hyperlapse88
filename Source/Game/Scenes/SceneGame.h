@@ -23,7 +23,6 @@
 // FORWARD DECLARATIONS
 // ==========================================
 class Camera;
-class CinematicDirector;
 class CollisionManager;
 class EnemyManager;
 class GameBreakerGUI;
@@ -110,8 +109,6 @@ private:
     float m_globalTime{ 0.0f };
     float m_configFineDensity{ 30.0f };
     float m_configZoomDensity{ 0.0f };
-
-    std::unique_ptr<CinematicDirector> m_director{};
 
     physx::PxDefaultAllocator m_allocator{};
     physx::PxDefaultErrorCallback m_errorCallback{};
