@@ -138,6 +138,7 @@
     <ClInclude Include="Source\Engine\Graphics\stb_truetype.h" />
     <ClInclude Include="Source\Engine\Graphics\UberShader.h" />
     <ClInclude Include="Source\Engine\Helpers\CapeSimulator.h" />
+    <ClInclude Include="Source\Engine\Helpers\InputHelper.h" />
     <ClInclude Include="Source\Engine\Helpers\PerformanceLogger.h" />
     <ClInclude Include="Source\Engine\Helpers\PhysXutils.h" />
     <ClInclude Include="Source\Engine\Helpers\TimeManager.h" />
@@ -253,6 +254,7 @@
     <ClCompile Include="Source\Engine\Graphics\Primitive.cpp" />
     <ClCompile Include="Source\Engine\Graphics\UberShader.cpp" />
     <ClCompile Include="Source\Engine\Helpers\CapeSimulator.cpp" />
+    <ClCompile Include="Source\Engine\Helpers\InputHelper.cpp" />
     <ClCompile Include="Source\Engine\Helpers\PerformanceLogger.cpp" />
     <ClCompile Include="Source\Engine\UI\CursorBlock.cpp" />
     <ClCompile Include="Source\Engine\UI\HUDRenderer.cpp" />
