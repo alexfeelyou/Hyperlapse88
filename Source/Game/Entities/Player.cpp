@@ -11,7 +11,6 @@
 #include "StateMachine.h"
 #include <cmath>
 #include <imgui.h>
-#include "InputHelper.h"
 #include "EffectManager.h"
 #include "System/AudioManager.h"
 

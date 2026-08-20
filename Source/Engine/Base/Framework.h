@@ -33,7 +33,6 @@ public:
     void ChangeScene(std::unique_ptr<Scene> newScene);
     void Quit();
 
-    // Helper untuk mengambil Main Window (Window index 0)
     Beyond::Window* GetMainWindow() const;
 
     LRESULT CALLBACK HandleMessage(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);

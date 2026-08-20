@@ -8,7 +8,6 @@
 #include "System/AudioManager.h"
 #include "System/CollisionManager.h"
 #include "System/Graphics.h"
-#include "InputHelper.h"
 #include <algorithm>
 
 // Game Objects
