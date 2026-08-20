@@ -171,9 +171,6 @@
     <ClCompile Include="Source\Engine\Graphics\UberShader.cpp">
       <Filter>Source\Engine\Graphics</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Engine\UI\TUIBuilder.cpp">
-      <Filter>Source\Engine\UI</Filter>
-    </ClCompile>
     <ClCompile Include="Source\Engine\UI\UIComponents.cpp">
       <Filter>Source\Engine\UI</Filter>
     </ClCompile>
@@ -469,9 +466,6 @@
     </ClInclude>
     <ClInclude Include="Source\Engine\Graphics\UberShader.h">
       <Filter>Source\Engine\Graphics</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Engine\UI\TUIBuilder.h">
-      <Filter>Source\Engine\UI</Filter>
     </ClInclude>
     <ClInclude Include="Source\Engine\UI\UIButton.h">
       <Filter>Source\Engine\UI</Filter>

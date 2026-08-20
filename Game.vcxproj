@@ -139,7 +139,6 @@
     <ClInclude Include="Source\Engine\Graphics\UberShader.h" />
     <ClInclude Include="Source\Engine\Helpers\CapeSimulator.h" />
     <ClInclude Include="Source\Engine\Helpers\PhysXutils.h" />
-    <ClInclude Include="Source\Engine\UI\TUIBuilder.h" />
     <ClInclude Include="Source\Engine\UI\UIButton.h" />
     <ClInclude Include="Source\Engine\UI\UIButtonPrimitive.h" />
     <ClInclude Include="Source\Engine\UI\UIButtonSprite.h" />
@@ -248,7 +247,6 @@
     <ClCompile Include="Source\Engine\Graphics\Primitive.cpp" />
     <ClCompile Include="Source\Engine\Graphics\UberShader.cpp" />
     <ClCompile Include="Source\Engine\Helpers\CapeSimulator.cpp" />
-    <ClCompile Include="Source\Engine\UI\TUIBuilder.cpp" />
     <ClCompile Include="Source\Engine\UI\UIComponents.cpp" />
     <ClCompile Include="Source\Engine\UI\UIDialogueBox.cpp" />
     <ClCompile Include="Source\Engine\UI\UIImpactDisplay.cpp" />
