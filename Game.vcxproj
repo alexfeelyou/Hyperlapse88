@@ -139,7 +139,6 @@
     <ClInclude Include="Source\Engine\Graphics\UberShader.h" />
     <ClInclude Include="Source\Engine\Helpers\CapeSimulator.h" />
     <ClInclude Include="Source\Engine\Helpers\PhysXutils.h" />
-    <ClInclude Include="Source\Engine\UI\ButtonManager.h" />
     <ClInclude Include="Source\Engine\UI\CursorBlock.h" />
     <ClInclude Include="Source\Engine\UI\HUDRenderer.h" />
     <ClInclude Include="Source\Engine\UI\TUIBuilder.h" />

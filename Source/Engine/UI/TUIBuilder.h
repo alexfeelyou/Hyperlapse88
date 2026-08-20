@@ -4,7 +4,6 @@
 #include <string>
 #include <vector>
 #include <functional>
-#include "ButtonManager.h"
 #include "UIButtonPrimitive.h"
 #include "Primitive.h"
 
@@ -25,7 +24,7 @@ class TUIBuilder
 {
 public:
     // Builder butuh akses ke Manager (untuk simpan tombol) dan Batcher (untuk render)
-    TUIBuilder(ButtonManager* manager, Primitive* batcher);
+    TUIBuilder(Primitive* batcher);
     ~TUIBuilder() = default;
 
     // 1. SETUP: Tentukan posisi awal dan gaya
@@ -45,7 +44,6 @@ public:
     void ResetCursor();
 
 private:
-    ButtonManager* m_manager;
     Primitive* m_batcher;
 
     // Layout State

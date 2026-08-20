@@ -1,7 +1,7 @@
 #include "TUIBuilder.h"
 
-TUIBuilder::TUIBuilder(ButtonManager* manager, Primitive* batcher)
-    : m_manager(manager), m_batcher(batcher)
+TUIBuilder::TUIBuilder(Primitive* batcher)
+    : m_batcher(batcher)
 {
     // Default values agar tidak crash jika lupa set
     m_theme.textScale = 0.625f;
@@ -65,9 +65,6 @@ UIButtonPrimitive* TUIBuilder::AddButton(const std::string& text, std::function<
 
     // 5. Simpan pointer mentah sebelum ownership dipindah ke Manager
     UIButtonPrimitive* rawPtr = btn.get();
-
-    // 6. Masukkan ke Manager
-    m_manager->AddButton(std::move(btn));
 
     // 7. Update posisi Y untuk tombol berikutnya (Auto-Layout)
     m_currentY += (m_btnHeight + m_spacing);
