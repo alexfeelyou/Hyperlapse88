@@ -261,9 +261,6 @@
     <ClCompile Include="Source\Engine\Graphics\FontTTF.cpp">
       <Filter>Source\Engine\Graphics</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Engine\UI\HUDRenderer.cpp">
-      <Filter>Source\Engine\UI</Filter>
-    </ClCompile>
     <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackBouncing.cpp">
       <Filter>Source\Game\Entities\Boss\AttackPatterns\PhaseTwo</Filter>
     </ClCompile>
@@ -589,9 +586,6 @@
       <Filter>Source\Engine\Graphics</Filter>
     </ClInclude>
     <ClInclude Include="Source\Engine\UI\UIDialogueBox.h">
-      <Filter>Source\Engine\UI</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Engine\UI\HUDRenderer.h">
       <Filter>Source\Engine\UI</Filter>
     </ClInclude>
     <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackBouncing.h">

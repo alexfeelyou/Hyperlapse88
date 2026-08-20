@@ -14,7 +14,6 @@
 #include <random>
 #include "BossPhase02.h"
 #include "BossPhase01.h"
-#include "HUDRenderer.h"
 #include "EffectManager.h"
 #include "WindowShatter.h"
 #include "AttackParamManager.h"
@@ -74,7 +73,6 @@ SceneBoss::SceneBoss()
     auto* context = Graphics::Instance().GetDeviceContext();
     m_primitive2D = std::make_unique<Primitive>(device);
     m_primitive3D = std::make_unique<PrimitiveRenderer>(device);
-    m_hud = std::make_unique<HUDRenderer>(device);
 
     EffectManager::Instance().Initialize(device, context);
 

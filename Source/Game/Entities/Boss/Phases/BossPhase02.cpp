@@ -41,8 +41,6 @@ void BossPhase02::Enter(Boss* boss) {
     m_screenW = (float)GetSystemMetrics(SM_CXSCREEN);
     m_screenH = (float)GetSystemMetrics(SM_CYSCREEN);
 
-    m_hudRenderer = std::make_unique<HUDRenderer>(device);
-
     // Ciptakan jendela FX SECARA DINAMIS hanya ketika fase ini dimulai!
     TrackedWindowConfig fxCfg = { "navi_fx", "N.A.V.I - FX", (int)m_screenW, (int)m_screenH, 3 };
     fxCfg.role = WindowRole::SUB_VIEWPORT;
@@ -617,23 +615,6 @@ void BossPhase02::Render(ID3D11DeviceContext* context, Camera* currentCamera, Bo
             m_dialogueBox->RenderToWindow(context, m_dialogueWindowW, m_dialogueWindowH);
         }
         return;
-    }
-
-    // =========================================================
-    // RENDER HUD (HP BAR PLAYER & BOSS) — hanya di FX window
-    // =========================================================
-    if (isFXCam && m_hudRenderer)
-    {
-        int playerHP = 0;
-        int playerMaxHP = 0;
-        if (m_aiTarget)
-        {
-            playerHP = m_aiTarget->GetHP();
-            playerMaxHP = 100; // HP maksimal player standar
-        }
-        m_hudRenderer->Render(context,
-            playerHP, playerMaxHP,
-            m_bossHP, m_bossMaxHP);
     }
 
     // =========================================================

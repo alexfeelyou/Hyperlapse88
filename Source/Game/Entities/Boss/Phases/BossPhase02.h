@@ -9,7 +9,6 @@
 #include "Primitive.h"
 #include "EffectManager.h"
 #include "UIDialogueBox.h"
-#include "HUDRenderer.h"
 #include "IBossAttackPattern.h"
 #include "BossAI.h"
 
@@ -165,9 +164,6 @@ private:
     float m_cageShakeIntensity = 0.22f;
     float m_cageSizeWorld = 7.5f;
     std::string m_cageWindowName = "player_cage_window";
-
-    // HUD Renderer — dirender ke FX window
-    std::unique_ptr<HUDRenderer> m_hudRenderer;
 
     // [BARU] Overdrive Sprite
     std::unique_ptr<Sprite> m_overdriveSprite;
