@@ -2,7 +2,6 @@
 #include "Boss.h"        
 #include "BossPhase01.h" 
 #include "EffectManager.h"
-#include "TimeManager.h"
 #include <CameraController.h>
 #include "BossPhase02.h"
 #include "EffectManager.h"

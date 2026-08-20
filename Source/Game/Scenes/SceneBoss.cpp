@@ -15,7 +15,6 @@
 #include "BossPhase02.h"
 #include "BossPhase01.h"
 #include "HUDRenderer.h"
-#include "TimeManager.h"
 #include "EffectManager.h"
 #include "WindowShatter.h"
 #include "AttackParamManager.h"
@@ -277,9 +276,7 @@ void SceneBoss::InitializeSubWindows()
 
 void SceneBoss::Update(float elapsedTime)
 {
-    TimeManager::Instance().Update(elapsedTime);
-
-    float activeTimeScale = m_timeScale * TimeManager::Instance().GetHitStopMultiplier();
+    float activeTimeScale = m_timeScale * 1.0f;
     const float scaledDt = elapsedTime * activeTimeScale;
 
     // =========================================================
