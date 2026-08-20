@@ -458,9 +458,6 @@
     <ClInclude Include="Source\Engine\Graphics\UberShader.h">
       <Filter>Source\Engine\Graphics</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Engine\UI\UILabel.h">
-      <Filter>Source\Engine\UI</Filter>
-    </ClInclude>
     <ClInclude Include="Source\Game\Entities\Bullet.h">
       <Filter>Source\Game\Entities</Filter>
     </ClInclude>

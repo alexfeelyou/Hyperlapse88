@@ -140,7 +140,6 @@
     <ClInclude Include="Source\Engine\Helpers\CapeSimulator.h" />
     <ClInclude Include="Source\Engine\Helpers\PhysXutils.h" />
     <ClInclude Include="Source\Engine\UI\UIDialogueBox.h" />
-    <ClInclude Include="Source\Engine\UI\UILabel.h" />
     <ClInclude Include="Source\Engine\UI\UIOption.h" />
     <ClInclude Include="Source\Engine\UI\UIPause.h" />
     <ClInclude Include="Source\Engine\VFX\AnimationController.h" />
