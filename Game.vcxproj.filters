@@ -243,9 +243,6 @@
     <ClCompile Include="Source\Engine\Windowing\WindowSwarmRenderer.cpp">
       <Filter>Source\Engine\Windowing</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Engine\Helpers\PerformanceLogger.cpp">
-      <Filter>Source\Engine\Helpers</Filter>
-    </ClCompile>
     <ClCompile Include="Source\Game\States\PlayerStates.cpp">
       <Filter>Source\Game\States</Filter>
     </ClCompile>
@@ -574,9 +571,6 @@
     </ClInclude>
     <ClInclude Include="Source\Engine\Windowing\WindowSwarmRenderer.h">
       <Filter>Source\Engine\Windowing</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Engine\Helpers\PerformanceLogger.h">
-      <Filter>Source\Engine\Helpers</Filter>
     </ClInclude>
     <ClInclude Include="Source\Game\Entities\PlayerConstants.h">
       <Filter>Source\Game\Entities</Filter>

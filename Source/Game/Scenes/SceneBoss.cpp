@@ -3,7 +3,6 @@
 #include "System/Input.h"
 #include "WindowManager.h"
 #include "Framework.h"
-#include "PerformanceLogger.h"
 #include <algorithm>
 #ifdef NAVI_DEBUG_GUI
 #include <imgui.h>
@@ -28,8 +27,6 @@ using namespace DirectX;
 
 SceneBoss::SceneBoss()
 {
-    PerformanceLogger::Instance().Initialize();
-    PerformanceLogger::Instance().LogInfo("[INIT] SceneBoss constructor begin.");
 
     // Disable ImGui multi-viewport while in this scene (restored in destructor)
 #ifdef NAVI_DEBUG_GUI
@@ -132,7 +129,6 @@ SceneBoss::SceneBoss()
     m_uberParams.smoothness = FX_BASE_SMOOTHNESS;
 
     AddLog("SceneBoss initialized. Windowkill system online.");
-    PerformanceLogger::Instance().LogInfo("[INIT] SceneBoss constructor complete.");
 }
 
 SceneBoss::~SceneBoss()
@@ -146,8 +142,6 @@ SceneBoss::~SceneBoss()
 
 void SceneBoss::Shutdown()
 {
-    PerformanceLogger::Instance().LogInfo("[TEARDOWN] SceneBoss Shutdown initiated.");
-
     // CLEAR WINDOWS FIRST (CRITICAL)
     // Destroys sub-windows and unbinds callbacks before the objects they point to (Navi/Player) are deleted.
     if (m_windowSystem) {
@@ -180,8 +174,6 @@ void SceneBoss::Shutdown()
     m_enemyManager.reset();
     m_itemManager.reset();
     m_collisionManager.reset();
-
-    PerformanceLogger::Instance().Shutdown();
 }
 
 // =========================================================
@@ -285,7 +277,6 @@ void SceneBoss::InitializeSubWindows()
 
 void SceneBoss::Update(float elapsedTime)
 {
-    PerformanceLogger::Instance().StartTimer(PerfBucket::Logic);
     TimeManager::Instance().Update(elapsedTime);
 
     float activeTimeScale = m_timeScale * TimeManager::Instance().GetHitStopMultiplier();
@@ -581,13 +572,7 @@ void SceneBoss::Update(float elapsedTime)
         m_windowSystem->Update(elapsedTime);
     }
 
-    PerformanceLogger::Instance().StopTimer(PerfBucket::Logic);
     const int activeWins = m_windowSystem ? static_cast<int>(m_windowSystem->GetWindows().size()) : 0;
-#ifdef NAVI_DEBUG_GUI
-    PerformanceLogger::Instance().EndFrameCheck(ImGui::GetIO().Framerate, activeWins);
-#else
-    PerformanceLogger::Instance().EndFrameCheck(0.0f, activeWins);
-#endif
 
     DrawGUI();
 
@@ -850,7 +835,6 @@ void SceneBoss::StartPlayerDeathSequence()
 
 void SceneBoss::RenderScene(float elapsedTime, Camera* camera, bool isTransparentWindow)
 {
-    PerformanceLogger::Instance().StartTimer(PerfBucket::Render3D);
 
     if (!camera) return;
 
