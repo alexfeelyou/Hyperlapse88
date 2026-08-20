@@ -231,9 +231,6 @@
     <ClCompile Include="Source\Game\Scenes\Stage.cpp">
       <Filter>Source\Game\Scenes</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Engine\UI\CursorBlock.cpp">
-      <Filter>Source\Engine\UI</Filter>
-    </ClCompile>
     <ClCompile Include="Source\Engine\Windowing\BeyondWindow.cpp">
       <Filter>Source\Engine\Windowing</Filter>
     </ClCompile>
@@ -556,9 +553,6 @@
     </ClInclude>
     <ClInclude Include="Source\Game\Scenes\Stage.h">
       <Filter>Source\Game\Scenes</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Engine\UI\CursorBlock.h">
-      <Filter>Source\Engine\UI</Filter>
     </ClInclude>
     <ClInclude Include="Source\Engine\Windowing\BeyondWindow.h">
       <Filter>Source\Engine\Windowing</Filter>
