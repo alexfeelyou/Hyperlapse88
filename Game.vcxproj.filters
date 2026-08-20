@@ -177,9 +177,6 @@
     <ClCompile Include="Source\Engine\UI\UIImpactDisplay.cpp">
       <Filter>Source\Engine\UI</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Engine\UI\UIPanel.cpp">
-      <Filter>Source\Engine\UI</Filter>
-    </ClCompile>
     <ClCompile Include="Source\Game\Entities\Bullet.cpp">
       <Filter>Source\Game\Entities</Filter>
     </ClCompile>
@@ -466,15 +463,6 @@
     </ClInclude>
     <ClInclude Include="Source\Engine\Graphics\UberShader.h">
       <Filter>Source\Engine\Graphics</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Engine\UI\UIButton.h">
-      <Filter>Source\Engine\UI</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Engine\UI\UIButtonPrimitive.h">
-      <Filter>Source\Engine\UI</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Engine\UI\UIButtonSprite.h">
-      <Filter>Source\Engine\UI</Filter>
     </ClInclude>
     <ClInclude Include="Source\Engine\UI\UIComponents.h">
       <Filter>Source\Engine\UI</Filter>
