@@ -1,7 +1,6 @@
 #include "UberShader.h"
 #include "System/GpuResourceUtils.h" 
 #include "System/Misc.h"
-#include "JuiceEngine.h"
 #include <algorithm> 
 
 UberShader::UberShader(ID3D11Device* device)
@@ -34,7 +33,7 @@ void UberShader::Draw(ID3D11DeviceContext* dc, ID3D11ShaderResourceView* texture
 {
 
     UberData finalData = data;
-    float juiceKick = JuiceEngine::Instance().GetGlitchIntensity();
+	float juiceKick = 0.0f;
     finalData.glitchStrength += juiceKick;
 
     // --------------------------------------------------------

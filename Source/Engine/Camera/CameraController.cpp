@@ -4,7 +4,6 @@
 #include <imgui.h>
 #include <cmath>
 #include <algorithm>
-#include "JuiceEngine.h"
 
 using namespace DirectX;
 
@@ -150,8 +149,8 @@ void CameraController::Update(float elapsedTime)
     // =========================================================
     // POST-UPDATE MODIFIERS (Shake, Sway, Headbob, etc.)
     // =========================================================
-    XMFLOAT3 shakePos = JuiceEngine::Instance().GetShakePosOffset();
-    XMFLOAT3 shakeRot = JuiceEngine::Instance().GetShakeRotOffset();
+    XMFLOAT3 shakePos = { 0.0f, 0.0f, 0.0f };
+    XMFLOAT3 shakeRot = { 0.0f, 0.0f, 0.0f };
 
     // Apply Position
     XMFLOAT3 currentPos = camera->GetPosition();
