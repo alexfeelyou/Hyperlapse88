@@ -5,7 +5,6 @@ using namespace DirectX;
 
 Item::Item(ID3D11Device* device, const DirectX::XMFLOAT3& position, ItemType type)
 {
-    // Reuse Block model for memory optimization
     model = std::make_shared<Model>(device, "Data/Model/Character/PLACEHOLDER_mdl_Block.glb");
 
     m_type = type;
@@ -13,7 +12,6 @@ Item::Item(ID3D11Device* device, const DirectX::XMFLOAT3& position, ItemType typ
     originalY = position.y;
     animTime = 0.0f;
 
-    // Initialize color from type
     SetType(type);
 }
 

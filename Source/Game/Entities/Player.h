@@ -5,6 +5,20 @@
 #include "Character.h"
 #include "PlayerConstants.h"
 #include "Weapon.h"
+#include "System/CollisionManager.h"
+#include "System/Input.h"
+#include "System/Graphics.h"
+#include "AnimationController.h"
+#include "Camera.h"
+#include "Framework.h"
+#include "NaviAlly.h"
+#include "PlayerConstants.h"
+#include "PlayerStates.h"
+#include "StateMachine.h"
+#include <cmath>
+#include <imgui.h>
+#include "EffectManager.h"
+#include "System/AudioManager.h"
 #include <array>
 #include <deque>
 #include <memory>
@@ -37,7 +51,7 @@ public:
     enum class WeaponType {
         Crossbow = 0,
         Sword,
-        Count // Automatically tracks the number of weapons.
+        Count // Automatically tracks the number of weapons
     };
 
     struct DebugAnimState {
@@ -52,29 +66,29 @@ public:
 
     void Update(float elapsedTime, Camera* camera) override;
 
-    // --- Component accessors (raw pointers, no ownership transfer) ---
+    // Component accessors 
     StateMachine* GetStateMachine() const { return stateMachine.get(); }
     CharacterMovement* GetMovement()     const { return movement.get(); }
     AnimationController* GetAnimator()     const { return animator.get(); }
     std::shared_ptr<Model> GetModel()        const { return model; }
 
-    // --- Input & camera ---
+    // Input & camera 
     void SetInputEnabled(bool enable) { isInputEnabled = enable; }
-    [[nodiscard]] bool IsInputEnabled() const { return isInputEnabled; } // [TAMBAHKAN BARIS INI]
+    [[nodiscard]] bool IsInputEnabled() const { return isInputEnabled; } 
     void SetCamera(Camera* cam) { activeCamera = cam; }
 
-    // --- Position helpers ---
+    // Position helpers 
     void SetPosition(float x, float y, float z);
     void SetPosition(const DirectX::XMFLOAT3& pos);
 
-    // --- Movement config ---
+    // Movement config
     void ApplyConfig(const PlayerConfig& config) noexcept;
 
-    // --- Physics init (call once after scene PhysX setup) ---
+    // Physics init (call once after scene PhysX setup) 
     void InitPhysics(physx::PxControllerManager* manager, physx::PxMaterial* material,
         float spawnY = 15.0f);
 
-	// --- Weapon ---
+	// Weapon 
     void SetActiveWeapon(WeaponType type) { m_activeWeaponType = type; }
     [[nodiscard]] WeaponType GetActiveWeaponType() const { return m_activeWeaponType; }
 
@@ -84,15 +98,15 @@ public:
     // Returns the weapon currently being held (used by Render)
     [[nodiscard]] Weapon* GetActiveWeapon() const { return m_weapons[static_cast<size_t>(m_activeWeaponType)].get(); }
 
-    float GetRadius() const { return 2.0f; } // ※ 2.0f は仮のサイズです。必要に応じて調整してください
+    float GetRadius() const { return 2.0f; } 
 
     void RenderWeapon(ModelRenderer* renderer);
 
-    // --- Aim ---
+    // Aim 
     void RotateModelToPoint(const DirectX::XMFLOAT3& targetPos);
     [[nodiscard]] const DirectX::XMFLOAT3& GetAimTarget() const { return m_aimTarget; }
 
-    // --- Projectiles ---
+    // Projectiles
     void FireProjectile();
     void RenderProjectiles(ModelRenderer* renderer);
     void ResetPlayerBulletOffsets() {
@@ -105,7 +119,7 @@ public:
         m_shootDelay = newDelay;
     }
     void RestoreShootDelay() {
-        m_shootDelay = PlayerConst::ShootDuration; // Otomatis baca dari konstanta aslimu
+        m_shootDelay = PlayerConst::ShootDuration; 
     }
     float GetShootDelay() const {
         return m_shootDelay;
@@ -118,10 +132,9 @@ public:
     DirectX::XMFLOAT4* GetPlayerBulletColor() { return &m_playerbulletColor; }
     std::deque<std::unique_ptr<Bullet>>& GetProjectiles() { return m_projectiles; }
 
-    // --- Debug ---
+    // Debug
     void DrawDebugGUI();
 
-    // Returns true when player has meaningful smoothed input
     bool IsMoving() const
     {
         return (std::abs(currentSmoothInput.x) > 0.01f ||
@@ -129,34 +142,31 @@ public:
     }
     [[nodiscard]] bool IsBackpedaling() const { return m_isBackpedaling; }
 
-    // Visual tint (used by states for hit flash, etc.)
+    // Visual tint (used by states for hit flash, etc)
     DirectX::XMFLOAT4 color = { 1.0f, 1.0f, 1.0f, 1.0f };
 
-    // --- Read accessors for state machine ---
+    // Read accessors for state machine 
     float GetBaseSpeed()    const { return baseSpeed; }
     float GetDashSpeed()    const { return dashSpeed; }
     float GetDashDuration() const { return dashDuration; }
-    float GetDashCooldown() const { return dashCooldown; } // [BARU] Tambahkan baris ini!
+    float GetDashCooldown() const { return dashCooldown; } 
     DirectX::XMFLOAT2 GetLastValidInput() const { return lastValidInput; }
 
-
-    // Written by PlayerDash state
     bool  canDash = true;
     float dashCooldownTimer = 0.0f;
 
-	// --- Health ---
+	// Health 
     void TakeDamage(float damage);
-    void SetMaxHP(float maxHp) { m_maxHp = maxHp; m_hp = maxHp; } // [DIUBAH] Set batas maksimal & isi penuh
+    void SetMaxHP(float maxHp) { m_maxHp = maxHp; m_hp = maxHp; } 
     void Heal(float amount);
     void Heal(int amount);
-    [[nodiscard]] float GetHP() const { return m_hp; }      // [DIUBAH]
-    [[nodiscard]] float GetMaxHP() const { return m_maxHp; } // [BARU]
+    [[nodiscard]] float GetHP() const { return m_hp; }      
+    [[nodiscard]] float GetMaxHP() const { return m_maxHp; }
 
-	// --- Invincibility (used by PlayerDash and PlayerHit states) ---
+	// Invincibility (used by PlayerDash and PlayerHit states) 
     void TriggerInvincibility(float duration) { m_invincibilityTimer = duration; }
     [[nodiscard]] bool IsInvincible() const { return m_invincibilityTimer > 0.0f; }
 
-    // ---> 追加：パリィとエイムロック用のセッター <---
     void SetLastValidInput(DirectX::XMFLOAT2 dir) { lastValidInput = dir; }
     void SetAimLocked(bool locked) { m_aimLocked = locked; }
     void ForceAimTarget(const DirectX::XMFLOAT3& target) { m_aimTarget = target; }
@@ -164,18 +174,18 @@ public:
     void SetCollisionManager(CollisionManager* colMgr) { m_collisionManager = colMgr; }
     CollisionManager* GetCollisionManager() const { return m_collisionManager; }
 
-	// --- Cape Simulator (optional, only used if player model has a cape) ---
+	// Cape Simulator (optional, only used if player model has a cape) 
     CapeSimulator* GetCapeSimulator() const { return m_capeSimulator.get(); }
 
     void ReleasePowerCap();
     void RestorePowerCap();
     bool IsPowerUncapped() const { return m_isPowerUncapped; }
 
-	// --- Glitch Effect ---
+	// Glitch Effect 
     [[nodiscard]] float GetDamageGlitchIntensity() const noexcept;
 
 private:
-    // --- Update pipeline (called in order from Update()) ---
+    // Update pipeline 
     void UpdateDashCooldown(float dt);
     void HandleMovementInput(float dt);
     void HandleAimInput(Camera* camera);
@@ -186,17 +196,17 @@ private:
     void ApplyWorldMatrix(float smoothedYaw, bool shouldAim, float relativeAngle);
     void UpdateProjectiles(float dt, Camera* camera);
 
-    // --- Owned components ---
+    // Owned components 
     std::unique_ptr<StateMachine>        stateMachine;
     std::unique_ptr<AnimationController> animator;
 
-    // --- PhysX controller (lifecycle managed by PhysX, released manually in destructor) ---
+    // PhysX controller (lifecycle managed by PhysX, released manually in destructor) 
     physx::PxController* m_physxController = nullptr;
 
-    // --- Camera ---
+    // Camera 
     Camera* activeCamera = nullptr;
 
-    // --- Input state ---
+    // Input state 
     bool isInputEnabled = true;
     bool invertControls = false;
     bool m_isBackpedaling = false;
@@ -204,36 +214,35 @@ private:
     DirectX::XMFLOAT2 currentSmoothInput = { 0.0f, 0.0f };
     DirectX::XMFLOAT2 lastValidInput = { 0.0f, 1.0f };
 
-    // --- Movement params (runtime-tunable, initialized from PlayerConst) ---
+    // Movement params 
     float moveSpeed = PlayerConst::MoveSpeed;
     float acceleration = PlayerConst::Acceleration;
     float deceleration = PlayerConst::Deceleration;
 
-    // --- Dash params ---
+    // Dash params 
     float baseSpeed = 10.0f;
     float dashSpeed = PlayerConst::DashSpeed;
     float dashDuration = PlayerConst::DashDuration;
     float dashCooldown = PlayerConst::DashCooldown;
 
-    // --- Health ---
-    float m_hp = 30.0f;      // [DIUBAH]
-    float m_maxHp = 30.0f;   // [BARU] Menyimpan kapasitas asli
+    // Health 
+    float m_hp = 30.0f;      
+    float m_maxHp = 30.0f;   
 
-	// --- Invincibility timer (counts down when active, prevents damage) ---
+	// Invincibility timer (counts down when active, prevents damage) 
     float m_invincibilityTimer = 0.0f;
 
-	// --- Weapon ---
+	// Weapon 
     std::array<std::unique_ptr<Weapon>, static_cast<size_t>(WeaponType::Count)> m_weapons{};
     WeaponType m_activeWeaponType{ WeaponType::Crossbow };
     int m_rightHandBoneIndex{ -1 }; // -1 indicates "Not Found Yet"
 
-    // --- Aim target (set by RotateModelToPoint) ---
+    // Aim target (set by RotateModelToPoint) 
     DirectX::XMFLOAT3 m_aimTarget = { 0.0f, 0.0f, 0.0f };
 
-    // ---> 追加：エイムロック用のフラグ <---
     bool m_aimLocked = false;
 
-    // --- Projectile pool ---
+    // Projectile pool 
     std::shared_ptr<Model> m_playerbulletModel{};
     DirectX::XMFLOAT3 m_playerbulletOffsetPos{ 0.000f, 0.460f, -0.950f };
     DirectX::XMFLOAT3 m_playerbulletOffsetRot{ 0.000f, 0.000f, 0.000f };
@@ -244,17 +253,14 @@ private:
 
     float m_shootDelay = PlayerConst::ShootDuration;
 
-    // [BARU] Tambahkan ini untuk menyimpan damage peluru player
     int m_bulletDamage = 5;
-
-    // [BARU] Tambahkan ini agar kecepatan peluru bisa diatur via GUI
 
     CollisionManager* m_collisionManager = nullptr;
 
-	// --- Cape Simulator (optional) ---
+	// Cape Simulator (optional) 
     std::unique_ptr<CapeSimulator> m_capeSimulator{};
 
-	// --- Debug Animation ---
+	// Debug Animation 
     DebugAnimState m_debugState{};
 
     bool m_isPowerUncapped = false;
@@ -262,7 +268,7 @@ private:
     float m_uncapMoveSpeed = 30.0f;
     float m_uncapDashSpeed = 80.0f;
     float m_uncapHealthRegenPerSecond = 3.0f;
-    float m_uncapMaxRegenHP = 50.0f; // [DIUBAH] Jadi float agar sejajar dengan m_hp
+    float m_uncapMaxRegenHP = 50.0f; 
     float m_uncapRegenAccumulator = 0.0f;
     DirectX::XMFLOAT4 m_uncapColor = { 1.5f, 1.5f, 1.5f, 1.0f };
 
@@ -273,11 +279,9 @@ private:
     bool m_enableIFrames = false;
     float m_iFrameDuration = 1.0f;
 
-    // [BARU] Handle & Offset untuk efek Dash
     int m_dashReadyVfxHandle = -1;
     float m_dashReadyOffsetY = 0.0f;
 
-    // [BARU] Timer untuk efek standby berulang
     int m_dashStandbyVfxHandle = -1;
 
     int m_overdriveVfxHandle = -1;
@@ -286,7 +290,7 @@ private:
     void StopAllVFX();
 
 
-	// --- Glitch Effect ---
+	// Glitch Effect 
     float m_damageGlitchTimer{ 0.0f };
     static constexpr float DAMAGE_GLITCH_DURATION{ 0.4f };
     static constexpr float DAMAGE_GLITCH_MAX_INTENSITY{ 0.120f };

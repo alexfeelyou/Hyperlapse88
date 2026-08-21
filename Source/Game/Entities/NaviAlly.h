@@ -7,7 +7,6 @@
 #include <memory>
 #include <deque>
 
-// Forward Declarations for fast compilation
 class Player;
 class EnemyManager;
 class Enemy;
@@ -96,9 +95,6 @@ private:
 
     std::unique_ptr<AnimationController> m_animator{ nullptr };
 
-    // ====================================================
-    // COMPILE-TIME CONSTANTS (Zero Memory Cost)
-    // ====================================================
     static constexpr float FLOAT_SPEED{ 2.0f };
     static constexpr float FLOAT_AMP{ 0.25f };
     static constexpr float FOLLOW_SPEED{ 15.0f };

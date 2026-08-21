@@ -1,25 +1,25 @@
 #pragma once
 #include <DirectXMath.h>
 
-// Pure data container for character transform state.
-// Physics simulation is handled externally by PhysX.
+// Pure data container for character transform state
+// Physics simulation is handled externally by PhysX
 class CharacterMovement
 {
 public:
     CharacterMovement() = default;
     ~CharacterMovement() = default;
 
-    // --- Position ---
+    // Position
     const DirectX::XMFLOAT3& GetPosition() const { return position; }
     void SetPosition(const DirectX::XMFLOAT3& pos) { position = pos; }
 
-    // --- Rotation ---
+    // Rotation 
     const DirectX::XMFLOAT3& GetRotation() const { return rotation; }
     void SetRotation(const DirectX::XMFLOAT3& rot) { rotation = rot; }
     float GetRotationY() const { return rotation.y; }
     void  SetRotationY(float rad) { rotation.y = rad; }
 
-    // --- Velocity ---
+    // Velocity 
     const DirectX::XMFLOAT3& GetVelocity() const { return velocity; }
     void SetVelocity(const DirectX::XMFLOAT3& vel) { velocity = vel; }
     void SetVelocityX(float x) { velocity.x = x; }
