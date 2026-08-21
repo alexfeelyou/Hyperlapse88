@@ -2,10 +2,6 @@
 
 using namespace DirectX;
 
-// ============================================================
-// LIFECYCLE
-// ============================================================
-
 Player::Player()
     : stateMachine(std::make_unique<StateMachine>())
     , animator(std::make_unique<AnimationController>())
@@ -87,10 +83,6 @@ Player::~Player()
     if (m_dashStandbyVfxHandle != -1) {
         EffectManager::Instance().Stop(m_dashStandbyVfxHandle);
     }
-
-    if (m_overdriveVfxHandle != -1) {
-        EffectManager::Instance().Stop(m_overdriveVfxHandle);
-    }
 }
 
 void Player::InitPhysics(physx::PxControllerManager* manager, physx::PxMaterial* material, float spawnY)
@@ -122,18 +114,6 @@ void Player::Update(float elapsedTime, Camera* camera)
     if (m_invincibilityTimer > 0.0f)
     {
         m_invincibilityTimer -= elapsedTime;
-    }
-
-    if (m_isPowerUncapped && m_hp > 0 && m_hp < m_uncapMaxRegenHP) {
-        m_uncapRegenAccumulator += m_uncapHealthRegenPerSecond * elapsedTime;
-        int healAmount = static_cast<int>(m_uncapRegenAccumulator);
-        if (healAmount > 0) {
-            Heal(healAmount);
-            m_uncapRegenAccumulator -= static_cast<float>(healAmount);
-        }
-    }
-    else {
-        m_uncapRegenAccumulator = 0.0f;
     }
 
     UpdateDashCooldown(elapsedTime);
@@ -232,59 +212,6 @@ void Player::Update(float elapsedTime, Camera* camera)
         DirectX::XMFLOAT3 vfxPos = movement->GetPosition();
         vfxPos.y += m_dashReadyOffsetY;
         EffectManager::Instance().SetPosition(m_dashReadyVfxHandle, vfxPos);
-    }
-
-    if (IsPowerUncapped())
-    {
-        if (m_dashStandbyVfxHandle != -1) {
-            EffectManager::Instance().Stop(m_dashStandbyVfxHandle);
-            m_dashStandbyVfxHandle = -1;
-        }
-
-        if (m_overdriveVfxHandle == -1 || !EffectManager::Instance().IsPlaying(m_overdriveVfxHandle))
-        {
-            DirectX::XMFLOAT3 vfxPos = movement->GetPosition();
-            vfxPos.y += m_dashReadyOffsetY;
-            m_overdriveVfxHandle = EffectManager::Instance().Play("Data/Effect/VFX_Player_Overdrive.efk", vfxPos, 1.0f);
-        }
-
-        if (m_overdriveVfxHandle != -1 && EffectManager::Instance().IsPlaying(m_overdriveVfxHandle))
-        {
-            DirectX::XMFLOAT3 trackPos = movement->GetPosition();
-            trackPos.y += m_dashReadyOffsetY;
-            EffectManager::Instance().SetPosition(m_overdriveVfxHandle, trackPos);
-        }
-    }
-    else
-    {
-        if (m_overdriveVfxHandle != -1) {
-            EffectManager::Instance().Stop(m_overdriveVfxHandle);
-            m_overdriveVfxHandle = -1;
-        }
-
-        if (canDash)
-        {
-            if (m_dashStandbyVfxHandle == -1 || !EffectManager::Instance().IsPlaying(m_dashStandbyVfxHandle))
-            {
-                DirectX::XMFLOAT3 vfxPos = movement->GetPosition();
-                vfxPos.y += m_dashReadyOffsetY;
-                m_dashStandbyVfxHandle = EffectManager::Instance().Play("Data/Effect/VFX_Player_Dash_Standby.efk", vfxPos, 0.7f);
-            }
-
-            if (m_dashStandbyVfxHandle != -1 && EffectManager::Instance().IsPlaying(m_dashStandbyVfxHandle))
-            {
-                DirectX::XMFLOAT3 trackPos = movement->GetPosition();
-                trackPos.y += m_dashReadyOffsetY;
-                EffectManager::Instance().SetPosition(m_dashStandbyVfxHandle, trackPos);
-            }
-        }
-        else
-        {
-            if (m_dashStandbyVfxHandle != -1) {
-                EffectManager::Instance().Stop(m_dashStandbyVfxHandle);
-                m_dashStandbyVfxHandle = -1;
-            }
-        }
     }
 }
 
@@ -803,11 +730,6 @@ void Player::StopAllVFX()
         EffectManager::Instance().Stop(m_dashStandbyVfxHandle);
         m_dashStandbyVfxHandle = -1;
     }
-    // Clear Overdrive Effect
-    if (m_overdriveVfxHandle != -1) {
-        EffectManager::Instance().Stop(m_overdriveVfxHandle);
-        m_overdriveVfxHandle = -1;
-    }
 }
 
 // ============================================================
@@ -877,33 +799,6 @@ void Player::SetPosition(const DirectX::XMFLOAT3& pos)
     }
 }
 
-void Player::ReleasePowerCap()
-{
-    if (m_isPowerUncapped) return;
-    m_isPowerUncapped = true;
-    m_uncapRegenAccumulator = 0.0f;
-
-    m_normalMoveSpeed = moveSpeed;
-    m_normalDashSpeed = dashSpeed;
-    m_normalColor = color;
-
-    moveSpeed = m_uncapMoveSpeed;
-    dashSpeed = m_uncapDashSpeed;
-    color = m_uncapColor;
-}
-
-void Player::RestorePowerCap()
-{
-    if (!m_isPowerUncapped) return;
-    m_isPowerUncapped = false;
-    m_uncapRegenAccumulator = 0.0f;
-
-    moveSpeed = m_normalMoveSpeed;
-    dashSpeed = m_normalDashSpeed;
-    color = m_normalColor;
-}
-
-
 void Player::DrawDebugGUI()
 {
     if (ImGui::CollapsingHeader("Movement & Physics", ImGuiTreeNodeFlags_DefaultOpen))
@@ -938,26 +833,6 @@ void Player::DrawDebugGUI()
             ImGui::Unindent();
         }
         ImGui::Separator();
-
-        // Toggle Uncap (Overdrive) 
-        bool powerUncapped = IsPowerUncapped();
-        if (ImGui::Checkbox("Uncap Power (Overdrive)", &powerUncapped)) {
-            if (powerUncapped) ReleasePowerCap();
-            else RestorePowerCap();
-        }
-
-        if (powerUncapped) {
-            ImGui::Indent();
-            ImGui::TextColored(ImVec4(1.0f, 0.5f, 0.0f, 1.0f), ">> Uncap Tuning <<");
-
-            if (ImGui::DragFloat("Uncap Walk Speed", &m_uncapMoveSpeed, 0.1f, 10.0f, 100.0f, "%.1f")) moveSpeed = m_uncapMoveSpeed;
-            if (ImGui::DragFloat("Uncap Dash Speed", &m_uncapDashSpeed, 0.5f, 10.0f, 200.0f, "%.1f")) dashSpeed = m_uncapDashSpeed;
-            ImGui::DragFloat("Uncap HP Regen / Sec", &m_uncapHealthRegenPerSecond, 0.1f, 0.0f, 100.0f, "%.1f");
-            ImGui::DragFloat("Uncap Regen Max HP", &m_uncapMaxRegenHP, 1.0f, 1.0f, 9999.0f);
-            if (ImGui::ColorEdit4("Uncap Glow Color", (float*)&m_uncapColor)) color = m_uncapColor;
-
-            ImGui::Unindent();
-        }
 
         ImGui::Separator();
         ImGui::Separator();

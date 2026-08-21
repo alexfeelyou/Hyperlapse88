@@ -108,7 +108,7 @@ void PlayerIdle::Update(Player* player, float dt)
     if (!player->IsInputEnabled()) return;
 
     // Dash Priority 
-    if (IsDashInputTriggered() && (player->canDash || player->IsPowerUncapped()))
+    if (IsDashInputTriggered() && player->canDash)
     {
         player->GetStateMachine()->ChangeState(player, std::make_unique<PlayerDash>());
         return;
@@ -138,7 +138,7 @@ void PlayerMoving::Update(Player* player, float dt)
     if (player->IsInputEnabled())
     {
         // Dash Priority
-        if (IsDashInputTriggered() && (player->canDash || player->IsPowerUncapped()))
+        if (IsDashInputTriggered() && player->canDash)
         {
             player->GetStateMachine()->ChangeState(player, std::make_unique<PlayerDash>());
             return;
@@ -297,7 +297,7 @@ void PlayerShoot::Enter(Player* player)
 void PlayerShoot::Update(Player* player, float dt)
 {
     // Dash Lockout Prevention
-    if (IsDashInputTriggered() && (player->canDash || player->IsPowerUncapped()))
+    if (IsDashInputTriggered() && player->canDash)
     {
         player->GetStateMachine()->ChangeState(player, std::make_unique<PlayerDash>());
         return;
@@ -362,27 +362,16 @@ void PlayerShoot::PerformShootInternal(Player* player, bool isHeld)
 
     const float baseDelay{ player->GetShootDelay() };
 
-	// Overdrive Mode: Bypass all penalties and allow rapid-fire shooting
-    if (player->IsPowerUncapped())
+    m_minTapCooldown = baseDelay;
+
+    if (isHeld)
     {
-        // Absolute Priority: Overdrive bypasses all penalties
-        m_minTapCooldown = 0.05f;
-        m_timer = 0.05f;
+        constexpr float HOLD_PENALTY_MULTIPLIER{ 1.5f };
+        m_timer = baseDelay * HOLD_PENALTY_MULTIPLIER;
     }
     else
     {
-        // Always store the strict minimum delay to prevent spam exploits
-        m_minTapCooldown = baseDelay; 
-
-        if (isHeld)
-        {
-            constexpr float HOLD_PENALTY_MULTIPLIER{ 1.5f };
-            m_timer = baseDelay * HOLD_PENALTY_MULTIPLIER;
-        }
-        else
-        {
-            m_timer = baseDelay;
-        }
+        m_timer = baseDelay;
     }
 }
 

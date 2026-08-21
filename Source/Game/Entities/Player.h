@@ -177,10 +177,6 @@ public:
 	// Cape Simulator (optional, only used if player model has a cape) 
     CapeSimulator* GetCapeSimulator() const { return m_capeSimulator.get(); }
 
-    void ReleasePowerCap();
-    void RestorePowerCap();
-    bool IsPowerUncapped() const { return m_isPowerUncapped; }
-
 	// Glitch Effect 
     [[nodiscard]] float GetDamageGlitchIntensity() const noexcept;
 
@@ -263,19 +259,6 @@ private:
 	// Debug Animation 
     DebugAnimState m_debugState{};
 
-    bool m_isPowerUncapped = false;
-
-    float m_uncapMoveSpeed = 30.0f;
-    float m_uncapDashSpeed = 80.0f;
-    float m_uncapHealthRegenPerSecond = 3.0f;
-    float m_uncapMaxRegenHP = 50.0f; 
-    float m_uncapRegenAccumulator = 0.0f;
-    DirectX::XMFLOAT4 m_uncapColor = { 1.5f, 1.5f, 1.5f, 1.0f };
-
-    float m_normalMoveSpeed = PlayerConst::MoveSpeed;
-    float m_normalDashSpeed = PlayerConst::DashSpeed;
-    DirectX::XMFLOAT4 m_normalColor = { 1.0f, 1.0f, 1.0f, 1.0f };
-
     bool m_enableIFrames = false;
     float m_iFrameDuration = 1.0f;
 
@@ -283,8 +266,6 @@ private:
     float m_dashReadyOffsetY = 0.0f;
 
     int m_dashStandbyVfxHandle = -1;
-
-    int m_overdriveVfxHandle = -1;
 
 	// Stop effect
     void StopAllVFX();
