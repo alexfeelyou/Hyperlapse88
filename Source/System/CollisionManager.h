@@ -19,7 +19,6 @@
 
 class ItemManager;
 class NaviAlly;
-class Boss;
 
 // Axis-Aligned Bounding Box for rapid broad-phase rejection
 struct AABB
@@ -42,7 +41,6 @@ public:
     CollisionManager() = default;
     ~CollisionManager() = default;
 
-    // OVERLOAD 1: Untuk SceneGameBreaker (Tidak butuh Boss)
     void Initialize(Player* p, Stage* s, EnemyManager* em, ItemManager* im);
 
     void Update(float elapsedTime);
@@ -53,11 +51,8 @@ public:
     void SetOnEnableLineReachCallback(std::function<void(int)> callback) { m_onEnableLineReachCallback = callback; }
     [[nodiscard]] float GetEnemyPushRadius(const Enemy* enemy) const;
     [[nodiscard]] Enemy* GetTargetInSlashCone(const DirectX::XMFLOAT3& playerPos, const DirectX::XMFLOAT3& aimDir, float reach, float minDotProduct) const;
-    bool GetParryableProjectile(const DirectX::XMFLOAT3& playerPos, float threshold, class Bullet** outBullet, Enemy** outNearestEnemy);
     void SetNavi(NaviAlly* navi) { m_navi = navi; }
     NaviAlly* GetNavi() const { return m_navi; }
-    void SetBoss(Boss* Boss) { m_Boss = Boss; }
-    Boss* GetBoss() const { return m_Boss; }
 
 private:
     void CheckPlayerVsCheckpointLines();
@@ -71,8 +66,6 @@ private:
     void CheckEnemyProjectilesFull(float elapsedTime);
     void CheckNaviProjectilesVsEnemies(float elapsedTime);
     void CheckNaviAllyProjectilesVsPlayer(float elapsedTime);
-    void CheckBossProjectilesVsPlayer(float elapsedTime);
-    void CheckBossProjectilesVsBoss(float elapsedTime); // Fungsi pantulan
 
     Player* m_player = nullptr;
     Stage* m_stage = nullptr;
@@ -80,7 +73,6 @@ private:
     EnemyManager* m_enemyManager = nullptr;
     ItemManager* m_itemManager = nullptr;
     NaviAlly* m_navi = nullptr;
-    Boss* m_Boss = nullptr;
 
     std::function<void(DirectX::XMFLOAT3)> m_onCheckpointReachCallback;
     std::function<void(int)> m_onEnableLineReachCallback = nullptr;

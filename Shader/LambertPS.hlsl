@@ -7,7 +7,7 @@ cbuffer CbMesh : register(b0)
 };
 
 // === TAMBAHAN BARU ===
-// Buffer Object (Slot 2) - Warna Merah/Biru dari Kode Boss.cpp
+// Buffer Object (Slot 2) 
 cbuffer CbObject : register(b2)
 {
     float4 objectColor; // Warna strobing

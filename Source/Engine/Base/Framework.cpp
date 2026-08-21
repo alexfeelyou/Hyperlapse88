@@ -24,8 +24,6 @@ Framework::Framework()
 
     if (!AudioManager::Instance().Initialize()) {  }
 
-    AttackParamManager::Instance().Load("AttackParams.json");
-
     auto mainWin = WindowManager::Instance().CreateGameWindow("Main Window (close here)", 1600, 900);
     mainWin->SetPriority(0);
     mainWin->SetDraggable(false);
@@ -46,11 +44,7 @@ Framework::Framework()
     s_OriginalWndProc = (WNDPROC)SetWindowLongPtr(hwnd, GWLP_WNDPROC, (LONG_PTR)ImGuiHookWndProc);
 
     // Init Scene
-#if 1
     scene = std::make_unique<SceneTitle>();
-#else
-    scene = std::make_unique<SceneBoss>();
-#endif
 }
 
 Framework::~Framework()
@@ -86,16 +80,9 @@ void Framework::Update(float elapsedTime)
     Input::Instance().Update();
     AudioManager::Instance().Update(elapsedTime);
 
-    ImGuiRenderer::NewFrame(); // Now safe
+    ImGuiRenderer::NewFrame(); 
 
     if (scene) scene->Update(elapsedTime);
-
-    if (auto* boss = dynamic_cast<SceneBoss*>(scene.get())) {
-        if (boss->IsPendingSceneChange()) {
-            ChangeScene(std::make_unique<SceneTitle>());
-            return;
-        }
-    }
 }
 
 void Framework::ForceUpdateRender()
@@ -155,8 +142,4 @@ LRESULT CALLBACK Framework::HandleMessage(HWND hWnd, UINT msg, WPARAM wParam, LP
 }
 void Framework::OnSubWindowClosed(Uint32 sdlWindowID)
 {
-    SceneBoss* boss = dynamic_cast<SceneBoss*>(scene.get());
-    if (boss) {
-        boss->CloseSubWindowBySDLID(sdlWindowID);
-    }
 }

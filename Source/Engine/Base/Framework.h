@@ -12,13 +12,11 @@
 #include "SceneTitle.h"
 #include "SceneIntro.h"
 #include "SceneGame.h"
-#include "SceneBoss.h"
 #include <memory>
 #include <sstream>
 #include <iostream> 
 #include <imgui.h>
 #include <SDL3/SDL.h>
-#include "AttackParamManager.h"
 
 class Framework
 {

@@ -195,9 +195,6 @@
     <ClCompile Include="Source\Game\Entities\Player.cpp">
       <Filter>Source\Game\Entities</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Game\Scenes\SceneBoss.cpp">
-      <Filter>Source\Game\Scenes</Filter>
-    </ClCompile>
     <ClCompile Include="Source\Game\Scenes\SceneGame.cpp">
       <Filter>Source\Game\Scenes</Filter>
     </ClCompile>
@@ -242,57 +239,6 @@
     </ClCompile>
     <ClCompile Include="Source\Engine\Graphics\FontTTF.cpp">
       <Filter>Source\Engine\Graphics</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackBouncing.cpp">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns\PhaseTwo</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackBlasters.cpp">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns\PhaseTwo</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackBoomerangs.cpp">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns\PhaseTwo</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackSpears.cpp">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns\PhaseTwo</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackRadial.cpp">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns\PhaseOne</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackFan.cpp">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns\PhaseOne</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackPhalanx.cpp">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns\PhaseOne</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackRain.cpp">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns\PhaseOne</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackUltimate.cpp">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns\PhaseOne</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Game\Entities\Boss\BossAI.cpp">
-      <Filter>Source\Game\Entities\Boss</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Game\Entities\Boss\Phases\BossPhase01.cpp">
-      <Filter>Source\Game\Entities\Boss\Phases</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Game\Entities\Boss\Phases\BossPhase02.cpp">
-      <Filter>Source\Game\Entities\Boss\Phases</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Game\Entities\Boss\Boss.cpp">
-      <Filter>Source\Game\Entities\Boss</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackParamManager.cpp">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackWave.cpp">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns\PhaseOne</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackMeteor.cpp">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns\PhaseOne</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackDirect.cpp">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns\PhaseOne</Filter>
     </ClCompile>
     <ClCompile Include="Source\Engine\UI\UIPause.cpp">
       <Filter>Source\Engine\UI</Filter>
@@ -488,9 +434,6 @@
     <ClInclude Include="Source\Game\Scenes\Scene.h">
       <Filter>Source\Game\Scenes</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Game\Scenes\SceneBoss.h">
-      <Filter>Source\Game\Scenes</Filter>
-    </ClInclude>
     <ClInclude Include="Source\Game\Scenes\SceneGame.h">
       <Filter>Source\Game\Scenes</Filter>
     </ClInclude>
@@ -542,66 +485,6 @@
     </ClInclude>
     <ClInclude Include="Source\Engine\UI\UIDialogueBox.h">
       <Filter>Source\Engine\UI</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackBouncing.h">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns\PhaseTwo</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackBlasters.h">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns\PhaseTwo</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackBoomerangs.h">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns\PhaseTwo</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackSpears.h">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns\PhaseTwo</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\IBossAttackPattern.h">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\IPooledAttackPattern.h">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackRadial.h">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns\PhaseOne</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackFan.h">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns\PhaseOne</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackPhalanx.h">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns\PhaseOne</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackRain.h">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns\PhaseOne</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackUltimate.h">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns\PhaseOne</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Game\Entities\Boss\BossAI.h">
-      <Filter>Source\Game\Entities\Boss</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Game\Entities\Boss\Phases\BossPhase01.h">
-      <Filter>Source\Game\Entities\Boss\Phases</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Game\Entities\Boss\Phases\BossPhase02.h">
-      <Filter>Source\Game\Entities\Boss\Phases</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Game\Entities\Boss\Phases\INaviPhase.h">
-      <Filter>Source\Game\Entities\Boss\Phases</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Game\Entities\Boss\Boss.h">
-      <Filter>Source\Game\Entities\Boss</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackParamManager.h">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackWave.h">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns\PhaseOne</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackMeteor.h">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns\PhaseOne</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackDirect.h">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns\PhaseOne</Filter>
     </ClInclude>
     <ClInclude Include="Source\Engine\UI\UIPause.h">
       <Filter>Source\Engine\UI</Filter>
@@ -655,9 +538,6 @@
     </None>
     <None Include="Shader\Sprite.hlsli">
       <Filter>Shader</Filter>
-    </None>
-    <None Include="AttackParams.json">
-      <Filter>Source\Game\Entities\Boss\AttackPatterns</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
@@ -714,21 +594,6 @@
     </Filter>
     <Filter Include="Source\Engine\Helpers">
       <UniqueIdentifier>{237542ae-86b6-4087-9fef-77b83e15a8bb}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\Game\Entities\Boss">
-      <UniqueIdentifier>{22d2d85d-c52c-4919-8a03-5f3dd1d21bbd}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\Game\Entities\Boss\AttackPatterns">
-      <UniqueIdentifier>{428551a9-7847-4a26-b953-786f95b4683b}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\Game\Entities\Boss\AttackPatterns\PhaseTwo">
-      <UniqueIdentifier>{ea1e1ec4-c723-44c2-8b27-44cf3722e3e4}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\Game\Entities\Boss\AttackPatterns\PhaseOne">
-      <UniqueIdentifier>{6df6d28f-0b13-4162-b2e2-e8f272a2fd26}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\Game\Entities\Boss\Phases">
-      <UniqueIdentifier>{8b3db33b-7d37-4885-b836-a31cffc5e5ef}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source\Engine\Camera">
       <UniqueIdentifier>{0efc3f2a-f405-408d-b99c-a892ac1d78e4}</UniqueIdentifier>

@@ -71,8 +71,6 @@ public:
     void ApplyConfig(const PlayerConfig& config) noexcept;
 
     // --- Physics init (call once after scene PhysX setup) ---
-    // spawnY: initial capsule Y position. SceneGame uses 15.0 (falls to ground).
-    //         SceneBoss uses CapsuleHalfHeight (gravity off, no ground plane).
     void InitPhysics(physx::PxControllerManager* manager, physx::PxMaterial* material,
         float spawnY = 15.0f);
 
@@ -202,7 +200,7 @@ private:
     bool isInputEnabled = true;
     bool invertControls = false;
     bool m_isBackpedaling = false;
-    bool gravityEnabled = true;   // Set false for top-down scenes (e.g. SceneBoss)
+    bool gravityEnabled = true;   
     DirectX::XMFLOAT2 currentSmoothInput = { 0.0f, 0.0f };
     DirectX::XMFLOAT2 lastValidInput = { 0.0f, 1.0f };
 

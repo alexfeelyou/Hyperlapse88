@@ -15,6 +15,7 @@
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>Game</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>Hyperlapse88</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
@@ -60,7 +61,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>.\Source;.\Source\Engine\Base;.\Source\Engine\Camera;.\Source\Engine\Windowing;.\Source\Engine\Graphics;.\Source\Engine\UI;.\Source\Engine\VFX;.\Source\Game\Entities\Boss\Phases;.\Source\Game\Entities\Boss\AttackPatterns;.\Source\Game\Entities\Boss;.\Source\Game\Entities;.\Source\Game\States;.\Source\Game\Scenes;.\Source\Engine\Common;.\Source\Engine\Helpers;.\Source\Engine\Legacy;.\External\SDL3-3.4.0\include;.\External\imgui-docking;.\External\ImGuizmo;.\External\cereal\include;.\External\tinygltf;.\External\SphereCast\Include;.\External\DirectXTex;.\External\PhysX\physx\include;.\External\Effekseer170e\include\Effekseer;.\External\json;.\External\Effekseer170e\include\EffekseerRendererDX11;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\Source;.\Source\Engine\Base;.\Source\Engine\Camera;.\Source\Engine\Windowing;.\Source\Engine\Graphics;.\Source\Engine\UI;.\Source\Engine\VFX;.\Source\Game\Entities;.\Source\Game\States;.\Source\Game\Scenes;.\Source\Engine\Helpers;.\Source\Engine\Legacy;.\External\SDL3-3.4.0\include;.\External\imgui-docking;.\External\ImGuizmo;.\External\cereal\include;.\External\tinygltf;.\External\SphereCast\Include;.\External\DirectXTex;.\External\PhysX\physx\include;.\External\Effekseer170e\include\Effekseer;.\External\json;.\External\Effekseer170e\include\EffekseerRendererDX11;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -150,26 +151,6 @@
     <ClInclude Include="Source\Engine\Windowing\WindowShatter.h" />
     <ClInclude Include="Source\Engine\Windowing\WindowSwarmRenderer.h" />
     <ClInclude Include="Source\Engine\Windowing\WindowTrackingSystem.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackDirect.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackMeteor.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackParamManager.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackWave.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\Boss.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\BossAI.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackBoomerangs.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackBouncing.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackBlasters.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackSpears.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackFan.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackPhalanx.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackRadial.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackRain.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackUltimate.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\IBossAttackPattern.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\IPooledAttackPattern.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\Phases\BossPhase01.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\Phases\BossPhase02.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\Phases\INaviPhase.h" />
     <ClInclude Include="Source\Game\Entities\Bullet.h" />
     <ClInclude Include="Source\Game\Entities\Character.h" />
     <ClInclude Include="Source\Game\Entities\CharacterMovement.h" />
@@ -182,7 +163,6 @@
     <ClInclude Include="Source\Game\Entities\PlayerConstants.h" />
     <ClInclude Include="Source\Game\Entities\Weapon.h" />
     <ClInclude Include="Source\Game\Scenes\Scene.h" />
-    <ClInclude Include="Source\Game\Scenes\SceneBoss.h" />
     <ClInclude Include="Source\Game\Scenes\SceneGame.h" />
     <ClInclude Include="Source\Game\Scenes\SceneIntro.h" />
     <ClInclude Include="Source\Game\Scenes\SceneTitle.h" />
@@ -250,23 +230,6 @@
     <ClCompile Include="Source\Engine\Windowing\WindowShatter.cpp" />
     <ClCompile Include="Source\Engine\Windowing\WindowSwarmRenderer.cpp" />
     <ClCompile Include="Source\Engine\Windowing\WindowTrackingSystem.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackDirect.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackMeteor.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackParamManager.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackWave.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\Boss.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\BossAI.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackBoomerangs.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackBouncing.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackBlasters.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackSpears.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackFan.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackPhalanx.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackRadial.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackRain.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackUltimate.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\Phases\BossPhase01.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\Phases\BossPhase02.cpp" />
     <ClCompile Include="Source\Game\Entities\Bullet.cpp" />
     <ClCompile Include="Source\Game\Entities\Character.cpp" />
     <ClCompile Include="Source\Game\Entities\CharacterMovement.cpp" />
@@ -277,7 +240,6 @@
     <ClCompile Include="Source\Game\Entities\NaviAlly.cpp" />
     <ClCompile Include="Source\Game\Entities\Player.cpp" />
     <ClCompile Include="Source\Game\Entities\Weapon.cpp" />
-    <ClCompile Include="Source\Game\Scenes\SceneBoss.cpp" />
     <ClCompile Include="Source\Game\Scenes\SceneGame.cpp" />
     <ClCompile Include="Source\Game\Scenes\SceneIntro.cpp" />
     <ClCompile Include="Source\Game\Scenes\SceneTitle.cpp" />
@@ -307,7 +269,6 @@
     <ClCompile Include="Source\System\TransformUtils.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="AttackParams.json" />
     <None Include="Shader\Basic.hlsli" />
     <None Include="Shader\Lambert.hlsli" />
     <None Include="Shader\Phong.hlsli" />

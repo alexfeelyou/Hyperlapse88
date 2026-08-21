@@ -369,11 +369,10 @@ void SceneGame::Update(const float elapsedTime)
             m_scene.reset();
             m_dispatcher.reset();
             m_physics.reset();
-            m_foundation.reset(); // <-- This frees PxFoundation for SceneBoss!
+            m_foundation.reset();
 
-            // Clear the camera so SceneBoss can claim it without it getting overridden
             CameraController::Instance().ClearCamera();
-            Framework::Instance()->ChangeScene(std::make_unique<SceneBoss>());
+            Framework::Instance()->ChangeScene(std::make_unique<SceneTitle>());
 
             return;
         }
@@ -526,7 +525,6 @@ void SceneGame::Update(const float elapsedTime)
         // 2. State Machine Cinematic
         if (m_bossCinematicTimer < BOSS_CINEMATIC_DURATION)
         {
-            // FASE 1: Kamera masih jalan menuju Boss. Timer jalan terus.
             m_bossCinematicTimer += elapsedTime;
         }
         else if (!m_bossDialogueStarted)

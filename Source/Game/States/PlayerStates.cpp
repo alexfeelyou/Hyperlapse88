@@ -10,7 +10,6 @@
 #include "System/CollisionManager.h"
 #include "Enemy.h"
 #include "Bullet.h"
-#include "Boss.h"
 #include "System/AudioManager.h"
 
 #include "EffectManager.h"
@@ -103,60 +102,6 @@ namespace {
             // --- Parry Priority ---
             Bullet* parryBullet{ nullptr };
             Enemy* parryTarget{ nullptr };
-
-            if (colMgr->GetParryableProjectile(pPos, 2.0f, &parryBullet, &parryTarget))
-            {
-                const DirectX::XMFLOAT3 bPos{ parryBullet->GetMovement()->GetPosition() };
-                const float dx{ bPos.x - pPos.x };
-                const float dz{ bPos.z - pPos.z };
-                const float dist{ std::sqrt((dx * dx) + (dz * dz)) };
-
-                if (dist > 0.001f)
-                {
-                    const float dirX{ dx / dist };
-                    const float dirZ{ dz / dist };
-
-                    player->SetLastValidInput({ dirX, dirZ });
-                    player->GetMovement()->SetRotationY(DirectX::XMConvertToDegrees(std::atan2(dx, dz)));
-
-                    // Aim THROUGH the bullet so we don't snap backward if we overshoot
-                    const DirectX::XMFLOAT3 aimThrough{ pPos.x + (dirX * 50.0f), bPos.y, pPos.z + (dirZ * 50.0f) };
-                    player->ForceAimTarget(aimThrough);
-                    player->SetAimLocked(true);
-                }
-
-                DirectX::XMFLOAT3 tPos{ bPos };
-                float speed{ 0.0f };
-
-                if (parryTarget) {
-                    parryBullet->SetHomingTarget(parryTarget);
-                    tPos = parryTarget->GetPosition();
-                    speed = DirectX::XMVectorGetX(DirectX::XMVector3Length(DirectX::XMLoadFloat3(&parryBullet->GetVelocity()))) * 2.5f;
-                    if (speed < 10.0f) speed = 30.0f;
-                }
-                else if (colMgr->GetBoss()) {
-                    parryBullet->SetHomingTarget(nullptr);
-                    tPos = pPos;
-                    speed = 80.0f;
-                    AudioManager::Instance().PlaySFX("Data/Sound/SE_Boss_Bijuudama_Shoot.wav", 0.2f);
-                }
-
-                const float dirX{ tPos.x - bPos.x };
-                const float dirZ{ tPos.z - bPos.z };
-                const float distDir{ std::sqrt((dirX * dirX) + (dirZ * dirZ)) };
-
-                DirectX::XMVECTOR vDir{ DirectX::XMVectorSet(0, 0, 1, 0) };
-                if (distDir > 0.001f) {
-                    vDir = DirectX::XMVectorSet(dirX / distDir, 0.0f, dirZ / distDir, 0.0f);
-                }
-
-                DirectX::XMFLOAT3 newVel;
-                DirectX::XMStoreFloat3(&newVel, DirectX::XMVectorScale(vDir, speed));
-                parryBullet->ApplyMovement(bPos, newVel);
-
-                player->GetStateMachine()->ChangeState(player, std::make_unique<PlayerParry>());
-                return true;
-            }
         }
 
         // --- Default: Shoot ---
