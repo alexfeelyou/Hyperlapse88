@@ -1,15 +1,19 @@
 ﻿#pragma once
 
+#pragma comment(lib, "dcomp.lib") 
+
 #include <SDL3/SDL.h>
 #include <d3d11.h>
 #include <dxgi1_3.h> 
-#include <dcomp.h> // Wajib untuk transparansi per-pixel di Windows
+#include <dcomp.h> 
 #include <wrl.h>
 #include <functional>
+#include "System/Graphics.h"
+#include <windows.h>
 
 class Camera;
 
-namespace Beyond
+namespace platform
 {
     class Window
     {
@@ -74,12 +78,12 @@ namespace Beyond
         std::function<void()> m_tickCallback;
         float m_targetFPS = 0.0f;
 
-        // ── DirectX 11 SwapChain ────────
+        // DirectX 11 SwapChain
         Microsoft::WRL::ComPtr<IDXGISwapChain1>        m_swapChain;
         Microsoft::WRL::ComPtr<ID3D11RenderTargetView> m_renderTargetView;
         Microsoft::WRL::ComPtr<ID3D11DepthStencilView> m_depthStencilView;
 
-        // ── DirectComposition untuk Transparansi ──
+        // DirectComposition 
         Microsoft::WRL::ComPtr<IDCompositionDevice>    m_dcompDevice;
         Microsoft::WRL::ComPtr<IDCompositionTarget>    m_dcompTarget;
         Microsoft::WRL::ComPtr<IDCompositionVisual>    m_dcompVisual;

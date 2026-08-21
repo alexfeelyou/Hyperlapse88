@@ -1,11 +1,6 @@
-﻿#include "BeyondWindow.h"
-#include "System/Graphics.h"
-#include "PerformanceLogger.h"
-#include <windows.h>
+﻿#include "RenderWindow.h"
 
-#pragma comment(lib, "dcomp.lib") // Otomatis me-link library DComp
-
-namespace Beyond
+namespace platform
 {
     Window::Window() {}
 
@@ -79,10 +74,10 @@ namespace Beyond
 
         if (m_isTransparent)
         {
-            // ── JALUR DCOMP (KHUSUS WINDOW TRANSPARAN / VFX) ──
+            // DCOMP (for window transparency / VFX)
             swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_PREMULTIPLIED;
 
-            // DirectX MENGHARUSKAN SwapChain komposisi untuk transparansi
+			// DirectX should render to a swap chain without a window handle (HWND) for DirectComposition
             hr = dxgiFactory->CreateSwapChainForComposition(
                 device, &swapChainDesc, nullptr, &m_swapChain
             );
@@ -109,7 +104,7 @@ namespace Beyond
         }
         else
         {
-            // ── JALUR NORMAL (KHUSUS MAIN WINDOW) ──
+			// Normal window (non-transparent)
             swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
 
             hr = dxgiFactory->CreateSwapChainForHwnd(
@@ -145,7 +140,7 @@ namespace Beyond
     {
         auto context = Graphics::Instance().GetDeviceContext();
 
-        // Kunci Transparansi: Kalikan warna dengan alpha (Premultiplied Alpha)
+		// Clear the render target and depth stencil
         float clearColor[4] = { r, g, b, a };
         if (m_isTransparent) {
             clearColor[0] *= a;
@@ -190,10 +185,8 @@ namespace Beyond
         m_renderTargetView.Reset();
         m_depthStencilView.Reset();
 
-        // Lepas buffer lama dan ubah ukuran
         m_swapChain->ResizeBuffers(2, m_width, m_height, DXGI_FORMAT_B8G8R8A8_UNORM, 0);
 
-        // Buat ulang RTV dan DSV
         auto device = Graphics::Instance().GetDevice();
         Microsoft::WRL::ComPtr<ID3D11Texture2D> backBuffer;
         m_swapChain->GetBuffer(0, IID_PPV_ARGS(&backBuffer));
@@ -227,23 +220,21 @@ namespace Beyond
         m_isClickThrough = clickThrough;
         if (!m_sdlWindow) return;
 
-        // Ambil HWND secara rahasia dari properties SDL3
         HWND hwnd = (HWND)SDL_GetPointerProperty(SDL_GetWindowProperties(m_sdlWindow), SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
         if (hwnd)
         {
-            // Ambil properti Window OS saat ini
             LONG_PTR exStyle = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
 
             if (clickThrough) {
-                // Tambahkan efek tembus klik ke OS Desktop
+				// Add effect click-through (transparent to mouse events)
                 exStyle |= WS_EX_TRANSPARENT | WS_EX_LAYERED;
             }
             else {
-                // Cabut efek tembus klik (normal)
+                // Remove click-through effect (normal)
                 exStyle &= ~WS_EX_TRANSPARENT;
             }
 
-            // Terapkan kembali ke OS
+            // Apply back to OS
             SetWindowLongPtr(hwnd, GWL_EXSTYLE, exStyle);
         }
     }

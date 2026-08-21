@@ -85,7 +85,7 @@ int main(int argc, char* argv[])
                 if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED)
                 {
                     SDL_Window* closedWin = SDL_GetWindowFromID(event.window.windowID);
-                    Beyond::Window* mainWin = framework ? framework->GetMainWindow() : nullptr;
+                    platform::Window* mainWin = framework ? framework->GetMainWindow() : nullptr;
 
                     if (mainWin && closedWin == mainWin->GetSDLWindow()) {
                         running = false;

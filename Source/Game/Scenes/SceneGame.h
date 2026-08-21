@@ -10,7 +10,6 @@
 #include <imgui.h>
 #include <cstdio>
 #include <vector>
-#include "BeyondWindow.h"
 #include "PhysXUtils.h"
 #include "Scene.h"
 #include "System/Light.h"

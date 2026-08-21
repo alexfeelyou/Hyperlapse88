@@ -4,45 +4,37 @@
 #include <memory>
 #include <algorithm>
 #include <windows.h>
-#include "BeyondWindow.h"
+#include "RenderWindow.h"
 
-// Forward Declaration
 class Scene;
 
 class WindowManager
 {
 public:
-    // --- SINGLETON PATTERN ---
     static WindowManager& Instance()
     {
         static WindowManager instance;
         return instance;
     }
 
-    // --- CORE FUNCTIONS ---
+	// Core Functions
     void Update(float dt);
     void RenderAll(float dt, Scene* scene);
     void HandleResize(SDL_Window* sdlWindow, int width, int height);
     void ClearAll();
 
-    // --- USER FUNCTIONS ---
-    Beyond::Window* CreateGameWindow(const char* title, int width, int height, bool isTransparent = false);
-    void DestroyWindow(Beyond::Window* targetWindow);
+	// Users Functions
+    platform::Window* CreateGameWindow(const char* title, int width, int height, bool isTransparent = false);
+    void DestroyWindow(platform::Window* targetWindow);
     void EnforceWindowPriorities();
     void MarkPriorityDirty() { m_dirtyPriority = true; }
 
-    void SetDebugWindow(Beyond::Window* win) { debugWindow = win; }
-    Beyond::Window* GetDebugWindow() const { return debugWindow; }
+    void SetDebugWindow(platform::Window* win) { debugWindow = win; }
+    platform::Window* GetDebugWindow() const { return debugWindow; }
 
-    // --------------------------------------------------------
-    // [BARU] Tambahkan Helper Functions ini:
-    // --------------------------------------------------------
-
-    // 1. Cek apakah ada window yang hidup (Dipakai di Main.cpp)
     bool HasWindows() const { return !windows.empty(); }
 
-    // 2. Ambil window berdasarkan index (Dipakai di Framework.cpp untuk ambil Main Window)
-    Beyond::Window* GetWindowByIndex(size_t index)
+    platform::Window* GetWindowByIndex(size_t index)
     {
         if (index < windows.size()) return windows[index].get();
         return nullptr;
@@ -59,9 +51,9 @@ private:
 
     bool m_topmostEnabled = false;
 private:
-    std::vector<std::unique_ptr<Beyond::Window>> windows;
+    std::vector<std::unique_ptr<platform::Window>> windows;
 
-    Beyond::Window* debugWindow = nullptr;
+    platform::Window* debugWindow = nullptr;
 
     bool m_dirtyPriority = false;
 };

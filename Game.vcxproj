@@ -145,7 +145,7 @@
     <ClInclude Include="Source\Engine\UI\UIPause.h" />
     <ClInclude Include="Source\Engine\VFX\AnimationController.h" />
     <ClInclude Include="Source\Engine\VFX\EffectManager.h" />
-    <ClInclude Include="Source\Engine\Windowing\BeyondWindow.h" />
+    <ClInclude Include="Source\Engine\Windowing\RenderWindow.h" />
     <ClInclude Include="Source\Engine\Windowing\WindowManager.h" />
     <ClInclude Include="Source\Game\Entities\Bullet.h" />
     <ClInclude Include="Source\Game\Entities\Character.h" />
@@ -220,7 +220,7 @@
     <ClCompile Include="Source\Engine\UI\UIPause.cpp" />
     <ClCompile Include="Source\Engine\VFX\AnimationController.cpp" />
     <ClCompile Include="Source\Engine\VFX\EffectManager.cpp" />
-    <ClCompile Include="Source\Engine\Windowing\BeyondWindow.cpp" />
+    <ClCompile Include="Source\Engine\Windowing\RenderWindow.cpp" />
     <ClCompile Include="Source\Engine\Windowing\WindowManager.cpp" />
     <ClCompile Include="Source\Game\Entities\Bullet.cpp" />
     <ClCompile Include="Source\Game\Entities\Character.cpp" />

@@ -231,7 +231,7 @@
     <ClCompile Include="Source\Engine\Camera\FreeCameraController.cpp">
       <Filter>Source\Engine\Camera</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Engine\Windowing\BeyondWindow.cpp">
+    <ClCompile Include="Source\Engine\Windowing\RenderWindow.cpp">
       <Filter>Source\Engine\Windowing</Filter>
     </ClCompile>
     <ClCompile Include="Source\Engine\Windowing\WindowManager.cpp">
@@ -477,7 +477,7 @@
     <ClInclude Include="Source\Engine\Camera\FreeCameraController.h">
       <Filter>Source\Engine\Camera</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Engine\Windowing\BeyondWindow.h">
+    <ClInclude Include="Source\Engine\Windowing\RenderWindow.h">
       <Filter>Source\Engine\Windowing</Filter>
     </ClInclude>
     <ClInclude Include="Source\Engine\Windowing\WindowManager.h">

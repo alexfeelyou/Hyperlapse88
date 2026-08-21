@@ -2,7 +2,7 @@
 #include <windows.h>
 #include <memory>
 #include "System/HighResolutionTimer.h"
-#include "BeyondWindow.h"
+#include "RenderWindow.h"
 #include "Scene.h"
 #include "System/Graphics.h"
 #include "System/ImGuiRenderer.h"
@@ -31,7 +31,7 @@ public:
     void ChangeScene(std::unique_ptr<Scene> newScene);
     void Quit();
 
-    Beyond::Window* GetMainWindow() const;
+    platform::Window* GetMainWindow() const;
 
     LRESULT CALLBACK HandleMessage(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
     void OnSubWindowClosed(Uint32 sdlWindowID);

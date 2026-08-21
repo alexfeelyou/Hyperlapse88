@@ -13,7 +13,6 @@ LRESULT CALLBACK ImGuiHookWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lPa
     }
     return DefWindowProc(hWnd, msg, wParam, lParam);
 }
-// ========================================================
 
 Framework* Framework::pInstance = nullptr;
 
@@ -58,7 +57,7 @@ Framework::~Framework()
 Framework* Framework::Instance() { return pInstance; }
 void Framework::ChangeScene(std::unique_ptr<Scene> newScene) { nextScene = std::move(newScene); }
 
-Beyond::Window* Framework::GetMainWindow() const
+platform::Window* Framework::GetMainWindow() const
 {
     return WindowManager::Instance().GetWindowByIndex(0);
 }
@@ -123,7 +122,7 @@ void Framework::Quit()
 
 LRESULT CALLBACK Framework::HandleMessage(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
-    Beyond::Window* mainWin = GetMainWindow();
+    platform::Window* mainWin = GetMainWindow();
     HWND mainHwnd = NULL;
 
     if (mainWin && mainWin->GetSDLWindow()) {
