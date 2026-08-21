@@ -132,9 +132,6 @@ public:
     DirectX::XMFLOAT4* GetPlayerBulletColor() { return &m_playerbulletColor; }
     std::deque<std::unique_ptr<Bullet>>& GetProjectiles() { return m_projectiles; }
 
-    // Debug
-    void DrawDebugGUI();
-
     bool IsMoving() const
     {
         return (std::abs(currentSmoothInput.x) > 0.01f ||
