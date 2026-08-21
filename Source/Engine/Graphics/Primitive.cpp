@@ -154,7 +154,7 @@ void Primitive::Render(ID3D11DeviceContext* context)
         for (const auto& v : batchVertices)
         {
             Vertex finalV = v;
-            // Konversi ke NDC
+
             finalV.position.x = (v.position.x / screenW) * 2.0f - 1.0f;
             finalV.position.y = -((v.position.y / screenH) * 2.0f - 1.0f);
             *ptr++ = finalV;
@@ -166,8 +166,6 @@ void Primitive::Render(ID3D11DeviceContext* context)
     UINT offset = 0;
     context->IASetVertexBuffers(0, 1, vertexBuffer.GetAddressOf(), &stride, &offset);
     context->IASetInputLayout(inputLayout.Get());
-
-    // UBAH DARI TRIANGLESTRIP KE TRIANGLELIST
     context->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
     context->VSSetShader(vertexShader.Get(), nullptr, 0);

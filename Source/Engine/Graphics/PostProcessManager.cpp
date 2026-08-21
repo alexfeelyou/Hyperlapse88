@@ -69,7 +69,7 @@ void PostProcessManager::CreateBuffers(int width, int height)
     hr = device->CreateShaderResourceView(m_renderTargetTexture.Get(), nullptr, m_shaderResourceView.GetAddressOf());
     if (FAILED(hr)) return;
 
-    // Create Depth Buffer (Penting agar objek 3D di scene bisa di-sort depth-nya)
+    // Create Depth Buffer
     textureDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
     textureDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
 

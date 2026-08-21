@@ -48,13 +48,12 @@ public:
 private:
     void AdvanceDialogue();
 
-    // --- AAA Inline Glyph Rendering Helpers ---
     // Parses a raw string containing {ATK} and {DASH} tags into a renderable string
     [[nodiscard]] std::string ParseDialogueTags(const std::string& rawLine);
 
     struct InlineSprite {
         Sprite* sprite{ nullptr };
-        int triggerByteIndex{ 0 }; // The exact typewriter byte when this should appear
+        int triggerByteIndex{ 0 }; 
         float offsetX{ 0.0f };
         float offsetY{ 0.0f };
         float scaleW{ 1.0f };
@@ -62,17 +61,17 @@ private:
     };
 
 private:
-    // --- Sprites ---
+    // Sprites
     std::unique_ptr<Sprite> m_panelSpriteKB{}; // Keyboard/Mouse Sprite
     std::unique_ptr<Sprite> m_panelSpriteGP{}; // Gamepad Controller Sprite
     std::unique_ptr<FontTTF> m_font{};
 
-    // --- Inline Button Sprites ---
+    // Inline Button Sprites 
     std::unique_ptr<Sprite> m_spriteRT{};
     std::unique_ptr<Sprite> m_spriteLB{};
     std::vector<InlineSprite> m_activeInlineSprites{};
 
-    // --- State Tracking ---
+    // State Tracking 
     State m_state{ State::Hidden };
 
     InputDevice m_lockedDeviceForLine;

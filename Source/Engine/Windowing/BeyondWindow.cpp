@@ -1,8 +1,9 @@
 ﻿#include "BeyondWindow.h"
 #include "System/Graphics.h"
+#include "PerformanceLogger.h"
 #include <windows.h>
 
-#pragma comment(lib, "dcomp.lib") 
+#pragma comment(lib, "dcomp.lib") // Otomatis me-link library DComp
 
 namespace Beyond
 {

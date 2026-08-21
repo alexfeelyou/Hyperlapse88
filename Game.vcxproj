@@ -61,7 +61,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>.\Source;.\Source\Engine\Base;.\Source\Engine\Camera;.\Source\Engine\Windowing;.\Source\Engine\Graphics;.\Source\Engine\UI;.\Source\Engine\VFX;.\Source\Game\Entities;.\Source\Game\States;.\Source\Game\Scenes;.\Source\Engine\Helpers;.\Source\Engine\Legacy;.\External\SDL3-3.4.0\include;.\External\imgui-docking;.\External\ImGuizmo;.\External\cereal\include;.\External\tinygltf;.\External\SphereCast\Include;.\External\DirectXTex;.\External\PhysX\physx\include;.\External\Effekseer170e\include\Effekseer;.\External\json;.\External\Effekseer170e\include\EffekseerRendererDX11;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\Source;.\Source\Engine\Base;.\Source\Engine\Camera;.\Source\Engine\Graphics;.\Source\Engine\UI;.\Source\Engine\VFX;.\Source\Engine\Windowing;.\Source\Game\Entities;.\Source\Game\States;.\Source\Game\Scenes;.\Source\Engine\Helpers;.\Source\Engine\Legacy;.\External\SDL3-3.4.0\include;.\External\imgui-docking;.\External\ImGuizmo;.\External\cereal\include;.\External\tinygltf;.\External\SphereCast\Include;.\External\DirectXTex;.\External\PhysX\physx\include;.\External\Effekseer170e\include\Effekseer;.\External\json;.\External\Effekseer170e\include\EffekseerRendererDX11;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <LanguageStandard>stdcpp17</LanguageStandard>

@@ -15,7 +15,6 @@ FontTTF::FontTTF() {}
 
 bool FontTTF::Initialize(const std::string& ttfPath, float fontSize, const std::vector<uint32_t>& customCodepoints)
 {
-    // Baca file .ttf ke dalam binary buffer
     std::ifstream file(ttfPath, std::ios::binary | std::ios::ate);
     if (!file.is_open()) return false;
 

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include "System/ImGuiRenderer.h" 
 #include "System/Graphics.h"
+#include "SceneBoss.h"
 #include <mutex>
 #include "Framework.h"
 #include <SDL3/SDL.h> // Wajib untuk SDL_RaiseWindow

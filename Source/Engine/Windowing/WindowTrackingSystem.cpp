@@ -1,6 +1,7 @@
 #include "WindowTrackingSystem.h"
 #include "WindowManager.h"
 #include <cmath>
+#include "PerformanceLogger.h"
 #include <CameraController.h>
 #include <SDL3/SDL.h>
 
@@ -8,6 +9,7 @@ using namespace DirectX;
 
 WindowTrackingSystem::WindowTrackingSystem()
 {
+    // Pre-cache screen dimensions agar tidak hit SDL setiap frame awal
     SDL_Rect bounds;
     if (SDL_GetDisplayBounds(SDL_GetPrimaryDisplay(), &bounds))
     {
@@ -48,6 +50,8 @@ bool WindowTrackingSystem::AddTrackedWindow(
     std::function<DirectX::XMFLOAT2()> getTargetSize // Parameter baru
 )
 {
+    auto start = std::chrono::high_resolution_clock::now();
+
     // =========================================================
     // [1] CEK POOL: DAUR ULANG WINDOW YANG TIDUR
     // =========================================================
@@ -93,6 +97,10 @@ bool WindowTrackingSystem::AddTrackedWindow(
 
             m_windowLookup[config.name] = tw.get(); // Masukkan kembali ke lookup
             WindowManager::Instance().MarkPriorityDirty();
+
+            auto end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<float, std::milli> duration = end - start;
+            PerformanceLogger::Instance().LogWindowAction("Pooled", config.name, duration.count());
 
             return true;
         }
@@ -161,6 +169,10 @@ bool WindowTrackingSystem::AddTrackedWindow(
 
     m_windowLookup[config.name] = tracked.get();
     m_trackedWindows.push_back(std::move(tracked));
+
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<float, std::milli> duration = end - start;
+    PerformanceLogger::Instance().LogWindowAction("Spawned", config.name, duration.count());
 
     return true;
 }
