@@ -24,7 +24,6 @@ Framework::Framework()
     if (!AudioManager::Instance().Initialize()) {  }
 
     auto mainWin = WindowManager::Instance().CreateGameWindow("Main Window (close here)", 1600, 900);
-    mainWin->SetDraggable(false);
 
     SDL_ShowWindow(mainWin->GetSDLWindow());
     SDL_SetWindowResizable(mainWin->GetSDLWindow(), true);
@@ -137,7 +136,4 @@ LRESULT CALLBACK Framework::HandleMessage(HWND hWnd, UINT msg, WPARAM wParam, LP
         if (ImGuiRenderer::HandleMessage(hWnd, msg, wParam, lParam)) return true;
     }
     return 0;
-}
-void Framework::OnSubWindowClosed(Uint32 sdlWindowID)
-{
 }

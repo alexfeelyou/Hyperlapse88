@@ -60,15 +60,7 @@ int main(int argc, char* argv[])
                 if (event.type == SDL_EVENT_QUIT) running = false;
                 if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED)
                 {
-                    SDL_Window* closedWin = SDL_GetWindowFromID(event.window.windowID);
-                    platform::Window* mainWin = framework ? framework->GetMainWindow() : nullptr;
-
-                    if (mainWin && closedWin == mainWin->GetSDLWindow()) {
-                        running = false;
-                    }
-                    else {
-                        if (framework) framework->OnSubWindowClosed(event.window.windowID);
-                    }
+                    running = false;
                 }
 
                 if (event.type == SDL_EVENT_WINDOW_RESIZED || event.type == SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED)

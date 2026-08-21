@@ -21,18 +21,8 @@ void WindowManager::RenderAll(float dt, Scene* scene)
 
         win->BeginRender(0.0f, 0.0f, 0.0f, 1.0f);
 
-        if (win.get() == windows.front().get())
-        {
-            if (scene) scene->Render(dt, win->GetCamera());
-            ImGuiRenderer::Render(Graphics::Instance().GetDeviceContext());
-        }
-
-        else
-        {
-            if (scene && win->ShouldRenderScene()) {
-                scene->Render(dt, win->GetCamera());
-            }
-        }
+        if (scene) scene->Render(dt, win->GetCamera());
+        ImGuiRenderer::Render(Graphics::Instance().GetDeviceContext());
 
 		// Determine sync interval based on transparency and vsync application
         int syncInterval = vsyncApplied ? 0 : 1;
@@ -62,11 +52,6 @@ platform::Window* WindowManager::CreateGameWindow(const char* title, int width, 
     {
         return nullptr;
     }
-
-    newWindow->SetTickCallback([]() {
-        Framework::Instance()->Update(0.016f);
-        Framework::Instance()->Render(0.016f);
-        });
 
     platform::Window* ptr = newWindow.get();
     windows.push_back(std::move(newWindow));

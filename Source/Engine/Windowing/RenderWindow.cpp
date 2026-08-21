@@ -12,18 +12,6 @@ namespace platform
         }
     }
 
-    SDL_HitTestResult SDLCALL WindowHitTestCallback(SDL_Window* win, const SDL_Point* area, void* data)
-    {
-        Window* pWindow = static_cast<Window*>(data);
-        if (!pWindow) return SDL_HITTEST_NORMAL;
-
-        if (pWindow->IsDraggable()) {
-            return SDL_HITTEST_DRAGGABLE;
-        }
-
-        return SDL_HITTEST_NORMAL;
-    }
-
     bool Window::Initialize(const char* title, int width, int height)
     {
         m_width = width;
@@ -33,8 +21,6 @@ namespace platform
 
         m_sdlWindow = SDL_CreateWindow(title, width, height, flags);
         if (!m_sdlWindow) return false;
-
-        SDL_SetWindowHitTest(m_sdlWindow, WindowHitTestCallback, this);
 
         return SetupDirectX();
     }

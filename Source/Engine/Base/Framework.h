@@ -34,7 +34,6 @@ public:
     platform::Window* GetMainWindow() const;
 
     LRESULT CALLBACK HandleMessage(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-    void OnSubWindowClosed(Uint32 sdlWindowID);
 
 private:
     void CalculateFrameStats(float dt);

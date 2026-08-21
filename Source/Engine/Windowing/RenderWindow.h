@@ -32,13 +32,8 @@ namespace platform
         Camera* GetCamera() const { return m_targetCamera; }
 
         void SetTitle(const char* title);
-        void SetDraggable(bool isDraggable) { m_isDraggable = isDraggable; }
-        bool IsDraggable() const { return m_isDraggable; }
         void SetTargetFPS(float fps) { m_targetFPS = fps; }
-        void SetTickCallback(std::function<void()> callback) { m_tickCallback = callback; }
         void SetBorderVisible(bool visible) { m_borderVisible = visible; }
-		void SetRenderScene(bool render) { m_shouldRenderScene = render; }
-		bool ShouldRenderScene() const { return m_shouldRenderScene; }
 
     private:
         bool SetupDirectX();
@@ -47,13 +42,10 @@ namespace platform
 
         int  m_width = 0;
         int  m_height = 0;
-        bool m_isDraggable = true;
         bool m_borderVisible = false;
 
-		bool m_shouldRenderScene = true;
-
         Camera* m_targetCamera = nullptr;
-        std::function<void()> m_tickCallback;
+
         float m_targetFPS = 0.0f;
 
         // DirectX 11 SwapChain
