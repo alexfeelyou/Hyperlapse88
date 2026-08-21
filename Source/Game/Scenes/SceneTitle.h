@@ -40,14 +40,14 @@ public:
     Camera* GetCamera() const { return camera.get(); }
 
 private:
-    // --- Subsystems ---
+    // Subsystems 
     std::unique_ptr<Camera> camera{};
     std::unique_ptr<Sprite> bgSprite{};
     std::unique_ptr<Sprite> logoSprite{};
     std::unique_ptr<Sprite> copyrightSprite{};
     std::unique_ptr<PostProcessManager> postProcess{};
 
-    // --- Post Process State ---
+    // Post Process State
     struct PostProcessState {
         bool MasterEnabled{ true };
         bool EnableVignette{ false };
@@ -61,17 +61,17 @@ private:
     PostProcessState m_fxState{};
     UberShader::UberData m_uberParams{};
 
-    // --- Sprites ---
+    // Sprites
     std::unique_ptr<Sprite> m_fadeSprite{};
     std::unique_ptr<Sprite> startSprite{};
     std::unique_ptr<Sprite> m_newGameSprite{};
     std::unique_ptr<Sprite> m_optionSprite{};
     std::unique_ptr<Sprite> m_exitSprite{};
 
-	// --- UI Option Panel ---
+	// UI Option Panel
     std::unique_ptr<UIOption> m_uiOption{};
 
-    // --- Timers and Alphas ---
+    // Timers and Alphas
     float m_fadeAlpha{ 1.0f };
     float m_bootTimer{ 4.1f };
     float m_copyrightTimer{ 4.0f };
@@ -80,13 +80,13 @@ private:
     float m_pulseTimer{ 0.0f };
     float m_gapTimer{ 0.0f };
 
-    // --- Menu Transition States ---
+    // Menu Transition States
     float m_menuGapTimer{ 0.0f };
     float m_menuAlpha{ 0.0f };
     bool  m_isTransitioningMenu{ false };
     bool  m_isMenuPhase{ false };
 
-	// --- Option Transition States ---
+	// Option Transition States
     bool m_isOptionPhase{ false };
 
     static constexpr float BOOT_FADE_DURATION{ 3.0f };
@@ -98,7 +98,7 @@ private:
     static constexpr float FX_BASE_SMOOTHNESS{ 0.2f };
     static constexpr float FX_BASE_INTENSITY{ 0.38f };
 
-    // --- Strict Menu States ---
+    // Menu States
     enum class MenuOption : std::uint8_t {
         NewGame = 0,
         Option,
@@ -119,37 +119,37 @@ private:
 
     static constexpr float CURSOR_WIDTH = 16.0f;
     static constexpr float CURSOR_HEIGHT = 16.0f;
-    static constexpr float CURSOR_OFFSET_X = 25.0f; // Gap between cursor and text
+    static constexpr float CURSOR_OFFSET_X = 25.0f;
 
     static constexpr float CURSOR_SMOOTH_SPEED{ 16.0f }; // Higher value = snappier, Lower = smoother
     static constexpr float COLOR_SMOOTH_SPEED{ 12.0f };
 
-    // --- Modern Frame-Rate Independent Animation Tracks ---
+    // Modern Frame-Rate Independent Animation Tracks 
     float m_visualCursorY{ 0.0f };
     bool  m_isCursorInitialized{ false };
 
     // Smooth interpolators for option text colors (0.0f = Gray, 1.0f = White)
     std::array<float, 3> m_optionWeights{ 1.0f, 0.0f, 0.0f };
 
-    // --- Private Render Helpers ---
+    // Private Render Helpers 
     void AnimateMenu(float elapsedTime);
     void RenderMenuOptions(ID3D11DeviceContext* dc);
     void ExecuteMenuSelection() noexcept;
 
-    // --- Input Abstraction Helpers ---
+    // Input Abstraction Helpers
     // Evaluates Keyboard, D-Pad, and Debounced Analog Stick natively
     [[nodiscard]] bool IsUpTriggered() noexcept;
     [[nodiscard]] bool IsDownTriggered() noexcept;
     [[nodiscard]] bool IsConfirmTriggered(bool allowSpace = true) noexcept;
 
-    // --- Analog Stick State Tracking (Debounce) ---
-    // Prevents "hyper-scrolling" when holding the analog stick
+    // Analog Stick State Tracking (Debounce)
+    // Prevents hyper-scrolling when holding the analog stick
     bool m_analogUpWasPressed{ false };
     bool m_analogDownWasPressed{ false };
 
     // Deadzone threshold for the thumbstick to register as an intentional push
     static constexpr float THUMBSTICK_THRESHOLD{ 0.5f };
 
-    // --- Debug GUI Helpers ---
+    // Debug GUI Helpers 
     void GUIPostProcessTab();
 };

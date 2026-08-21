@@ -1,18 +1,4 @@
 #include "PlayerStates.h"
-#include "Player.h"
-#include "PlayerConstants.h"
-#include "StateMachine.h"
-#include "AnimationController.h"
-#include "System/Input.h"
-#include <memory>
-#include <cmath>
-
-#include "System/CollisionManager.h"
-#include "Enemy.h"
-#include "Bullet.h"
-#include "System/AudioManager.h"
-
-#include "EffectManager.h"
 
 namespace {
     [[nodiscard]] bool IsDashInputTriggered() noexcept
@@ -23,7 +9,7 @@ namespace {
         const bool isKeyboardDash{ input.GetKeyboard().IsTriggered(VK_SHIFT) };
 
         // Gamepad Check (LB = Left Shoulder)
-        // Use GetButtonDown() so it only triggers exactly on the frame it is pressed.
+        // Use GetButtonDown() so it only triggers exactly on the frame it is pressed
         const bool isGamepadDash{ (input.GetGamePad().GetButtonDown() & GamePad::BTN_LEFT_SHOULDER) != 0 };
 
         return isKeyboardDash || isGamepadDash;
@@ -36,8 +22,7 @@ namespace {
         // Keyboard/Mouse Check (Left Click)
         const bool isMouseShoot{ input.GetKeyboard().IsPress(VK_LBUTTON) };
 
-        // Gamepad Check (RT = Right Trigger)
-        // BUG ANTICIPATION: The "Hair Trigger" Bug. 
+        // Gamepad Check (RT = Right Trigger) 
         // Triggers are analog (0.0f to 1.0f). If we check > 0.0f, resting a finger will fire the gun.
         // We use a 50% deadzone threshold so it acts like a confident, digital button press.
         constexpr float triggerThreshold{ 0.5f };
@@ -46,7 +31,7 @@ namespace {
         return isMouseShoot || isGamepadShoot;
     }
 
-    // --- COMBAT ACTION ROUTINE ---
+	// Common combat action logic for PlayerShoot, PlayerSlash, and PlayerParry states
 
     [[nodiscard]] bool TryExecuteCombatAction(Player* player, bool allowShoot = true)
     {
@@ -68,14 +53,13 @@ namespace {
 
             DirectX::XMFLOAT3 aimDir{ 0.0f, 0.0f, 1.0f }; // Fallback forward direction
 
-            // Anticipate Math Error: Prevent Divide-by-Zero
             if (aimDistSq > 0.0001f)
             {
                 const float aimDist{ std::sqrt(aimDistSq) };
                 aimDir = { aimDx / aimDist, 0.0f, aimDz / aimDist };
             }
 
-            // --- Slash Priority ---
+			// Slash Priority: Check for enemies in the slash cone first, then check for bullets to parry
             if (Enemy * slashTarget{ colMgr->GetTargetInSlashCone(pPos, aimDir, 0.8f, 0.85f) })
             {
                 player->SetLastValidInput({ aimDir.x, aimDir.z });
@@ -84,12 +68,6 @@ namespace {
 
                 player->GetStateMachine()->ChangeState(player, std::make_unique<PlayerSlash>());
 
-                // =========================================================
-                // THE FIX: EXECUTION SCALING
-                // Standard enemies take normal damage. Kamikazes take fatal 
-                // damage (9999) to ensure they cannot survive the counter-attack 
-                // and revenge-kill the player. Ternary evaluation ensures zero branching overhead.
-                // =========================================================
                 constexpr int MELEE_DAMAGE{ 30 };
                 const bool isKamikaze{ slashTarget->GetAttackType() == AttackType::Tracking };
                 const int finalDamage{ isKamikaze ? 9999 : MELEE_DAMAGE };
@@ -99,12 +77,12 @@ namespace {
                 return true;
             }
 
-            // --- Parry Priority ---
+            // Parry Priority 
             Bullet* parryBullet{ nullptr };
             Enemy* parryTarget{ nullptr };
         }
 
-        // --- Default: Shoot ---
+        // Default: Shoot 
         if (allowShoot && !player->GetAnimator()->IsUpperPlaying())
         {
             player->GetStateMachine()->ChangeState(player, std::make_unique<PlayerShoot>());
@@ -118,9 +96,7 @@ namespace {
 
 using namespace DirectX;
 
-// ============================================================
-// IDLE
-// ============================================================
+// Idle State
 void PlayerIdle::Enter(Player* player)
 {
     player->GetAnimator()->SetPlaybackSpeed(1.0f);
@@ -131,7 +107,7 @@ void PlayerIdle::Update(Player* player, float dt)
 {
     if (!player->IsInputEnabled()) return;
 
-    // Dash Priority (Seamlessly checks Keyboard and Gamepad LB)
+    // Dash Priority 
     if (IsDashInputTriggered() && (player->canDash || player->IsPowerUncapped()))
     {
         player->GetStateMachine()->ChangeState(player, std::make_unique<PlayerDash>());
@@ -148,9 +124,7 @@ void PlayerIdle::Update(Player* player, float dt)
     }
 }
 
-// ============================================================
-// MOVING
-// ============================================================
+// Moving State
 void PlayerMoving::Enter(Player* player)
 {
     player->GetAnimator()->Play("RunPistol", true, PlayerConst::AnimBlendDefault);
@@ -180,10 +154,8 @@ void PlayerMoving::Update(Player* player, float dt)
         player->GetStateMachine()->ChangeState(player, std::make_unique<PlayerIdle>());
     }
 }
-// ============================================================
-// DASH
-// ============================================================
 
+// Dash State
 void PlayerDash::Enter(Player* player)
 {
     constexpr float DASH_IFRAME_DURATION = 0.2f;
@@ -195,18 +167,13 @@ void PlayerDash::Enter(Player* player)
     player->dashCooldownTimer = player->GetDashCooldown();
     player->TriggerInvincibility(DASH_IFRAME_DURATION);
 
-
-    // =========================================================
-    // Play VFX Dash Go dan sesuaikan arah rotasinya!
-    // =========================================================
+	// Dash VFX
     DirectX::XMFLOAT3 pos = player->GetMovement()->GetPosition();
-    pos.y += 1.0f; // Naikkan sedikit agar pas di tengah badan
+    pos.y += 1.0f; 
 
-    // [MODIFIKASI] Simpan handle ke variabel class
     m_dashGoVfxHandle = EffectManager::Instance().Play("Data/Effect/VFX_Player_Dash_Go.efk", pos, 0.2f);
 
     if (m_dashGoVfxHandle != -1) {
-        // [FIX] Tambahkan DirectX::XM_PI (180 derajat dalam radian) untuk membalik arahnya!
         float yaw = atan2f(dashDir.x, dashDir.y) + DirectX::XM_PI;
 
         EffectManager::Instance().SetRotation(m_dashGoVfxHandle, { 0.0f, yaw, 0.0f });
@@ -218,11 +185,8 @@ void PlayerDash::Enter(Player* player)
         "Data/Sound/SE_Dash_03.wav"
     };
 
-    // 2. Pilih index secara acak (0, 1, atau 2)
     int randomIndex = rand() % 3;
 
-    // 3. Mainkan suaranya lewat AudioManager
-    // Kita gunakan volume 0.5f agar tidak terlalu memekakkan telinga
     AudioManager::Instance().PlaySFX(dashSounds[randomIndex], 0.1f);
 }
 
@@ -236,13 +200,10 @@ void PlayerDash::Update(Player* player, float dt)
         dashDir.y * player->GetDashSpeed()
         });
 
-    // =========================================================
-    // [BARU] Terus seret VFX mengikuti posisi player selama Dash berjalan
-    // =========================================================
     if (m_dashGoVfxHandle != -1 && EffectManager::Instance().IsPlaying(m_dashGoVfxHandle))
     {
         DirectX::XMFLOAT3 trackPos = player->GetMovement()->GetPosition();
-        trackPos.y += 1.0f; // Pastikan offset Y sama dengan saat Enter
+        trackPos.y += 1.0f;
         EffectManager::Instance().SetPosition(m_dashGoVfxHandle, trackPos);
     }
 
@@ -260,10 +221,6 @@ void PlayerDash::Exit(Player* player)
     player->GetMovement()->SetVelocity({ 0.0f, 0.0f, 0.0f });
 }
 
-// ============================================================
-// SLASH
-// ============================================================
-
 void PlayerSlash::Enter(Player* player)
 {
     player->SetActiveWeapon(Player::WeaponType::Sword);
@@ -278,11 +235,6 @@ void PlayerSlash::Enter(Player* player)
         std::cos(yawRad) * PlayerConst::SlashLungeForce
         });
 
-    // =========================================================
-    // THE FIX: MELEE ARMOR (I-FRAMES)
-    // Grant brief invulnerability during the forward lunge.
-    // If the Kamikaze explodes on contact, the player is immune.
-    // =========================================================
     constexpr float SLASH_IFRAME_DURATION{ 0.3f };
     player->TriggerInvincibility(SLASH_IFRAME_DURATION);
 }
@@ -311,10 +263,7 @@ void PlayerSlash::Exit(Player* player)
     player->GetMovement()->SetVelocity({ 0.0f, 0.0f, 0.0f });
 }
 
-// ============================================================
-// PARRY
-// ============================================================
-
+// Parry State
 void PlayerParry::Enter(Player* player)
 {
     player->GetMovement()->SetVelocity({ 0.0f, 0.0f, 0.0f });
@@ -339,14 +288,9 @@ void PlayerParry::Exit(Player* player)
 {
 }
 
-// ============================================================
-// SHOOT
-// ============================================================
-
+// Shoot State
 void PlayerShoot::Enter(Player* player)
 {
-    // Fix the visual gap: We initialize assuming the player WILL hold the button.
-    // This ensures the gap between Shot 1 and Shot 2 matches Shot 2 and Shot 3.
     PerformShootInternal(player, true);
 }
 
@@ -364,12 +308,6 @@ void PlayerShoot::Update(Player* player, float dt)
 
     const bool isHolding{ IsShootInputPressed() };
 
-    // =========================================================
-    // BUG FIX: DECOUPLE MELEE FROM FIRE RATE
-    // By checking this outside the m_timer block, the player can 
-    // instantly snap into a slash animation the exact frame a 
-    // Kamikaze enters the danger zone, bypassing gun cooldowns.
-    // =========================================================
     if (isHolding)
     {
         // allowShoot = false ensures we only check for slashes/parries here
@@ -391,7 +329,7 @@ void PlayerShoot::Update(Player* player, float dt)
     {
         if (isHolding)
         {
-            // Lower-Body Animation Sync
+            // Lower Body Animation Sync
             if (player->IsMoving()) {
                 player->GetAnimator()->SetPlaybackSpeed(player->IsBackpedaling() ? -1.0f : 1.0f);
                 if (!player->GetAnimator()->IsPlaying("RunPistol")) {
@@ -424,7 +362,7 @@ void PlayerShoot::PerformShootInternal(Player* player, bool isHeld)
 
     const float baseDelay{ player->GetShootDelay() };
 
-    // --- FIRE RATE LOGIC TREE ---
+	// Overdrive Mode: Bypass all penalties and allow rapid-fire shooting
     if (player->IsPowerUncapped())
     {
         // Absolute Priority: Overdrive bypasses all penalties
@@ -438,7 +376,6 @@ void PlayerShoot::PerformShootInternal(Player* player, bool isHeld)
 
         if (isHeld)
         {
-            // Compile-time constant ensures zero runtime cost for the multiplier
             constexpr float HOLD_PENALTY_MULTIPLIER{ 1.5f };
             m_timer = baseDelay * HOLD_PENALTY_MULTIPLIER;
         }

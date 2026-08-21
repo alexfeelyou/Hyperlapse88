@@ -1,13 +1,8 @@
 #include "CollisionManager.h"
-#include "EffectManager.h"
-#include <CameraController.h>
-#include "EffectManager.h"
 
 using namespace DirectX;
 
-// =========================================================
-// HELPER FUNCTIONS 
-// =========================================================
+// Helper function to transform a world position into the local space of a wall
 static XMVECTOR TransformToLocal(const XMFLOAT3& worldPos, const DebugWallData& wall)
 {
     XMVECTOR vWorldPos = XMLoadFloat3(&worldPos);
@@ -171,10 +166,6 @@ static float DistancePointToLineSegment2D(const DirectX::XMFLOAT3& A, const Dire
     };
 }
 
-// =========================================================
-// INITIALIZATION OVERLOADS
-// =========================================================
-
 void CollisionManager::Initialize(Player* p, Stage* s, EnemyManager* em, ItemManager* im)
 {
     m_player = p;
@@ -182,10 +173,6 @@ void CollisionManager::Initialize(Player* p, Stage* s, EnemyManager* em, ItemMan
     m_enemyManager = em;
     m_itemManager = im;
 }
-
-// =========================================================
-// UPDATE
-// =========================================================
 
 void CollisionManager::Update(float elapsedTime)
 {
@@ -284,7 +271,6 @@ void CollisionManager::CheckEnemyProjectilesFull(float elapsedTime)
             {
                 Enemy* targetEnemy = static_cast<Enemy*>(bullet->GetHomingTarget());
 
-                // ---> BUG PREVENTION: The Dangling Pointer Guard <---
                 // Verify the target wasn't deleted from memory by a different attack (like a Slash)
                 bool isTargetAlive = false;
                 for (auto& activeEnemy : m_enemyManager->GetEnemies()) {
@@ -294,7 +280,7 @@ void CollisionManager::CheckEnemyProjectilesFull(float elapsedTime)
                     }
                 }
 
-                // If the target died while the bullet was mid-air, destroy the bullet to prevent a crash.
+                // If the target died while the bullet was mid-air, destroy the bullet to prevent a crash
                 if (!isTargetAlive) {
                     it = projectiles.erase(it);
                     continue;
@@ -307,7 +293,7 @@ void CollisionManager::CheckEnemyProjectilesFull(float elapsedTime)
                 float dz = bPos.z - targetPos.z;
                 float distSq = dx * dx + dz * dz;
 
-                // ---> DYNAMIC HITBOX MATH <---
+				// Party Damage Logic: If the bullet is close enough to the target, apply damage and destroy the bullet
                 float enemyScale = targetEnemy->GetScale().x;
                 float hitRadius = 1.0f * enemyScale;
 
@@ -318,7 +304,7 @@ void CollisionManager::CheckEnemyProjectilesFull(float elapsedTime)
 
                 if (distSq < (combinedHitRadius * combinedHitRadius))
                 {
-                    // ---> APPLY PARRY DAMAGE <---
+					// Apply damage to the enemy and destroy the bullet
                     constexpr int PARRY_DAMAGE = 30;
                     targetEnemy->TakeDamage(PARRY_DAMAGE);
 
@@ -330,9 +316,7 @@ void CollisionManager::CheckEnemyProjectilesFull(float elapsedTime)
 
             bool hitPlayer = false;
 
-            // ----------------------------------------------------
-            // ENEMY BULLET VS PLAYER COLLISION
-            // ----------------------------------------------------
+			// Check for collision with the player using Continuous Collision Detection (CCD)
             XMFLOAT3 nextPosFloat;
             XMStoreFloat3(&nextPosFloat, vNextPos);
 
@@ -353,7 +337,6 @@ void CollisionManager::CheckEnemyProjectilesFull(float elapsedTime)
                     bool wasAlive = (m_player->GetHP() > 0);
                     m_player->TakeDamage(ENEMY_BULLET_DAMAGE);
 
-                    // ---> THE SIMPLE DEATH STATE <---
                     if (m_player->GetHP() <= 0)
                     {
                         m_player->scale = { 0.0f, 0.0f, 0.0f }; // Make the 3D model vanish
@@ -389,10 +372,9 @@ float CollisionManager::GetEnemyPushRadius(const Enemy* enemy) const
 
 void CollisionManager::CheckPlayerVsEnemies()
 {
-    // FAST FAIL: Guard clauses
     if (!m_player || !m_enemyManager) return;
 
-    // CPU OPTIMIZATION: If player is already dead, skip all enemy physics!
+    // If player is already dead, skip all enemy physics
     if (m_player->GetHP() <= 0) return;
 
     auto& enemies{ m_enemyManager->GetEnemies() };
@@ -411,42 +393,36 @@ void CollisionManager::CheckPlayerVsEnemies()
         const float enemyRadius{ GetEnemyPushRadius(enemy.get()) };
         const float combinedRadius{ PLAYER_RADIUS + enemyRadius };
 
-        // Zero-copy math
         float dx{ playerPos.x - ePos.x };
         float dz{ playerPos.z - ePos.z };
         const float distSq{ (dx * dx) + (dz * dz) };
 
         if (distSq < (combinedRadius * combinedRadius))
         {
-            // =======================================================
-            // THE KAMIKAZE INSTA-KILL MECHANIC 
-            // =======================================================
+			// Kamikaze Enemy Logic: If the enemy is a tracking type and the player is not invincible, instantly kill the player
             if (enemy->GetAttackType() == AttackType::Tracking && !m_player->IsInvincible())
             {
-                // 1. Instantly nuke player HP
+                // Instantly nuke player HP
                 m_player->TakeDamage(9999);
 
-                // 2. Trigger standard death sequence
+                // Trigger standard death sequence
                 m_player->scale = { 0.0f, 0.0f, 0.0f }; // Hide 3D model
                 m_player->SetInputEnabled(false);       // Lock controls
                 m_player->GetMovement()->SetVelocity({ 0.0f, 0.0f, 0.0f }); // Stop sliding
                 m_player->GetStateMachine()->ChangeState(m_player, std::make_unique<PlayerDead>());
 
-                // 3. Kill the kamikaze enemy so it doesn't survive the explosion
+                // Kill the kamikaze enemy so it doesn't survive the explosion
                 enemy->TakeDamage(9999);
 
                 enemy->SetKilledPlayer(true);
 
-                // 4. INSTANT EXIT: Player is dead, absolutely zero need to check other enemies!
+                // Player is dead, no need to check other enemies
                 return;
             }
 
-            // =======================================================
-            // NORMAL PUSH PHYSICS (For Static / Standard Enemies)
-            // =======================================================
+			// Normal Enemy Collision Logic: Push the player away from the enemy to prevent overlap
             float dist{ std::sqrt(distSq) };
 
-            // Divide-By-Zero Guard (NaN propagation)
             if (dist < 0.0001f)
             {
                 dx = 1.0f; dz = 0.0f; dist = 1.0f;
@@ -458,7 +434,6 @@ void CollisionManager::CheckPlayerVsEnemies()
 
             collidedAny = true;
 
-            // "Sticky Wall" Velocity Fix
             DirectX::XMVECTOR vVel{ DirectX::XMLoadFloat3(&playerVel) };
             const DirectX::XMVECTOR vNormal{ DirectX::XMVectorSet(dx / dist, 0.0f, dz / dist, 0.0f) };
 
@@ -509,7 +484,7 @@ void CollisionManager::CheckPlayerVsCheckpointLines()
 
 void CollisionManager::CheckPlayerVsTriggerLines()
 {
-    // Fast Fail: Guard against missing data or dead player
+    // Guard against missing data or dead player
     if (!m_player || !m_stage || m_player->GetHP() <= 0) return;
 
     const float TRIGGER_RANGE_Z = 2.0f;
@@ -594,13 +569,10 @@ void CollisionManager::CheckPlayerVsItems()
 
 void CollisionManager::CheckPlayerProjectilesVsEnemies(const float elapsedTime)
 {
-    // Cukup cek player di awal, agar logic menembak kandang tetap jalan 
-    // meskipun tidak ada musuh (atau m_enemyManager belum siap)
     if (!m_player) return;
 
     auto& projectiles{ m_player->GetProjectiles() };
 
-    //constexpr int PLAYER_BULLET_DAMAGE = 10;
     constexpr float BULLET_HITBOX_RADIUS = 1.0f;
 
     for (auto& bullet : projectiles)
@@ -609,9 +581,6 @@ void CollisionManager::CheckPlayerProjectilesVsEnemies(const float elapsedTime)
 
         const DirectX::XMFLOAT3 currentPos{ bullet->GetMovement()->GetPosition() };
 
-        // =========================================================
-        // DETEKSI PELURU VS MUSUH (Logika Aslimu)
-        // =========================================================
         if (!m_enemyManager) continue; // Cek musuh di sini agar aman
         const auto& enemies{ m_enemyManager->GetEnemies() };
 
@@ -624,7 +593,7 @@ void CollisionManager::CheckPlayerProjectilesVsEnemies(const float elapsedTime)
             currentPos.z - (velocity.z * elapsedTime)
         };
 
-        // 1. Generate the Swept AABB for the bullet
+        // Generate the Swept AABB for the bullet
         const AABB bulletAABB{ CreateSweptAABB(prevPos, currentPos, BULLET_HITBOX_RADIUS) };
 
         for (const auto& enemy : enemies)
@@ -634,20 +603,18 @@ void CollisionManager::CheckPlayerProjectilesVsEnemies(const float elapsedTime)
             const DirectX::XMFLOAT3 ePos{ enemy->GetPosition() };
             const float enemyRadius{ GetEnemyPushRadius(enemy.get()) };
 
-            // 2. Generate the static AABB for the enemy
+            // Generate the static AABB for the enemy
             const AABB enemyAABB{
                 { ePos.x - enemyRadius, ePos.y - enemyRadius, ePos.z - enemyRadius },
                 { ePos.x + enemyRadius, ePos.y + enemyRadius, ePos.z + enemyRadius }
             };
 
-            // 3. BROAD-PHASE: Are they even close? 
-            // This is a simple float comparison. It costs almost nothing.
+            // Are they even close? 
             if (!CheckAABBIntersection(bulletAABB, enemyAABB))
             {
-                continue; // Skip the expensive math entirely!
+                continue; 
             }
 
-            // 4. NARROW-PHASE: The expensive exact math (Only runs if broad-phase passes)
             if (CheckSphereCollision(currentPos, ePos, BULLET_HITBOX_RADIUS + enemyRadius))
             {
                 enemy->TakeDamage(bullet->GetDamage());
@@ -675,7 +642,7 @@ void CollisionManager::CheckNaviProjectilesVsEnemies(float elapsedTime)
         DirectX::XMFLOAT3 currentPos = bullet->GetMovement()->GetPosition();
         DirectX::XMFLOAT3 vel = bullet->GetVelocity();
 
-        // ---> CCD MATH: Calculate exactly where the bullet was last frame! <---
+        // Calculate exactly where the bullet was last frame
         DirectX::XMFLOAT3 prevPos = {
             currentPos.x - (vel.x * elapsedTime),
             currentPos.y - (vel.y * elapsedTime), 
@@ -688,8 +655,7 @@ void CollisionManager::CheckNaviProjectilesVsEnemies(float elapsedTime)
 
             DirectX::XMFLOAT3 ePos = enemy->GetPosition();
 
-            // ---> DYNAMIC HITBOXES <---
-            // Fetch the visual scale of the enemy so the hitbox matches the 3D model perfectly
+			// Dynamic Hitbox Calculation: The Navi's bullets are small, so we need to adjust the hitbox based on the enemy's size
             float enemyScale = enemy->GetScale().x;
             float enemyRadius = 1.0f * enemyScale; // Default Ball
 
@@ -699,9 +665,9 @@ void CollisionManager::CheckNaviProjectilesVsEnemies(float elapsedTime)
             // Combine the enemy's size with the bullet's size
             float exactHitDistance = enemyRadius + BULLET_HITBOX_RADIUS;
 
-            // ---> THE ANTI-TUNNELING CHECK <---
+			// Anti-Tunneling CCD (Continuous Collision Detection) Logic:
             // Draws an invisible math line from prevPos to currentPos.
-            // If the enemy touches ANY part of that line, it's a guaranteed hit!
+            // If the enemy touches any part of that line, it's a guaranteed hit
             float distToPath = DistancePointToLineSegment2D(prevPos, currentPos, ePos);
 
             if (distToPath <= exactHitDistance)
@@ -716,7 +682,6 @@ void CollisionManager::CheckNaviProjectilesVsEnemies(float elapsedTime)
 
 void CollisionManager::CheckPlayerProjectilesVsNavi(const float elapsedTime)
 {
-    // Fast fail: Early exit prevents unnecessary pointer dereferencing
     if (!m_player || !m_navi || !m_navi->IsAlive() || !m_navi->IsPotioned()) return;
 
     // Reference binding to avoid copying the container
@@ -726,13 +691,11 @@ void CollisionManager::CheckPlayerProjectilesVsNavi(const float elapsedTime)
     constexpr float NAVI_HITBOX_RADIUS_XZ{ 0.8f };
     constexpr int PLAYER_BULLET_DAMAGE{ 10 };
 
-    // CPU Optimization: Range-based for loop
     for (const auto& bullet : projectiles)
     {
         // Null and active state guard
         if (!bullet || !bullet->IsActive()) continue;
 
-        // Brace initialization for zero-cost abstraction and preventing narrowing conversions
         const DirectX::XMFLOAT3 currentPos{ bullet->GetMovement()->GetPosition() };
         const DirectX::XMFLOAT3 vel{ bullet->GetVelocity() };
 
@@ -745,7 +708,7 @@ void CollisionManager::CheckPlayerProjectilesVsNavi(const float elapsedTime)
         // Anti-tunneling CCD (Continuous Collision Detection) 
         const float distToPath{ DistancePointToLineSegment2D(prevPos, currentPos, naviPos) };
 
-        // 2D Cylinder Collision: Completely ignore the Y-axis vertical distance
+        // 2D Cylinder Collision completely ignore the Y-axis vertical distance
         if (distToPath <= NAVI_HITBOX_RADIUS_XZ)
         {
             m_navi->TakeDamage(PLAYER_BULLET_DAMAGE);
@@ -757,10 +720,9 @@ void CollisionManager::CheckPlayerProjectilesVsNavi(const float elapsedTime)
 
 void CollisionManager::CheckNaviAllyProjectilesVsPlayer(const float elapsedTime)
 {
-    // If the player is dead, Navi isn't potioned, OR the player is currently Dashing (Invincible),
+    // If the player is dead, Navi isn't potioned, or the player is currently Dashing (Invincible)
     if (!m_player || !m_navi || m_player->GetHP() <= 0 || !m_navi->IsPotioned() || m_player->IsInvincible()) return;
 
-    // Reference bindings (No copying)
     const auto& projectiles{ m_navi->GetProjectiles() };
     const DirectX::XMFLOAT3 playerPos{ m_player->GetMovement()->GetPosition() };
 
@@ -787,10 +749,10 @@ void CollisionManager::CheckNaviAllyProjectilesVsPlayer(const float elapsedTime)
         {
             bullet->SetActive(false); // Destroy the bullet
 
-            // --- Apply Damage ---
+            // Apply Damage 
             m_player->TakeDamage(NAVI_BULLET_DAMAGE);
 
-            // --- Death Sequence Logic ---
+            // Death Sequence Logic 
             if (m_player->GetHP() <= 0)
             {
                 // Visual & State Reset
@@ -837,11 +799,6 @@ Enemy* CollisionManager::GetTargetInSlashCone(const DirectX::XMFLOAT3& playerPos
         if (enemy->GetType() == EnemyType::Pentagon) enemyRadius = 4.0f * enemyScale;
         else if (enemy->GetType() == EnemyType::Paddle) enemyRadius = 1.2f * enemyScale;
 
-        // =========================================================
-        // DYNAMIC HITBOX & TERNARY OPTIMIZATION
-        // Kamikazes get a 3.5x reach multiplier to combat tunneling.
-        // Using const initialization ensures zero mutation overhead.
-        // =========================================================
         const bool isKamikaze{ enemy->GetAttackType() == AttackType::Tracking };
         const float dynamicReach{ isKamikaze ? (baseReach * 3.5f) : baseReach };
 
@@ -861,16 +818,10 @@ Enemy* CollisionManager::GetTargetInSlashCone(const DirectX::XMFLOAT3& playerPos
 
             const float dot{ (dirX * aimDir.x) + (dirZ * aimDir.z) };
 
-            // STRICT FACING CHECK: If the dot product is less than the threshold 
+            // If the dot product is less than the threshold 
             // (e.g. Kamikaze is behind the player), this fails entirely. Player dies.
             if (dot >= minDotProduct)
             {
-                // =========================================================
-                // TARGET PRIORITIZATION (SHIELDING BUG PREVENTION)
-                // If it's a Kamikaze, we artificially multiply its distance
-                // by 0.1f during the comparison. This guarantees the Kamikaze
-                // wins the `bestTarget` check over standard enemies.
-                // =========================================================
                 const float prioritizationDistSq{ isKamikaze ? (distSq * 0.1f) : distSq };
 
                 if (prioritizationDistSq < closestDistSq)

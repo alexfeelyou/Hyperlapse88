@@ -8,6 +8,9 @@
 #include "System/AudioManager.h"
 #include "System/Collision.h"
 #include "System/Input.h"
+#include "EffectManager.h"
+#include <CameraController.h>
+#include "EffectManager.h"
 #include "Enemy.h"
 #include "Player.h"
 #include "Stage.h"
@@ -27,7 +30,6 @@ struct AABB
     DirectX::XMFLOAT3 maxPoint{};
 };
 
-// inline and noexcept allow the compiler to heavily optimize this (zero-cost abstraction).
 [[nodiscard]] inline bool CheckAABBIntersection(const AABB& a, const AABB& b) noexcept
 {
     return (a.minPoint.x <= b.maxPoint.x && a.maxPoint.x >= b.minPoint.x) &&

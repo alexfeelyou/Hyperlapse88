@@ -66,7 +66,7 @@ void Stage::InitPhysics(physx::PxPhysics* physics, physx::PxScene* scene, physx:
                 bakedVertices.emplace_back(f.x, f.y, f.z);
             }
 
-            // 2. メッシュ記述子の作成
+            // メッシュ記述子の作成
             physx::PxTriangleMeshDesc meshDesc;
             meshDesc.points.count = static_cast<physx::PxU32>(bakedVertices.size());
             meshDesc.points.stride = sizeof(physx::PxVec3);
@@ -75,8 +75,6 @@ void Stage::InitPhysics(physx::PxPhysics* physics, physx::PxScene* scene, physx:
             meshDesc.triangles.stride = 3 * sizeof(uint32_t);
             meshDesc.triangles.data = mesh.indices.data();
 
-            // 3. 【PhysX 5 解決策】グローバル関数 PxCreateTriangleMesh を使用
-            // 名前空間 physx:: を付けずに呼ぶか、ヘッダーを再確認してください。
             physx::PxTriangleMesh* triMesh = PxCreateTriangleMesh(
                 params,
                 meshDesc,
@@ -92,10 +90,10 @@ void Stage::InitPhysics(physx::PxPhysics* physics, physx::PxScene* scene, physx:
 
 void Stage::RebuildPhysics()
 {
-    // Safety Check: If physics isn't linked, abort.
+    // If physics isn't linked, abort
     if (!m_physics || !m_scene || !m_material) return;
 
-    // Clean Slate: Destroy the old actor if we are rebuilding from the GUI
+    // Destroy the old actor if we are rebuilding from the GUI
     if (m_physxActor)
     {
         m_scene->removeActor(*m_physxActor);
@@ -197,7 +195,7 @@ void Stage::UpdateTransform()
 {
     if (!model) return;
 
-    // Calculate World Matrix: Scale * Rotation * Translation
+    // Calculate World Matrix
     XMMATRIX S = XMMatrixScaling(scale.x, scale.y, scale.z);
     XMMATRIX R = XMMatrixRotationRollPitchYaw(
         XMConvertToRadians(rotation.x),
@@ -318,7 +316,7 @@ void Stage::AddDebugLine(DebugLineType type)
     newLine.Rotation = { 0,0,0 };
     newLine.Scale = StageConfig::LINE_DEFAULT_SCALE;
 
-    // Determine which list to add to
+	// Determine which list to add to based on the type
     std::vector<DebugLineData>* targetList = nullptr;
 
     switch (type)

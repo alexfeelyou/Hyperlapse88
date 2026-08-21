@@ -5,7 +5,6 @@
 class StateMachine
 {
 public:
-    // currentState cleaned up automatically by unique_ptr
     ~StateMachine() = default;
 
     // Takes ownership of startState and immediately enters it

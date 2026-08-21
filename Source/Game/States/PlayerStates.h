@@ -1,14 +1,21 @@
 ﻿#pragma once
 #include "PlayerState.h"
 #include "PlayerConstants.h"
+#include "Player.h"
+#include "PlayerConstants.h"
+#include "StateMachine.h"
+#include "AnimationController.h"
+#include "System/Input.h"
+#include <memory>
+#include <cmath>
+#include "System/CollisionManager.h"
+#include "Enemy.h"
+#include "Bullet.h"
+#include "System/AudioManager.h"
+#include "EffectManager.h"
 #include <DirectXMath.h>
 
 class Player;
-
-// ============================================================
-// STATE DECLARATIONS
-// Implementations live in PlayerStates.cpp
-// ============================================================
 
 class PlayerIdle : public PlayerState
 {
@@ -71,7 +78,6 @@ private:
     float m_minTapCooldown{ 0.0f };
 };
 
-// TODO: implement damage and death behaviour
 class PlayerDamage : public PlayerState
 {
 public:

@@ -2,9 +2,7 @@
 
 using namespace DirectX;
 
-// =================================================================
-// IntersectSegmentVsAABB (The "Solid Plane" Check)
-// =================================================================
+// Intersect Moving Sphere vs Box (Infinite Y)
 bool Collision::IntersectMovingSphereVsBoxInfiniteY(
     const DirectX::XMFLOAT3& prevPos,
     const DirectX::XMFLOAT3& currPos,
@@ -14,7 +12,7 @@ bool Collision::IntersectMovingSphereVsBoxInfiniteY(
     DirectX::XMFLOAT3& outHitNormal,
     float& outT)
 {
-    // 1. Prepare Matrices
+    // Prepare Matrices
     XMMATRIX matRot = XMMatrixRotationRollPitchYaw(
         XMConvertToRadians(wall.Rotation.x),
         XMConvertToRadians(wall.Rotation.y),
@@ -23,7 +21,7 @@ bool Collision::IntersectMovingSphereVsBoxInfiniteY(
     XMMATRIX matInvRot = XMMatrixTranspose(matRot);
     XMVECTOR vWallPos = XMLoadFloat3(&wall.Position);
 
-    // 2. Transform Positions to Local Space
+    // Transform Positions to Local Space
     // We treat the wall as the center of the universe (0,0,0) with no rotation.
     XMVECTOR vPrev = XMLoadFloat3(&prevPos);
     XMVECTOR vCurr = XMLoadFloat3(&currPos);
@@ -38,9 +36,6 @@ bool Collision::IntersectMovingSphereVsBoxInfiniteY(
     XMStoreFloat3(&p0, vLocPrev);
     XMStoreFloat3(&p1, vLocCurr);
 
-    // 3. Define the "Expanded" Box
-    // We expand the box by the ball's radius.
-    // This allows us to treat the ball as a single point (Raycast).
     float maxX = wall.Scale.x + radius;
     float minX = -maxX;
     float maxZ = wall.Scale.z + radius;
@@ -77,13 +72,12 @@ bool Collision::IntersectMovingSphereVsBoxInfiniteY(
         return true;
     }
 
-    // 4. Ray-Slab Intersection (Slab Method) on X and Z
-    // We want to find the first time 't' (0..1) the segment enters the box.
+    // Ray-Slab Intersection (Slab Method) on X and Z
     float tEnter = 0.0f;
     float tExit = 1.0f;
     float tNormalX = 0.0f, tNormalZ = 0.0f; // Local normal components
 
-    // --- X Axis ---
+    // X Axis 
     if (fabsf(dx) < 1e-6f) // Parallel to X planes
     {
         if (p0.x < minX || p0.x > maxX) return false; // Parallel and outside
@@ -108,7 +102,7 @@ bool Collision::IntersectMovingSphereVsBoxInfiniteY(
         if (tEnter > tExit) return false; // Miss
     }
 
-    // --- Z Axis ---
+    // Z Axis
     if (fabsf(dz) < 1e-6f) // Parallel to Z planes
     {
         if (p0.z < minZ || p0.z > maxZ) return false;
@@ -146,9 +140,8 @@ bool Collision::IntersectMovingSphereVsBoxInfiniteY(
 
     return true;
 }
-// =================================================================
-// IntersectRayVsOBB (Slab Method)
-// =================================================================
+
+//Intersect Ray vs OBB (Oriented Bounding Box)
 bool Collision::IntersectRayVsOBB(
     const DirectX::XMFLOAT3& rayOrigin,
     const DirectX::XMFLOAT3& rayDir,
@@ -177,9 +170,8 @@ bool Collision::IntersectRayVsOBB(
     XMFLOAT3 localOrigin; XMStoreFloat3(&localOrigin, vLocalOrigin);
     XMFLOAT3 localDir;    XMStoreFloat3(&localDir, vLocalDir);
 
-    // [ROBUSTNESS] Inflate the box slightly for the ray check.
-    // This helps catch cases where the ball center is slightly misaligned.
-    // We treat Y as infinite.
+    // Inflate the box slightly for the ray check
+    // We treat Y as infinite
     float padding = 0.1f;
     XMFLOAT3 extents = wall.Scale;
     extents.x += padding;
@@ -192,7 +184,7 @@ bool Collision::IntersectRayVsOBB(
     XMFLOAT3 localNormal = { 0, 0, 0 };
     int hitAxis = -1;
 
-    // --- Check X Axis ---
+    // Check X Axis 
     if (fabsf(localDir.x) > 1e-6f)
     {
         float invD = 1.0f / localDir.x;
@@ -206,7 +198,7 @@ bool Collision::IntersectRayVsOBB(
     }
     else if (localOrigin.x < -extents.x || localOrigin.x > extents.x) return false;
 
-    // --- Check Y Axis ---
+    // Check Y Axis 
     if (fabsf(localDir.y) > 1e-6f)
     {
         float invD = 1.0f / localDir.y;
@@ -218,9 +210,8 @@ bool Collision::IntersectRayVsOBB(
         if (t1 < tMax) { tMax = t1; }
         if (tMin > tMax) return false;
     }
-    // No "else" for Y because it's infinite, ray always "inside" Y-slab unless way off
 
-    // --- Check Z Axis ---
+    // Check Z Axis
     if (fabsf(localDir.z) > 1e-6f)
     {
         float invD = 1.0f / localDir.z;
@@ -247,9 +238,7 @@ bool Collision::IntersectRayVsOBB(
     return true;
 }
 
-// =================================================================
-// ResolveOBB (EXISTING)
-// =================================================================
+// Resolve OBB Collision
 bool Collision::ResolveOBB(
     const DirectX::XMFLOAT3& entityPos,
     float entityRadius,
@@ -298,9 +287,8 @@ bool Collision::ResolveOBB(
 
     return true;
 }
-// =================================================================
-// RayCast
-// =================================================================
+
+// Ray Cast against Model
 bool Collision::RayCast(
     const DirectX::XMFLOAT3& start,
     const DirectX::XMFLOAT3& end,
@@ -390,9 +378,7 @@ bool Collision::RayCast(
     return hit;
 }
 
-// =================================================================
-// IntersectSphereVsSphere
-// =================================================================
+// Intersect Sphere vs Sphere
 bool Collision::IntersectSphereVsSphere(
     const DirectX::XMFLOAT3& positionA, float radiusA,
     const DirectX::XMFLOAT3& positionB, float radiusB,
@@ -417,9 +403,7 @@ bool Collision::IntersectSphereVsSphere(
     return true;
 }
 
-// =================================================================
-// IntersectSphereVsCylinder
-// =================================================================
+// Intersect Sphere vs Cylinder
 bool Collision::IntersectSphereVsCylinder(
     const DirectX::XMFLOAT3& spherePos, float sphereRad,
     const DirectX::XMFLOAT3& cylPos, float cylRad, float cylHeight,
@@ -448,9 +432,7 @@ bool Collision::IntersectSphereVsCylinder(
     return true;
 }
 
-// =================================================================
-// IntersectCubeVsCube
-// =================================================================
+// Intersect Cube vs Cube
 bool Collision::IntersectCubeVsCube(
     const DirectX::XMFLOAT3& posA, const DirectX::XMFLOAT3& sizeA,
     const DirectX::XMFLOAT3& posB, const DirectX::XMFLOAT3& sizeB,
@@ -490,9 +472,7 @@ bool Collision::IntersectCubeVsCube(
     return true;
 }
 
-// =================================================================
-// IntersectSphereVsCube
-// =================================================================
+// Intersect Sphere vs Cube
 bool Collision::IntersectSphereVsCube(
     const DirectX::XMFLOAT3& spherePos, float sphereRad,
     const DirectX::XMFLOAT3& cubePos, const DirectX::XMFLOAT3& cubeSize,
@@ -529,9 +509,7 @@ bool Collision::IntersectSphereVsCube(
     return true;
 }
 
-// =================================================================
-// IsPointInCube
-// =================================================================
+// Check if Point is Inside Cube
 bool Collision::IsPointInCube(
     const DirectX::XMFLOAT3& p,
     const DirectX::XMFLOAT3& pos,
@@ -542,9 +520,7 @@ bool Collision::IsPointInCube(
         p.z >= pos.z - size.z && p.z <= pos.z + size.z);
 }
 
-// =================================================================
-// IntersectCylinderVsCylinder
-// =================================================================
+// Intersect Cylinder vs Cylinder
 bool Collision::IntersectCylinderVsCylinder(
     const DirectX::XMFLOAT3& posA, float radA, float hA,
     const DirectX::XMFLOAT3& posB, float radB, float hB,
