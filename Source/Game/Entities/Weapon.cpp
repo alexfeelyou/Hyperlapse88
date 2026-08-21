@@ -15,13 +15,6 @@ void Weapon::SetLocalOffset(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT
     m_offsetScale = scale;
 }
 
-void Weapon::ResetOffsets()
-{
-    m_offsetPos = { 0.0f, 0.0f, 0.0f };
-    m_offsetRot = { 0.0f, 0.0f, 0.0f };
-    m_offsetScale = { 1.0f, 1.0f, 1.0f };
-}
-
 void Weapon::UpdateTransform(const XMFLOAT4X4& parentBoneMatrix)
 {
     if (!m_model) return;

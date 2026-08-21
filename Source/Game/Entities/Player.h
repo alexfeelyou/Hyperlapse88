@@ -11,12 +11,9 @@
 #include "AnimationController.h"
 #include "Camera.h"
 #include "Framework.h"
-#include "NaviAlly.h"
-#include "PlayerConstants.h"
 #include "PlayerStates.h"
 #include "StateMachine.h"
 #include <cmath>
-#include <imgui.h>
 #include "EffectManager.h"
 #include "System/AudioManager.h"
 #include <array>
@@ -77,8 +74,6 @@ public:
     [[nodiscard]] bool IsInputEnabled() const { return isInputEnabled; } 
     void SetCamera(Camera* cam) { activeCamera = cam; }
 
-    // Position helpers 
-    void SetPosition(float x, float y, float z);
     void SetPosition(const DirectX::XMFLOAT3& pos);
 
     // Movement config
@@ -90,15 +85,9 @@ public:
 
 	// Weapon 
     void SetActiveWeapon(WeaponType type) { m_activeWeaponType = type; }
-    [[nodiscard]] WeaponType GetActiveWeaponType() const { return m_activeWeaponType; }
 
-    // Returns a specific weapon (used by GUI)
-    [[nodiscard]] Weapon* GetWeapon(WeaponType type) const { return m_weapons[static_cast<size_t>(type)].get(); }
-
-    // Returns the weapon currently being held (used by Render)
+    // Returns the weapon currently being held
     [[nodiscard]] Weapon* GetActiveWeapon() const { return m_weapons[static_cast<size_t>(m_activeWeaponType)].get(); }
-
-    float GetRadius() const { return 2.0f; } 
 
     void RenderWeapon(ModelRenderer* renderer);
 
@@ -115,21 +104,10 @@ public:
         m_playerbulletOffsetScale = { 1.0f, 1.0f, 1.0f };
     }
 
-    void SetShootDelay(float newDelay) {
-        m_shootDelay = newDelay;
-    }
-    void RestoreShootDelay() {
-        m_shootDelay = PlayerConst::ShootDuration; 
-    }
     float GetShootDelay() const {
         return m_shootDelay;
     }
 
-    std::shared_ptr<Model> GetPlayerBulletModel() const { return m_playerbulletModel; }
-    DirectX::XMFLOAT3* GetPlayerBulletOffsetPos() { return &m_playerbulletOffsetPos; }
-    DirectX::XMFLOAT3* GetPlayerBulletOffsetRot() { return &m_playerbulletOffsetRot; }
-    DirectX::XMFLOAT3* GetPlayerBulletOffsetScale() { return &m_playerbulletOffsetScale; }
-    DirectX::XMFLOAT4* GetPlayerBulletColor() { return &m_playerbulletColor; }
     std::deque<std::unique_ptr<Bullet>>& GetProjectiles() { return m_projectiles; }
 
     bool IsMoving() const
@@ -143,7 +121,6 @@ public:
     DirectX::XMFLOAT4 color = { 1.0f, 1.0f, 1.0f, 1.0f };
 
     // Read accessors for state machine 
-    float GetBaseSpeed()    const { return baseSpeed; }
     float GetDashSpeed()    const { return dashSpeed; }
     float GetDashDuration() const { return dashDuration; }
     float GetDashCooldown() const { return dashCooldown; } 
@@ -155,8 +132,7 @@ public:
 	// Health 
     void TakeDamage(float damage);
     void SetMaxHP(float maxHp) { m_maxHp = maxHp; m_hp = maxHp; } 
-    void Heal(float amount);
-    void Heal(int amount);
+
     [[nodiscard]] float GetHP() const { return m_hp; }      
     [[nodiscard]] float GetMaxHP() const { return m_maxHp; }
 
@@ -171,9 +147,6 @@ public:
     void SetCollisionManager(CollisionManager* colMgr) { m_collisionManager = colMgr; }
     CollisionManager* GetCollisionManager() const { return m_collisionManager; }
 
-	// Cape Simulator (optional, only used if player model has a cape) 
-    CapeSimulator* GetCapeSimulator() const { return m_capeSimulator.get(); }
-
 	// Glitch Effect 
     [[nodiscard]] float GetDamageGlitchIntensity() const noexcept;
 
@@ -185,7 +158,6 @@ private:
     void UpdateHorizontalMovement(float dt);
     void UpdateFootRotation(float dt, float& outSmoothedYaw);
     void UpdateAimConstraint(float dt, float& inOutSmoothedYaw, bool& outShouldAim, float& outRelativeAngle);
-    void UpdateAimConstraint(float& inOutSmoothedYaw, bool& outShouldAim, float& outRelativeAngle);
     void ApplyWorldMatrix(float smoothedYaw, bool shouldAim, float relativeAngle);
     void UpdateProjectiles(float dt, Camera* camera);
 

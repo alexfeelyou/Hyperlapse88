@@ -753,18 +753,6 @@ void Player::TakeDamage(float damage)
     }
 }
 
-void Player::Heal(float amount) {
-    if (amount <= 0.0f || m_hp <= 0.0f) return;
-    m_hp += amount;
-    if (m_hp > m_maxHp) m_hp = m_maxHp; 
-}
-
-void Player::Heal(int amount) {
-    if (amount <= 0 || m_hp <= 0) return;
-    m_hp += static_cast<float>(amount);
-    if (m_hp > m_maxHp) m_hp = m_maxHp; 
-
-}
 // ============================================================
 // GAME FEEL & JUICE
 // ============================================================
@@ -774,14 +762,6 @@ float Player::GetDamageGlitchIntensity() const noexcept
     const float t{ m_damageGlitchTimer / DAMAGE_GLITCH_DURATION };
 
     return DAMAGE_GLITCH_MAX_INTENSITY * (t * t);
-}
-
-// ============================================================
-// HELPERS
-// ============================================================
-void Player::SetPosition(float x, float y, float z)
-{
-    if (movement) movement->SetPosition({ x, y, z });
 }
 
 void Player::SetPosition(const DirectX::XMFLOAT3& pos)
