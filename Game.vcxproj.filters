@@ -243,9 +243,6 @@
     <ClCompile Include="Source\Engine\Windowing\WindowManager.cpp">
       <Filter>Source\Engine\Windowing</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Engine\Windowing\WindowPool.cpp">
-      <Filter>Source\Engine\Windowing</Filter>
-    </ClCompile>
     <ClCompile Include="Source\Engine\Windowing\WindowShatter.cpp">
       <Filter>Source\Engine\Windowing</Filter>
     </ClCompile>
@@ -499,9 +496,6 @@
       <Filter>Source\Engine\Windowing</Filter>
     </ClInclude>
     <ClInclude Include="Source\Engine\Windowing\WindowManager.h">
-      <Filter>Source\Engine\Windowing</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Engine\Windowing\WindowPool.h">
       <Filter>Source\Engine\Windowing</Filter>
     </ClInclude>
     <ClInclude Include="Source\Engine\Windowing\WindowShatter.h">
