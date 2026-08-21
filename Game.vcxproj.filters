@@ -237,9 +237,6 @@
     <ClCompile Include="Source\Engine\Windowing\WindowManager.cpp">
       <Filter>Source\Engine\Windowing</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Engine\Windowing\WindowTrackingSystem.cpp">
-      <Filter>Source\Engine\Windowing</Filter>
-    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\System\BasicShader.h">
@@ -484,9 +481,6 @@
       <Filter>Source\Engine\Windowing</Filter>
     </ClInclude>
     <ClInclude Include="Source\Engine\Windowing\WindowManager.h">
-      <Filter>Source\Engine\Windowing</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Engine\Windowing\WindowTrackingSystem.h">
       <Filter>Source\Engine\Windowing</Filter>
     </ClInclude>
   </ItemGroup>
