@@ -169,7 +169,6 @@
     <ClInclude Include="Source\System\Collision.h" />
     <ClInclude Include="Source\System\CollisionManager.h" />
     <ClInclude Include="Source\System\BasicShader.h" />
-    <ClInclude Include="Source\System\Dialog.h" />
     <ClInclude Include="Source\System\GamePad.h" />
     <ClInclude Include="Source\System\GLTFImporter.h" />
     <ClInclude Include="Source\System\GpuResourceUtils.h" />
@@ -239,7 +238,6 @@
     <ClCompile Include="Source\System\BasicShader.cpp" />
     <ClCompile Include="Source\System\Collision.cpp" />
     <ClCompile Include="Source\System\CollisionManager.cpp" />
-    <ClCompile Include="Source\System\Dialog.cpp" />
     <ClCompile Include="Source\System\GamePad.cpp" />
     <ClCompile Include="Source\System\GLTFImporter.cpp" />
     <ClCompile Include="Source\System\GpuResourceUtils.cpp" />

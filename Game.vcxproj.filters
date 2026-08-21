@@ -48,9 +48,6 @@
     <ClCompile Include="Source\System\BasicShader.cpp">
       <Filter>System</Filter>
     </ClCompile>
-    <ClCompile Include="Source\System\Dialog.cpp">
-      <Filter>System</Filter>
-    </ClCompile>
     <ClCompile Include="Source\System\GamePad.cpp">
       <Filter>System</Filter>
     </ClCompile>
@@ -237,9 +234,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\System\BasicShader.h">
-      <Filter>System</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\System\Dialog.h">
       <Filter>System</Filter>
     </ClInclude>
     <ClInclude Include="Source\System\GamePad.h">
