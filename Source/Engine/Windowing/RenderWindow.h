@@ -1,11 +1,8 @@
 ﻿#pragma once
 
-#pragma comment(lib, "dcomp.lib") 
-
 #include <SDL3/SDL.h>
 #include <d3d11.h>
 #include <dxgi1_3.h> 
-#include <dcomp.h> 
 #include <wrl.h>
 #include <functional>
 #include "System/Graphics.h"
@@ -21,8 +18,7 @@ namespace platform
         Window();
         ~Window();
 
-        bool Initialize(const char* title, int width, int height, bool isTransparent = false);
-        bool IsTransparent() const { return m_isTransparent; }
+        bool Initialize(const char* title, int width, int height);
 
         void BeginRender(float r = 0.0f, float g = 0.0f, float b = 0.0f, float a = 1.0f);
         void EndRender(int syncInterval = 1);
@@ -46,13 +42,7 @@ namespace platform
         void SetTargetFPS(float fps) { m_targetFPS = fps; }
         void SetTickCallback(std::function<void()> callback) { m_tickCallback = callback; }
 
-        void SetBackgroundAlpha(float alpha) { m_bgAlpha = alpha; }
-        float GetBackgroundAlpha() const { return m_bgAlpha; }
-
         void SetBorderVisible(bool visible) { m_borderVisible = visible; }
-
-        void SetClickThrough(bool clickThrough);
-        bool IsClickThrough() const { return m_isClickThrough; }
 
 		void SetRenderScene(bool render) { m_shouldRenderScene = render; }
 		bool ShouldRenderScene() const { return m_shouldRenderScene; }
@@ -66,10 +56,6 @@ namespace platform
         int  m_height = 0;
         int  m_priority = 100;
         bool m_isDraggable = true;
-        bool m_isTransparent = false;
-        bool m_isClickThrough = false;
-
-        float m_bgAlpha = 0.0f;
         bool m_borderVisible = false;
 
 		bool m_shouldRenderScene = true;
@@ -82,10 +68,5 @@ namespace platform
         Microsoft::WRL::ComPtr<IDXGISwapChain1>        m_swapChain;
         Microsoft::WRL::ComPtr<ID3D11RenderTargetView> m_renderTargetView;
         Microsoft::WRL::ComPtr<ID3D11DepthStencilView> m_depthStencilView;
-
-        // DirectComposition 
-        Microsoft::WRL::ComPtr<IDCompositionDevice>    m_dcompDevice;
-        Microsoft::WRL::ComPtr<IDCompositionTarget>    m_dcompTarget;
-        Microsoft::WRL::ComPtr<IDCompositionVisual>    m_dcompVisual;
     };
 }

@@ -24,20 +24,12 @@ namespace platform
         return SDL_HITTEST_NORMAL;
     }
 
-    bool Window::Initialize(const char* title, int width, int height, bool isTransparent)
+    bool Window::Initialize(const char* title, int width, int height)
     {
         m_width = width;
         m_height = height;
-        m_isTransparent = isTransparent;
 
-        SDL_WindowFlags flags = SDL_WINDOW_HIDDEN;
-
-        if (isTransparent) {
-            flags |= SDL_WINDOW_TRANSPARENT | SDL_WINDOW_BORDERLESS;
-        }
-        else {
-            flags |= SDL_WINDOW_RESIZABLE;
-        }
+        SDL_WindowFlags flags = SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE;
 
         m_sdlWindow = SDL_CreateWindow(title, width, height, flags);
         if (!m_sdlWindow) return false;
@@ -72,46 +64,11 @@ namespace platform
 
         HRESULT hr;
 
-        if (m_isTransparent)
-        {
-            // DCOMP (for window transparency / VFX)
-            swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_PREMULTIPLIED;
-
-			// DirectX should render to a swap chain without a window handle (HWND) for DirectComposition
-            hr = dxgiFactory->CreateSwapChainForComposition(
-                device, &swapChainDesc, nullptr, &m_swapChain
-            );
-            if (FAILED(hr)) return false;
-
-            // Setup DirectComposition
-            hr = DCompositionCreateDevice(dxgiDevice.Get(), IID_PPV_ARGS(&m_dcompDevice));
-            if (FAILED(hr)) return false;
-
-            hr = m_dcompDevice->CreateTargetForHwnd(hwnd, true, &m_dcompTarget);
-            if (FAILED(hr)) return false;
-
-            hr = m_dcompDevice->CreateVisual(&m_dcompVisual);
-            if (FAILED(hr)) return false;
-
-            hr = m_dcompVisual->SetContent(m_swapChain.Get());
-            if (FAILED(hr)) return false;
-
-            hr = m_dcompTarget->SetRoot(m_dcompVisual.Get());
-            if (FAILED(hr)) return false;
-
-            hr = m_dcompDevice->Commit();
-            if (FAILED(hr)) return false;
-        }
-        else
-        {
-			// Normal window (non-transparent)
-            swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
-
-            hr = dxgiFactory->CreateSwapChainForHwnd(
-                device, hwnd, &swapChainDesc, nullptr, nullptr, &m_swapChain
-            );
-            if (FAILED(hr)) return false;
-        }
+        swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
+        hr = dxgiFactory->CreateSwapChainForHwnd(
+            device, hwnd, &swapChainDesc, nullptr, nullptr, &m_swapChain
+        );
+        if (FAILED(hr)) return false;
 
         // Render Target View
         Microsoft::WRL::ComPtr<ID3D11Texture2D> backBuffer;
@@ -142,11 +99,6 @@ namespace platform
 
 		// Clear the render target and depth stencil
         float clearColor[4] = { r, g, b, a };
-        if (m_isTransparent) {
-            clearColor[0] *= a;
-            clearColor[1] *= a;
-            clearColor[2] *= a;
-        }
 
         context->ClearRenderTargetView(m_renderTargetView.Get(), clearColor);
 
@@ -213,29 +165,5 @@ namespace platform
 
     void Window::SetAlwaysOnTop(bool isTop) {
         if (m_sdlWindow) SDL_SetWindowAlwaysOnTop(m_sdlWindow, isTop);
-    }
-
-    void Window::SetClickThrough(bool clickThrough)
-    {
-        m_isClickThrough = clickThrough;
-        if (!m_sdlWindow) return;
-
-        HWND hwnd = (HWND)SDL_GetPointerProperty(SDL_GetWindowProperties(m_sdlWindow), SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
-        if (hwnd)
-        {
-            LONG_PTR exStyle = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
-
-            if (clickThrough) {
-				// Add effect click-through (transparent to mouse events)
-                exStyle |= WS_EX_TRANSPARENT | WS_EX_LAYERED;
-            }
-            else {
-                // Remove click-through effect (normal)
-                exStyle &= ~WS_EX_TRANSPARENT;
-            }
-
-            // Apply back to OS
-            SetWindowLongPtr(hwnd, GWL_EXSTYLE, exStyle);
-        }
     }
 }

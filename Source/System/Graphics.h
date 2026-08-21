@@ -1,9 +1,9 @@
 ﻿#pragma once
 
 #include <d3d11.h>
-#include <dxgi1_5.h>   // IDXGIFactory5 untuk cek tearing support
+#include <dxgi1_5.h>   
 #include <dxgi1_2.h>
-#include <dcomp.h>     // DirectComposition
+#include <dcomp.h>     
 #include <wrl.h>
 #include <memory>
 #include "RenderState.h"
@@ -11,7 +11,6 @@
 #include "ShapeRenderer.h"
 #include "ModelRenderer.h"
 
-#pragma comment(lib, "dcomp.lib")
 #pragma comment(lib, "dxgi.lib")
 
 class Graphics
@@ -34,24 +33,10 @@ public:
 
     void Initialize();
 
-    // Normal window: swap chain langsung ke HWND
     void CreateSwapChainForHwnd(HWND hWnd, int width, int height, IDXGISwapChain1** outSwapChain);
-
-    // Transparent window: swap chain untuk DirectComposition (tanpa HWND)
-    // AlphaMode = PREMULTIPLIED — shader harus output rgb * a !
-    void CreateSwapChainForComposition(int width, int height, IDXGISwapChain1** outSwapChain);
-
-    // Legacy wrapper — sekarang delegate ke CreateSwapChainForHwnd
-    void CreateSwapChain(HWND hWnd, int width, int height, bool /*isTransparent*/, IDXGISwapChain1** outSwapChain)
-    {
-        CreateSwapChainForHwnd(hWnd, width, height, outSwapChain);
-    }
 
     ID3D11Device* GetDevice() { return device.Get(); }
     ID3D11DeviceContext* GetDeviceContext() { return immediateContext.Get(); }
-
-    // Dipakai DCompositionCreateDevice() di Window::Initialize
-    IDXGIDevice* GetDXGIDevice() { return dxgiDevice.Get(); }
 
     RenderState* GetRenderState() { return renderState.get(); }
     PrimitiveRenderer* GetPrimitiveRenderer() const { return primitiveRenderer.get(); }
@@ -59,14 +44,14 @@ public:
     ModelRenderer* GetModelRenderer()     const { return modelRenderer.get(); }
     ID3D11BlendState* GetAlphaBlendState();
 
-    // True jika adapter mendukung variable-refresh / G-Sync / FreeSync
+	// True if the system supports tearing (variable refresh rate), false otherwise
     bool IsTearingSupported() const { return m_tearingSupported; }
 
 private:
     Microsoft::WRL::ComPtr<ID3D11Device>        device;
     Microsoft::WRL::ComPtr<ID3D11DeviceContext> immediateContext;
     Microsoft::WRL::ComPtr<IDXGIFactory2>       dxgiFactory;
-    Microsoft::WRL::ComPtr<IDXGIDevice1>        dxgiDevice;   // disimpan agar DComp bisa pakai
+    Microsoft::WRL::ComPtr<IDXGIDevice1>        dxgiDevice;   
     Microsoft::WRL::ComPtr<ID3D11BlendState>    alphaBlendState;
 
     std::unique_ptr<RenderState>       renderState;

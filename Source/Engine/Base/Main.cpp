@@ -25,29 +25,6 @@ void EmergencyWatchdog()
     }
 }
 
-void TestPureWin32Transparency()
-{
-    WNDCLASSA wc = {};
-    wc.lpfnWndProc = DefWindowProcA;
-    wc.hInstance = GetModuleHandle(NULL);
-    wc.lpszClassName = "TestTransparent";
-    RegisterClassA(&wc);
-
-    HWND hwnd = CreateWindowExA(
-        WS_EX_LAYERED,
-        "TestTransparent", "Test Transparent",
-        WS_OVERLAPPEDWINDOW | WS_VISIBLE,
-        200, 200, 400, 400,
-        NULL, NULL, GetModuleHandle(NULL), NULL
-    );
-
-    SetLayeredWindowAttributes(hwnd, 0, 128, LWA_ALPHA);
-
-    Sleep(3000);
-    DestroyWindow(hwnd);
-}
-
-
 int main(int argc, char* argv[])
 {
     std::thread safetyThread(EmergencyWatchdog);
@@ -60,7 +37,6 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    //TestPureWin32Transparency();
     try
     {
         auto framework = std::make_unique<Framework>();

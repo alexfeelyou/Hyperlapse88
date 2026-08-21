@@ -24,7 +24,7 @@ public:
     void ClearAll();
 
 	// Users Functions
-    platform::Window* CreateGameWindow(const char* title, int width, int height, bool isTransparent = false);
+    platform::Window* CreateGameWindow(const char* title, int width, int height);
     void DestroyWindow(platform::Window* targetWindow);
     void EnforceWindowPriorities();
     void MarkPriorityDirty() { m_dirtyPriority = true; }

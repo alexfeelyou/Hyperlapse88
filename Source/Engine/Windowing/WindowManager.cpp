@@ -52,8 +52,7 @@ void WindowManager::RenderAll(float dt, Scene* scene)
     {
         if (!win->GetSDLWindow()) continue;
 
-        float bgAlpha = win->GetBackgroundAlpha();
-        win->BeginRender(0.0f, 0.0f, 0.0f, bgAlpha);
+        win->BeginRender(0.0f, 0.0f, 0.0f, 1.0f);
 
         if (win.get() == windows.front().get())
         {
@@ -69,7 +68,7 @@ void WindowManager::RenderAll(float dt, Scene* scene)
         }
 
 		// Determine sync interval based on transparency and vsync application
-        int syncInterval = (win->IsTransparent() || vsyncApplied) ? 0 : 1;
+        int syncInterval = vsyncApplied ? 0 : 1;
         if (!vsyncApplied && syncInterval == 1) vsyncApplied = true;
 
         win->EndRender(syncInterval);
@@ -88,11 +87,11 @@ void WindowManager::HandleResize(SDL_Window* sdlWindow, int width, int height)
     }
 }
 
-platform::Window* WindowManager::CreateGameWindow(const char* title, int width, int height, bool isTransparent)
+platform::Window* WindowManager::CreateGameWindow(const char* title, int width, int height)
 {
     auto newWindow = std::make_unique<platform::Window>();
 
-    if (!newWindow->Initialize(title, width, height, isTransparent))
+    if (!newWindow->Initialize(title, width, height))
     {
         return nullptr;
     }
