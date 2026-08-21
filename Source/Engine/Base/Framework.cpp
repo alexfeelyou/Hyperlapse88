@@ -24,7 +24,6 @@ Framework::Framework()
     if (!AudioManager::Instance().Initialize()) {  }
 
     auto mainWin = WindowManager::Instance().CreateGameWindow("Main Window (close here)", 1600, 900);
-    mainWin->SetPriority(0);
     mainWin->SetDraggable(false);
 
     SDL_ShowWindow(mainWin->GetSDLWindow());

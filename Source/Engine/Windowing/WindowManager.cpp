@@ -9,39 +9,6 @@
 
 void WindowManager::Update(float dt)
 {
-    if (m_dirtyPriority)
-    {
-        EnforceWindowPriorities();
-        m_dirtyPriority = false;
-    }
-}
-
-void WindowManager::EnforceWindowPriorities()
-{
-    std::vector<platform::Window*> sortedWindows;
-    sortedWindows.reserve(windows.size());
-
-    for (auto& win : windows)
-    {
-        if (win.get() != debugWindow && win->GetPriority() < 100)
-        {
-            sortedWindows.push_back(win.get());
-        }
-    }
-
-	// Sort windows by priority (lower number = higher priority)
-    std::sort(sortedWindows.begin(), sortedWindows.end(),
-        [](platform::Window* a, platform::Window* b) {
-            return a->GetPriority() < b->GetPriority();
-        });
-
-    for (platform::Window* win : sortedWindows)
-    {
-        if (win->GetSDLWindow())
-        {
-            SDL_RaiseWindow(win->GetSDLWindow());
-        }
-    }
 }
 
 void WindowManager::RenderAll(float dt, Scene* scene)
@@ -103,8 +70,6 @@ platform::Window* WindowManager::CreateGameWindow(const char* title, int width, 
 
     platform::Window* ptr = newWindow.get();
     windows.push_back(std::move(newWindow));
-
-    MarkPriorityDirty();
 
     return ptr;
 }

@@ -162,8 +162,4 @@ namespace platform
     void Window::SetTitle(const char* title) {
         if (m_sdlWindow) SDL_SetWindowTitle(m_sdlWindow, title);
     }
-
-    void Window::SetAlwaysOnTop(bool isTop) {
-        if (m_sdlWindow) SDL_SetWindowAlwaysOnTop(m_sdlWindow, isTop);
-    }
 }

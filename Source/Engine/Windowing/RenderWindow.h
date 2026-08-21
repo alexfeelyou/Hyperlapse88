@@ -32,18 +32,11 @@ namespace platform
         Camera* GetCamera() const { return m_targetCamera; }
 
         void SetTitle(const char* title);
-        void SetAlwaysOnTop(bool isTop);
         void SetDraggable(bool isDraggable) { m_isDraggable = isDraggable; }
         bool IsDraggable() const { return m_isDraggable; }
-
-        void SetPriority(int priority) { m_priority = priority; }
-        int  GetPriority() const { return m_priority; }
-
         void SetTargetFPS(float fps) { m_targetFPS = fps; }
         void SetTickCallback(std::function<void()> callback) { m_tickCallback = callback; }
-
         void SetBorderVisible(bool visible) { m_borderVisible = visible; }
-
 		void SetRenderScene(bool render) { m_shouldRenderScene = render; }
 		bool ShouldRenderScene() const { return m_shouldRenderScene; }
 
@@ -54,7 +47,6 @@ namespace platform
 
         int  m_width = 0;
         int  m_height = 0;
-        int  m_priority = 100;
         bool m_isDraggable = true;
         bool m_borderVisible = false;
 

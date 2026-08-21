@@ -26,8 +26,6 @@ public:
 	// Users Functions
     platform::Window* CreateGameWindow(const char* title, int width, int height);
     void DestroyWindow(platform::Window* targetWindow);
-    void EnforceWindowPriorities();
-    void MarkPriorityDirty() { m_dirtyPriority = true; }
 
     void SetDebugWindow(platform::Window* win) { debugWindow = win; }
     platform::Window* GetDebugWindow() const { return debugWindow; }
@@ -40,20 +38,14 @@ public:
         return nullptr;
     }
 
-    void SetTopmost(bool enabled) { m_topmostEnabled = enabled; MarkPriorityDirty(); }
-    bool IsTopmost() const { return m_topmostEnabled; }
-
 private:
     WindowManager() = default;
     ~WindowManager() = default;
     WindowManager(const WindowManager&) = delete;
     void operator=(const WindowManager&) = delete;
 
-    bool m_topmostEnabled = false;
 private:
     std::vector<std::unique_ptr<platform::Window>> windows;
 
     platform::Window* debugWindow = nullptr;
-
-    bool m_dirtyPriority = false;
 };
