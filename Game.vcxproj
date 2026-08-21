@@ -147,7 +147,6 @@
     <ClInclude Include="Source\Engine\VFX\EffectManager.h" />
     <ClInclude Include="Source\Engine\Windowing\BeyondWindow.h" />
     <ClInclude Include="Source\Engine\Windowing\WindowManager.h" />
-    <ClInclude Include="Source\Engine\Windowing\WindowShatter.h" />
     <ClInclude Include="Source\Engine\Windowing\WindowSwarmRenderer.h" />
     <ClInclude Include="Source\Engine\Windowing\WindowTrackingSystem.h" />
     <ClInclude Include="Source\Game\Entities\Bullet.h" />
@@ -225,7 +224,6 @@
     <ClCompile Include="Source\Engine\VFX\EffectManager.cpp" />
     <ClCompile Include="Source\Engine\Windowing\BeyondWindow.cpp" />
     <ClCompile Include="Source\Engine\Windowing\WindowManager.cpp" />
-    <ClCompile Include="Source\Engine\Windowing\WindowShatter.cpp" />
     <ClCompile Include="Source\Engine\Windowing\WindowSwarmRenderer.cpp" />
     <ClCompile Include="Source\Engine\Windowing\WindowTrackingSystem.cpp" />
     <ClCompile Include="Source\Game\Entities\Bullet.cpp" />
