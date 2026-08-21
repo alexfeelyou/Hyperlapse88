@@ -1,6 +1,5 @@
 ﻿#pragma once
 
-// Standard Libraries
 #include <memory>
 #include <string>
 #include <DirectXMath.h>
@@ -17,10 +16,25 @@
 #include "UberShader.h"
 #include "UIDialogueBox.h"
 #include "UIPause.h"
+#include "CameraController.h"
+#include "Framework.h"
+#include "PostProcessManager.h"
+#include "Primitive.h"
+#include "System/AudioManager.h"
+#include "System/CollisionManager.h"
+#include "System/Graphics.h"
+#include <algorithm>
 
-// ==========================================
-// FORWARD DECLARATIONS
-// ==========================================
+#include "EffectManager.h"
+#include "Enemy.h"
+#include "EnemyManager.h"
+#include "ItemManager.h"
+#include "NaviAlly.h"
+#include "Player.h"
+#include "PlayerStates.h"
+#include "Stage.h"
+
+// Forward Declarations
 class Camera;
 class CollisionManager;
 class EnemyManager;
@@ -33,9 +47,6 @@ class Primitive;
 class Stage;
 class UIPause;
 
-// ==========================================
-// MAIN CLASS
-// ==========================================
 class SceneGame : public Scene
 {
     friend class GameBreakerGUI;
@@ -119,20 +130,20 @@ private:
     std::unique_ptr<physx::PxMaterial, PhysXDeleter> m_defaultMaterial{};
     std::unique_ptr<physx::PxRigidStatic, PhysXDeleter> m_groundPlane{};
 
-    // SYSTEM STATE
+	// Pause & Exit to Title
     bool m_isPaused{ false };
     bool m_isExitingToTitle{ false };
     float m_exitToTitleTimer{ 0.0f };
 
     [[nodiscard]] bool CheckPauseToggleTriggered() const noexcept;
 
-	// HEALTH MANAGEMENT
+	// Health & Damage
     static constexpr float BOSS_MAX_HP{ 150.0f };
     static constexpr float NORMAL_MAX_HP{ 100.0f };
 
     bool m_hasHealedForBoss{ false };
 
-    // DEATH & RESPAWN SEQUENCE
+	// Death & Respawn
     bool m_isDying{ false };
     float m_deathTimer{ 0.0f };
     float m_bootTimer{ 1.1f };
@@ -188,7 +199,7 @@ private:
     bool m_bossEffectTriggered{ false };
     int m_poisonEffectHandle{ -1 };
 
-    // Configurable: 4 seconds for a slow, dramatic pan
+	// Cinematic Constants
     static constexpr float BOSS_CINEMATIC_DURATION{ 4.0f };
     static constexpr float BOSS_CINEMATIC_HOLD_DURATION{ 3.0f };
     static constexpr float BOSS_EFFECT_WHITEOUT_DELAY{ 4.5f }; 

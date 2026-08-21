@@ -10,7 +10,6 @@
 #include "System/AudioManager.h"
 #include "WindowManager.h"
 #include "SceneTitle.h"
-#include "SceneIntro.h"
 #include "SceneGame.h"
 #include <memory>
 #include <sstream>

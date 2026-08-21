@@ -160,7 +160,6 @@
     <ClInclude Include="Source\Game\Entities\Weapon.h" />
     <ClInclude Include="Source\Game\Scenes\Scene.h" />
     <ClInclude Include="Source\Game\Scenes\SceneGame.h" />
-    <ClInclude Include="Source\Game\Scenes\SceneIntro.h" />
     <ClInclude Include="Source\Game\Scenes\SceneTitle.h" />
     <ClInclude Include="Source\Game\Scenes\Stage.h" />
     <ClInclude Include="Source\Game\States\PlayerState.h" />
@@ -233,7 +232,6 @@
     <ClCompile Include="Source\Game\Entities\Player.cpp" />
     <ClCompile Include="Source\Game\Entities\Weapon.cpp" />
     <ClCompile Include="Source\Game\Scenes\SceneGame.cpp" />
-    <ClCompile Include="Source\Game\Scenes\SceneIntro.cpp" />
     <ClCompile Include="Source\Game\Scenes\SceneTitle.cpp" />
     <ClCompile Include="Source\Game\Scenes\Stage.cpp" />
     <ClCompile Include="Source\Game\States\PlayerStates.cpp" />
