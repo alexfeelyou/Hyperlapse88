@@ -29,15 +29,9 @@ public:
     void Update(float elapsedTime);
     void Render(Camera* camera);
 
-    // ==========================================
-    // RESOURCE MANAGEMENT (The RAM Saver)
-    // ==========================================
     // Preloads an effect into memory without playing it
     void PreloadEffect(const std::string& filePath);
 
-    // ==========================================
-    // PLAYBACK & CONTROL
-    // ==========================================
     // Plays an effect and returns a lightweight handle for future control
     Effekseer::Handle Play(const std::string& filePath, const DirectX::XMFLOAT3& pos, float scale = 1.0f);
 
@@ -46,9 +40,9 @@ public:
 
     bool IsPlaying(Effekseer::Handle handle) const;
 
-    // Transform Updates (Only applies if the handle is still actively playing!)
+    // Transform Updates 
     void SetPosition(Effekseer::Handle handle, const DirectX::XMFLOAT3& pos);
-    void SetTargetPosition(Effekseer::Handle handle, const DirectX::XMFLOAT3& pos); // [NEW] Fix untuk partikel nyasar!
+    void SetTargetPosition(Effekseer::Handle handle, const DirectX::XMFLOAT3& pos); 
     void SetRotation(Effekseer::Handle handle, const DirectX::XMFLOAT3& rotationEuler);
     void SetScale(Effekseer::Handle handle, const DirectX::XMFLOAT3& scale);
 
@@ -60,9 +54,6 @@ private:
     Effekseer::ManagerRef m_manager{};
     EffekseerRenderer::RendererRef m_renderer{};
 
-    // The Flyweight Cache: Maps file paths to loaded memory blocks
     std::unordered_map<std::string, Effekseer::EffectRef> m_effectCache{};
-
-    // Helper to safely convert standard strings to Effekseer's required UTF-16 format
     std::u16string ConvertToUTF16(const std::string& str) const;
 };

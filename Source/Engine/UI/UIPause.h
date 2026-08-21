@@ -24,8 +24,6 @@ public:
     UIPause() = default;
     ~UIPause() = default;
 
-    // Explicitly delete copy constructor and assignment operator to prevent 
-    // accidental copying of unique_ptrs or expensive UI objects.
     UIPause(const UIPause&) = delete;
     UIPause& operator=(const UIPause&) = delete;
     UIPause(UIPause&&) = default;
@@ -40,13 +38,10 @@ public:
     void ResetSelection() noexcept { m_selectedOption = PauseOption::Resume; }
 
 private:
-    // Core Components initialized to null via brace initialization
     std::unique_ptr<Sprite> m_pauseSprite{};
     std::unique_ptr<FontTTF> m_fontTitle{};
     std::unique_ptr<FontTTF> m_fontMenu{};
 
-    // Cache the string to prevent `std::string` from allocating memory / utilizing SSO 
-    // every single frame during the Render loop.
     const std::string m_pauseText{ "PAUSE" };
 
     const std::array<std::string, static_cast<std::size_t>(PauseOption::Count)> m_menuText{
@@ -55,16 +50,13 @@ private:
     };
 
     const std::array<float, static_cast<std::size_t>(PauseOption::Count)> m_menuXOffsets{
-        0.0f,   // "Resume" stays perfectly at MENU_POS_X
-        22.0f   // "Exit" is shorter, so we align it to center.
+        0.0f,   
+        22.0f   
     };
 
     // Track current state
     PauseOption m_selectedOption{ PauseOption::Resume };
 
-    // ========================================================================
-    // CONSTEXPR CONFIGURATION 
-    // ========================================================================
     static constexpr float SCREEN_WIDTH{ 1920.0f };
     static constexpr float SCREEN_HEIGHT{ 1080.0f };
 
@@ -83,7 +75,7 @@ private:
     const std::string m_pointerText{ ">> " };
     static constexpr float MENU_POS_X{ PANEL_POS_X + 110.0f };       
     static constexpr float MENU_START_Y{ TITLE_POS_Y + 140.0f };    
-    static constexpr float MENU_SPACING_Y{ 60.0f };                 // Space between menu items
+    static constexpr float MENU_SPACING_Y{ 60.0f };                 
     static constexpr float MENU_FONT_SIZE{ 33.0f };
     static constexpr float POINTER_OFFSET_X{ -45.0f };
 };

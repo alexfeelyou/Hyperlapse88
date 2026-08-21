@@ -2,7 +2,7 @@
 #include <vector>
 #include <string>
 #include <memory>
-#include <DirectXMath.h> // Pastikan include ini ada untuk perhitungan matematika
+#include <DirectXMath.h> 
 #include "System/Model.h"
 
 class AnimationController
@@ -11,7 +11,6 @@ public:
     void Initialize(std::shared_ptr<Model> model);
     void Update(float dt);
 
-    // blendTime default 0.2 detik (standar action game)
     void Play(const std::string& name, bool loop = true, float blendTime = 0.2f);
 
     void SetPlaybackSpeed(float speed) { m_playbackSpeed = speed; }
@@ -20,22 +19,15 @@ public:
     bool IsPlaying(const std::string& name) const;
     float GetCurrentTime() const { return timer; }
 
-    // Fungsi baru untuk inisialisasi mask
     void SetUpperBodyMaskRoot(const std::string& rootNodeName);
-
-    // Fungsi untuk memutar animasi atas
     void PlayUpper(const std::string& name, bool loop = false);
 
-    // Tambahkan fungsi pengecekan ini di bawah GetCurrentTime():
     bool IsUpperPlaying() const { return upperAnimIndex != -1; }
-
-    // Tambahkan variabel ini di bagian private (di bawah upperTimer):
     bool upperIsLooping = false;
 
 private:
     std::shared_ptr<Model> ownerModel;
 
-    // State Animasi Saat Ini
     int currentAnimIndex = -1;
     float timer = 0.0f;
     bool isLooping = true;
@@ -49,10 +41,8 @@ private:
     float blendDuration = 0.0f;
 
     // Buffer Pose
-    // 'nodePoses' menyimpan hasil akhir yang akan dikirim ke Model
     std::vector<Model::NodePose> nodePoses;
 
-    // 'prevNodePoses' menyimpan snapshot pose terakhir dari animasi SEBELUMNYA
     std::vector<Model::NodePose> prevNodePoses;
 
     std::vector<Model::NodePose> upperNodePoses;

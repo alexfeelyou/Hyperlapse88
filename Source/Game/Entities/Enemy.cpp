@@ -6,7 +6,7 @@ Enemy::Enemy(ID3D11Device* device, const char* filePath, XMFLOAT3 startPos, XMFL
     XMFLOAT4 startColor, EnemyType type, AttackType attackType,
     float minX, float maxX, float minZ, float maxZ, MoveDir dir)
 {
-    // Delegate all setup to Reinitialize to keep logic in ONE place
+    // Delegate all setup to Reinitialize to keep logic in one place
     Reinitialize(device, filePath, startPos, startRot, startColor, type, attackType, minX, maxX, minZ, maxZ, dir);
 }
 
@@ -106,29 +106,26 @@ void Enemy::UpdateTracking(float elapsedTime, Camera* camera, const DirectX::XMF
 
 void Enemy::UpdateAttackLogic(float elapsedTime, Camera* camera, const DirectX::XMFLOAT3& playerPos, bool allowAttack)
 {
-    // 1. FAST FAIL: Guard clauses prevent deep nesting and dangling pointer crashes.
+    // FAST FAIL: Guard clauses prevent deep nesting and dangling pointer crashes
     if (m_attackType == AttackType::None || !camera || !allowAttack) return;
 
     const DirectX::XMFLOAT3 myPos{ movement->GetPosition() };
     const DirectX::XMFLOAT3 targetPos{ playerPos };
 
-    // 2. CPU OPTIMIZATION: Calculate Squared Distance to skip expensive std::sqrt calculations.
     const float dx{ targetPos.x - myPos.x };
     const float dz{ targetPos.z - myPos.z };
     const float distSq{ (dx * dx) + (dz * dz) };
     const float activationDistSq{ m_activationDistance * m_activationDistance };
 
-    // Out of range? Exit early. Zero CPU wasted.
     if (distSq > activationDistSq)
     {
-        // ---> MOMENTUM RESET GUARD <---
-        // If the player escapes the radius, reset the timer. 
-        // This forces the enemy to do the slow "creep" phase again next time!
+        // If the player escapes the radius, reset the timer
+        // This forces the enemy to do the slow "creep" phase again next time
         if (m_attackType == AttackType::Tracking) m_aggroTimer = 0.0f;
         return;
     }
 
-    // 3. PHYSICAL ROTATION & MOVEMENT
+	// Physics and movement logic for tracking enemies
     const bool isTrackingType{
         m_attackType == AttackType::Tracking ||
         m_attackType == AttackType::TrackingHorizontal ||
@@ -137,12 +134,12 @@ void Enemy::UpdateAttackLogic(float elapsedTime, Camera* camera, const DirectX::
 
     if (isTrackingType)
     {
-        // 3a. ROTATE TO PLAYER
+		// Rotate to face the player (only on the Y-axis)
         const float targetYawRad{ std::atan2(dx, dz) };
         const float targetYawDeg{ DirectX::XMConvertToDegrees(targetYawRad) };
         movement->SetRotation({ 0.0f, targetYawDeg, 0.0f });
 
-        // 3b. MOVE TO PLAYER (The "Trees Hate You" Mechanic)
+		// Move towards the player if it's a tracking type enemy
         if (m_attackType == AttackType::Tracking && m_baseMoveSpeed > 0.0f)
         {
             constexpr float MELEE_STOPPING_DIST_SQ{ 0.1f * 0.1f };
@@ -152,10 +149,9 @@ void Enemy::UpdateAttackLogic(float elapsedTime, Camera* camera, const DirectX::
                 // Tick the Aggro Timer up every frame it chases the player
                 m_aggroTimer += elapsedTime;
 
-                // --- HORROR TUNING VARIABLES ---
                 constexpr float CREEP_TIME{ 3.0f };          // How many seconds it stays slow
                 constexpr float CREEP_SPEED{ 1.5f };         // Slow, scary walking speed
-                constexpr float HILARIOUS_MAX_SPEED{ 14.5f };// Player is 10.0, this is TERRIFYING
+				constexpr float HILARIOUS_MAX_SPEED{ 14.5f };// The speed cap to prevent physics engine breakage
                 constexpr float RAMP_UP_RATE{ 18.0f };       // Acceleration multiplier
 
                 float currentSpeed{ 0.0f };
@@ -189,15 +185,12 @@ void Enemy::UpdateAttackLogic(float elapsedTime, Camera* camera, const DirectX::
             }
             else
             {
-                // BUG PREVENTION: DO NOT RESET THE TIMER HERE!
-                // If the enemy catches the player, they stop to shoot. 
-                // If the player backs up 1 step, we want the enemy to STILL be sprinting.
-                // We only reset the timer if the player fully escapes the 'activationDistSq'.
+
             }
         }
     }
 
-    // 4. FIRING LOGIC
+	// Fire projectiles if the enemy is not a tracking type 
     if (m_attackType != AttackType::Tracking)
     {
         m_attackTimer += elapsedTime;
@@ -246,8 +239,7 @@ void Enemy::UpdateAttackLogic(float elapsedTime, Camera* camera, const DirectX::
             }
             else
             {
-                // ---> THE FIX: Aim EXACTLY at the player for both Tracking AND Static <---
-                DirectX::XMFLOAT3 fwd{ 0.0f, 0.0f, 1.0f }; // Safe default
+                DirectX::XMFLOAT3 fwd{ 0.0f, 0.0f, 1.0f };
 
                 // Calculate exact 3D trajectory
                 const float aimDx{ targetPos.x - myPos.x };
@@ -255,8 +247,7 @@ void Enemy::UpdateAttackLogic(float elapsedTime, Camera* camera, const DirectX::
                 const float aimDz{ targetPos.z - myPos.z };
                 const float aimDistSq{ (aimDx * aimDx) + (aimDy * aimDy) + (aimDz * aimDz) };
 
-                // BUG PREVENTION: "Divide-By-Zero" Guard (NaN Propagation)
-                // If the player and enemy perfectly overlap, math divides by zero and crashes the engine.
+                // If the player and enemy perfectly overlap, math divides by zero and crashes the engine
                 if (aimDistSq > 0.0001f)
                 {
                     const float aimDist{ std::sqrt(aimDistSq) };
@@ -274,8 +265,7 @@ void Enemy::UpdateAttackLogic(float elapsedTime, Camera* camera, const DirectX::
                     myPos.z + (fwd.z * SPAWN_OFFSET_FWD)
                 };
 
-                // ---> OPTIMIZATION: ZERO RUNTIME ALLOCATION POOL <---
-                // Recycle old bullets instead of 'new/delete' thrashing the CPU memory heap.
+                // Recycle old bullets instead of 'new/delete' thrashing the CPU memory heap
                 bool bulletRecycled{ false };
                 for (auto& bullet : m_projectiles)
                 {
@@ -301,7 +291,7 @@ void Enemy::UpdateAttackLogic(float elapsedTime, Camera* camera, const DirectX::
             }
         }
     }
-    // 5. UPDATE IN-FLIGHT PROJECTILES (Zero-cost Despawn)
+
     const float despawnDistSq{ m_despawnDistance * m_despawnDistance };
 
     for (auto& bullet : m_projectiles)
@@ -314,8 +304,7 @@ void Enemy::UpdateAttackLogic(float elapsedTime, Camera* camera, const DirectX::
         const float bDx{ myPos.x - bPos.x };
         const float bDz{ myPos.z - bPos.z };
 
-        // BUG PREVENTION: INFINITE FLIGHT GUARD
-        // Instead of erasing the bullet from memory (which is slow), we just turn it off!
+		// Despawn bullets that are too far away from the enemy
         if ((bDx * bDx + bDz * bDz) > despawnDistSq)
         {
             bullet->SetActive(false);
@@ -339,7 +328,6 @@ void Enemy::Reinitialize(ID3D11Device* device, const char* filePath, const Direc
     EnemyType type, AttackType attackType, const float minX, const float maxX,
     const float minZ, const float maxZ, const MoveDir dir)
 {
-    // Reassign the model (std::shared_ptr handles cleanup of the old model automatically)
     m_model = std::make_shared<Model>(device, filePath);
     model = m_model;
 
@@ -366,20 +354,19 @@ void Enemy::Reinitialize(ID3D11Device* device, const char* filePath, const Direc
     else if (dir == MoveDir::Left)  m_currentSpeed = m_baseMoveSpeed;
     else                            m_currentSpeed = 0.0f;
 
-    // 4. Clean up the "Zombie" state from its previous life
-    m_projectiles.clear(); // Destroy old bullets
+	// Reset Gameplay State
+    m_projectiles.clear(); 
     m_attackTimer = 0.0f;
     m_aggroTimer = 0.0f;
     m_blinkTimer = 0.0f;
     m_lifeTime = 0.0f;
-    m_hp = 30; // Or whatever default/config HP you want
+    m_hp = 30; 
     m_isHighlighted = false;
     m_isActive = true;
 }
 
 void Enemy::UpdateProjectiles(float elapsedTime, Camera* camera)
 {
-    // UPDATE IN-FLIGHT PROJECTILES (Zero-cost Despawn)
     const float despawnDistSq{ m_despawnDistance * m_despawnDistance };
 
     for (auto& bullet : m_projectiles)
@@ -402,7 +389,7 @@ void Enemy::UpdateProjectiles(float elapsedTime, Camera* camera)
 
 void Enemy::RenderProjectiles(ModelRenderer* renderer)
 {
-    // 1. Color Constants (Static for Zero-Allocation)
+	// Render the bullets with a pulsing color effect to make them visually distinct and noticeable
     static constexpr DirectX::XMFLOAT4 TOXIC_GREEN{ 0.4f, 0.9f, 0.2f, 1.0f };
     static constexpr DirectX::XMFLOAT4 ELECTRIC_PINK{ 1.0f, 0.0f, 1.0f, 1.0f };
     static constexpr float PULSE_SPEED{ 15.0f };
@@ -411,11 +398,9 @@ void Enemy::RenderProjectiles(ModelRenderer* renderer)
     {
         if (bullet && bullet->IsActive())
         {
-            // 2. Calculate the sine pulse (Result: 0.0 to 1.0)
-            // Using bullet->GetLifeTime() ensures each bullet pulses independently
             const float pulse{ (std::sin(bullet->GetLifeTime() * PULSE_SPEED) + 1.0f) * 0.5f };
 
-            // 3. Interpolate (LERP) between Toxic Green and Electric Pink
+            // Interpolate (LERP) between Toxic Green and Electric Pink
             const DirectX::XMFLOAT4 pulseColor{
                 TOXIC_GREEN.x + (ELECTRIC_PINK.x - TOXIC_GREEN.x) * pulse,
                 TOXIC_GREEN.y + (ELECTRIC_PINK.y - TOXIC_GREEN.y) * pulse,
@@ -423,7 +408,7 @@ void Enemy::RenderProjectiles(ModelRenderer* renderer)
                 1.0f
             };
 
-            // 4. Render using Phong to ensure the Bloom/HDR glow activates
+            // Render using Phong to ensure the Bloom/HDR glow activates
             renderer->Draw(ShaderId::Phong, bullet->GetModel(), pulseColor);
         }
     }
@@ -450,21 +435,18 @@ void Enemy::RenderDebugProjectiles(ShapeRenderer* renderer)
 
 DirectX::XMFLOAT4 Enemy::GetRenderColor() const
 {
-    // PRIORITY 1: DAMAGE FLASH
-    // If the enemy just got hit, flash HDR White instantly. 
+    // If the enemy just got hit, flash HDR White instantly
     if (m_blinkTimer > 0.0f)
     {
         return { 5.0f, 5.0f, 5.0f, 1.0f };
     }
 
-    // PRIORITY 2: PERMANENT POTIONED STATE
     // If it spawned as Potioned (Sentinel Value triggered), do the smooth purple/green pulse.
     if (m_baseColor.x < 0.0f)
     {
         // Use continuous lifespan for a smooth, endless pulse (Speed: 15.0f)
         const float wave{ (std::sin(m_lifeTime * 15.0f) + 1.0f) * 0.5f };
 
-        // Zero-copy const references
         const auto& c1{ EnemyLevelData::ArcanePurple };
         const auto& c2{ EnemyLevelData::ToxicGreen };
 
@@ -477,8 +459,7 @@ DirectX::XMFLOAT4 Enemy::GetRenderColor() const
         };
     }
 
-    // PRIORITY 3: NORMAL STATE
-    // If it's not taking damage and not potioned, just return its normal color.
+    // If it's not taking damage and not potioned, just return its normal color
     return m_baseColor;
 }
 
@@ -508,7 +489,6 @@ void Enemy::UpdateOriginalTransform(const DirectX::XMFLOAT3& pos, const DirectX:
 
 void Enemy::TakeDamage(int damage)
 {
-    // Guard Clause: If invincible OR inactive, ignore the hit entirely.
     if (m_isInvincible || !m_isActive || m_hp <= 0) return;
 
     m_hp -= damage;

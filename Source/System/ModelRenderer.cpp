@@ -128,10 +128,6 @@ void ModelRenderer::Render(const RenderContext& rc)
     DirectX::XMVECTOR CameraPosition = DirectX::XMLoadFloat3(&rc.camera->GetPosition());
     DirectX::XMVECTOR CameraFront = DirectX::XMLoadFloat3(&rc.camera->GetFront());
 
-    // [FIX] Untuk transparent window, JANGAN override blend state.
-    // SceneBoss sudah set TransparentWindow blend state yang menjaga alpha channel
-    // di render target agar terisi penuh (dibutuhkan saat CPU readback ¨ UpdateLayeredWindow).
-    // Untuk window biasa, pakai Opaque seperti biasa.
     if (!rc.isTransparentWindow)
     {
         dc->OMSetBlendState(rc.renderState->GetBlendState(BlendState::Opaque), nullptr, 0xFFFFFFFF);

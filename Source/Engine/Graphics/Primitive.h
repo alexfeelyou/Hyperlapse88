@@ -5,7 +5,6 @@
 #include <memory>
 #include <wrl/client.h>
 
-// Definisi Tipe Data (Agar kompatibel dengan kode lamamu)
 using VECTOR2 = DirectX::XMFLOAT2;
 using VECTOR3 = DirectX::XMFLOAT3;
 using VECTOR4 = DirectX::XMFLOAT4;
@@ -16,35 +15,32 @@ public:
     Primitive(ID3D11Device* device);
     ~Primitive();
 
-    // --- High Level Wrapper (Sesuai requestmu) ---
-    // Menggambar Kotak (Float)
+    // Draw Rect (Float)
     void Rect(float x, float y, float w, float h,
         float cx, float cy, float angle,
         float r, float g, float b, float a);
 
-    // Menggambar Kotak (Vector)
+    // Draw Rect (Vector)
     void Rect(const VECTOR2& position, const VECTOR2& size,
         const VECTOR2& center, float angle,
         const VECTOR4& color);
 
-    // Menggambar Garis
+    // Draw Line
     void Line(float x1, float y1, float x2, float y2,
         float width, float r, float g, float b, float a);
 
-    // Menggambar Lingkaran
+    // Draw Circle
     void Circle(float x, float y, float radius,
         float r, float g, float b, float a, int segments = 32);
 
-    // Menggambar Segitiga  
+    // Draw Triangle
     void Triangle(float x1, float y1, float x2, float y2, float x3, float y3,
         float r, float g, float b, float a);
 
-    // --- Core Rendering (Dipanggil di Scene::Render) ---
-    // PENTING: Panggil fungsi ini untuk menggambar batch primitive ke layar
     void Render(ID3D11DeviceContext* context);
 
 private:
-    // Internal struct untuk Shader
+    // Internal struct 
     struct Vertex
     {
         VECTOR3 position;
@@ -62,7 +58,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D11RasterizerState> rasterizerState;
     Microsoft::WRL::ComPtr<ID3D11DepthStencilState> depthStencilState;
 
-    // Batching System (Menampung antrian gambar)
+    // Batching System 
     std::vector<Vertex> batchVertices;
     const size_t MAX_VERTICES = 2048; // Buffer size
 };

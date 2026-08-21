@@ -1,6 +1,4 @@
 #include "AudioManager.h"
-#include <iostream>
-#include <algorithm> 
 
 AudioManager& AudioManager::Instance() {
     static AudioManager instance;
@@ -93,8 +91,8 @@ void AudioManager::Update(float elapsedTime) {
     for (auto it = m_delayedSounds.begin(); it != m_delayedSounds.end(); ) {
         it->delayTimer -= elapsedTime;
         if (it->delayTimer <= 0.0f) {
-            PlaySFX(it->filePath, it->volume); // Waktunya habis, mainkan!
-            it = m_delayedSounds.erase(it);    // Hapus dari antrean
+            PlaySFX(it->filePath, it->volume); 
+            it = m_delayedSounds.erase(it);    
         }
         else {
             ++it;
@@ -217,7 +215,6 @@ void AudioManager::PlayAmbientSFX(const std::string& filePath, float targetVolum
     m_ambientVolume = 0.0f;
     m_ambientTargetVolume = m_localAmbientVolume * m_globalSFXVolume;
 
-    // Anticipate divide-by-zero on instant fades
     if (fadeDuration > 0.001f) {
         m_ambientFadeSpeed = m_ambientTargetVolume / fadeDuration;
         m_ambientFadeState = 1;

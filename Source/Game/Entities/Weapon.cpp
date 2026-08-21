@@ -15,18 +15,11 @@ void Weapon::SetLocalOffset(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT
     m_offsetScale = scale;
 }
 
-void Weapon::ResetOffsets()
-{
-    m_offsetPos = { 0.0f, 0.0f, 0.0f };
-    m_offsetRot = { 0.0f, 0.0f, 0.0f };
-    m_offsetScale = { 1.0f, 1.0f, 1.0f };
-}
-
 void Weapon::UpdateTransform(const XMFLOAT4X4& parentBoneMatrix)
 {
     if (!m_model) return;
 
-    // Calculate Local Matrix (S * R * T)
+    // Calculate Local Matrix 
     XMMATRIX S = XMMatrixScaling(m_offsetScale.x, m_offsetScale.y, m_offsetScale.z);
 
     XMMATRIX R = XMMatrixRotationRollPitchYaw(
@@ -46,7 +39,6 @@ void Weapon::UpdateTransform(const XMFLOAT4X4& parentBoneMatrix)
     // Store result
     XMStoreFloat4x4(&m_finalWorldMatrix, finalTransform);
 
-    // Update the model's internal hierarchy so it's ready to draw
     m_model->UpdateTransform(m_finalWorldMatrix);
 }
 

@@ -2,6 +2,8 @@
 #include <string>
 #include <map>
 #include <vector>
+#include <iostream>
+#include <algorithm> 
 #include <SDL3/SDL.h>
 
 class AudioManager
@@ -51,7 +53,7 @@ private:
     SDL_AudioStream* m_musicStream = nullptr;
     SoundData* m_currentMusicData = nullptr;
 
-    // --- VOLUME TRACKING ---
+	// Volume Control
     float m_globalMusicVolume{ 0.5f }; 
     float m_globalSFXVolume{ 0.5f };   
 

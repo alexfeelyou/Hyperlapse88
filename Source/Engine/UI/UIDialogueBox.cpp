@@ -22,7 +22,7 @@ std::string UIDialogueBox::ParseDialogueTags(const std::string& rawLine)
     size_t i = 0;
     while (i < rawLine.length())
     {
-        // 1. Process {ATK} Tag
+        // Process {ATK} Tag
         if (rawLine.compare(i, 5, "{ATK}") == 0)
         {
             if (m_lockedDeviceForLine == InputDevice::Gamepad) {
@@ -52,12 +52,10 @@ std::string UIDialogueBox::ParseDialogueTags(const std::string& rawLine)
             continue;
         }
 
-        // 2. Process {DASH} Tag
+        // Process {DASH} Tag
         if (rawLine.compare(i, 6, "{DASH}") == 0)
         {
             if (m_lockedDeviceForLine == InputDevice::Gamepad) {
-                // FIX 1: Perfect Integer Scaling (14x7 * 4.0 = 56x28)
-                // Prevents DirectX from blurring the pixel art!
                 constexpr float w = 42.0f;
                 constexpr float h = 37.0f;
                 constexpr float LB_Y_OFFSET = 7.0f;
@@ -66,13 +64,9 @@ std::string UIDialogueBox::ParseDialogueTags(const std::string& rawLine)
                 m_activeInlineSprites.push_back({
                     m_spriteLB.get(),
                     static_cast<int>(processedLine.length()),
-                    // 64px gap - 56px sprite = 8px remainder. (4px padding on each side)
                     cursorX - LB_X_OFFSET, cursorY + LB_Y_OFFSET, w, h
                     });
 
-                // FIX 2: Only use Full-Width Japanese spaces (U+3000). 
-                // Normal spaces ' ' have unpredictable widths in TTF, causing text overlap!
-                // 2 Full Spaces = Exactly 64px gap.
                 processedLine += u8"   ";
                 cursorX += (FULL_WIDTH * 2.0f);
             }
@@ -85,7 +79,7 @@ std::string UIDialogueBox::ParseDialogueTags(const std::string& rawLine)
             continue;
         }
 
-        // 3. Process normal text & simulate cursor
+        // Process normal text & simulate cursor
         unsigned char c = rawLine[i];
         if (c == '\n') {
             cursorX = 0.0f;
@@ -173,7 +167,6 @@ void UIDialogueBox::Update(float dt)
     auto& keyboard = input.GetKeyboard();
     auto& gamepad = input.GetGamePad();
 
-    // DYNAMIC DEVICE SNIFFING -> Writes to Global State
     if (gamepad.GetButtonDown() != 0 ||
         std::abs(gamepad.GetAxisLX()) > 0.3f || std::abs(gamepad.GetAxisLY()) > 0.3f)
     {
@@ -184,7 +177,6 @@ void UIDialogueBox::Update(float dt)
         input.SetLastUsedDevice(InputDevice::Keyboard);
     }
 
-    // Bug Fix: Check both devices simultaneously
     const bool isConfirmPressed = keyboard.IsTriggered(VK_SPACE) ||
         ((gamepad.GetButtonDown() & GamePad::BTN_A) != 0);
 
@@ -250,7 +242,7 @@ void UIDialogueBox::Render(ID3D11DeviceContext* dc)
     float panelX = m_useCustomPos ? m_posX : (screenW - panelW) * 0.5f;
     float panelY = m_useCustomPos ? m_posY : (screenH - panelH - 60.0f);
 
-    // Use the ACTIVE GLOBAL DEVICE to determine the background panel
+    // Use the active global device to determine the background panel
     InputDevice currentDevice = Input::Instance().GetLastUsedDevice();
     Sprite* activePanel = (currentDevice == InputDevice::Gamepad) ? m_panelSpriteGP.get() : m_panelSpriteKB.get();
 
@@ -303,7 +295,6 @@ void UIDialogueBox::RenderToWindow(ID3D11DeviceContext* dc, float windowW, float
     dc->OMSetBlendState(rs->GetBlendState(BlendState::Transparency), nullptr, 0xFFFFFFFF);
     dc->OMSetDepthStencilState(rs->GetDepthStencilState(DepthState::TestOnly), 0);
 
-    // Apply the same smart-pointer logic to the window render
     InputDevice currentDevice = Input::Instance().GetLastUsedDevice();
     Sprite* activePanel = (currentDevice == InputDevice::Gamepad) ? m_panelSpriteGP.get() : m_panelSpriteKB.get();
 
@@ -325,7 +316,6 @@ void UIDialogueBox::RenderToWindow(ID3D11DeviceContext* dc, float windowW, float
     constexpr float FONT_BASELINE_SHIFT = -32.0f;
     constexpr float OPTICAL_Y_TWEAK = -2.0f;
 
-    // AAA Inline Sprite Injection
     for (const auto& inlineIcon : m_activeInlineSprites)
     {
         if (m_charIndex >= inlineIcon.triggerByteIndex && inlineIcon.sprite)

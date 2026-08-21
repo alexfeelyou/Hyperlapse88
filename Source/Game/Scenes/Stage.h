@@ -19,10 +19,6 @@
 #pragma comment(lib, "PhysXCommon_64.lib")
 #pragma comment(lib, "PhysXFoundation_64.lib")
 
-
-// ==========================================
-// STAGE CONFIGURATION 
-// ==========================================
 struct DebugWallData {
     DirectX::XMFLOAT3 Position;
     DirectX::XMFLOAT3 Rotation;
@@ -38,12 +34,10 @@ struct DebugLineData {
 
 struct SpatialHashGrid
 {
-    // ==========================================
-    // OPTIMIZATION: Fixed Grid Settings
-    // ==========================================
+	// Cell Size (in world units)
     static constexpr float CELL_SIZE = 10.0f;   // Larger cells = faster for large objects
 
-    // Grid Bounds (Based on your wall coordinates)
+    // Grid Bounds
     // X Range: Covers -100 to +100
     // Z Range: Covers -900 to +100
     static constexpr int COLS = 20;
@@ -99,7 +93,7 @@ struct SpatialHashGrid
         maxZ = (std::max)(0, (std::min)(maxZ, ROWS - 1));
 
         std::vector<size_t> results;
-        // Optimization: Reserve rough amount to avoid small reallocs
+        // Reserve rough amount to avoid small reallocs
         results.reserve(16);
 
         for (int z = minZ; z <= maxZ; ++z)
@@ -130,17 +124,13 @@ namespace StageConfig
     static const DirectX::XMFLOAT3 WALL_DEFAULT_SCALE = { 1.0f, 1.0f, 1.0f };
     static const DirectX::XMFLOAT3 LINE_DEFAULT_SCALE = { 10.0f, 0.0f, 0.0f };
 
-    // =========================================================
-    // DEBUG WALL CONFIGURATION
-    // =========================================================
+	// Debug Wall Data (Yellow) - For Debugging Purposes
     static const std::vector<DebugWallData> DEBUG_WALLS = 
     {
         
     };
 
-    // =========================================================
-    // VOID LINES (Cyan) - Cannot through pass
-    // =========================================================
+	// Debug Line Data (Blue) - For Debugging Purposes
     static const std::vector<DebugLineData> DEBUG_LINES_VOID =
     {
         // Line Void 1
@@ -153,26 +143,20 @@ namespace StageConfig
         { {-2.3,0.9,5.6}, {0,-51.2,0}, {5.9,0,0} }
     };
 
-    // =========================================================
-    // DISABLE LINES (Red) - Disables Input/Mechanic
-    // =========================================================
+	// Debug Line Data (Red) - Disables Input/Mechanic
     static const std::vector<DebugLineData> DEBUG_LINES_DISABLE =
     {
         
     };
 
-    // =========================================================
-    // ENABLE LINES (Green) - Enables Input/Mechanic
-    // =========================================================
+	// Debug Line Data (Green) - Enables Input/Mechanic
     static const std::vector<DebugLineData> DEBUG_LINES_ENABLE =
     {
         // Line Enable 1
         { {40.9,1.2,80.5}, {0,15.6,0}, {17.9,0,0} },
     };
 
-    // =========================================================
-    // CHECKPOINT
-    // =========================================================
+	// Debug Line Data (Purple) - Checkpoint
     static const std::vector<DebugLineData> DEBUG_LINES_CHECKPOINT =
     {
         // Line CheckPoint 1

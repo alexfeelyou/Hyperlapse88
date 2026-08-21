@@ -4,7 +4,6 @@
 #include <imgui.h>
 #include <cmath>
 #include <algorithm>
-#include "JuiceEngine.h"
 
 using namespace DirectX;
 
@@ -41,7 +40,6 @@ XMFLOAT3 CameraController::LerpFloat3(const XMFLOAT3& start, const XMFLOAT3& end
 XMFLOAT3 CameraController::CalculateHermitePos(const XMFLOAT3& p0, const XMFLOAT3& p1, const XMFLOAT3& p2, const XMFLOAT3& p3, float t, float tension)
 {
     // Catmull-Rom / Hermite spline implementation
-    // P1 = Start, P2 = End. P0 & P3 are control points for tangents.
 
     XMVECTOR vP0 = XMLoadFloat3(&p0);
     XMVECTOR vP1 = XMLoadFloat3(&p1);
@@ -94,28 +92,25 @@ void CameraController::Update(float elapsedTime)
     std::shared_ptr<Camera> camera = m_activeCamera.lock();
     if (!camera) return;
 
-    // Catatan: Gunakan dt murni (unscaled) agar kamera tetap bergetar meski waktu game berhenti (Hit Stop)
     if (m_trauma > 0.0f) {
         m_trauma -= m_traumaDecay * elapsedTime;
         if (m_trauma < 0.0f) m_trauma = 0.0f;
 
-        // Vlambeer Formula: getaran = trauma kuadrat (Membuat efek redanya sangat natural)
         float shake = m_trauma * m_trauma;
-        float maxOffset = 2.0f; // Kekuatan getaran maksimal (Unit 3D)
+        float maxOffset = 2.0f;
 
-        // Random generator sederhana (-1.0 sampai 1.0)
         float rx = ((rand() % 200) - 100) / 100.0f;
         float rz = ((rand() % 200) - 100) / 100.0f;
 
         m_shakeOffset.x = rx * maxOffset * shake;
-        m_shakeOffset.y = 0.0f; // Sengaja dikunci agar layar tidak naik-turun terlalu pusing
+        m_shakeOffset.y = 0.0f; 
         m_shakeOffset.z = rz * maxOffset * shake;
     }
     else {
         m_shakeOffset = { 0.0f, 0.0f, 0.0f };
     }
 
-    // --- Global Inputs (Cursor Toggle) ---
+    // Global Inputs (Cursor Toggle) 
     static bool isF1Pressed = false;
     bool f1Down = (GetKeyState(VK_F1) & 0x8000) != 0;
 
@@ -140,7 +135,7 @@ void CameraController::Update(float elapsedTime)
 
     Input::Instance().GetMouse().LockCursor(shouldLock);
 
-    // --- State Machine ---
+    // State Machine 
     switch (m_controlMode)
     {
     case CameraControlMode::Sequence:    UpdateSequence(elapsedTime, camera); break;
@@ -154,20 +149,17 @@ void CameraController::Update(float elapsedTime)
     // =========================================================
     // POST-UPDATE MODIFIERS (Shake, Sway, Headbob, etc.)
     // =========================================================
+    XMFLOAT3 shakePos = { 0.0f, 0.0f, 0.0f };
+    XMFLOAT3 shakeRot = { 0.0f, 0.0f, 0.0f };
 
-    // 1. Ambil Data Offset dari JuiceEngine
-    // (Tidak perlu hitung logika di sini, cukup ambil hasilnya)
-    XMFLOAT3 shakePos = JuiceEngine::Instance().GetShakePosOffset();
-    XMFLOAT3 shakeRot = JuiceEngine::Instance().GetShakeRotOffset();
-
-    // 2. Apply Position (Additive)
+    // Apply Position
     XMFLOAT3 currentPos = camera->GetPosition();
     currentPos.x += shakePos.x;
     currentPos.y += shakePos.y;
     currentPos.z += shakePos.z;
     camera->SetPosition(currentPos);
 
-    // 3. Apply Rotation (Additive)
+    // Apply Rotation (Additive)
     XMFLOAT3 currentRot = camera->GetRotation();
     currentRot.x += shakeRot.x;
     currentRot.y += shakeRot.y;
@@ -190,22 +182,16 @@ void CameraController::UpdateSequence(float dt, std::shared_ptr<Camera>& camera)
     const CameraKeyframe& targetKey = m_sequenceQueue[m_currentKeyframeIdx];
     if (m_seqTimer == 0.0f)
     {
-        // Setup posisi awal interpolasi
         if (targetKey.isJumpCut)
         {
-            // MODE CUT & PAN:
-            // Paksa start point ke posisi Awal yang ditentukan Shot ini
             m_seqStartPos = targetKey.StartPosition;
             m_seqStartRot = targetKey.StartRotation;
 
-            // Langsung teleport kamera ke posisi start biar gak ada glitch visual 1 frame
             camera->SetPosition(m_seqStartPos);
             camera->SetRotation(m_seqStartRot);
         }
         else
         {
-            // MODE SAMBUNG (CONTINUOUS):
-            // Start point adalah posisi kamera saat ini (akhir dari shot sebelumnya)
             m_seqStartPos = camera->GetPosition();
             m_seqStartRot = camera->GetRotation();
         }
@@ -238,21 +224,15 @@ void CameraController::UpdateSequence(float dt, std::shared_ptr<Camera>& camera)
             {
                 // Sequence Finished
                 m_fixedPos = camera->GetPosition();
-                // 1. Ambil Rotasi Terakhir
-                XMFLOAT3 finalRot = camera->GetRotation();
 
-                // 2. Hitung Forward Vector dari Rotasi tersebut
+                XMFLOAT3 finalRot = camera->GetRotation();
                 XMMATRIX rotMat = XMMatrixRotationRollPitchYaw(finalRot.x, finalRot.y, finalRot.z);
                 XMVECTOR vForward = XMVectorSet(0, 0, 1, 0); // Forward default
                 vForward = XMVector3TransformNormal(vForward, rotMat);
-
-                // 3. Proyeksikan Target baru di depan kamera (misal jarak 10 unit)
                 XMVECTOR vPos = XMLoadFloat3(&m_fixedPos);
                 XMVECTOR vNewTarget = XMVectorAdd(vPos, XMVectorScale(vForward, 10.0f));
 
-                // 4. Simpan ke m_targetPos
                 XMStoreFloat3(&m_targetPos, vNewTarget);
-                // ===========================
 
                 SetControlMode(CameraControlMode::FixedStatic);
             }
@@ -271,10 +251,6 @@ void CameraController::UpdateSequence(float dt, std::shared_ptr<Camera>& camera)
         // Interpolation
         if (targetKey.Easing == EasingType::Step)
         {
-            // HARD CUT / JUMP CUT MODE
-            // Abaikan interpolasi dari StartPos.
-            // Posisi LANGSUNG di Target sejak detik ke-0 frame ini.
-            // "Duration" sekarang berfungsi sebagai "Hold Time".
             newPos = targetKey.TargetPosition;
             newRot = targetKey.TargetRotation;
         }
@@ -387,7 +363,6 @@ void CameraController::UpdateFreeCamera(float dt, std::shared_ptr<Camera>& camer
         m_currentAngle = currentRot; // Sync
     }
 
-    // Movement (Using Win32 GetKeyState for now, ideally abstract this)
     float moveAmount = m_moveSpeed * dt;
     XMFLOAT3 moveDir = { 0, 0, 0 };
 
@@ -449,10 +424,6 @@ void CameraController::UpdateOrbitCamera(float dt, std::shared_ptr<Camera>& came
 
     m_eyePos = finalPos;
 }
-
-// =========================================================
-// PUBLIC METHODS
-// =========================================================
 
 void CameraController::SetTarget(const DirectX::XMFLOAT3& target)
 {
@@ -518,7 +489,7 @@ void CameraController::PlaySequenceBySpeed(const std::vector<CameraKeyframe>& ta
     {
         CameraKeyframe& key = processedSequence[i];
 
-        // 1. Determine Easing
+        // Determine Easing
         if (globalEasing == EasingType::SequenceAutoCubic && processedSequence.size() > 1)
         {
             if (i == 0) key.Easing = EasingType::EaseInCubic;
@@ -530,7 +501,7 @@ void CameraController::PlaySequenceBySpeed(const std::vector<CameraKeyframe>& ta
             key.Easing = (globalEasing == EasingType::SequenceAutoCubic) ? EasingType::SmoothStep : globalEasing;
         }
 
-        // 2. Calculate Duration based on Distance & Speed
+        // Calculate Duration based on Distance & Speed
         XMVECTOR vStart = XMLoadFloat3(&currentPos);
         XMVECTOR vEnd = XMLoadFloat3(&key.TargetPosition);
         float distance = XMVectorGetX(XMVector3Length(XMVectorSubtract(vEnd, vStart)));
@@ -609,7 +580,6 @@ CameraController::SequenceTimeInfo CameraController::GetSequenceProgress() const
         info.CurrentIndex = m_currentKeyframeIdx;
         info.TotalShots = m_sequenceQueue.size();
 
-        // [BARU] Kirim tipe easing ke luar
         info.CurrentEasing = m_sequenceQueue[m_currentKeyframeIdx].Easing;
     }
     else
@@ -618,7 +588,7 @@ CameraController::SequenceTimeInfo CameraController::GetSequenceProgress() const
         info.TotalDuration = 0.0f;
         info.CurrentIndex = 0;
         info.TotalShots = 0;
-        info.CurrentEasing = EasingType::Linear; // Default
+        info.CurrentEasing = EasingType::Linear; 
     }
 
     return info;

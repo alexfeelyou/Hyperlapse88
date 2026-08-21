@@ -55,9 +55,6 @@ private:
     [[nodiscard]] int GetHorizontalInputTriggered() noexcept;
     [[nodiscard]] int GetVerticalInputTriggered() noexcept;
 
-    // ========================================================================
-    // CONSTEXPR CONFIGURATION (Zero Runtime Cost Grid Layout)
-    // ========================================================================
     static constexpr float SCREEN_WIDTH{ 1920.0f };
     static constexpr float SCREEN_HEIGHT{ 1080.0f };
 
@@ -71,16 +68,16 @@ private:
     static constexpr float TITLE_OFFSET_X{ 40.0f };
     static constexpr float TITLE_OFFSET_Y{ 45.0f };
 
-    // --- Divider Line ---
+    // Divider Line 
     static constexpr float SEPARATOR_OFFSET_Y{ 60.0f }; 
     static constexpr float SEPARATOR_THICKNESS{ BORDER_THICKNESS };
 
-    // --- Grid System ---
+    // Grid System 
     static constexpr float ROW_START_X{ 40.0f };
     static constexpr float ROW_START_Y{ 140.0f };
     static constexpr float ROW_SPACING{ 80.0f };
 
-    // --- Slider Metrics ---
+    // Slider Metrics 
     static constexpr float SLIDER_INLINE_OFFSET_X{ 240.0f };
     static constexpr float SLIDER_Y_OFFSET{ -28.0f };
     static constexpr float SLIDER_WIDTH{ 430.0f };

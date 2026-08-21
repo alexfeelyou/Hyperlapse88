@@ -8,13 +8,13 @@ void CapeSimulator::AddChain(std::shared_ptr<Model> model, const std::vector<std
     m_model = model;
 
     BoneChain newChain;
-    newChain.bones.reserve(boneNames.size()); // Optimization: Prevent reallocation
+    newChain.bones.reserve(boneNames.size()); 
 
     for (const std::string& name : boneNames)
     {
         int index = model->GetNodeIndex(name.c_str());
 
-        // BUG PREVENTION: Only simulate bones that actually exist!
+        // BUG PREVENTION: Only simulate bones that actually exist
         if (index != -1)
         {
             newChain.bones.push_back({ index, 0.0f, 0.0f, 0.0f, 0.0f });
@@ -24,7 +24,7 @@ void CapeSimulator::AddChain(std::shared_ptr<Model> model, const std::vector<std
     // Only save the chain if we actually found valid bones
     if (!newChain.bones.empty())
     {
-        m_chains.push_back(std::move(newChain)); // Optimization: Move semantics
+        m_chains.push_back(std::move(newChain)); 
     }
 }
 
@@ -47,7 +47,7 @@ void CapeSimulator::Update(float dt, const DirectX::XMFLOAT3& currentVelocity)
     baseTargetAngleX = std::clamp(baseTargetAngleX, limitMin, limitMax);
     baseTargetAngleZ = std::clamp(baseTargetAngleZ, -m_maxSway, m_maxSway);
 
-    // Update each strip of cloth completely independently!
+    // Update each strip of cloth completely independently
     for (BoneChain& chain : m_chains)
     {
         // Reset the target angle for the TOP bone of THIS chain
@@ -68,12 +68,12 @@ void CapeSimulator::Update(float dt, const DirectX::XMFLOAT3& currentVelocity)
             if (bone.currentAngleX < limitMin)
             {
                 bone.currentAngleX = limitMin;
-                bone.velocityX = 0.0f; // Hit the wall, kill the momentum instantly!
+                bone.velocityX = 0.0f; // Hit the wall, kill the momentum instantly
             }
             else if (bone.currentAngleX > limitMax)
             {
                 bone.currentAngleX = limitMax;
-                bone.velocityX = 0.0f; // Hit the wall, kill the momentum instantly!
+                bone.velocityX = 0.0f; // Hit the wall, kill the momentum instantly
             }
 
             // Also strictly clamp Z (Left/Right) so it doesn't spin wildly 

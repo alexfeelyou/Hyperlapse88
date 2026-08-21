@@ -7,23 +7,16 @@
 class UberShader : public Shader
 {
 public:
-    // =========================================================
-    // [USER SETTINGS] DEFAULTS
-    // =========================================================
     static constexpr bool  DEFAULT_ENABLED      = false;
     static constexpr float DEFAULT_INTENSITY    = false;
     static constexpr float DEFAULT_SMOOTHNESS   = 0.2f;
     static constexpr bool  DEFAULT_ROUNDED      = false;
     static constexpr float DEFAULT_ROUNDNESS    = 1.0f;
 
-    // Color default (r, g, b, a)
     static constexpr float DEFAULT_COLOR_R      = 0.0f;
     static constexpr float DEFAULT_COLOR_G      = 0.0f;
     static constexpr float DEFAULT_COLOR_B      = 0.0f;
 
-    // =========================================================
-    // CONSTANTS
-    // =========================================================
     static constexpr float INTENSITY_FACTOR     = 3.0f;
     static constexpr float SMOOTHNESS_FACTOR    = 5.0f;
     static constexpr float SMOOTHNESS_MIN       = 0.000001f;
@@ -36,7 +29,7 @@ public:
     static constexpr float DEFAULT_PSX_DITHER       { 1.0f };
 
     // =========================================================
-    // DATA STRUCTURE - "UberData" (Holds EVERYTHING)
+    // DATA STRUCTURE 
     // =========================================================
     struct UberData
     {
@@ -118,7 +111,7 @@ public:
 
 private:
     // =========================================================
-    // INTERNAL BUFFER (Matches HLSL)
+    // INTERNAL BUFFER 
     // =========================================================
     struct CbUber
     {

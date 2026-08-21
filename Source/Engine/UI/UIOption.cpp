@@ -130,7 +130,7 @@ void UIOption::Update(float elapsedTime) noexcept
         m_volumes[targetIndex] += step;
         m_volumes[targetIndex] = std::clamp(m_volumes[targetIndex], 0, 100);
 
-        // --- APPLY VOLUME TO ENGINE ---
+		// Apply the volume to engine 
         const float normalizedVolume{ static_cast<float>(m_volumes[targetIndex]) / 100.0f };
 
         if (m_selectedRow == OptionRow::Music)
@@ -213,7 +213,7 @@ void UIOption::Render(ID3D11DeviceContext* dc, float alpha) const noexcept
     // Flush batch to GPU
     m_primitive->Render(dc);
 
-    // --- 3. Render Font Iteration ---
+    // Render Font Iteration 
     if (m_font)
     {
         // Pure White Title

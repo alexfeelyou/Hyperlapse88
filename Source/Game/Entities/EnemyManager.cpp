@@ -21,7 +21,7 @@ void EnemyManager::SpawnEnemy(const EnemySpawnConfig& config)
     const char* modelPath{ nullptr };
     DirectX::XMFLOAT3 finalScale{ config.Scale };
 
-    // ---> Behavior-Driven Model Selection <---
+    // Behavior-Driven Model Selection 
     switch (config.Type)
     {
     case EnemyType::MushroomNone:
@@ -62,7 +62,6 @@ void EnemyManager::SpawnEnemy(const EnemySpawnConfig& config)
 
     if (!m_enemyPool.empty())
     {
-        // FAST PATH: Pull from the pool.
         std::unique_ptr<Enemy> pooledEnemy{ std::move(m_enemyPool.back()) };
         m_enemyPool.pop_back();
 
@@ -81,7 +80,6 @@ void EnemyManager::SpawnEnemy(const EnemySpawnConfig& config)
     }
     else
     {
-        // SLOW PATH: Allocate new memory 
         auto newEnemy{ std::make_unique<Enemy>(
             device, modelPath, config.Position, config.Rotation, config.Color,
             config.Type, config.AttackBehavior, config.MinX, config.MaxX,
@@ -99,9 +97,8 @@ void EnemyManager::SpawnEnemy(const EnemySpawnConfig& config)
 
 void EnemyManager::Update(const float elapsedTime, Camera* camera, const DirectX::XMFLOAT3& playerPos, const bool allowAttack)
 {
-    for (size_t i{ 0 }; i < m_enemies.size(); ) // Notice: No ++i here!
+    for (size_t i{ 0 }; i < m_enemies.size(); )
     {
-        // We use a reference to avoid copying the unique_ptr
         auto& currentEnemy{ m_enemies[i] };
 
         if (!currentEnemy->IsActive())
@@ -109,8 +106,6 @@ void EnemyManager::Update(const float elapsedTime, Camera* camera, const DirectX
             // Move the dead enemy to the graveyard pool
             m_enemyPool.push_back(std::move(currentEnemy));
 
-            // SWAP-AND-POP: Overwrite this dead slot with the LAST active enemy in the vector.
-            // This prevents the slow O(N) memory shift of std::vector::erase.
             if (i != m_enemies.size() - 1)
             {
                 m_enemies[i] = std::move(m_enemies.back());
@@ -118,9 +113,6 @@ void EnemyManager::Update(const float elapsedTime, Camera* camera, const DirectX
 
             // Destroy the now-duplicate last element
             m_enemies.pop_back();
-
-            // DO NOT increment 'i' here! The enemy we just swapped into the 'i' slot 
-            // still needs to be updated this frame.
         }
         else
         {
@@ -146,18 +138,11 @@ void EnemyManager::Render(ModelRenderer* renderer, Camera* camera)
         if (camera)
         {
             DirectX::XMFLOAT3 pos = enemy->GetPosition();
-
-            // [PERBAIKAN] Ambil Scale musuh
             DirectX::XMFLOAT3 scale = enemy->GetScale();
 
-            // Cari nilai scale terbesar (misal kalau X=2, Y=1, Z=2 -> ambil 2)
             float maxScale = max(scale.x, max(scale.y, scale.z));
-
-            // Base radius 1.5f dikali scale. 
-            // Kalau scale 2.0, radius jadi 3.0. Kalau scale 100, radius jadi 150.
             float cullingRadius = 150.0f * maxScale;
 
-            // Gunakan radius dinamis
             if (!camera->CheckSphere(pos.x, pos.y, pos.z, cullingRadius))
             {
                 isBodyVisible = false;

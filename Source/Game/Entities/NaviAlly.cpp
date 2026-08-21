@@ -89,13 +89,12 @@ void NaviAlly::UpdateHoverLogic(float elapsedTime)
     if (!m_targetPlayer) return;
     m_animTime += elapsedTime;
 
-    // STATE ENTRY: Capture anchor when first potioned
     if (m_isPotioned && !m_hasCapturedAnchor)
     {
         m_potionAnchorPos = movement->GetPosition();
         m_hasCapturedAnchor = true;
     }
-    // STATE EXIT: Reset anchor flag when not potioned
+
     else if (!m_isPotioned)
     {
         m_hasCapturedAnchor = false;
@@ -104,7 +103,6 @@ void NaviAlly::UpdateHoverLogic(float elapsedTime)
     XMFLOAT3 currentPos{ movement->GetPosition() };
     XMFLOAT3 targetPos{ 0.0f, 0.0f, 0.0f };
 
-    // LOGIC SELECTION
     if (m_isPotioned)
     {
         m_randomMoveTimer += elapsedTime;
@@ -118,7 +116,6 @@ void NaviAlly::UpdateHoverLogic(float elapsedTime)
             m_randomMoveTimer = 0.0f;
         }
 
-        // Target is anchor + random offset
         targetPos = {
             m_potionAnchorPos.x + m_randomTargetOffset.x,
             m_potionAnchorPos.y, // Locked to anchor Y
@@ -127,30 +124,23 @@ void NaviAlly::UpdateHoverLogic(float elapsedTime)
     }
     else
     {
-        // --- DEFENSIVE CHECK: Prevent Null Dereference ---
         const CharacterMovement* const pMovement{ m_targetPlayer->GetMovement() };
         const std::shared_ptr<Model> pModel{ m_targetPlayer->GetModel() };
         if (!pMovement || !pModel) return;
 
-        // 1. EXTRACT BONE POSITION (Zero-Cost Animation Sync)
-        // By pulling translation directly from the "body" matrix, Navi will naturally 
-        // sway with the player's idle breathing and run cycles!
-        DirectX::XMFLOAT3 anchorPos{ pMovement->GetPosition() }; // Safe fallback
+        DirectX::XMFLOAT3 anchorPos{ pMovement->GetPosition() }; 
         const int bodyIndex{ pModel->GetNodeIndex("body") };
 
         if (bodyIndex != -1)
         {
             const auto& nodes{ pModel->GetNodes() };
-            // Bug Anticipation: Always bounds-check vector arrays before indexing.
             if (bodyIndex < nodes.size())
             {
                 const DirectX::XMFLOAT4X4& bodyMatrix{ nodes[bodyIndex].worldTransform };
-                // Extract pure translation (_41 = x, _42 = y, _43 = z)
                 anchorPos = { bodyMatrix._41, bodyMatrix._42, bodyMatrix._43 };
             }
         }
 
-        // 2. EXTRACT TARGET TORSO ROTATION 
         const DirectX::XMFLOAT3 aimPos{ m_targetPlayer->GetAimTarget() };
         const float aimDx{ aimPos.x - anchorPos.x };
         const float aimDz{ aimPos.z - anchorPos.z };
@@ -161,32 +151,22 @@ void NaviAlly::UpdateHoverLogic(float elapsedTime)
             targetYaw = std::atan2f(aimDx, aimDz);
         }
 
-        // --- BUG PREVENTION: THE SHORTEST-PATH ANGLE WRAP ---
-        // If Navi is at -179deg and target is +179deg, this forces the delta to be 
-        // 2deg instead of forcing Navi to orbit 358deg the wrong way.
         float angleDiff{ targetYaw - m_lazyHoverYaw };
         while (angleDiff > DirectX::XM_PI)  angleDiff -= DirectX::XM_2PI;
         while (angleDiff < -DirectX::XM_PI) angleDiff += DirectX::XM_2PI;
 
-        // --- APPLY LAZY LAG (Frame-Rate Independent) ---
         const float lazyLerp{ 1.0f - std::expf(-LAZY_ROTATION_SPEED * elapsedTime) };
         m_lazyHoverYaw += angleDiff * lazyLerp;
 
-        // --- BUG PREVENTION: FLOAT PRECISION DEGRADATION ---
-        // Keep our internal angle normalized between -PI and PI so spinning 
-        // in circles doesn't eventually break the float memory limits.
         while (m_lazyHoverYaw > DirectX::XM_PI)  m_lazyHoverYaw -= DirectX::XM_2PI;
         while (m_lazyHoverYaw < -DirectX::XM_PI) m_lazyHoverYaw += DirectX::XM_2PI;
 
-        // --- OPTIMIZATION: Use float-specific trig on the LAZY yaw ---
         const float sinYaw{ std::sinf(m_lazyHoverYaw) };
         const float cosYaw{ std::cosf(m_lazyHoverYaw) };
 
-        // --- RELATIVE VECTOR MATH ---
         const float offsetX{ (cosYaw * HOVER_RIGHT_OFFSET) - (sinYaw * HOVER_BACK_OFFSET) };
         const float offsetZ{ (-sinYaw * HOVER_RIGHT_OFFSET) - (cosYaw * HOVER_BACK_OFFSET) };
 
-        // 3. APPLY TARGET POSITION
         targetPos = {
             anchorPos.x + offsetX,
             anchorPos.y + (HOVER_HEIGHT * 0.25f),
@@ -194,12 +174,10 @@ void NaviAlly::UpdateHoverLogic(float elapsedTime)
         };
     }
 
-    // SMOOTH MOVEMENT
     float lerpFactor{ 1.0f - std::expf(-FOLLOW_SPEED * elapsedTime) };
     currentPos.x += (targetPos.x - currentPos.x) * lerpFactor;
     currentPos.z += (targetPos.z - currentPos.z) * lerpFactor;
 
-    // Apply Lerp to Y + Sin Wave for constant floating animation
     float hoverBob = std::sinf(m_animTime * FLOAT_SPEED) * FLOAT_AMP;
     currentPos.y += (targetPos.y - currentPos.y) * lerpFactor;
     currentPos.y += hoverBob;
@@ -210,7 +188,6 @@ void NaviAlly::UpdateHoverLogic(float elapsedTime)
 
 void NaviAlly::SpawnBullet(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& fwd, float speed) noexcept
 {
-    // TRUE OBJECT POOL: Recycle dead bullets first (Zero Allocation)
     for (auto& bullet : m_projectiles)
     {
         if (!bullet->IsActive())
@@ -272,7 +249,7 @@ void NaviAlly::FireFanBurst(const DirectX::XMFLOAT3& targetPos) noexcept
     float baseAngle = std::atan2f(dx, dz);
 
     constexpr int bulletCount = 5;
-    constexpr float spreadAngle = 0.25f; // Radians between each bullet
+    constexpr float spreadAngle = 0.25f; 
     const float startAngle = baseAngle - (spreadAngle * (bulletCount / 2.0f));
 
     for (int i = 0; i < bulletCount; ++i)
@@ -343,7 +320,6 @@ void NaviAlly::UpdateShootingLogic(float elapsedTime, Camera* camera)
         }
     }
 
-    // TARGET SWITCH DETECTION 
     // If the target has changed (or was lost), reset the timers to enforce a fresh reaction delay.
     if (bestTarget != m_currentTarget)
     {
@@ -379,7 +355,6 @@ void NaviAlly::UpdateProjectiles(float elapsedTime, Camera* camera)
 
         bullet->Update(elapsedTime, camera);
 
-        // INFINITE FLIGHT GUARD: Turn off (recycle) if it flies too far
         XMFLOAT3 bPos{ bullet->GetMovement()->GetPosition() };
         float dx{ myPos.x - bPos.x };
         float dz{ myPos.z - bPos.z };
@@ -409,11 +384,10 @@ void NaviAlly::TakeDamage(int damage) noexcept
 
 void NaviAlly::SetPotionedState(bool isPotioned) noexcept
 {
-    if (m_isPotioned == isPotioned) return; // No state change
+    if (m_isPotioned == isPotioned) return; 
 
     m_isPotioned = isPotioned;
 
-    // When Potioned starts, heal the player to 150 HP
     if (m_isPotioned && m_targetPlayer)
     {
         m_targetPlayer->SetMaxHP(150);
@@ -434,7 +408,6 @@ void NaviAlly::Render(ModelRenderer* renderer)
     DirectX::XMFLOAT4 renderColor = m_color;
 
     if (m_isPotioned) {
-        // Use the same math as Enemy::GetRenderColor() for perfect visual sync
         const float wave{ (std::sin(m_pulseTimer * 15.0f) + 1.0f) * 0.5f };
         const auto& c1{ EnemyLevelData::ArcanePurple };
         const auto& c2{ EnemyLevelData::ToxicGreen };

@@ -1,6 +1,6 @@
 cbuffer UberConstantBuffer : register(b0)
 {
-    // --- VIGNETTE & COLOR ---
+    // Vignette Settings
     float4 v_color;
     float2 v_center;
     float v_intensity;
@@ -8,13 +8,13 @@ cbuffer UberConstantBuffer : register(b0)
     float v_rounded; // 1.0 = true, 0.0 = false
     float v_roundness;
     
-    // --- LENS & GLITCH FX ---
+    // Lens Distortion / Glitch Settings
     float fx_blurStrength;
     float fx_chromaticAberration;
     float fx_distortion;
     float fx_glitchStrength;
     
-    // --- CRT SETTINGS ---
+    // CRT / Scanline Settings
     float crt_scanlineOpacity; 
     float crt_time;
     float crt_scanlineSpeed;
@@ -25,11 +25,11 @@ cbuffer UberConstantBuffer : register(b0)
     
     float fineRotation; 
     
-    // --- HDR BLOOM ---
+    // HDR / Bloom Settings
     float bloomThreshold;
     float bloomIntensity;
     
-    // --- PSX SETTINGS ---
+    // PSX / Retro Settings
     float psxEnabled;
     float psxResWidth;
     float psxResHeight;
@@ -49,10 +49,7 @@ SamplerState samplerState : register(s0);
 
 static const int BLUR_SAMPLES = 10;
 
-// =========================================================
-// HELPER FUNCTIONS
-// =========================================================
-
+// HLSL Helper Functions
 // Random Noise Generator
 float rand(float2 n)
 {
@@ -76,16 +73,14 @@ static const float4x4 BayerMatrix = float4x4(
     15.0 / 16.0, 7.0 / 16.0, 13.0 / 16.0, 5.0 / 16.0
 );
 
-// =========================================================
-// AAA SINGLE-PASS VOGEL BLOOM (Optimized for 1080p Upscaling)
-// =========================================================
+// Single-Pass Vogel Disk Sampling for Bloom Effect
 float3 SampleBloom(float2 uv, float2 texelSize, float maxRadius)
 {
     float3 bloom = 0;
     float totalWeight = 0;
 
-    // OPTIMIZATION 1: Reduced to 16 taps. On an upscaled low-res buffer, 
-    // 16 taps provides a perfectly smooth Gaussian curve with half the GPU cost.
+    // Reduced to 16 taps. On an upscaled low-res buffer, 
+    // 16 taps provides a perfectly smooth Gaussian curve with half the GPU cost
     const int TAPS = 16;
     const float GOLDEN_ANGLE = 2.39996323;
 
@@ -103,7 +98,6 @@ float3 SampleBloom(float2 uv, float2 texelSize, float maxRadius)
         float contribution = max(0.0f, brightness - bloomThreshold);
         float weight = exp(-r * r * 3.0f);
         
-        // Add a tiny 0.0001f to avoid Divide-By-Zero inside the loop
         bloom += (c * (contribution / (brightness + 0.0001f))) * weight;
         totalWeight += weight;
     }
@@ -111,16 +105,12 @@ float3 SampleBloom(float2 uv, float2 texelSize, float maxRadius)
     return bloom / totalWeight;
 }
 
-// =========================================================
-// MAIN SHADER
-// =========================================================
+// Main Pixel Shader Function
 float4 main(VS_OUT pin) : SV_TARGET
 {
     float2 uv = pin.texcoord;
 
-    // =========================================================
-    // PSX: RESOLUTION CRUNCH (Pixelation)
-    // =========================================================
+    // PSX / Retro Pixelation Effect
     [branch]
     if (psxEnabled > 0.5f)
     {
@@ -128,10 +118,8 @@ float4 main(VS_OUT pin) : SV_TARGET
         // Floor the UVs to create chunky pixels
         uv = floor(uv * psxRes) / psxRes;
     }
-    
-    // -----------------------------------------------------
-    // STEP 1: GLITCH JITTER (Shake)
-    // -----------------------------------------------------
+
+    // Glitch Effect: Random Horizontal Shake
     if (fx_glitchStrength > 0.0f)
     {
         // Random horizontal shake based on Time + Y position
@@ -139,13 +127,11 @@ float4 main(VS_OUT pin) : SV_TARGET
         uv.x += shake;
     }
 
-    // -----------------------------------------------------
-    // STEP 2: LENS DISTORTION & CHROMATIC ABERRATION
-    // -----------------------------------------------------
+    // Lens Distortion and Chromatic Aberration
     // Calculate Base UV with Lens Distortion (if active)
     float2 distortedUV = LensDistortion(uv, fx_distortion);
 
-    // --- [UNIFORM / LATERAL CHROMATIC ABERRATION]---
+    // Lateral Chromatic Aberration: Shift R and B channels based on fx_chromaticAberration
     
     // A small multiplier to make the slider values easier to manage in the GUI
     float shiftAmount = fx_chromaticAberration * 0.5f;
@@ -162,9 +148,7 @@ float4 main(VS_OUT pin) : SV_TARGET
         return float4(0, 0, 0, 1);
     }
 
-    // -----------------------------------------------------
-    // STEP 3: VIGNETTE MASK CALCULATION
-    // -----------------------------------------------------
+    // Vignette Masking: Circular Gradient based on Distance from Center
     float width, height;
     sceneTexture.GetDimensions(width, height);
     
@@ -178,9 +162,7 @@ float4 main(VS_OUT pin) : SV_TARGET
     float mask = saturate(1.0f - distSq * v_intensity);
     mask = smoothstep(0.0f, v_smoothness, mask);
 
-    // -----------------------------------------------------
-    // STEP 4: SAMPLE TEXTURE (Blur + Color)
-    // -----------------------------------------------------
+    // Apply Roundness to the Vignette
     float4 finalColor = float4(0, 0, 0, 1);
 
     if (fx_blurStrength > 0.0f)
@@ -215,22 +197,17 @@ float4 main(VS_OUT pin) : SV_TARGET
 
     finalColor.rgb *= mask;
 
-    // -----------------------------------------------------
-    // STEP 5A: ROLLING BAR (Animation)
-    // -----------------------------------------------------
+    // Roll in CRT Scanline Effects
     if (crt_scanlineOpacity > 0.0f)
     {
         float bar = sin(uvG.y * 3.0f - crt_time * crt_scanlineSpeed);
         bar = (bar + 1.0f) * 0.5f;
         bar = pow(bar, max(1.0f, crt_scanlineSize));
         
-        // [FIX] MULTIPLY instead of Subtract! This preserves HDR color ratios.
         finalColor.rgb *= (1.0f - bar * crt_scanlineOpacity * 0.5f);
     }
 
-    // -----------------------------------------------------
-    // STEP 5B: FINE SCANLINES (Static Mesh)
-    // -----------------------------------------------------
+    // Fine CRT Mesh Overlay (Rotated)
     if (crt_fineOpacity > 0.0f)
     {
         float s = sin(fineRotation);
@@ -248,37 +225,27 @@ float4 main(VS_OUT pin) : SV_TARGET
         finalColor.rgb *= (1.0f - (1.0f - mesh) * crt_fineOpacity * 0.3f);
     }
     
-    // =========================================================
-    // STEP 6: APPLY VOGEL BLOOM
-    // =========================================================
+    // Voxel-Based Bloom Effect
     float2 texelSize = 1.0f / float2(width, height);
 
     float3 bloomColor = SampleBloom(uvG, texelSize, 15.0f);
     
     finalColor.rgb += (bloomColor * bloomIntensity);
-    
-    // =========================================================
-    // STEP 7: ACES FILMIC TONEMAPPING (HDR -> LDR)
-    // =========================================================
-    // [FIX] CAMERA EXPOSURE! 
-    // This artificially boosts your dark scene before it hits the filmic curve.
-    // If the scene is still too dark, change this to 2.5f or 3.0f!
+
     float exposure = 2.0f;
     finalColor.rgb *= exposure;
     
     finalColor.rgb = saturate((finalColor.rgb * (2.51f * finalColor.rgb + 0.03f)) /
                               (finalColor.rgb * (2.43f * finalColor.rgb + 0.59f) + 0.14f));
     
-    // =========================================================
-    // PSX STEP 2: DITHERING & COLOR QUANTIZATION (Banding)
-    // =========================================================
+    // 5-Bit Color Crunch with Dithering
     [branch]
     if (psxEnabled > 0.5f)
     {
-        // 1. Calculate screen coordinate for the dither matrix
+        // Calculate screen coordinate for the dither matrix
         float2 screenPos = pin.texcoord * float2(psxResWidth, psxResHeight);
         
-        // 2. Fetch the Bayer matrix value (using modulo to tile it 4x4)
+        // Fetch the Bayer matrix value (using modulo to tile it 4x4)
         int x = int(fmod(screenPos.x, 4.0));
         int y = int(fmod(screenPos.y, 4.0));
         float dither = BayerMatrix[x][y];
@@ -286,8 +253,7 @@ float4 main(VS_OUT pin) : SV_TARGET
         // Center the dither around 0 (-0.5 to 0.5) and apply strength
         dither = (dither - 0.5f) * psxDitherStrength;
 
-        // 3. Apply 5-bit color crunch (32 levels per channel)
-        // We add the dither *before* we floor the color to mask the harsh bands
+        // Apply 5-bit color crunch (32 levels per channel)
         finalColor.r = floor((finalColor.r + dither / psxColorDepth) * psxColorDepth) / psxColorDepth;
         finalColor.g = floor((finalColor.g + dither / psxColorDepth) * psxColorDepth) / psxColorDepth;
         finalColor.b = floor((finalColor.b + dither / psxColorDepth) * psxColorDepth) / psxColorDepth;

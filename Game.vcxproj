@@ -15,6 +15,7 @@
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>Game</RootNamespace>
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
+    <ProjectName>Hyperlapse88</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
@@ -60,7 +61,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>.\Source;.\Source\Engine\Base;.\Source\Engine\Windowing;.\Source\Engine\Graphics;.\Source\Engine\UI;.\Source\Engine\VFX;.\Source\Game\Entities\Boss\Phases;.\Source\Game\Entities\Boss\AttackPatterns;.\Source\Game\Entities\Boss;.\Source\Game\Entities;.\Source\Game\States;.\Source\Game\Scenes;.\Source\Engine\Common;.\Source\Engine\Helpers;.\Source\Engine\Legacy;.\External\SDL3-3.4.0\include;.\External\imgui-docking;.\External\ImGuizmo;.\External\cereal\include;.\External\tinygltf;.\External\SphereCast\Include;.\External\DirectXTex;.\External\PhysX\physx\include;.\External\Effekseer170e\include\Effekseer;.\External\json;.\External\Effekseer170e\include\EffekseerRendererDX11;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\Source;.\Source\Engine\Base;.\Source\Engine\Camera;.\Source\Engine\Graphics;.\Source\Engine\UI;.\Source\Engine\VFX;.\Source\Engine\Windowing;.\Source\Game\Entities;.\Source\Game\States;.\Source\Game\Scenes;.\Source\Engine\Helpers;.\Source\Engine\Legacy;.\External\SDL3-3.4.0\include;.\External\imgui-docking;.\External\ImGuizmo;.\External\cereal\include;.\External\tinygltf;.\External\SphereCast\Include;.\External\DirectXTex;.\External\PhysX\physx\include;.\External\Effekseer170e\include\Effekseer;.\External\json;.\External\Effekseer170e\include\EffekseerRendererDX11;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -129,66 +130,23 @@
     <ClInclude Include="External\ImGuizmo\ImSequencer.h" />
     <ClInclude Include="External\SphereCast\Include\SphereCast.h" />
     <ClInclude Include="Source\Engine\Base\Framework.h" />
-    <ClInclude Include="Source\Engine\Base\MathUtils.h" />
-    <ClInclude Include="Source\Engine\Base\ResourceManager.h" />
-    <ClInclude Include="Source\Engine\Common\Constants.h" />
-    <ClInclude Include="Source\Engine\Graphics\BitmapFont.h" />
-    <ClInclude Include="Source\Engine\Graphics\Camera.h" />
-    <ClInclude Include="Source\Engine\Graphics\CameraController.h" />
+    <ClInclude Include="Source\Engine\Camera\Camera.h" />
+    <ClInclude Include="Source\Engine\Camera\CameraController.h" />
+    <ClInclude Include="Source\Engine\Camera\FreeCameraController.h" />
     <ClInclude Include="Source\Engine\Graphics\FontTTF.h" />
-    <ClInclude Include="Source\Engine\Graphics\FreeCameraController.h" />
     <ClInclude Include="Source\Engine\Graphics\PostProcessManager.h" />
     <ClInclude Include="Source\Engine\Graphics\Primitive.h" />
     <ClInclude Include="Source\Engine\Graphics\stb_truetype.h" />
     <ClInclude Include="Source\Engine\Graphics\UberShader.h" />
     <ClInclude Include="Source\Engine\Helpers\CapeSimulator.h" />
-    <ClInclude Include="Source\Engine\Helpers\InputHelper.h" />
-    <ClInclude Include="Source\Engine\Helpers\PerformanceLogger.h" />
     <ClInclude Include="Source\Engine\Helpers\PhysXutils.h" />
-    <ClInclude Include="Source\Engine\Helpers\TimeManager.h" />
-    <ClInclude Include="Source\Engine\UI\ButtonManager.h" />
-    <ClInclude Include="Source\Engine\UI\CursorBlock.h" />
-    <ClInclude Include="Source\Engine\UI\HUDRenderer.h" />
-    <ClInclude Include="Source\Engine\UI\TUIBuilder.h" />
-    <ClInclude Include="Source\Engine\UI\UIButton.h" />
-    <ClInclude Include="Source\Engine\UI\UIButtonPrimitive.h" />
-    <ClInclude Include="Source\Engine\UI\UIButtonSprite.h" />
-    <ClInclude Include="Source\Engine\UI\UIComponents.h" />
     <ClInclude Include="Source\Engine\UI\UIDialogueBox.h" />
-    <ClInclude Include="Source\Engine\UI\UIImpactDisplay.h" />
-    <ClInclude Include="Source\Engine\UI\UILabel.h" />
     <ClInclude Include="Source\Engine\UI\UIOption.h" />
     <ClInclude Include="Source\Engine\UI\UIPause.h" />
     <ClInclude Include="Source\Engine\VFX\AnimationController.h" />
-    <ClInclude Include="Source\Engine\VFX\CinematicDirector.h" />
     <ClInclude Include="Source\Engine\VFX\EffectManager.h" />
-    <ClInclude Include="Source\Engine\VFX\JuiceEngine.h" />
-    <ClInclude Include="Source\Engine\Windowing\BeyondWindow.h" />
+    <ClInclude Include="Source\Engine\Windowing\RenderWindow.h" />
     <ClInclude Include="Source\Engine\Windowing\WindowManager.h" />
-    <ClInclude Include="Source\Engine\Windowing\WindowPool.h" />
-    <ClInclude Include="Source\Engine\Windowing\WindowShatter.h" />
-    <ClInclude Include="Source\Engine\Windowing\WindowSwarmRenderer.h" />
-    <ClInclude Include="Source\Engine\Windowing\WindowTrackingSystem.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackDirect.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackMeteor.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackParamManager.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackWave.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\Boss.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\BossAI.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackBoomerangs.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackBouncing.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackBlasters.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackSpears.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackFan.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackPhalanx.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackRadial.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackRain.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\AttackUltimate.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\IBossAttackPattern.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\AttackPatterns\IPooledAttackPattern.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\Phases\BossPhase01.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\Phases\BossPhase02.h" />
-    <ClInclude Include="Source\Game\Entities\Boss\Phases\INaviPhase.h" />
     <ClInclude Include="Source\Game\Entities\Bullet.h" />
     <ClInclude Include="Source\Game\Entities\Character.h" />
     <ClInclude Include="Source\Game\Entities\CharacterMovement.h" />
@@ -201,9 +159,7 @@
     <ClInclude Include="Source\Game\Entities\PlayerConstants.h" />
     <ClInclude Include="Source\Game\Entities\Weapon.h" />
     <ClInclude Include="Source\Game\Scenes\Scene.h" />
-    <ClInclude Include="Source\Game\Scenes\SceneBoss.h" />
     <ClInclude Include="Source\Game\Scenes\SceneGame.h" />
-    <ClInclude Include="Source\Game\Scenes\SceneIntro.h" />
     <ClInclude Include="Source\Game\Scenes\SceneTitle.h" />
     <ClInclude Include="Source\Game\Scenes\Stage.h" />
     <ClInclude Include="Source\Game\States\PlayerState.h" />
@@ -213,7 +169,6 @@
     <ClInclude Include="Source\System\Collision.h" />
     <ClInclude Include="Source\System\CollisionManager.h" />
     <ClInclude Include="Source\System\BasicShader.h" />
-    <ClInclude Include="Source\System\Dialog.h" />
     <ClInclude Include="Source\System\GamePad.h" />
     <ClInclude Include="Source\System\GLTFImporter.h" />
     <ClInclude Include="Source\System\GpuResourceUtils.h" />
@@ -250,54 +205,21 @@
     <ClCompile Include="External\ImGuizmo\ImSequencer.cpp" />
     <ClCompile Include="Source\Engine\Base\Framework.cpp" />
     <ClCompile Include="Source\Engine\Base\Main.cpp" />
-    <ClCompile Include="Source\Engine\Base\ResourceManager.cpp" />
-    <ClCompile Include="Source\Engine\Graphics\BitmapFont.cpp" />
-    <ClCompile Include="Source\Engine\Graphics\Camera.cpp" />
-    <ClCompile Include="Source\Engine\Graphics\CameraController.cpp" />
+    <ClCompile Include="Source\Engine\Camera\Camera.cpp" />
+    <ClCompile Include="Source\Engine\Camera\CameraController.cpp" />
+    <ClCompile Include="Source\Engine\Camera\FreeCameraController.cpp" />
     <ClCompile Include="Source\Engine\Graphics\FontTTF.cpp" />
-    <ClCompile Include="Source\Engine\Graphics\FreeCameraController.cpp" />
     <ClCompile Include="Source\Engine\Graphics\PostProcessManager.cpp" />
     <ClCompile Include="Source\Engine\Graphics\Primitive.cpp" />
     <ClCompile Include="Source\Engine\Graphics\UberShader.cpp" />
     <ClCompile Include="Source\Engine\Helpers\CapeSimulator.cpp" />
-    <ClCompile Include="Source\Engine\Helpers\InputHelper.cpp" />
-    <ClCompile Include="Source\Engine\Helpers\PerformanceLogger.cpp" />
-    <ClCompile Include="Source\Engine\UI\CursorBlock.cpp" />
-    <ClCompile Include="Source\Engine\UI\HUDRenderer.cpp" />
-    <ClCompile Include="Source\Engine\UI\TUIBuilder.cpp" />
-    <ClCompile Include="Source\Engine\UI\UIComponents.cpp" />
     <ClCompile Include="Source\Engine\UI\UIDialogueBox.cpp" />
-    <ClCompile Include="Source\Engine\UI\UIImpactDisplay.cpp" />
     <ClCompile Include="Source\Engine\UI\UIOption.cpp" />
-    <ClCompile Include="Source\Engine\UI\UIPanel.cpp" />
     <ClCompile Include="Source\Engine\UI\UIPause.cpp" />
     <ClCompile Include="Source\Engine\VFX\AnimationController.cpp" />
-    <ClCompile Include="Source\Engine\VFX\CinematicDirector.cpp" />
     <ClCompile Include="Source\Engine\VFX\EffectManager.cpp" />
-    <ClCompile Include="Source\Engine\VFX\JuiceEngine.cpp" />
-    <ClCompile Include="Source\Engine\Windowing\BeyondWindow.cpp" />
+    <ClCompile Include="Source\Engine\Windowing\RenderWindow.cpp" />
     <ClCompile Include="Source\Engine\Windowing\WindowManager.cpp" />
-    <ClCompile Include="Source\Engine\Windowing\WindowPool.cpp" />
-    <ClCompile Include="Source\Engine\Windowing\WindowShatter.cpp" />
-    <ClCompile Include="Source\Engine\Windowing\WindowSwarmRenderer.cpp" />
-    <ClCompile Include="Source\Engine\Windowing\WindowTrackingSystem.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackDirect.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackMeteor.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackParamManager.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackWave.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\Boss.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\BossAI.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackBoomerangs.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackBouncing.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackBlasters.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackSpears.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackFan.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackPhalanx.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackRadial.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackRain.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\AttackPatterns\AttackUltimate.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\Phases\BossPhase01.cpp" />
-    <ClCompile Include="Source\Game\Entities\Boss\Phases\BossPhase02.cpp" />
     <ClCompile Include="Source\Game\Entities\Bullet.cpp" />
     <ClCompile Include="Source\Game\Entities\Character.cpp" />
     <ClCompile Include="Source\Game\Entities\CharacterMovement.cpp" />
@@ -308,9 +230,7 @@
     <ClCompile Include="Source\Game\Entities\NaviAlly.cpp" />
     <ClCompile Include="Source\Game\Entities\Player.cpp" />
     <ClCompile Include="Source\Game\Entities\Weapon.cpp" />
-    <ClCompile Include="Source\Game\Scenes\SceneBoss.cpp" />
     <ClCompile Include="Source\Game\Scenes\SceneGame.cpp" />
-    <ClCompile Include="Source\Game\Scenes\SceneIntro.cpp" />
     <ClCompile Include="Source\Game\Scenes\SceneTitle.cpp" />
     <ClCompile Include="Source\Game\Scenes\Stage.cpp" />
     <ClCompile Include="Source\Game\States\PlayerStates.cpp" />
@@ -318,7 +238,6 @@
     <ClCompile Include="Source\System\BasicShader.cpp" />
     <ClCompile Include="Source\System\Collision.cpp" />
     <ClCompile Include="Source\System\CollisionManager.cpp" />
-    <ClCompile Include="Source\System\Dialog.cpp" />
     <ClCompile Include="Source\System\GamePad.cpp" />
     <ClCompile Include="Source\System\GLTFImporter.cpp" />
     <ClCompile Include="Source\System\GpuResourceUtils.cpp" />
@@ -338,7 +257,6 @@
     <ClCompile Include="Source\System\TransformUtils.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include="AttackParams.json" />
     <None Include="Shader\Basic.hlsli" />
     <None Include="Shader\Lambert.hlsli" />
     <None Include="Shader\Phong.hlsli" />
@@ -394,14 +312,6 @@
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
     </FxCompile>
     <FxCompile Include="Shader\SpriteVS.hlsl">
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
-    </FxCompile>
-    <FxCompile Include="Shader\SwarmPS.hlsl">
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
-    </FxCompile>
-    <FxCompile Include="Shader\SwarmVS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
     </FxCompile>

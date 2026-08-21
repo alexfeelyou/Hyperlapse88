@@ -13,7 +13,7 @@ public:
     void Update(float elapsedTime, Camera* camera) override;
     void Render(ModelRenderer* renderer);
 
-    // --- Getters / Setters ---
+    // Getters / Setters 
     bool     IsActive()  const { return isActive; }
     ItemType GetType()   const { return m_type; }
 
@@ -50,7 +50,6 @@ private:
     float originalY = 0.0f;
     float animTime = 0.0f;
 
-    // Animation config — static so they're shared, not duplicated per instance
     static constexpr float kFloatSpeed = 2.0f;
     static constexpr float kFloatAmp = 0.5f;
     static constexpr float kSpinSpeed = 1.5f;

@@ -20,7 +20,7 @@ void UIPause::MoveSelection(int direction) noexcept
 {
     // BUG PREVENTION: Safe wrapping logic.
     // By adding the Count before using modulo, we prevent negative results 
-    // if the user presses 'Up' (-1) at the top of the menu.
+    // if the user presses 'Up' (-1) at the top of the menu
     const int count = static_cast<int>(PauseOption::Count);
     int currentIndex = static_cast<int>(m_selectedOption);
 
@@ -31,7 +31,7 @@ void UIPause::MoveSelection(int direction) noexcept
 
 void UIPause::Render(ID3D11DeviceContext* dc, float alpha) const
 {
-    // BUG PREVENTION: Defensive guard clauses.
+    // BUG PREVENTION: Defensive guard clauses
     if (!m_pauseSprite || !m_fontTitle || !m_fontMenu) return;
 
     auto rs{ Graphics::Instance().GetRenderState() };
@@ -65,7 +65,7 @@ void UIPause::Render(ID3D11DeviceContext* dc, float alpha) const
     {
         const bool isSelected = (i == static_cast<std::size_t>(m_selectedOption));
 
-        // Inject the dynamic alpha into our color selection
+        // Inject the dynamic alpha into color selection
         DirectX::XMFLOAT4 color = isSelected
             ? DirectX::XMFLOAT4{ 1.0f, 1.0f, 0.0f, alpha }
         : DirectX::XMFLOAT4{ 0.7f, 0.7f, 0.7f, alpha };
@@ -82,8 +82,7 @@ void UIPause::Render(ID3D11DeviceContext* dc, float alpha) const
             color
         );
 
-        // Draw the pointer ONLY for the selected item.
-        // It always uses MENU_POS_X as its baseline so it never shifts horizontally.
+        // Draw the pointer only for the selected item.
         if (isSelected)
         {
             m_fontMenu->Draw(

@@ -93,11 +93,10 @@ void ItemManager::RenderDebug(ShapeRenderer* renderer)
         {
             XMFLOAT3 pos = item->GetPosition();
             XMFLOAT3 boxSize;
-            boxSize.x = (item->scale.x * 0.5f) + 0.05f; // Half scale + Tiny Padding
+            boxSize.x = (item->scale.x * 0.5f) + 0.05f; 
             boxSize.y = (item->scale.y * 0.5f) + 0.05f;
             boxSize.z = (item->scale.z * 0.5f) + 0.05f;
 
-            // [FIXED] Pass 'boxSize', not 'scale'
             renderer->DrawBox(pos, item->GetRotation(), boxSize, { 1.0f, 1.0f, 0.0f, 1.0f });
         }
     }

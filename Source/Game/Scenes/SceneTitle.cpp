@@ -69,11 +69,11 @@ bool SceneTitle::IsUpTriggered() noexcept
     const float leftY = gamePad.GetAxisLY();
     const bool isAnalogPushedUp = (leftY > THUMBSTICK_THRESHOLD);
 
-    // The critical Debounce logic: Only true if pushed NOW, but wasn't pushed LAST frame.
+    // Only true if pushed now, but wasn't pushed last frame
     const bool analogUpTriggered = (isAnalogPushedUp && !m_analogUpWasPressed);
     m_analogUpWasPressed = isAnalogPushedUp; 
 
-    // --- UPDATE GLOBAL STATE ---
+	// Update global state for last used device
     if (isKeyboardUp) input.SetLastUsedDevice(InputDevice::Keyboard);
     if (isGamepadDpadUp || analogUpTriggered) input.SetLastUsedDevice(InputDevice::Gamepad);
 
@@ -95,7 +95,7 @@ bool SceneTitle::IsDownTriggered() noexcept
     const bool analogDownTriggered = (isAnalogPushedDown && !m_analogDownWasPressed);
     m_analogDownWasPressed = isAnalogPushedDown;
 
-    // --- UPDATE GLOBAL STATE ---
+	// Update global state for last used device
     if (isKeyboardDown) input.SetLastUsedDevice(InputDevice::Keyboard);
     if (isGamepadDpadDown || analogDownTriggered) input.SetLastUsedDevice(InputDevice::Gamepad);
 
@@ -104,7 +104,7 @@ bool SceneTitle::IsDownTriggered() noexcept
 
 bool SceneTitle::IsConfirmTriggered(bool allowSpace) noexcept
 {
-    // natively handle single-frame trigger isolation.
+    // Natively handle single-frame trigger isolation
     auto& input = Input::Instance();
 
     bool isKeyboardConfirm = input.GetKeyboard().IsTriggered(VK_RETURN);
@@ -115,7 +115,7 @@ bool SceneTitle::IsConfirmTriggered(bool allowSpace) noexcept
 
     const bool isGamepadConfirm = (input.GetGamePad().GetButtonDown() & GamePad::BTN_A) != 0;
 
-    // --- UPDATE GLOBAL STATE ---
+	// Update global state for last used device
     if (isKeyboardConfirm) input.SetLastUsedDevice(InputDevice::Keyboard);
     if (isGamepadConfirm) input.SetLastUsedDevice(InputDevice::Gamepad);
 
@@ -124,7 +124,7 @@ bool SceneTitle::IsConfirmTriggered(bool allowSpace) noexcept
 
 void SceneTitle::Update(float elapsedTime)
 {
-    // 1. EXIT PHASE
+	// Exit Phase: Fade Out and Transition to Game Scene
     if (m_isExiting)
     {
         m_exitTimer += elapsedTime;
@@ -137,7 +137,7 @@ void SceneTitle::Update(float elapsedTime)
         return;
     }
 
-    // 2. BOOT PHASE
+	// Boot Phase: Fade In Logo and Background
     if (m_bootTimer > 0.0f)
     {
         m_bootTimer -= elapsedTime;
@@ -145,7 +145,7 @@ void SceneTitle::Update(float elapsedTime)
         return;
     }
 
-    // 3. COPYRIGHT WAIT PHASE
+	// Copyright Phase: Display Copyright Notice
     if (m_copyrightTimer > 0.0f)
     {
         m_fadeAlpha = 0.0f;
@@ -153,7 +153,7 @@ void SceneTitle::Update(float elapsedTime)
         return;
     }
 
-    // 4. MAIN TITLE & MENU PHASE
+	// After the boot and copyright phases, we can safely set
     m_fadeAlpha = 0.0f;
 
     // Fade out Copyright
@@ -172,10 +172,10 @@ void SceneTitle::Update(float elapsedTime)
         constexpr int maxOptions = static_cast<int>(MenuOption::Count);
         int current = static_cast<int>(m_currentSelection);
 
-		// Bug Prevention: If the user is in the Option Panel, we do not want to process main menu navigation.
+		// If the user is in the Option Panel, we do not want to process main menu navigation
         if (m_isOptionPhase)
         {
-            // Bug Prevention: Allow the user to press 'Confirm' or 'Exit' (e.g., ESC) to close the menu
+            // Allow the user to press Confirm or Exit (e.g. ESC) to close the menu
             if (IsConfirmTriggered() || Input::Instance().GetKeyboard().IsTriggered(VK_ESCAPE))
             {
                 m_isOptionPhase = false;
@@ -186,20 +186,19 @@ void SceneTitle::Update(float elapsedTime)
             return; // EXIT EARLY: Do not process main menu navigation
         }
 
-        // UP NAVIGATION
+		// Up navigation with wrap-around
         if (IsUpTriggered())
         {
-            // Bug Prevention: Adding maxOptions guarantees positive wrap-around.
             current = (current + maxOptions - 1) % maxOptions;
             m_currentSelection = static_cast<MenuOption>(current);
         }
-        // DOWN NAVIGATION
+		// Down navigation with wrap-around
         else if (IsDownTriggered())
         {
             current = (current + 1) % maxOptions;
             m_currentSelection = static_cast<MenuOption>(current);
         }
-        // EXECUTE SELECTION
+		// Confirm selection
         else if (IsConfirmTriggered())
         {
             ExecuteMenuSelection();
@@ -241,7 +240,7 @@ void SceneTitle::Update(float elapsedTime)
         m_pulseTimer += elapsedTime;
         m_startAlpha = 0.6f + 0.4f * sinf(m_pulseTimer * 3.0f);
 
-        // ONLY TRIGGER ONCE. Setting flag locks out further presses automatically.
+        // Only trigger once. Setting flag locks out further presses automatically
         if (IsConfirmTriggered(false))
         {
             m_isTransitioningMenu = true;
@@ -311,16 +310,15 @@ void SceneTitle::Render(float dt, Camera* targetCamera)
         copyrightSprite->Render(dc, 327.5f, 867.0f, 0.0f, 1245.0f, 105.0f, 0.0f, 0.0f, 1265.0f, 105.0f, 0.0f, 1.0f, 1.0f, 1.0f, finalCopyrightAlpha);
     }
 
-    // RENDER START
+	// Render Start 
     if (startSprite && m_startAlpha > 0.0f)
     {
         startSprite->Render(dc, 679.5f, 906.5f, 0.0f, 545.0f, 34.0f, 0.0f, 0.0f, 545.0f, 34.0f, 0.0f, 1.0f, 1.0f, 1.0f, m_startAlpha);
     }
 
-    // RENDER MENU 
+	// Render Menu Options and Cursor
     if (m_menuAlpha > 0.0f)
     {
-        // Outsource processing to our highly optimized sub-render routine
         RenderMenuOptions(dc);
 
         // Render Cursor smoothly using the Primitive class
@@ -342,9 +340,7 @@ void SceneTitle::Render(float dt, Camera* targetCamera)
         }
     }
 
-    // RENDER OPTION UI
-    // It uses its own logic to determine if it should render, but we pass m_menuAlpha 
-    // or a dedicated alpha if we want it to fade in smoothly. For now, we render if active.
+	// Render the Option Panel if active. This is a separate UI system that overlays on top of the main menu.
     if (m_isOptionPhase && m_uiOption)
     {
         m_uiOption->Render(dc, 1.0f);
@@ -373,10 +369,9 @@ void SceneTitle::RenderMenuOptions(ID3D11DeviceContext* dc)
 
     struct ColorRGB { float r{ 0.0f }, g{ 0.0f }, b{ 0.0f }; };
 
-    static constexpr ColorRGB unselectedColor{ 0.75f, 0.75f, 0.75f }; // Soft crisp silver white
-    static constexpr ColorRGB selectedColor{ 1.0f, 1.0f, 1.0f };     // Glowing direct white
+    static constexpr ColorRGB unselectedColor{ 0.75f, 0.75f, 0.75f };
+    static constexpr ColorRGB selectedColor{ 1.0f, 1.0f, 1.0f };     
 
-    // Zero-overhead local matrix mappings utilizing reference wrappers
     const std::array<MenuItem, 3> items{ {
         { m_newGameSprite.get(), Y_NEW_GAME, 173.0f, 25.0f, m_optionWeights[0] },
         { m_optionSprite.get(),  Y_OPTION,   118.0f, 32.0f, m_optionWeights[1] },
@@ -434,7 +429,7 @@ void SceneTitle::AnimateMenu(float elapsedTime)
         m_visualCursorY = targetY;
     }
 
-    // 4. Smooth out highlighting colors across every text menu item
+    // Smooth out highlighting colors across every text menu item
     const float colorAlpha = 1.0f - std::exp(-COLOR_SMOOTH_SPEED * elapsedTime);
     const auto currentSelectionIndex = static_cast<std::size_t>(m_currentSelection);
 
@@ -456,7 +451,7 @@ void SceneTitle::ExecuteMenuSelection() noexcept
     {
     case MenuOption::NewGame:
         // Bug Prevention: We check !m_isExiting to ensure that if a user 
-        // mashes the Enter key, we don't continuously reset the timer to 0.0f.
+        // mashes the Enter key, we don't continuously reset the timer to 0.0f
         if (!m_isExiting)
         {
             m_isExiting = true;
@@ -476,12 +471,9 @@ void SceneTitle::ExecuteMenuSelection() noexcept
         break;
 
     case MenuOption::Exit:
-        // Zero-cost exit trigger. Since your Framework uses SDL beneath the hood, 
-        // pushing an SDL_QUIT event is the safest, standard way to cleanly 
-        // shut down the window and break the main loop without memory leaks.
         if (!m_isExiting)
         {
-            SDL_Event quitEvent{}; // Brace initialization guarantees zeroed memory
+            SDL_Event quitEvent{}; 
             quitEvent.type = SDL_EVENT_QUIT;
             SDL_PushEvent(&quitEvent);
         }
@@ -497,9 +489,7 @@ void SceneTitle::OnResize(int width, int height)
     if (postProcess) postProcess->OnResize(width, height);
 }
 
-// =========================================================
-// DEBUG GUI IMPLEMENTATION
-// =========================================================
+// GUI Debugging for Post-Processing Effects
 
 void SceneTitle::DrawGUI()
 {

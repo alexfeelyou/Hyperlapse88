@@ -25,7 +25,7 @@ public:
     void SetEnabled(bool enable) { m_isEnabled = enable; }
 
 private:
-    // --- Resources ---
+    // Resources 
     Microsoft::WRL::ComPtr<ID3D11Texture2D>          m_renderTargetTexture;
     Microsoft::WRL::ComPtr<ID3D11RenderTargetView>   m_renderTargetView;
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_shaderResourceView;
@@ -33,13 +33,13 @@ private:
     Microsoft::WRL::ComPtr<ID3D11Texture2D>          m_depthStencilTexture;
     Microsoft::WRL::ComPtr<ID3D11DepthStencilView>   m_depthStencilView;
 
-    // --- State Caching ---
+    // State Caching 
     ID3D11RenderTargetView* m_originalRTV = nullptr;
     ID3D11DepthStencilView* m_originalDSV = nullptr;
     D3D11_VIEWPORT          m_originalViewport{};
     UINT                    m_originalViewportCount = 1;
 
-    // --- Resolution Tracking ---
+    // Resolution Tracking 
     int m_windowWidth = 1920;
     int m_windowHeight = 1080;
     int m_currentRTWidth = 1920;

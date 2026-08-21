@@ -13,16 +13,16 @@ struct ItemSpawnData {
 };
 
 // ==========================================
-// ITEM CONFIGURATION (EDIT HERE)
+// ITEM CONFIGURATION 
 // ==========================================
 namespace ItemLevelData
 {
     static const std::vector<ItemSpawnData> Spawns =
     {
-        // 1. Heal Item
+        // Heal Item
         { { -4.0f, 0.4f, 20.0f }, { 0.0f, 0.0f, 0.0f }, { 2.0f, 2.0f, 2.0f }, ItemType::Heal },
 
-        // 2. Invincible Item
+        // Invincible Item
         { { 4.0f, 0.4f, 20.0f }, { 0.0f, 0.0f, 0.0f }, { 2.0f, 2.0f, 2.0f }, ItemType::Invincible }
     };
 }
@@ -39,7 +39,7 @@ public:
     void RenderDebug(ShapeRenderer* renderer);
 
     // Spawning
-    void AddItem(ItemType type); // For GUI Button
+    void AddItem(ItemType type); 
     void ResetAllAnimations();
     void SpawnItem(const ItemSpawnData& data);
     void SpawnHealAt(const DirectX::XMFLOAT3& position);

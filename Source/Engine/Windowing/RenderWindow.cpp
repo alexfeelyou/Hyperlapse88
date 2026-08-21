@@ -1,11 +1,6 @@
-﻿#include "BeyondWindow.h"
-#include "System/Graphics.h"
-#include "PerformanceLogger.h"
-#include <windows.h>
+﻿#include "RenderWindow.h"
 
-#pragma comment(lib, "dcomp.lib") // Otomatis me-link library DComp
-
-namespace Beyond
+namespace platform
 {
     Window::Window() {}
 
@@ -17,37 +12,15 @@ namespace Beyond
         }
     }
 
-    SDL_HitTestResult SDLCALL WindowHitTestCallback(SDL_Window* win, const SDL_Point* area, void* data)
-    {
-        Window* pWindow = static_cast<Window*>(data);
-        if (!pWindow) return SDL_HITTEST_NORMAL;
-
-        if (pWindow->IsDraggable()) {
-            return SDL_HITTEST_DRAGGABLE;
-        }
-
-        return SDL_HITTEST_NORMAL;
-    }
-
-    bool Window::Initialize(const char* title, int width, int height, bool isTransparent)
+    bool Window::Initialize(const char* title, int width, int height)
     {
         m_width = width;
         m_height = height;
-        m_isTransparent = isTransparent;
 
-        SDL_WindowFlags flags = SDL_WINDOW_HIDDEN;
-
-        if (isTransparent) {
-            flags |= SDL_WINDOW_TRANSPARENT | SDL_WINDOW_BORDERLESS;
-        }
-        else {
-            flags |= SDL_WINDOW_RESIZABLE;
-        }
+        SDL_WindowFlags flags = SDL_WINDOW_HIDDEN | SDL_WINDOW_RESIZABLE;
 
         m_sdlWindow = SDL_CreateWindow(title, width, height, flags);
         if (!m_sdlWindow) return false;
-
-        SDL_SetWindowHitTest(m_sdlWindow, WindowHitTestCallback, this);
 
         return SetupDirectX();
     }
@@ -77,46 +50,11 @@ namespace Beyond
 
         HRESULT hr;
 
-        if (m_isTransparent)
-        {
-            // ── JALUR DCOMP (KHUSUS WINDOW TRANSPARAN / VFX) ──
-            swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_PREMULTIPLIED;
-
-            // DirectX MENGHARUSKAN SwapChain komposisi untuk transparansi
-            hr = dxgiFactory->CreateSwapChainForComposition(
-                device, &swapChainDesc, nullptr, &m_swapChain
-            );
-            if (FAILED(hr)) return false;
-
-            // Setup DirectComposition
-            hr = DCompositionCreateDevice(dxgiDevice.Get(), IID_PPV_ARGS(&m_dcompDevice));
-            if (FAILED(hr)) return false;
-
-            hr = m_dcompDevice->CreateTargetForHwnd(hwnd, true, &m_dcompTarget);
-            if (FAILED(hr)) return false;
-
-            hr = m_dcompDevice->CreateVisual(&m_dcompVisual);
-            if (FAILED(hr)) return false;
-
-            hr = m_dcompVisual->SetContent(m_swapChain.Get());
-            if (FAILED(hr)) return false;
-
-            hr = m_dcompTarget->SetRoot(m_dcompVisual.Get());
-            if (FAILED(hr)) return false;
-
-            hr = m_dcompDevice->Commit();
-            if (FAILED(hr)) return false;
-        }
-        else
-        {
-            // ── JALUR NORMAL (KHUSUS MAIN WINDOW) ──
-            swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
-
-            hr = dxgiFactory->CreateSwapChainForHwnd(
-                device, hwnd, &swapChainDesc, nullptr, nullptr, &m_swapChain
-            );
-            if (FAILED(hr)) return false;
-        }
+        swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
+        hr = dxgiFactory->CreateSwapChainForHwnd(
+            device, hwnd, &swapChainDesc, nullptr, nullptr, &m_swapChain
+        );
+        if (FAILED(hr)) return false;
 
         // Render Target View
         Microsoft::WRL::ComPtr<ID3D11Texture2D> backBuffer;
@@ -145,13 +83,8 @@ namespace Beyond
     {
         auto context = Graphics::Instance().GetDeviceContext();
 
-        // Kunci Transparansi: Kalikan warna dengan alpha (Premultiplied Alpha)
+		// Clear the render target and depth stencil
         float clearColor[4] = { r, g, b, a };
-        if (m_isTransparent) {
-            clearColor[0] *= a;
-            clearColor[1] *= a;
-            clearColor[2] *= a;
-        }
 
         context->ClearRenderTargetView(m_renderTargetView.Get(), clearColor);
 
@@ -190,10 +123,8 @@ namespace Beyond
         m_renderTargetView.Reset();
         m_depthStencilView.Reset();
 
-        // Lepas buffer lama dan ubah ukuran
         m_swapChain->ResizeBuffers(2, m_width, m_height, DXGI_FORMAT_B8G8R8A8_UNORM, 0);
 
-        // Buat ulang RTV dan DSV
         auto device = Graphics::Instance().GetDevice();
         Microsoft::WRL::ComPtr<ID3D11Texture2D> backBuffer;
         m_swapChain->GetBuffer(0, IID_PPV_ARGS(&backBuffer));
@@ -216,35 +147,5 @@ namespace Beyond
 
     void Window::SetTitle(const char* title) {
         if (m_sdlWindow) SDL_SetWindowTitle(m_sdlWindow, title);
-    }
-
-    void Window::SetAlwaysOnTop(bool isTop) {
-        if (m_sdlWindow) SDL_SetWindowAlwaysOnTop(m_sdlWindow, isTop);
-    }
-
-    void Window::SetClickThrough(bool clickThrough)
-    {
-        m_isClickThrough = clickThrough;
-        if (!m_sdlWindow) return;
-
-        // Ambil HWND secara rahasia dari properties SDL3
-        HWND hwnd = (HWND)SDL_GetPointerProperty(SDL_GetWindowProperties(m_sdlWindow), SDL_PROP_WINDOW_WIN32_HWND_POINTER, NULL);
-        if (hwnd)
-        {
-            // Ambil properti Window OS saat ini
-            LONG_PTR exStyle = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
-
-            if (clickThrough) {
-                // Tambahkan efek tembus klik ke OS Desktop
-                exStyle |= WS_EX_TRANSPARENT | WS_EX_LAYERED;
-            }
-            else {
-                // Cabut efek tembus klik (normal)
-                exStyle &= ~WS_EX_TRANSPARENT;
-            }
-
-            // Terapkan kembali ke OS
-            SetWindowLongPtr(hwnd, GWL_EXSTYLE, exStyle);
-        }
     }
 }

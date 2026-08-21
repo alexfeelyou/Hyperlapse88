@@ -1,16 +1,12 @@
 #include "PostProcessManager.h"
 #include "System/Graphics.h"
-#include "Framework.h" // Untuk akses Window info jika perlu
+#include "Framework.h" 
 
 PostProcessManager::PostProcessManager()
 {
-    // Ambil device dari Singleton Graphics
     auto device = Graphics::Instance().GetDevice();
 
-    // Inisialisasi Shader
     m_uberShader = std::make_unique<UberShader>(device);
-
-    // Set default data (bisa disesuaikan)
     m_data.enabled = true;
 }
 
@@ -41,14 +37,13 @@ void PostProcessManager::CreateBuffers(int width, int height)
 {
     auto device = Graphics::Instance().GetDevice();
 
-    // Reset Pointer lama sebelum membuat baru
     m_renderTargetTexture.Reset();
     m_renderTargetView.Reset();
     m_shaderResourceView.Reset();
     m_depthStencilTexture.Reset();
     m_depthStencilView.Reset();
 
-    // 1. Create Texture & RTV (Color Buffer)
+    // Create Texture & RTV (Color Buffer)
     D3D11_TEXTURE2D_DESC textureDesc = {};
     textureDesc.Width = static_cast<UINT>(width);
     textureDesc.Height = static_cast<UINT>(height);
@@ -56,9 +51,7 @@ void PostProcessManager::CreateBuffers(int width, int height)
     textureDesc.ArraySize = 1;
 
     // -------------------------------------------------------------
-    // ---> THE AAA HDR UPGRADE <---
-    // Changed from DXGI_FORMAT_R8G8B8A8_UNORM to R16G16B16A16_FLOAT
-    // This allows colors to exceed 1.0f (Pure White) and become physically emissive!
+	// HDR Support: Use R16G16B16A16_FLOAT for the render target to allow for HDR rendering
     // -------------------------------------------------------------
     textureDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 
@@ -76,7 +69,7 @@ void PostProcessManager::CreateBuffers(int width, int height)
     hr = device->CreateShaderResourceView(m_renderTargetTexture.Get(), nullptr, m_shaderResourceView.GetAddressOf());
     if (FAILED(hr)) return;
 
-    // 2. Create Depth Buffer (Penting agar objek 3D di scene bisa di-sort depth-nya)
+    // Create Depth Buffer
     textureDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
     textureDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
 
@@ -93,7 +86,7 @@ void PostProcessManager::BeginCapture()
 
     // -------------------------------------------------------------
     // DYNAMIC RESOLUTION CHECK
-    // If GUI sliders changed, physically recreate the Render Target!
+    // If GUI sliders changed, physically recreate the Render Target
     // -------------------------------------------------------------
     int targetWidth = m_data.psxEnabled ? (std::max)(16, static_cast<int>(m_data.psxResWidth)) : m_windowWidth;
     int targetHeight = m_data.psxEnabled ? (std::max)(16, static_cast<int>(m_data.psxResHeight)) : m_windowHeight;
@@ -105,7 +98,7 @@ void PostProcessManager::BeginCapture()
         CreateBuffers(m_currentRTWidth, m_currentRTHeight);
     }
 
-    // 1. Save original Render Target AND Viewport
+    // Save original Render Target AND Viewport
     m_originalRTV = nullptr;
     m_originalDSV = nullptr;
     dc->OMGetRenderTargets(1, &m_originalRTV, &m_originalDSV);
@@ -113,12 +106,12 @@ void PostProcessManager::BeginCapture()
     m_originalViewportCount = 1;
     dc->RSGetViewports(&m_originalViewportCount, &m_originalViewport);
 
-    // 2. Switch to our internal Render Target
+    // Switch to internal Render Target
     ID3D11RenderTargetView* rtv = m_renderTargetView.Get();
     ID3D11DepthStencilView* dsv = m_depthStencilView.Get();
     dc->OMSetRenderTargets(1, &rtv, dsv);
 
-    // 3. Shrink the Viewport to match the Render Target!
+    // Shrink the Viewport to match the Render Target
     D3D11_VIEWPORT vp{};
     vp.Width = static_cast<float>(m_currentRTWidth);
     vp.Height = static_cast<float>(m_currentRTHeight);
@@ -128,7 +121,7 @@ void PostProcessManager::BeginCapture()
     vp.TopLeftY = 0;
     dc->RSSetViewports(1, &vp);
 
-    // 4. Clear Screen
+    // Clear Screen
     float clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
     dc->ClearRenderTargetView(rtv, clearColor);
     dc->ClearDepthStencilView(dsv, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
@@ -138,7 +131,7 @@ void PostProcessManager::EndCapture(float dt)
 {
     auto dc = Graphics::Instance().GetDeviceContext();
 
-    // 1. Restore the original Render Target AND the original 1080p Viewport!
+    // Restore the original Render Target 
     dc->OMSetRenderTargets(1, &m_originalRTV, m_originalDSV);
     dc->RSSetViewports(m_originalViewportCount, &m_originalViewport);
 
@@ -157,7 +150,7 @@ void PostProcessManager::EndCapture(float dt)
 
     m_data.time = m_globalTime;
 
-    // Draw the tiny texture upscaled to the 1080p screen
+    // Draw the tiny texture 
     m_uberShader->Draw(dc, m_shaderResourceView.Get(), m_data);
 
     ID3D11ShaderResourceView* nullSRV[] = { nullptr };

@@ -83,7 +83,7 @@ namespace EnemyLevelData
     // ==========================================
     static const std::array<EnemySpawnConfig, 20> Spawns =
     { {
-            // 1. NONE: Just stands there, doesn't shoot or move.
+            // NONE: Just stands there, doesn't shoot or move
             { { 8.6f, 1.1f, 39.9f }, Rot::Backward, None, EnemyType::MushroomNone, AttackType::None },
             { { -6.2f, 1.1f, 100.6f }, Rot::Backward, None, EnemyType::MushroomNone, AttackType::None },
             { { 20.0f, 1.1f, 113.8f }, Rot::Backward, None, EnemyType::MushroomNone, AttackType::None },
@@ -97,13 +97,13 @@ namespace EnemyLevelData
             { { 51.7f, 1.1f, 113.7f }, Rot::Forward, None, EnemyType::MushroomTracking, AttackType::None },
             { { 35.9f, 1.1f, 67.0f }, Rot::Backward, None, EnemyType::FakeBoss, AttackType::None },
 
-            // 2. STATIC: Stands completely still, but shoots at the player.
+            // STATIC: Stands completely still, but shoots at the player
             { { -6.4f, 1.1f, 83.0f }, Rot::Right, Potioned, EnemyType::MushroomNone, AttackType::Static },
             { { -6.2f, 1.1f, 109.3f }, Rot::Right, Potioned, EnemyType::MushroomStatic, AttackType::Static },
             { { 24.8f, 1.1f, 113.8f }, Rot::Backward, Potioned, EnemyType::MushroomTracking, AttackType::Static },
             { { 55.614f, 1.1f, 109.4f }, Rot::Left, Potioned, EnemyType::MushroomStatic, AttackType::Static },
 
-            // 3. TRACKING: Slowly chases the player around the map.
+            // TRACKING: Slowly chases the player around the map
             { { 31.514f, 1.1f, 99.7f }, Rot::Left, Potioned, EnemyType::MushroomTracking, AttackType::Tracking },
             { { 55.814f, 1.1f, 92.4f }, Rot::Left, Potioned, EnemyType::MushroomStatic, AttackType::Tracking },
             { { 53.514f, 1.1f, 75.2f }, Rot::Left, Potioned, EnemyType::MushroomTracking, AttackType::Tracking },
