@@ -1,6 +1,5 @@
 #include "Scene.hlsli"
 
-// Data dari vertex shader yang dikasih ke pixel shader
 struct VS_OUT
 {
 	float4 vertex	: SV_POSITION;
