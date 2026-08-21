@@ -17,6 +17,7 @@ static XMVECTOR TransformToLocal(const XMFLOAT3& worldPos, const DebugWallData& 
     return XMVector3TransformNormal(vRelative, matInvRot);
 }
 
+// Helper function to transform a local normal vector into world space based on the wall's rotation
 static XMVECTOR TransformNormalToWorld(const XMVECTOR& localNorm, const DebugWallData& wall)
 {
     XMMATRIX matRot = XMMatrixRotationRollPitchYaw(
