@@ -43,12 +43,6 @@
     <FxCompile Include="Shader\UberPostProcessVS.hlsl">
       <Filter>Shader</Filter>
     </FxCompile>
-    <FxCompile Include="Shader\SwarmVS.hlsl">
-      <Filter>Shader</Filter>
-    </FxCompile>
-    <FxCompile Include="Shader\SwarmPS.hlsl">
-      <Filter>Shader</Filter>
-    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Source\System\BasicShader.cpp">
@@ -241,9 +235,6 @@
       <Filter>Source\Engine\Windowing</Filter>
     </ClCompile>
     <ClCompile Include="Source\Engine\Windowing\WindowManager.cpp">
-      <Filter>Source\Engine\Windowing</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Engine\Windowing\WindowSwarmRenderer.cpp">
       <Filter>Source\Engine\Windowing</Filter>
     </ClCompile>
     <ClCompile Include="Source\Engine\Windowing\WindowTrackingSystem.cpp">
@@ -493,9 +484,6 @@
       <Filter>Source\Engine\Windowing</Filter>
     </ClInclude>
     <ClInclude Include="Source\Engine\Windowing\WindowManager.h">
-      <Filter>Source\Engine\Windowing</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Engine\Windowing\WindowSwarmRenderer.h">
       <Filter>Source\Engine\Windowing</Filter>
     </ClInclude>
     <ClInclude Include="Source\Engine\Windowing\WindowTrackingSystem.h">
