@@ -32,7 +32,7 @@ Framework::Framework()
 
     if (!AudioManager::Instance().Initialize()) {}
 
-    auto mainWin = WindowManager::Instance().CreateGameWindow("Main Window (close here)", 1920, 1080);
+    auto mainWin = WindowManager::Instance().CreateGameWindow("Hyperlapse 88", 1600, 900);
 
     SDL_Window* sdlWin = mainWin->GetSDLWindow();
     SDL_ShowWindow(sdlWin);

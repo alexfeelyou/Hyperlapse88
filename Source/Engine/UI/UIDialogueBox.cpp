@@ -1,8 +1,4 @@
-﻿#include "UIDialogueBox.h"
-#include "System/Graphics.h"
-#include "System/Input.h"
-#include <windows.h>
-#include <cmath> 
+﻿#include "UIDialogueBox.h" 
 
 UIDialogueBox::UIDialogueBox() : m_lockedDeviceForLine(InputDevice::Keyboard) {}
 
@@ -226,50 +222,63 @@ void UIDialogueBox::Update(float dt)
     }
 }
 
-void UIDialogueBox::Render(ID3D11DeviceContext* dc)
+void UIDialogueBox::Render(ID3D11DeviceContext* dc, float screenW, float screenH)
 {
     if (m_state == State::Hidden || !m_font) return;
 
-    auto rs = Graphics::Instance().GetRenderState();
+    auto rs{ Graphics::Instance().GetRenderState() };
     dc->OMSetBlendState(rs->GetBlendState(BlendState::Transparency), nullptr, 0xFFFFFFFF);
     dc->OMSetDepthStencilState(rs->GetDepthStencilState(DepthState::TestOnly), 0);
 
-    float screenW = static_cast<float>(GetSystemMetrics(SM_CXSCREEN));
-    float screenH = static_cast<float>(GetSystemMetrics(SM_CYSCREEN));
+    // Get the base dimensions
+    constexpr float PANEL_W{ 847.0f };
+    constexpr float PANEL_H{ 198.0f };
 
-    float panelW = 847.0f;
-    float panelH = 198.0f;
-    float panelX = m_useCustomPos ? m_posX : (screenW - panelW) * 0.5f;
-    float panelY = m_useCustomPos ? m_posY : (screenH - panelH - 60.0f);
+    const float startX{ m_useCustomPos ? m_posX : ((UI::s_baseWidth - PANEL_W) * 0.5f) };
+    const float startY{ m_useCustomPos ? m_posY : (UI::s_baseHeight - PANEL_H - 60.0f) };
 
-    // Use the active global device to determine the background panel
-    InputDevice currentDevice = Input::Instance().GetLastUsedDevice();
-    Sprite* activePanel = (currentDevice == InputDevice::Gamepad) ? m_panelSpriteGP.get() : m_panelSpriteKB.get();
+    const auto scaledPanel = UI::GetScaled(startX, startY, PANEL_W, PANEL_H, screenW, screenH);
+
+    // Font scaling needs a uniform multiplier to prevent ugly stretching
+    const float fontScale{ (std::min)(screenW / UI::s_baseWidth, screenH / UI::s_baseHeight) };
+
+    const InputDevice currentDevice{ Input::Instance().GetLastUsedDevice() };
+    Sprite* activePanel{ (currentDevice == InputDevice::Gamepad) ? m_panelSpriteGP.get() : m_panelSpriteKB.get() };
 
     if (m_showBackground && activePanel) {
-        activePanel->Render(dc, panelX, panelY, 0.0f, panelW, panelH, 0.0f, 1.0f, 1.0f, 1.0f, 1.0f);
+        activePanel->Render(
+            dc,
+            scaledPanel.x, scaledPanel.y, 0.0f,
+            scaledPanel.w, scaledPanel.h,
+            0.0f, 1.0f, 1.0f, 1.0f, 1.0f
+        );
     }
 
-    float textMarginX = 40.0f;
-    float textMarginY = 40.0f;
+    const float textMarginX{ 40.0f * fontScale };
+    const float textMarginY{ 40.0f * fontScale };
 
-    // Draw the text (Which contains invisible spaces if using a Gamepad)
-    m_font->Draw(m_displayedText, panelX + textMarginX, panelY + textMarginY, 1.0f, { 1.0f, 1.0f, 1.0f, 1.0f });
+    m_font->Draw(
+        m_displayedText,
+        scaledPanel.x + textMarginX,
+        scaledPanel.y + textMarginY,
+        fontScale,
+        { 1.0f, 1.0f, 1.0f, 1.0f }
+    );
 
-    // Constants to fix the Baseline vs Top-Left rendering mismatch
-    constexpr float FONT_BASELINE_SHIFT = -32.0f;
-    constexpr float OPTICAL_Y_TWEAK = -2.0f;
+    constexpr float FONT_BASELINE_SHIFT{ -32.0f };
+    constexpr float OPTICAL_Y_TWEAK{ -2.0f };
 
-    // Draw Inline Sprites
     for (const auto& inlineIcon : m_activeInlineSprites)
     {
         if (m_charIndex >= inlineIcon.triggerByteIndex && inlineIcon.sprite)
         {
-            inlineIcon.sprite->Render(dc,
-                panelX + textMarginX + inlineIcon.offsetX,
-                panelY + textMarginY + inlineIcon.offsetY + FONT_BASELINE_SHIFT + OPTICAL_Y_TWEAK,
+            inlineIcon.sprite->Render(
+                dc,
+                scaledPanel.x + textMarginX + (inlineIcon.offsetX * fontScale),
+                scaledPanel.y + textMarginY + ((inlineIcon.offsetY + FONT_BASELINE_SHIFT + OPTICAL_Y_TWEAK) * fontScale),
                 0.0f,
-                inlineIcon.scaleW, inlineIcon.scaleH,
+                inlineIcon.scaleW * fontScale,
+                inlineIcon.scaleH * fontScale,
                 0.0f, 1.0f, 1.0f, 1.0f, 1.0f
             );
         }

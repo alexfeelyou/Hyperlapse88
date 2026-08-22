@@ -1,9 +1,14 @@
 #pragma once
 
-#include <memory>
-#include <string>
 #include <array>
 #include <cstdint>
+#include <DirectXMath.h>
+#include <memory>
+#include <string>
+#include "System/Graphics.h"
+#include "System/Sprite.h"
+#include "FontTTF.h"
+#include "UIResizedWindow.h"
 
 // Forward declarations 
 struct ID3D11DeviceContext;
@@ -30,7 +35,7 @@ public:
     UIPause& operator=(UIPause&&) = default;
 
     void Initialize();
-    void Render(ID3D11DeviceContext* dc, float alpha = 1.0f) const;
+    void Render(ID3D11DeviceContext* dc, float screenW, float screenH, float alpha = 1.0f) const;
 
     void MoveSelection(int direction) noexcept;
 

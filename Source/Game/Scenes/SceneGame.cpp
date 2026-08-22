@@ -904,6 +904,15 @@ void SceneGame::Render(float elapsedTime, Camera* camera)
     auto dc{ Graphics::Instance().GetDeviceContext() };
     auto rs{ Graphics::Instance().GetRenderState() };
 
+    float screenW{ Config::DEFAULT_SCREEN_W };
+    float screenH{ Config::DEFAULT_SCREEN_H };
+
+    if (const auto* window{ Framework::Instance()->GetMainWindow() })
+    {
+        screenW = static_cast<float>(window->GetWidth());
+        screenH = static_cast<float>(window->GetHeight());
+    }
+
     m_postProcess->SetEnabled(m_fxState.MasterEnabled);
 
     UberShader::UberData& activeData{ m_postProcess->GetData() };
@@ -992,92 +1001,74 @@ void SceneGame::Render(float elapsedTime, Camera* camera)
 
     if (m_dialogueBox)
     {
-        m_dialogueBox->Render(dc);
+        m_dialogueBox->Render(dc, screenW, screenH);
     }
 
     if (m_fadeAlpha > 0.001f && m_fadeSprite)
     {
-        // Get dynamic screen size
-        float screenW{ Config::DEFAULT_SCREEN_W };
-        float screenH{ Config::DEFAULT_SCREEN_H };
-        if (auto window{ Framework::Instance()->GetMainWindow() }) {
-            screenW = static_cast<float>(window->GetWidth());
-            screenH = static_cast<float>(window->GetHeight());
-        }
-
         // Enable 2D Transparency
         dc->OMSetBlendState(rs->GetBlendState(BlendState::Transparency), nullptr, 0xFFFFFFFF);
         dc->OMSetDepthStencilState(rs->GetDepthStencilState(DepthState::NoTestNoWrite), 0);
 
-        // Draw the sprite over the whole screen.
+        const auto fade = UI::GetScaled(0.0f, 0.0f, 1920.0f, 1080.0f, screenW, screenH);
+
+        // Draw the sprite over the whole screen using the scaled coordinates
         m_fadeSprite->Render(
             dc,
-            0.0f, 0.0f, 0.0f,      
-            screenW, screenH,      
-            0.0f, 0.0f,            
-            1920.0f, 1080.0f,      
-            0.0f,                  
-            0.0f, 0.0f, 0.0f, m_fadeAlpha // r, g, b, a
+            fade.x, fade.y, 0.0f,
+            fade.w, fade.h,
+            0.0f, 0.0f,
+            1920.0f, 1080.0f,
+            0.0f,
+            0.0f, 0.0f, 0.0f, m_fadeAlpha 
         );
     }
 
     if (m_whiteAlpha > 0.001f && m_whiteSprite)
     {
-        float screenW{ Config::DEFAULT_SCREEN_W };
-        float screenH{ Config::DEFAULT_SCREEN_H };
-        if (auto window{ Framework::Instance()->GetMainWindow() }) {
-            screenW = static_cast<float>(window->GetWidth());
-            screenH = static_cast<float>(window->GetHeight());
-        }
-
         // Enable 2D Transparency
         dc->OMSetBlendState(rs->GetBlendState(BlendState::Transparency), nullptr, 0xFFFFFFFF);
         dc->OMSetDepthStencilState(rs->GetDepthStencilState(DepthState::NoTestNoWrite), 0);
 
-        // Draw the white sprite over the whole screen.
+        const auto white = UI::GetScaled(0.0f, 0.0f, 1920.0f, 1080.0f, screenW, screenH);
+
+        // Draw the white sprite over the whole screen
         m_whiteSprite->Render(
             dc,
-            0.0f, 0.0f, 0.0f,      
-            screenW, screenH,      
-            0.0f, 0.0f,            
-            1920.0f, 1080.0f,      
-            0.0f,                  
-            1.0f, 1.0f, 1.0f, m_whiteAlpha 
+            white.x, white.y, 0.0f,
+            white.w, white.h,
+            0.0f, 0.0f,
+            1920.0f, 1080.0f,
+            0.0f,
+            1.0f, 1.0f, 1.0f, m_whiteAlpha
         );
     }
 
     if (m_isPaused && m_fadeSprite)
     {
-        float screenW{ Config::DEFAULT_SCREEN_W };
-        float screenH{ Config::DEFAULT_SCREEN_H };
-
-        // Safely extract current window dimensions
-        if (auto window{ Framework::Instance()->GetMainWindow() }) {
-            screenW = static_cast<float>(window->GetWidth());
-            screenH = static_cast<float>(window->GetHeight());
-        }
-
-        // Enable 2D Transparency pipeline state
+        // Enable 2D Transparency 
         dc->OMSetBlendState(rs->GetBlendState(BlendState::Transparency), nullptr, 0xFFFFFFFF);
         dc->OMSetDepthStencilState(rs->GetDepthStencilState(DepthState::NoTestNoWrite), 0);
+
+        const auto pauseFade = UI::GetScaled(0.0f, 0.0f, 1920.0f, 1080.0f, screenW, screenH);
 
         // Render the black sprite over the whole screen with 60% opacity 
         m_fadeSprite->Render(
             dc,
-            0.0f, 0.0f, 0.0f,      
-            screenW, screenH,      
-            0.0f, 0.0f,            
-            1920.0f, 1080.0f,      
-            0.0f,                  
-            0.0f, 0.0f, 0.0f, 0.6f 
+            pauseFade.x, pauseFade.y, 0.0f,
+            pauseFade.w, pauseFade.h,
+            0.0f, 0.0f,
+            1920.0f, 1080.0f,
+            0.0f,
+            0.0f, 0.0f, 0.0f, 0.6f
         );
 
-		// Render the pause menu UI on top of the darkened screen
+        // Render the pause menu UI on top of the darkened screen
         if (m_uiPause)
         {
             // If we are exiting, fade the UI out. Otherwise, alpha is 1.0f.
             const float uiAlpha = m_isExitingToTitle ? (1.0f - m_fadeAlpha) : 1.0f;
-            m_uiPause->Render(dc, uiAlpha);
+            m_uiPause->Render(dc, screenW, screenH, uiAlpha);
         }
     }
 }

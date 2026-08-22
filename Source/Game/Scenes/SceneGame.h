@@ -1,38 +1,37 @@
 ﻿#pragma once
 
+#include <algorithm>
+#include <cstdio>
+#include <DirectXMath.h>
+#include <imgui.h>
 #include <memory>
 #include <string>
-#include <DirectXMath.h>
-#include <wrl/client.h> 
 #include <PxPhysicsAPI.h> 
 #include <SDL3/SDL.h>
-#include <imgui.h>
-#include <cstdio>
+#include <wrl/client.h> 
 #include <vector>
-#include "PhysXUtils.h"
 #include "Scene.h"
-#include "System/Light.h"
-#include "System/Sprite.h"
-#include "UberShader.h"
-#include "UIDialogueBox.h"
-#include "UIPause.h"
-#include "CameraController.h"
-#include "Framework.h"
-#include "PostProcessManager.h"
-#include "Primitive.h"
 #include "System/AudioManager.h"
 #include "System/CollisionManager.h"
 #include "System/Graphics.h"
-#include <algorithm>
-
+#include "System/Light.h"
+#include "System/Sprite.h"
+#include "CameraController.h"
 #include "EffectManager.h"
 #include "Enemy.h"
 #include "EnemyManager.h"
+#include "Framework.h"
 #include "ItemManager.h"
+#include "PhysXUtils.h"
+#include "PostProcessManager.h"
+#include "Primitive.h"
 #include "NaviAlly.h"
 #include "Player.h"
 #include "PlayerStates.h"
 #include "Stage.h"
+#include "UberShader.h"
+#include "UIDialogueBox.h"
+#include "UIPause.h"
 
 // Forward Declarations
 class Camera;

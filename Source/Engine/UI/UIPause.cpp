@@ -1,8 +1,4 @@
 #include "UIPause.h"
-#include "System/Graphics.h"
-#include "System/Sprite.h"
-#include "FontTTF.h"
-#include <DirectXMath.h>
 
 void UIPause::Initialize()
 {
@@ -29,7 +25,7 @@ void UIPause::MoveSelection(int direction) noexcept
     m_selectedOption = static_cast<PauseOption>(currentIndex);
 }
 
-void UIPause::Render(ID3D11DeviceContext* dc, float alpha) const
+void UIPause::Render(ID3D11DeviceContext* dc, float screenW, float screenH, float alpha) const
 {
     // BUG PREVENTION: Defensive guard clauses
     if (!m_pauseSprite || !m_fontTitle || !m_fontMenu) return;
@@ -39,59 +35,50 @@ void UIPause::Render(ID3D11DeviceContext* dc, float alpha) const
     dc->OMSetBlendState(rs->GetBlendState(BlendState::Transparency), nullptr, 0xFFFFFFFF);
     dc->OMSetDepthStencilState(rs->GetDepthStencilState(DepthState::TestOnly), 0);
 
+    // Resolve resolution scaling
+    const float scaleX{ screenW / UI::s_baseWidth };
+    const float scaleY{ screenH / UI::s_baseHeight };
+    const float fontScale{ (std::min)(scaleX, scaleY) };
+    const auto panel = UI::GetScaled(PANEL_POS_X, PANEL_POS_Y, SPRITE_WIDTH, SPRITE_HEIGHT, screenW, screenH);
+
     // Render Background
     m_pauseSprite->Render(
         dc,
-        PANEL_POS_X, PANEL_POS_Y, 0.0f,
-        SPRITE_WIDTH, SPRITE_HEIGHT,
+        panel.x, panel.y, 0.0f,
+        panel.w, panel.h,
         0.0f, 0.0f,
         SPRITE_WIDTH, SPRITE_HEIGHT,
         0.0f,
-        1.0f, 1.0f, 1.0f, alpha   
+        1.0f, 1.0f, 1.0f, alpha
     );
 
     // Render Title
     m_fontTitle->Draw(
         m_pauseText,
-        TITLE_POS_X,
-        TITLE_POS_Y,
-        1.0f,
+        TITLE_POS_X * scaleX,
+        TITLE_POS_Y * scaleY,
+        fontScale,
         { 1.0f, 1.0f, 1.0f, alpha }
     );
 
     // Render Menu Options
-    const std::size_t itemCount = m_menuText.size();
+    const std::size_t itemCount{ m_menuText.size() };
     for (std::size_t i = 0; i < itemCount; ++i)
     {
-        const bool isSelected = (i == static_cast<std::size_t>(m_selectedOption));
+        const bool isSelected{ (i == static_cast<std::size_t>(m_selectedOption)) };
 
-        // Inject the dynamic alpha into color selection
-        DirectX::XMFLOAT4 color = isSelected
+        const DirectX::XMFLOAT4 color = isSelected
             ? DirectX::XMFLOAT4{ 1.0f, 1.0f, 0.0f, alpha }
         : DirectX::XMFLOAT4{ 0.7f, 0.7f, 0.7f, alpha };
 
-        const float targetY = MENU_START_Y + (i * MENU_SPACING_Y);
-        const float targetX = MENU_POS_X + m_menuXOffsets[i];
+        const float targetY{ (MENU_START_Y + (i * MENU_SPACING_Y)) * scaleY };
+        const float targetX{ (MENU_POS_X + m_menuXOffsets[i]) * scaleX };
 
-        // Draw the menu text (Resume / Exit)
-        m_fontMenu->Draw(
-            m_menuText[i],
-            targetX,
-            targetY,
-            1.0f,
-            color
-        );
+        m_fontMenu->Draw(m_menuText[i], targetX, targetY, fontScale, color);
 
-        // Draw the pointer only for the selected item.
         if (isSelected)
         {
-            m_fontMenu->Draw(
-                m_pointerText,
-                MENU_POS_X + POINTER_OFFSET_X,
-                targetY,
-                1.0f,
-                color
-            );
+            m_fontMenu->Draw(m_pointerText, (MENU_POS_X + POINTER_OFFSET_X) * scaleX, targetY, fontScale, color);
         }
     }
 }

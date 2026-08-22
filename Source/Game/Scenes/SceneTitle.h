@@ -1,28 +1,28 @@
 #pragma once
 
+#include <algorithm> 
 #include <array>
 #include <cmath>
+#include <DirectXMath.h>
+#include <imgui.h>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
-#include <map>
 #include <wrl/client.h>
-#include <DirectXMath.h>
-#include <algorithm> 
-
-#include "Scene.h"
-#include "Camera.h"
-#include "UIOption.h"
-#include "System/Gamepad.h"
 #include "System/AudioManager.h"
-#include "System/Sprite.h" 
-#include "PostProcessManager.h"
-#include "SceneGame.h"
-#include "Framework.h"
-#include "Primitive.h"
-#include "System/Input.h"
+#include "System/Gamepad.h"
 #include "System/Graphics.h"
-#include <imgui.h>
+#include "System/Input.h"
+#include "System/Sprite.h" 
+#include "Camera.h"
+#include "Framework.h"
+#include "UIOption.h"
+#include "UIResizedWindow.h"
+#include "PostProcessManager.h"
+#include "Primitive.h"
+#include "Scene.h"
+#include "SceneGame.h"
 
 class SceneTitle : public Scene
 {
@@ -133,7 +133,7 @@ private:
 
     // Private Render Helpers 
     void AnimateMenu(float elapsedTime);
-    void RenderMenuOptions(ID3D11DeviceContext* dc);
+    void RenderMenuOptions(ID3D11DeviceContext* dc, float screenW, float screenH);
     void ExecuteMenuSelection() noexcept;
 
     // Input Abstraction Helpers
