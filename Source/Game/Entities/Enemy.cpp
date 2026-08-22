@@ -28,13 +28,6 @@ void Enemy::Update(float elapsedTime, Camera* camera)
         m_blinkTimer = (std::max)(0.0f, m_blinkTimer - elapsedTime);
     }
 
-    if (m_type == EnemyType::Pentagon)
-    {
-        XMFLOAT3 rot = movement->GetRotation();
-        rot.y += 10.0f * elapsedTime;
-        movement->SetRotation(rot);
-    }
-
     if (m_attackType == AttackType::TrackingHorizontal)
     {
         XMFLOAT3 pos = movement->GetPosition();
@@ -335,7 +328,7 @@ void Enemy::Reinitialize(ID3D11Device* device, const char* filePath, const Direc
     m_type = type;
     m_attackType = attackType;
     m_baseColor = startColor;
-    m_scale = (m_type == EnemyType::Pentagon) ? DirectX::XMFLOAT3{ 150.0f, 150.0f, 150.0f } : DirectX::XMFLOAT3{ 1.0f, 1.0f, 1.0f };
+    m_scale = DirectX::XMFLOAT3{ 1.0f, 1.0f, 1.0f };
 
     // Reset Transforms & Patrols
     movement->SetPosition(startPos);

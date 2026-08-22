@@ -48,10 +48,6 @@ void EnemyManager::SpawnEnemy(const EnemySpawnConfig& config)
         modelPath = "Data/Model/Character/PLACEHOLDER_mdl_Ball.glb";
         break;
 
-    case EnemyType::Pentagon:
-        modelPath = "Data/Model/Character/PLACEHOLDER_mdl_Pentagon.glb";
-        break;
-
     case EnemyType::Paddle:
     default:
         modelPath = "Data/Model/Character/PLACEHOLDER_mdl_Paddle.glb";
