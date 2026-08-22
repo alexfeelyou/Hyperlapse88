@@ -1,35 +1,14 @@
-﻿#include <windows.h>
+﻿#include <exception> 
+#include <iostream> 
 #include <memory>
 #include <SDL3/SDL.h> 
-#include <iostream> 
-#include <exception> 
-#include "WindowManager.h"
 #include <thread>
-
+#include <windows.h>
 #include "Framework.h"
-
-void EmergencyWatchdog()
-{
-    while (true)
-    {
-        bool ctrlPressed = (GetAsyncKeyState(VK_CONTROL) & 0x8000);
-        bool f12Pressed = (GetAsyncKeyState(VK_F12) & 0x8000);
-
-        if (ctrlPressed && f12Pressed)
-        {
-            Beep(200, 50);
-            OutputDebugStringA("!!! EMERGENCY EXIT TRIGGERED !!!\n");
-            ExitProcess(-1);
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
-}
+#include "WindowManager.h"
 
 int main(int argc, char* argv[])
 {
-    std::thread safetyThread(EmergencyWatchdog);
-    safetyThread.detach();
-
     // Init SDL
     if (SDL_Init(SDL_INIT_VIDEO) < 0)
     {
