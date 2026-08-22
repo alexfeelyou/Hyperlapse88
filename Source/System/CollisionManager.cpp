@@ -297,9 +297,8 @@ void CollisionManager::CheckEnemyProjectilesFull(float elapsedTime)
 				// Party Damage Logic: If the bullet is close enough to the target, apply damage and destroy the bullet
                 float enemyScale = targetEnemy->GetScale().x;
                 float hitRadius = 1.0f * enemyScale;
-
-                if (targetEnemy->GetType() == EnemyType::Pentagon) hitRadius = 4.0f * enemyScale;
-                else if (targetEnemy->GetType() == EnemyType::Paddle) hitRadius = 0.8f * enemyScale;
+                
+                if (targetEnemy->GetType() == EnemyType::Paddle) hitRadius = 0.8f * enemyScale;
 
                 float combinedHitRadius = hitRadius + bullet->GetRadius();
 
@@ -364,7 +363,6 @@ float CollisionManager::GetEnemyPushRadius(const Enemy* enemy) const
 
     switch (enemy->GetType())
     {
-    case EnemyType::Pentagon:   return 4.0f * scale;
     case EnemyType::Paddle:     return 0.8f * scale;
     case EnemyType::FakeBoss:   return 1.9f * scale;
     default:                    return 1.2f * scale; 
@@ -557,7 +555,7 @@ void CollisionManager::CheckPlayerVsItems()
 
         if (distSq < combinedRadius * combinedRadius)
         {
-            AudioManager::Instance().PlaySFX("Data/Sound/SE_Pop.wav", 0.4f);
+            //AudioManager::Instance().PlaySFX("Data/Sound/SE_Pop.wav", 0.4f);
 
             if (item->GetType() == ItemType::Invincible)
             {
@@ -660,8 +658,7 @@ void CollisionManager::CheckNaviProjectilesVsEnemies(float elapsedTime)
             float enemyScale = enemy->GetScale().x;
             float enemyRadius = 1.0f * enemyScale; // Default Ball
 
-            if (enemy->GetType() == EnemyType::Pentagon) enemyRadius = 4.0f * enemyScale;
-            else if (enemy->GetType() == EnemyType::Paddle) enemyRadius = 0.6f * enemyScale;
+            if (enemy->GetType() == EnemyType::Paddle) enemyRadius = 0.6f * enemyScale;
 
             // Combine the enemy's size with the bullet's size
             float exactHitDistance = enemyRadius + BULLET_HITBOX_RADIUS;
@@ -797,8 +794,7 @@ Enemy* CollisionManager::GetTargetInSlashCone(const DirectX::XMFLOAT3& playerPos
         const float enemyScale{ enemy->GetScale().x };
         float enemyRadius{ 1.0f * enemyScale };
 
-        if (enemy->GetType() == EnemyType::Pentagon) enemyRadius = 4.0f * enemyScale;
-        else if (enemy->GetType() == EnemyType::Paddle) enemyRadius = 1.2f * enemyScale;
+        if (enemy->GetType() == EnemyType::Paddle) enemyRadius = 1.2f * enemyScale;
 
         const bool isKamikaze{ enemy->GetAttackType() == AttackType::Tracking };
         const float dynamicReach{ isKamikaze ? (baseReach * 3.5f) : baseReach };

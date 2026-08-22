@@ -12,7 +12,6 @@ enum class EnemyType
 {
     Paddle,
     Ball,
-    Pentagon,
     MushroomNone,
     MushroomStatic,
     MushroomTracking,
