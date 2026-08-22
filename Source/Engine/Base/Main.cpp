@@ -94,15 +94,13 @@ int main(int argc, char* argv[])
             {
                 Uint64 now = SDL_GetPerformanceCounter();
                 Uint64 ticksPassed = now - frameStart;
+                if (ticksPassed >= targetTicksPerFrame) break;
 
-                if (ticksPassed >= targetTicksPerFrame)
-                {
-                    break;
-                }
-
-                if (targetTicksPerFrame - ticksPassed > yieldThreshold)
-                {
-                    std::this_thread::yield();
+                Uint64 remaining = targetTicksPerFrame - ticksPassed;
+                if (remaining > yieldThreshold) {
+                    // sleep for most of the remaining time, leave a margin for the OS scheduler's granularity
+                    double remainingMs = (double)(remaining - yieldThreshold) * 1000.0 / frequency;
+                    std::this_thread::sleep_for(std::chrono::duration<double, std::milli>(remainingMs));
                 }
             }
         }
