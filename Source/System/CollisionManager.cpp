@@ -555,7 +555,7 @@ void CollisionManager::CheckPlayerVsItems()
 
         if (distSq < combinedRadius * combinedRadius)
         {
-            AudioManager::Instance().PlaySFX("Data/Sound/SE_Pop.wav", 0.4f);
+            //AudioManager::Instance().PlaySFX("Data/Sound/SE_Pop.wav", 0.4f);
 
             if (item->GetType() == ItemType::Invincible)
             {
