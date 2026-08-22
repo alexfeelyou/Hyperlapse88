@@ -9,19 +9,6 @@ namespace {
 
 SceneTitle::SceneTitle()
 {
-    if (auto window{ Framework::Instance()->GetMainWindow() }) {
-        SDL_Window* sdlWin = window->GetSDLWindow();
-
-        SDL_ShowWindow(sdlWin);
-        SDL_SetWindowBordered(sdlWin, false);
-        SDL_SetWindowResizable(sdlWin, false);
-
-        int fullW = GetSystemMetrics(SM_CXSCREEN);
-        int fullH = GetSystemMetrics(SM_CYSCREEN);
-        SDL_SetWindowSize(sdlWin, fullW, fullH);
-        SDL_SetWindowPosition(sdlWin, 0, 0);
-    }
-
     camera = std::make_unique<Camera>();
     camera->SetOrthographic(1920.0f, 1080.0f, 0.1f, 1000.0f);
     camera->SetPosition(0.0f, 0.0f, -10.0f);

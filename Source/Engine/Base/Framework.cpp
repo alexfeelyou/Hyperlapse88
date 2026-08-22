@@ -1,5 +1,14 @@
 ﻿#include "Framework.h"
 
+namespace
+{
+#ifdef _DEBUG
+    inline constexpr bool s_isDebugMode{ true };
+#else
+    inline constexpr bool s_isDebugMode{ false };
+#endif
+}
+
 static WNDPROC s_OriginalWndProc = nullptr;
 
 LRESULT CALLBACK ImGuiHookWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
@@ -21,14 +30,27 @@ Framework::Framework()
     pInstance = this;
     Graphics::Instance().Initialize();
 
-    if (!AudioManager::Instance().Initialize()) {  }
+    if (!AudioManager::Instance().Initialize()) {}
 
-    auto mainWin = WindowManager::Instance().CreateGameWindow("Main Window (close here)", 1600, 900);
+    auto mainWin = WindowManager::Instance().CreateGameWindow("Main Window (close here)", 1920, 1080);
 
-    SDL_ShowWindow(mainWin->GetSDLWindow());
-    SDL_SetWindowResizable(mainWin->GetSDLWindow(), true);
-    SDL_SetWindowBordered(mainWin->GetSDLWindow(), true);
-    SDL_SetWindowPosition(mainWin->GetSDLWindow(), 5, 35);
+    SDL_Window* sdlWin = mainWin->GetSDLWindow();
+    SDL_ShowWindow(sdlWin);
+
+    if constexpr (s_isDebugMode)
+    {
+        // Debug Mode: Windowed, bordered, and automatically maximized for IDE debugging
+        SDL_SetWindowBordered(sdlWin, true);
+        SDL_SetWindowResizable(sdlWin, true);
+        SDL_MaximizeWindow(sdlWin);
+    }
+    else
+    {
+        // Release Mode: Locked aspect, borderless, and true fullscreen for production delivery
+        SDL_SetWindowBordered(sdlWin, false);
+        SDL_SetWindowResizable(sdlWin, false);
+        SDL_SetWindowFullscreen(sdlWin, true);
+    }
 
     HWND hwnd = (HWND)SDL_GetPointerProperty(
         SDL_GetWindowProperties(mainWin->GetSDLWindow()),
@@ -106,6 +128,14 @@ void Framework::CalculateFrameStats(float dt)
     {
         frames = 0;
         timeAccumulator -= 1.0f;
+    }
+}
+
+void Framework::OnResize(int width, int height)
+{
+    if (scene)
+    {
+        scene->OnResize(width, height);
     }
 }
 

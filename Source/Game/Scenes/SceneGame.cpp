@@ -69,21 +69,8 @@ SceneGame::SceneGame()
     float screenH{ Config::DEFAULT_SCREEN_H };
 
     if (auto window{ Framework::Instance()->GetMainWindow() }) {
-        SDL_Window* sdlWin = window->GetSDLWindow();
-
-        // Disable window borders and the ability to resize
-        SDL_SetWindowBordered(sdlWin, false);
-        SDL_SetWindowResizable(sdlWin, false);
-
-        // Grab monitor size and force the window to match it perfectly
-        int fullW = GetSystemMetrics(SM_CXSCREEN);
-        int fullH = GetSystemMetrics(SM_CYSCREEN);
-        SDL_SetWindowSize(sdlWin, fullW, fullH);
-        SDL_SetWindowPosition(sdlWin, 0, 0);
-
-        // Update local configuration variables
-        screenW = static_cast<float>(fullW);
-        screenH = static_cast<float>(fullH);
+        screenW = static_cast<float>(window->GetWidth());
+        screenH = static_cast<float>(window->GetHeight());
     }
 
     auto& camCtrl{ CameraController::Instance() };

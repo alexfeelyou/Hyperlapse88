@@ -27,6 +27,7 @@ public:
     void Render(float elapsedTime);
     void ForceUpdateRender();
     void ChangeScene(std::unique_ptr<Scene> newScene);
+    void OnResize(int width, int height);
     void Quit();
 
     platform::Window* GetMainWindow() const;

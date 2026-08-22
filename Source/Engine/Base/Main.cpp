@@ -67,10 +67,15 @@ int main(int argc, char* argv[])
                 {
                     SDL_Window* resizedWin = SDL_GetWindowFromID(event.window.windowID);
                     if (resizedWin) {
+                        // Tell DirectX to rebuild the swap chain buffers
                         WindowManager::Instance().HandleResize(resizedWin, event.window.data1, event.window.data2);
+
+                        // 2Tell the game logic to update Camera FOV and post-processing resolutions
+                        if (framework) {
+                            framework->OnResize(event.window.data1, event.window.data2);
+                        }
                     }
                 }
-
             }
 
             Uint64 currentTime = SDL_GetPerformanceCounter();
