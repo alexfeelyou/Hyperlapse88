@@ -1,0 +1,55 @@
+#pragma once
+#include <d3d11.h>
+#include <imgui.h>
+#include <imgui_internal.h>
+#include <utility>
+#include <wrl/client.h>
+#include "System/Graphics.h"
+#include "Scene.h"
+
+// Manages out-of-scene debug UI (docking, menu bars, panels)
+// Ensures debug tools persist across scene
+class EditorManager
+{
+public:
+    // Delete copy/move constructors to enforce strict singleton ownership
+    EditorManager(const EditorManager&) = delete;
+    EditorManager& operator=(const EditorManager&) = delete;
+    EditorManager(EditorManager&&) = delete;
+    EditorManager& operator=(EditorManager&&) = delete;
+
+    // Returns a reference to the static local instance
+    [[nodiscard]] static EditorManager& Instance() noexcept;
+
+    // Configures ImGui context settings (e.g., docking)
+    void Initialize() noexcept;
+
+    // Dispatches UI drawing. Takes the scene by pointer so it handles null states safely.
+    void Draw(Scene* currentScene) const noexcept;
+
+	// Renders the current scene to a texture for preview in the editor
+    void RenderSceneToTexture(float dt, Scene* currentScene) noexcept;
+    [[nodiscard]] std::pair<float, float> GetSceneDimensions() const noexcept;
+
+private:
+    EditorManager() = default;
+    ~EditorManager() = default;
+
+    void DrawDockSpace() const noexcept;
+    void DrawSceneView() noexcept;
+    void DrawMenuBar() const noexcept;
+    void DrawHierarchy() const noexcept;
+    void DrawInspector(Scene* currentScene) const noexcept;
+    void DrawConsole() const noexcept;
+    void DrawProfiler() const noexcept;
+    void ResizeRenderTarget(float width, float height) noexcept;
+
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> m_sceneTexture;
+    Microsoft::WRL::ComPtr<ID3D11RenderTargetView> m_sceneRTV;
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_sceneSRV;
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> m_depthTexture;
+    Microsoft::WRL::ComPtr<ID3D11DepthStencilView> m_sceneDSV;
+
+    float m_sceneWidth{ 1920.0f };
+    float m_sceneHeight{ 1080.0f };
+};

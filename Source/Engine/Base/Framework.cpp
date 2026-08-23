@@ -60,6 +60,8 @@ Framework::Framework()
 
     Input::Instance().Initialize(hwnd);
     ImGuiRenderer::Initialize(hwnd, Graphics::Instance().GetDevice(), Graphics::Instance().GetDeviceContext());
+    EditorManager::Instance().Initialize();
+
     s_OriginalWndProc = (WNDPROC)SetWindowLongPtr(hwnd, GWLP_WNDPROC, (LONG_PTR)ImGuiHookWndProc);
 
     // Init Scene
@@ -91,8 +93,7 @@ void Framework::Update(float elapsedTime)
 {
     if (nextScene)
     {
-        scene = std::move(nextScene); 
-        ImGui::GetIO().ConfigFlags &= ~ImGuiConfigFlags_ViewportsEnable;
+        scene = std::move(nextScene);
     }
 
     CalculateFrameStats(elapsedTime);
@@ -100,6 +101,8 @@ void Framework::Update(float elapsedTime)
     AudioManager::Instance().Update(elapsedTime);
 
     ImGuiRenderer::NewFrame(); 
+
+    EditorManager::Instance().Draw(scene.get());
 
     if (scene) scene->Update(elapsedTime);
 }

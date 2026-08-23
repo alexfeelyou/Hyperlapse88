@@ -35,8 +35,6 @@ public:
     void Render(float dt, Camera* camera = nullptr) override;
     void OnResize(int width, int height) override;
 
-    // Debug / Tools
-    void DrawGUI() override;
     Camera* GetCamera() const { return camera.get(); }
 
 private:
@@ -49,13 +47,13 @@ private:
 
     // Post Process State
     struct PostProcessState {
-        bool MasterEnabled{ true };
+        bool MasterEnabled{ false };
         bool EnableVignette{ false };
-        bool EnableLens{ true };
-        bool EnableChromatic{ true };
-        bool EnableCRT{ true };
-        bool EnableBloom{ true };
-        bool EnablePSX{ true };
+        bool EnableLens{ false };
+        bool EnableChromatic{ false };
+        bool EnableCRT{ false };
+        bool EnableBloom{ false };
+        bool EnablePSX{ false };
     };
 
     PostProcessState m_fxState{};
@@ -149,7 +147,4 @@ private:
 
     // Deadzone threshold for the thumbstick to register as an intentional push
     static constexpr float THUMBSTICK_THRESHOLD{ 0.5f };
-
-    // Debug GUI Helpers 
-    void GUIPostProcessTab();
 };

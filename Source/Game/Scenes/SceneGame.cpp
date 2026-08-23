@@ -997,8 +997,6 @@ void SceneGame::Render(float elapsedTime, Camera* camera)
         m_postProcess->EndCapture(renderTime);
     }
 
-    DrawGUI();
-
     if (m_dialogueBox)
     {
         m_dialogueBox->Render(dc, screenW, screenH);
@@ -1106,111 +1104,6 @@ void SceneGame::RenderScene(const float elapsedTime, Camera* camera)
     modelRenderer->Render(rc);
 
     EffectManager::Instance().Render(camera);
-}
-
-void SceneGame::DrawGUI()
-{
-    if (!m_stage) return;
-
-    // Create the ImGui Window 
-    ImGui::Begin("Stage Debug Inspector");
-
-    ImGui::Spacing();
-    if (ImGui::CollapsingHeader("Debug Line Transform", ImGuiTreeNodeFlags_DefaultOpen))
-    {
-        // Clear highlights every frame
-        m_stage->ClearLineHighlight();
-
-        ImGui::Indent();
-        ImGui::TextDisabled("Lines are X-Axis aligned. Scale.X = Length.");
-        ImGui::TextDisabled("Yellow = Currently Editing");
-
-        // Reusable Lambda function for rendering each line category
-        auto DrawLineCategory = [&](const char* categoryName, std::vector<DebugLineData>& lines,
-            const char* codePrefix, DebugLineType type, int idSeed)
-            {
-                ImGui::PushID(idSeed);
-
-                if (ImGui::CollapsingHeader(categoryName))
-                {
-                    ImGui::Indent();
-                    for (int i = 0; i < lines.size(); ++i)
-                    {
-                        auto& line = lines[i];
-                        char label[64];
-                        snprintf(label, 64, "%s #%d", codePrefix, i + 1);
-
-                        ImGui::PushID(i);
-
-                        bool isNodeOpen = ImGui::TreeNode(label);
-
-                        if (isNodeOpen)
-                        {
-                            // Send highlight trigger back to Stage renderer
-                            m_stage->SetLineHighlight(type, i);
-
-                            ImGui::DragFloat3("Pos", &line.Position.x, 0.1f);
-                            ImGui::DragFloat3("Rot", &line.Rotation.x, 0.1f);
-                            ImGui::DragFloat("Length", &line.Scale.x, 0.1f);
-
-                            if (ImGui::Button("Copy Value"))
-                            {
-                                char buffer[256];
-                                snprintf(buffer, sizeof(buffer),
-                                    "// Line %s %d\n{ {%.6g,%.6g,%.6g}, {%.6g,%.6g,%.6g}, {%.6g,%.6g,%.6g} },",
-                                    codePrefix, i + 1,
-                                    line.Position.x, line.Position.y, line.Position.z,
-                                    line.Rotation.x, line.Rotation.y, line.Rotation.z,
-                                    line.Scale.x, line.Scale.y, line.Scale.z);
-                                ImGui::SetClipboardText(buffer);
-                            }
-
-                            ImGui::SameLine();
-                            if (ImGui::Button("Delete")) {
-                                lines.erase(lines.begin() + i);
-                                ImGui::TreePop();
-                                ImGui::PopID();
-                                break; 
-                            }
-
-                            ImGui::TreePop();
-                        }
-                        ImGui::PopID();
-                    }
-
-                    if (ImGui::Button("+ Add Line"))
-                    {
-                        m_stage->AddDebugLine(type);
-                    }
-                    ImGui::Unindent();
-                }
-                ImGui::PopID();    
-        };
-
-        // VOID LINES (Cyan)
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.0f, 1.0f, 1.0f, 1.0f));
-        DrawLineCategory("Line Void", m_stage->m_linesVoid, "Void", DebugLineType::Void, 2000);
-        ImGui::PopStyleColor();
-
-        // DISABLE LINES (Red)
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.4f, 0.4f, 1.0f));
-        DrawLineCategory("Line Disable", m_stage->m_linesDisable, "Disable", DebugLineType::Disable, 3000);
-        ImGui::PopStyleColor();
-
-        // ENABLE LINES (Green)
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.4f, 1.0f, 0.4f, 1.0f));
-        DrawLineCategory("Line Enable", m_stage->m_linesEnable, "Enable", DebugLineType::Enable, 4000);
-        ImGui::PopStyleColor();
-
-        // CHECKPOINT LINES (Blue)
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 0.6f, 1.0f, 1.0f));
-        DrawLineCategory("Line Checkpoint", m_stage->m_linesCheckpoint, "CheckPoint", DebugLineType::Checkpoint, 5000);
-        ImGui::PopStyleColor();
-
-        ImGui::Unindent();
-    }
-
-    ImGui::End(); 
 }
 
 void SceneGame::OnResize(int width, int height)
