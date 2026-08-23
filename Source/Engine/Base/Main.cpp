@@ -1,35 +1,14 @@
-﻿#include <windows.h>
+﻿#include <exception> 
+#include <iostream> 
 #include <memory>
 #include <SDL3/SDL.h> 
-#include <iostream> 
-#include <exception> 
-#include "WindowManager.h"
 #include <thread>
-
+#include <windows.h>
 #include "Framework.h"
-
-void EmergencyWatchdog()
-{
-    while (true)
-    {
-        bool ctrlPressed = (GetAsyncKeyState(VK_CONTROL) & 0x8000);
-        bool f12Pressed = (GetAsyncKeyState(VK_F12) & 0x8000);
-
-        if (ctrlPressed && f12Pressed)
-        {
-            Beep(200, 50);
-            OutputDebugStringA("!!! EMERGENCY EXIT TRIGGERED !!!\n");
-            ExitProcess(-1);
-        }
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    }
-}
+#include "WindowManager.h"
 
 int main(int argc, char* argv[])
 {
-    std::thread safetyThread(EmergencyWatchdog);
-    safetyThread.detach();
-
     // Init SDL
     if (SDL_Init(SDL_INIT_VIDEO) < 0)
     {
@@ -67,10 +46,15 @@ int main(int argc, char* argv[])
                 {
                     SDL_Window* resizedWin = SDL_GetWindowFromID(event.window.windowID);
                     if (resizedWin) {
+                        // Tell DirectX to rebuild the swap chain buffers
                         WindowManager::Instance().HandleResize(resizedWin, event.window.data1, event.window.data2);
+
+                        // 2Tell the game logic to update Camera FOV and post-processing resolutions
+                        if (framework) {
+                            framework->OnResize(event.window.data1, event.window.data2);
+                        }
                     }
                 }
-
             }
 
             Uint64 currentTime = SDL_GetPerformanceCounter();
@@ -94,15 +78,13 @@ int main(int argc, char* argv[])
             {
                 Uint64 now = SDL_GetPerformanceCounter();
                 Uint64 ticksPassed = now - frameStart;
+                if (ticksPassed >= targetTicksPerFrame) break;
 
-                if (ticksPassed >= targetTicksPerFrame)
-                {
-                    break;
-                }
-
-                if (targetTicksPerFrame - ticksPassed > yieldThreshold)
-                {
-                    std::this_thread::yield();
+                Uint64 remaining = targetTicksPerFrame - ticksPassed;
+                if (remaining > yieldThreshold) {
+                    // sleep for most of the remaining time, leave a margin for the OS scheduler's granularity
+                    double remainingMs = (double)(remaining - yieldThreshold) * 1000.0 / frequency;
+                    std::this_thread::sleep_for(std::chrono::duration<double, std::milli>(remainingMs));
                 }
             }
         }

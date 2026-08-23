@@ -11,7 +11,6 @@
 #include "WindowManager.h"
 #include "SceneTitle.h"
 #include "SceneGame.h"
-#include <memory>
 #include <sstream>
 #include <iostream> 
 #include <imgui.h>
@@ -28,6 +27,7 @@ public:
     void Render(float elapsedTime);
     void ForceUpdateRender();
     void ChangeScene(std::unique_ptr<Scene> newScene);
+    void OnResize(int width, int height);
     void Quit();
 
     platform::Window* GetMainWindow() const;

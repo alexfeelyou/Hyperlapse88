@@ -1,13 +1,17 @@
 ﻿#pragma once
 
+#include <cmath>
+#include <cstdint> 
+#include <d3d11.h>
+#include <memory>
 #include <string>
 #include <vector>
-#include <memory>
-#include <d3d11.h>
-#include <cstdint> 
-
+#include <windows.h>
+#include "System/Graphics.h"
+#include "System/Input.h"
 #include "System/Sprite.h"
 #include "FontTTF.h"
+#include "UIResizedWindow.h"
 
 enum class InputDevice : std::uint8_t;
 
@@ -27,7 +31,7 @@ public:
     void StartDialogue(const std::vector<std::string>& dialogues);
 
     void Update(float dt);
-    void Render(ID3D11DeviceContext* dc);
+    void Render(ID3D11DeviceContext* dc, float screenW, float screenH);
     void RenderToWindow(ID3D11DeviceContext* dc, float windowW, float windowH);
 
     [[nodiscard]] bool IsActive() const noexcept { return m_state != State::Hidden; }

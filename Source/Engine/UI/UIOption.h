@@ -1,9 +1,17 @@
 #pragma once
 
-#include <cstdint>
-#include <string>
-#include <memory>
+#include <algorithm>
 #include <array>
+#include <cmath>
+#include <cstdint>
+#include <memory>
+#include <string>
+#include "System/AudioManager.h"
+#include "System/Graphics.h"
+#include "System/Input.h"
+#include "FontTTF.h"
+#include "Primitive.h"
+#include "UIResizedWindow.h"
 
 struct ID3D11DeviceContext;
 class Primitive;
@@ -28,7 +36,7 @@ public:
 
     void Initialize(Primitive* primitive);
     void Update(float elapsedTime) noexcept;
-    void Render(ID3D11DeviceContext* dc, float alpha = 1.0f) const noexcept;
+    void Render(ID3D11DeviceContext* dc, float screenW, float screenH, float alpha = 1.0f) const noexcept;
 
 private:
     Primitive* m_primitive{ nullptr };

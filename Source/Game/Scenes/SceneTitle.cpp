@@ -9,19 +9,6 @@ namespace {
 
 SceneTitle::SceneTitle()
 {
-    if (auto window{ Framework::Instance()->GetMainWindow() }) {
-        SDL_Window* sdlWin = window->GetSDLWindow();
-
-        SDL_ShowWindow(sdlWin);
-        SDL_SetWindowBordered(sdlWin, false);
-        SDL_SetWindowResizable(sdlWin, false);
-
-        int fullW = GetSystemMetrics(SM_CXSCREEN);
-        int fullH = GetSystemMetrics(SM_CYSCREEN);
-        SDL_SetWindowSize(sdlWin, fullW, fullH);
-        SDL_SetWindowPosition(sdlWin, 0, 0);
-    }
-
     camera = std::make_unique<Camera>();
     camera->SetOrthographic(1920.0f, 1080.0f, 0.1f, 1000.0f);
     camera->SetPosition(0.0f, 0.0f, -10.0f);
@@ -302,32 +289,41 @@ void SceneTitle::Render(float dt, Camera* targetCamera)
     float bootAlpha = t * t;
 
     if (bgSprite) bgSprite->Render(dc, camera.get(), 0, 0, 0, 1920.0f, 1080.0f, 0.0f, 0.0f, 0.0f, 1.0f, 1.0f, 1.0f, bootAlpha);
-    if (logoSprite) logoSprite->Render(dc, 461.5f, 200.0f, 0.0f, 957.0f, 547.0f, 0.0f, 0.0f, 997.0f, 547.0f, 0.0f, 1.0f, 1.0f, 1.0f, bootAlpha);
+    float screenW{ UI::s_baseWidth };
+    float screenH{ UI::s_baseHeight };
 
-    float finalCopyrightAlpha = (m_bootTimer > 0.0f) ? bootAlpha : m_copyrightAlpha;
-    if (copyrightSprite && finalCopyrightAlpha > 0.0f)
+    if (const auto* window{ Framework::Instance()->GetMainWindow() })
     {
-        copyrightSprite->Render(dc, 327.5f, 867.0f, 0.0f, 1245.0f, 105.0f, 0.0f, 0.0f, 1265.0f, 105.0f, 0.0f, 1.0f, 1.0f, 1.0f, finalCopyrightAlpha);
+        screenW = static_cast<float>(window->GetWidth());
+        screenH = static_cast<float>(window->GetHeight());
+    }
+
+    const auto logo{ UI::GetScaled(461.5f, 200.0f, 957.0f, 547.0f, screenW, screenH) };
+    if (logoSprite) logoSprite->Render(dc, logo.x, logo.y, 0.0f, logo.w, logo.h, 0.0f, 0.0f, 997.0f, 547.0f, 0.0f, 1.0f, 1.0f, 1.0f, bootAlpha);
+
+    const auto copy{ UI::GetScaled(327.5f, 867.0f, 1245.0f, 105.0f, screenW, screenH) };
+    float finalCopyrightAlpha = (m_bootTimer > 0.0f) ? bootAlpha : m_copyrightAlpha;
+    if (copyrightSprite && finalCopyrightAlpha > 0.0f) {
+        copyrightSprite->Render(dc, copy.x, copy.y, 0.0f, copy.w, copy.h, 0.0f, 0.0f, 1265.0f, 105.0f, 0.0f, 1.0f, 1.0f, 1.0f, finalCopyrightAlpha);
     }
 
 	// Render Start 
-    if (startSprite && m_startAlpha > 0.0f)
-    {
-        startSprite->Render(dc, 679.5f, 906.5f, 0.0f, 545.0f, 34.0f, 0.0f, 0.0f, 545.0f, 34.0f, 0.0f, 1.0f, 1.0f, 1.0f, m_startAlpha);
+    const auto start{ UI::GetScaled(679.5f, 906.5f, 545.0f, 34.0f, screenW, screenH) };
+    if (startSprite && m_startAlpha > 0.0f) {
+        startSprite->Render(dc, start.x, start.y, 0.0f, start.w, start.h, 0.0f, 0.0f, 545.0f, 34.0f, 0.0f, 1.0f, 1.0f, 1.0f, m_startAlpha);
     }
 
 	// Render Menu Options and Cursor
     if (m_menuAlpha > 0.0f)
     {
-        RenderMenuOptions(dc);
+        RenderMenuOptions(dc, screenW, screenH);
 
-        // Render Cursor smoothly using the Primitive class
         if (m_primitive)
         {
-            // Directly consumes the naturally interpolated visual track
             const float targetY = m_visualCursorY;
             const float curX{ MENU_START_X - CURSOR_OFFSET_X };
 
+            // Calculate original unscaled points
             const float x1{ curX };
             const float y1{ targetY - (CURSOR_HEIGHT * 0.5f) };
             const float x2{ curX + CURSOR_WIDTH };
@@ -335,20 +331,28 @@ void SceneTitle::Render(float dt, Camera* targetCamera)
             const float x3{ curX };
             const float y3{ targetY + (CURSOR_HEIGHT * 0.5f) };
 
-            m_primitive->Triangle(x1, y1, x2, y2, x3, y3, 1.0f, 1.0f, 1.0f, m_menuAlpha);
+            // Scale using the same ratios applied in UI::GetScaled
+            const float scaleX{ screenW / UI::s_baseWidth };
+            const float scaleY{ screenH / UI::s_baseHeight };
+
+            m_primitive->Triangle(
+                x1 * scaleX, y1 * scaleY,
+                x2 * scaleX, y2 * scaleY,
+                x3 * scaleX, y3 * scaleY,
+                1.0f, 1.0f, 1.0f, m_menuAlpha
+            );
             m_primitive->Render(dc);
         }
     }
 
 	// Render the Option Panel if active. This is a separate UI system that overlays on top of the main menu.
-    if (m_isOptionPhase && m_uiOption)
-    {
-        m_uiOption->Render(dc, 1.0f);
+    if (m_isOptionPhase && m_uiOption) {
+        m_uiOption->Render(dc, screenW, screenH, 1.0f);
     }
 
-    if (m_fadeAlpha > 0.001f && m_fadeSprite)
-    {
-        m_fadeSprite->Render(dc, 0.0f, 0.0f, 0.0f, 1920.0f, 1080.0f, 0.0f, 0.0f, 1920.0f, 1080.0f, 0.0f, 0.0f, 0.0f, 0.0f, m_fadeAlpha);
+    const auto fade{ UI::GetScaled(0.0f, 0.0f, 1920.0f, 1080.0f, screenW, screenH) };
+    if (m_fadeAlpha > 0.001f && m_fadeSprite) {
+        m_fadeSprite->Render(dc, fade.x, fade.y, 0.0f, fade.w, fade.h, 0.0f, 0.0f, 1920.0f, 1080.0f, 0.0f, 0.0f, 0.0f, 0.0f, m_fadeAlpha);
     }
 
     if (m_fxState.MasterEnabled)
@@ -357,7 +361,7 @@ void SceneTitle::Render(float dt, Camera* targetCamera)
     }
 }
 
-void SceneTitle::RenderMenuOptions(ID3D11DeviceContext* dc)
+void SceneTitle::RenderMenuOptions(ID3D11DeviceContext* dc, float screenW, float screenH)
 {
     struct MenuItem {
         Sprite* sprite{ nullptr };
@@ -370,7 +374,7 @@ void SceneTitle::RenderMenuOptions(ID3D11DeviceContext* dc)
     struct ColorRGB { float r{ 0.0f }, g{ 0.0f }, b{ 0.0f }; };
 
     static constexpr ColorRGB unselectedColor{ 0.75f, 0.75f, 0.75f };
-    static constexpr ColorRGB selectedColor{ 1.0f, 1.0f, 1.0f };     
+    static constexpr ColorRGB selectedColor{ 1.0f, 1.0f, 1.0f };
 
     const std::array<MenuItem, 3> items{ {
         { m_newGameSprite.get(), Y_NEW_GAME, 173.0f, 25.0f, m_optionWeights[0] },
@@ -382,17 +386,19 @@ void SceneTitle::RenderMenuOptions(ID3D11DeviceContext* dc)
     {
         if (item.sprite)
         {
-            // Execute linear color palette spectrum shifts smoothly across frame updates
+            // Scale the destination coordinates dynamically
+            const auto scaled{ UI::GetScaled(MENU_START_X, item.yPos, item.width, item.height, screenW, screenH) };
+
             const float r = CustomLerp(unselectedColor.r, selectedColor.r, item.colorWeight);
             const float g = CustomLerp(unselectedColor.g, selectedColor.g, item.colorWeight);
             const float b = CustomLerp(unselectedColor.b, selectedColor.b, item.colorWeight);
 
             item.sprite->Render(
                 dc,
-                MENU_START_X, item.yPos, 0.0f,
-                item.width, item.height,
-                0.0f, 0.0f,
-                item.width, item.height,
+                scaled.x, scaled.y, 0.0f,      
+                scaled.w, scaled.h,            
+                0.0f, 0.0f,                    
+                item.width, item.height,       
                 0.0f,
                 r, g, b,
                 m_menuAlpha
