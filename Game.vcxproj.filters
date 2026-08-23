@@ -99,36 +99,6 @@
     <ClCompile Include="Source\System\TransformUtils.cpp">
       <Filter>System</Filter>
     </ClCompile>
-    <ClCompile Include="External\imgui-docking\imgui.cpp">
-      <Filter>External\imgui-docking</Filter>
-    </ClCompile>
-    <ClCompile Include="External\imgui-docking\imgui_demo.cpp">
-      <Filter>External\imgui-docking</Filter>
-    </ClCompile>
-    <ClCompile Include="External\imgui-docking\imgui_draw.cpp">
-      <Filter>External\imgui-docking</Filter>
-    </ClCompile>
-    <ClCompile Include="External\imgui-docking\imgui_impl_dx11.cpp">
-      <Filter>External\imgui-docking</Filter>
-    </ClCompile>
-    <ClCompile Include="External\imgui-docking\imgui_impl_win32.cpp">
-      <Filter>External\imgui-docking</Filter>
-    </ClCompile>
-    <ClCompile Include="External\imgui-docking\imgui_widgets.cpp">
-      <Filter>External\imgui-docking</Filter>
-    </ClCompile>
-    <ClCompile Include="External\ImGuizmo\ImCurveEdit.cpp">
-      <Filter>External\ImGuizmo</Filter>
-    </ClCompile>
-    <ClCompile Include="External\ImGuizmo\ImGradient.cpp">
-      <Filter>External\ImGuizmo</Filter>
-    </ClCompile>
-    <ClCompile Include="External\ImGuizmo\ImGuizmo.cpp">
-      <Filter>External\ImGuizmo</Filter>
-    </ClCompile>
-    <ClCompile Include="External\ImGuizmo\ImSequencer.cpp">
-      <Filter>External\ImGuizmo</Filter>
-    </ClCompile>
     <ClCompile Include="Source\System\Collision.cpp">
       <Filter>System</Filter>
     </ClCompile>
@@ -231,6 +201,45 @@
     <ClCompile Include="Source\Engine\Windowing\WindowManager.cpp">
       <Filter>Source\Engine\Windowing</Filter>
     </ClCompile>
+    <ClCompile Include="External\imgui\imgui.cpp">
+      <Filter>External\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="External\imgui\imgui_demo.cpp">
+      <Filter>External\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="External\imgui\imgui_draw.cpp">
+      <Filter>External\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="External\imgui\imgui_impl_dx11.cpp">
+      <Filter>External\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="External\imgui\imgui_impl_win32.cpp">
+      <Filter>External\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="External\imgui\imgui_tables.cpp">
+      <Filter>External\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="External\imgui\imgui_widgets.cpp">
+      <Filter>External\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="External\ImGuizmo\GraphEditor.cpp">
+      <Filter>External\ImGuizmo</Filter>
+    </ClCompile>
+    <ClCompile Include="External\ImGuizmo\ImCurveEdit.cpp">
+      <Filter>External\ImGuizmo</Filter>
+    </ClCompile>
+    <ClCompile Include="External\ImGuizmo\ImGradient.cpp">
+      <Filter>External\ImGuizmo</Filter>
+    </ClCompile>
+    <ClCompile Include="External\ImGuizmo\ImGuizmo.cpp">
+      <Filter>External\ImGuizmo</Filter>
+    </ClCompile>
+    <ClCompile Include="External\ImGuizmo\ImSequencer.cpp">
+      <Filter>External\ImGuizmo</Filter>
+    </ClCompile>
+    <ClCompile Include="External\ImGuizmo\ImVectorEditor.cpp">
+      <Filter>External\ImGuizmo</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\System\BasicShader.h">
@@ -304,42 +313,6 @@
     </ClInclude>
     <ClInclude Include="Source\System\TransformUtils.h">
       <Filter>System</Filter>
-    </ClInclude>
-    <ClInclude Include="External\imgui-docking\imconfig.h">
-      <Filter>External\imgui-docking</Filter>
-    </ClInclude>
-    <ClInclude Include="External\imgui-docking\imgui.h">
-      <Filter>External\imgui-docking</Filter>
-    </ClInclude>
-    <ClInclude Include="External\imgui-docking\imgui_impl_dx11.h">
-      <Filter>External\imgui-docking</Filter>
-    </ClInclude>
-    <ClInclude Include="External\imgui-docking\imgui_impl_win32.h">
-      <Filter>External\imgui-docking</Filter>
-    </ClInclude>
-    <ClInclude Include="External\imgui-docking\imgui_internal.h">
-      <Filter>External\imgui-docking</Filter>
-    </ClInclude>
-    <ClInclude Include="External\imgui-docking\imstb_rectpack.h">
-      <Filter>External\imgui-docking</Filter>
-    </ClInclude>
-    <ClInclude Include="External\imgui-docking\imstb_textedit.h">
-      <Filter>External\imgui-docking</Filter>
-    </ClInclude>
-    <ClInclude Include="External\imgui-docking\imstb_truetype.h">
-      <Filter>External\imgui-docking</Filter>
-    </ClInclude>
-    <ClInclude Include="External\ImGuizmo\ImCurveEdit.h">
-      <Filter>External\ImGuizmo</Filter>
-    </ClInclude>
-    <ClInclude Include="External\ImGuizmo\ImGradient.h">
-      <Filter>External\ImGuizmo</Filter>
-    </ClInclude>
-    <ClInclude Include="External\ImGuizmo\ImGuizmo.h">
-      <Filter>External\ImGuizmo</Filter>
-    </ClInclude>
-    <ClInclude Include="External\ImGuizmo\ImSequencer.h">
-      <Filter>External\ImGuizmo</Filter>
     </ClInclude>
     <ClInclude Include="Source\System\Collision.h">
       <Filter>System</Filter>
@@ -474,6 +447,54 @@
     <ClInclude Include="Source\Engine\Helpers\UIResizedWindow.h">
       <Filter>Source\Engine\Helpers</Filter>
     </ClInclude>
+    <ClInclude Include="External\imgui\imconfig.h">
+      <Filter>External\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="External\imgui\imgui.h">
+      <Filter>External\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="External\imgui\imgui_impl_dx11.h">
+      <Filter>External\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="External\imgui\imgui_impl_win32.h">
+      <Filter>External\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="External\imgui\imgui_internal.h">
+      <Filter>External\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="External\imgui\imstb_rectpack.h">
+      <Filter>External\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="External\imgui\imstb_textedit.h">
+      <Filter>External\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="External\imgui\imstb_truetype.h">
+      <Filter>External\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="External\ImGuizmo\GraphEditor.h">
+      <Filter>External\ImGuizmo</Filter>
+    </ClInclude>
+    <ClInclude Include="External\ImGuizmo\ImCurveEdit.h">
+      <Filter>External\ImGuizmo</Filter>
+    </ClInclude>
+    <ClInclude Include="External\ImGuizmo\ImGradient.h">
+      <Filter>External\ImGuizmo</Filter>
+    </ClInclude>
+    <ClInclude Include="External\ImGuizmo\ImGuizmo.h">
+      <Filter>External\ImGuizmo</Filter>
+    </ClInclude>
+    <ClInclude Include="External\ImGuizmo\ImLightRig.h">
+      <Filter>External\ImGuizmo</Filter>
+    </ClInclude>
+    <ClInclude Include="External\ImGuizmo\ImSequencer.h">
+      <Filter>External\ImGuizmo</Filter>
+    </ClInclude>
+    <ClInclude Include="External\ImGuizmo\ImVectorEditor.h">
+      <Filter>External\ImGuizmo</Filter>
+    </ClInclude>
+    <ClInclude Include="External\ImGuizmo\ImZoomSlider.h">
+      <Filter>External\ImGuizmo</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Shader\Basic.hlsli">
@@ -513,9 +534,6 @@
     </Filter>
     <Filter Include="External">
       <UniqueIdentifier>{eda9fcbc-9e50-4996-bb82-d0db32934e99}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="External\imgui-docking">
-      <UniqueIdentifier>{f418eba5-083a-4fa8-a51b-86efd41d13c4}</UniqueIdentifier>
     </Filter>
     <Filter Include="External\ImGuizmo">
       <UniqueIdentifier>{e3803378-04d7-4a3f-bddf-4278fb783329}</UniqueIdentifier>
@@ -558,6 +576,9 @@
     </Filter>
     <Filter Include="Source\Engine\Windowing">
       <UniqueIdentifier>{19b36f8f-ccac-4dfe-9716-ef92402d75ba}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="External\imgui">
+      <UniqueIdentifier>{f418eba5-083a-4fa8-a51b-86efd41d13c4}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
