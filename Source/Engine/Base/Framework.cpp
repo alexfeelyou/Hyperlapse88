@@ -10,11 +10,48 @@ namespace
 }
 
 static WNDPROC s_OriginalWndProc = nullptr;
+static LONG s_lockedWidth = 0;
+static LONG s_lockedHeight = 0;
 
 LRESULT CALLBACK ImGuiHookWndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     if (ImGuiRenderer::HandleMessage(hWnd, msg, wParam, lParam)) {
         return true;
+    }
+
+    if constexpr (s_isDebugMode)
+    {
+        // Only block restore/size/move while the window is maximized.
+        // If it's minimized, let SC_RESTORE through so Alt+Tab / taskbar
+        // clicks can bring it back
+        if (msg == WM_SYSCOMMAND)
+        {
+            WPARAM cmd = wParam & 0xFFF0;
+            if (!IsIconic(hWnd))
+            {
+                if (cmd == SC_RESTORE || cmd == SC_SIZE || cmd == SC_MOVE)
+                {
+                    return 0;
+                }
+            }
+        }
+
+        if (msg == WM_NCLBUTTONDOWN && wParam == HTCAPTION)
+        {
+            return 0;
+        }
+
+        // Belt-and-suspenders: even if something re-adds WS_SIZEBOX later,
+        // this clamps the trackable size to the locked maximized size
+        if (msg == WM_GETMINMAXINFO && s_lockedWidth > 0 && s_lockedHeight > 0)
+        {
+            MINMAXINFO* mmi = (MINMAXINFO*)lParam;
+            mmi->ptMinTrackSize.x = s_lockedWidth;
+            mmi->ptMinTrackSize.y = s_lockedHeight;
+            mmi->ptMaxTrackSize.x = s_lockedWidth;
+            mmi->ptMaxTrackSize.y = s_lockedHeight;
+            return 0;
+        }
     }
 
     if (s_OriginalWndProc) {
@@ -39,10 +76,40 @@ Framework::Framework()
 
     if constexpr (s_isDebugMode)
     {
-        // Debug Mode: Windowed, bordered, and automatically maximized for IDE debugging
+        // Ensure it's bordered and temporarily allow resizing so SDL can maximize it properly
         SDL_SetWindowBordered(sdlWin, true);
         SDL_SetWindowResizable(sdlWin, true);
+
+        // Maximize the window to fill the screen (gets full resolution like 1920x1080)
         SDL_MaximizeWindow(sdlWin);
+
+        // Tell SDL it's no longer resizable BEFORE we touch the raw Win32 style,
+        // so SDL doesn't re-apply its own style bits over our changes afterward.
+        SDL_SetWindowResizable(sdlWin, false);
+
+        // Fetch the native Win32 handle to lock down the window frame
+        HWND hwnd = (HWND)SDL_GetPointerProperty(
+            SDL_GetWindowProperties(sdlWin),
+            SDL_PROP_WINDOW_WIN32_HWND_POINTER,
+            NULL
+        );
+
+        if (hwnd)
+        {
+            LONG style = GetWindowLong(hwnd, GWL_STYLE);
+            style &= ~WS_SIZEBOX;       // Removes the dragging border (disables manual resizing)
+            style &= ~WS_MAXIMIZEBOX;   // Greys out/disables the maximize button so it cannot be clicked
+            SetWindowLong(hwnd, GWL_STYLE, style);
+
+            // Force Windows to redraw the window frame with the locked styles
+            SetWindowPos(hwnd, NULL, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED);
+
+            // Cache the maximized size so WM_GETMINMAXINFO can hard-lock it below
+            RECT rect;
+            GetWindowRect(hwnd, &rect);
+            s_lockedWidth = rect.right - rect.left;
+            s_lockedHeight = rect.bottom - rect.top;
+        }
     }
     else
     {
