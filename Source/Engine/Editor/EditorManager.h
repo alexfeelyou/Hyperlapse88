@@ -5,7 +5,10 @@
 #include <utility>
 #include <wrl/client.h>
 #include "System/Graphics.h"
+#include "Framework.h"
 #include "Scene.h"
+#include "SceneGame.h"
+#include "SceneTitle.h"
 #include "WindowManager.h"
 
 // Manages out-of-scene debug UI (docking, menu bars, panels)

@@ -278,11 +278,26 @@ void EditorManager::DrawMenuBar() const noexcept
 {
     if (ImGui::BeginMenuBar())
     {
-        if (ImGui::BeginMenu("SceneSelect")) { ImGui::EndMenu(); }
+        if (ImGui::BeginMenu("Scene"))
+        {
+            // Swap to the Title when clicked
+            if (ImGui::MenuItem("Title"))
+            {
+                Framework::Instance()->ChangeScene(std::make_unique<SceneTitle>());
+            }
+
+            // Swap to the Game when clicked
+            if (ImGui::MenuItem("Game"))
+            {
+                Framework::Instance()->ChangeScene(std::make_unique<SceneGame>());
+            }
+
+            ImGui::EndMenu();
+        }
         if (ImGui::BeginMenu("Debug")) { ImGui::EndMenu(); }
         if (ImGui::BeginMenu("Graphics")) { ImGui::EndMenu(); }
         if (ImGui::BeginMenu("Time")) { ImGui::EndMenu(); }
-        if (ImGui::BeginMenu("CurveManager")) { ImGui::EndMenu(); }
+        if (ImGui::BeginMenu("Curve Manager")) { ImGui::EndMenu(); }
         ImGui::EndMenuBar();
     }
 }
