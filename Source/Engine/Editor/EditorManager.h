@@ -6,6 +6,7 @@
 #include <wrl/client.h>
 #include "System/Graphics.h"
 #include "Scene.h"
+#include "WindowManager.h"
 
 // Manages out-of-scene debug UI (docking, menu bars, panels)
 // Ensures debug tools persist across scene
@@ -24,14 +25,19 @@ public:
     // Configures ImGui context settings (e.g., docking)
     void Initialize() noexcept;
 
-    // Dispatches UI drawing. Takes the scene by pointer so it handles null states safely.
-    void Draw(Scene* currentScene) const noexcept;
+    // Dispatches UI drawing
+    void Draw(Scene* currentScene) noexcept;
+
+    void BeginSceneRender(ID3D11DeviceContext* context) noexcept;
+    void EndSceneRender(ID3D11DeviceContext* context) noexcept;
 
 private:
     EditorManager() = default;
     ~EditorManager() = default;
 
     void DrawDockSpace() const noexcept;
+    void DrawSceneView() noexcept;
+    void EnsureSceneRenderTarget(UINT width, UINT height) noexcept;
     void DrawMenuBar() const noexcept;
     void DrawHierarchy() const noexcept;
     void DrawInspector(Scene* currentScene) const noexcept;

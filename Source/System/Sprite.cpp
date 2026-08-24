@@ -1,23 +1,19 @@
-#include <fstream>
-#include "Sprite.h"
-#include "Misc.h"
-#include "GpuResourceUtils.h"
-#include <vector>
+ï»¿#include "Sprite.h"
 
-// ƒRƒ“ƒXƒgƒ‰ƒNƒ^
+// ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿
 Sprite::Sprite(ID3D11Device* device)
 	: Sprite(device, nullptr)
 {
 }
 
-// ƒRƒ“ƒXƒgƒ‰ƒNƒ^
+// ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿
 Sprite::Sprite(ID3D11Device* device, const char* filename)
 {
 	HRESULT hr = S_OK;
 
-	// ’¸“_ƒoƒbƒtƒ@‚Ì¶¬
+	// é ‚ç‚¹ãƒãƒƒãƒ•ã‚¡ã®ç”Ÿæˆ
 	{
-		// ’¸“_ƒoƒbƒtƒ@‚ğì¬‚·‚é‚½‚ß‚Ìİ’èƒIƒvƒVƒ‡ƒ“
+		// é ‚ç‚¹ãƒãƒƒãƒ•ã‚¡ã‚’ä½œæˆã™ã‚‹ãŸã‚ã®è¨­å®šã‚ªãƒ—ã‚·ãƒ§ãƒ³
 		const int MAX_VERTICES = 10000;
 		D3D11_BUFFER_DESC buffer_desc = {};
 		buffer_desc.ByteWidth = sizeof(Vertex) * MAX_VERTICES;
@@ -26,14 +22,14 @@ Sprite::Sprite(ID3D11Device* device, const char* filename)
 		buffer_desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 		buffer_desc.MiscFlags = 0;
 		buffer_desc.StructureByteStride = 0;
-		// ’¸“_ƒoƒbƒtƒ@ƒIƒuƒWƒFƒNƒg‚Ì¶¬
+		// é ‚ç‚¹ãƒãƒƒãƒ•ã‚¡ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã®ç”Ÿæˆ
 		hr = device->CreateBuffer(&buffer_desc, nullptr, vertexBuffer.GetAddressOf());
 		_ASSERT_EXPR(SUCCEEDED(hr), HRTrace(hr));
 	}
 
-	// ’¸“_ƒVƒF[ƒ_[
+	// é ‚ç‚¹ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼
 	{
-		// “ü—ÍƒŒƒCƒAƒEƒg
+		// å…¥åŠ›ãƒ¬ã‚¤ã‚¢ã‚¦ãƒˆ
 		D3D11_INPUT_ELEMENT_DESC inputElementDesc[] =
 		{
 			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
@@ -51,7 +47,7 @@ Sprite::Sprite(ID3D11Device* device, const char* filename)
 
 	}
 
-	// ƒsƒNƒZƒ‹ƒVƒF[ƒ_[
+	// ãƒ”ã‚¯ã‚»ãƒ«ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼
 	{
 		hr = GpuResourceUtils::LoadPixelShader(
 			device,
@@ -60,10 +56,26 @@ Sprite::Sprite(ID3D11Device* device, const char* filename)
 		_ASSERT_EXPR(SUCCEEDED(hr), HRTrace(hr));
 	}
 
-	// ƒeƒNƒXƒ`ƒƒ‚Ì¶¬	
+	// ãƒ–ãƒ¬ãƒ³ãƒ‰ã‚¹ãƒ†ãƒ¼ãƒˆã®ç”Ÿæˆ
+	{
+		D3D11_BLEND_DESC blendDesc{};
+		blendDesc.RenderTarget[0].BlendEnable = TRUE;
+		blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+		blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+		blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+		blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+		blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+		blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+		blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+
+		hr = device->CreateBlendState(&blendDesc, m_blendState.GetAddressOf());
+		_ASSERT_EXPR(SUCCEEDED(hr), HRTrace(hr));
+	}
+
+	// ãƒ†ã‚¯ã‚¹ãƒãƒ£ã®ç”Ÿæˆ	
 	if (filename != nullptr)
 	{
-		// ƒeƒNƒXƒ`ƒƒƒtƒ@ƒCƒ‹“Ç‚İ‚İ
+		// ãƒ†ã‚¯ã‚¹ãƒãƒ£ãƒ•ã‚¡ã‚¤ãƒ«èª­ã¿è¾¼ã¿
 		D3D11_TEXTURE2D_DESC desc;
 		hr = GpuResourceUtils::LoadTexture(device, filename, shaderResourceView.GetAddressOf(), &desc);
 		_ASSERT_EXPR(SUCCEEDED(hr), HRTrace(hr));
@@ -73,7 +85,7 @@ Sprite::Sprite(ID3D11Device* device, const char* filename)
 	}
 	else
 	{
-		// ƒ_ƒ~[ƒeƒNƒXƒ`ƒƒ¶¬
+		// ãƒ€ãƒŸãƒ¼ãƒ†ã‚¯ã‚¹ãƒãƒ£ç”Ÿæˆ
 		D3D11_TEXTURE2D_DESC desc;
 		hr = GpuResourceUtils::CreateDummyTexture(device, 0xFFFFFFFF, shaderResourceView.GetAddressOf(),
 			&desc);
@@ -84,35 +96,35 @@ Sprite::Sprite(ID3D11Device* device, const char* filename)
 	}
 }
 
-// •`‰æÀs
+// æç”»å®Ÿè¡Œ
 void Sprite::Render(ID3D11DeviceContext* dc,
-	float dx, float dy,					// ¶ãˆÊ’u
-	float dz,							// ‰œs
-	float dw, float dh,					// •A‚‚³
-	float sx, float sy,					// ‰æ‘œØ‚è”²‚«ˆÊ’u
-	float sw, float sh,					// ‰æ‘œØ‚è”²‚«ƒTƒCƒY
-	float angle,						// Šp“x
-	float r, float g, float b, float a	// F
+	float dx, float dy,					// å·¦ä¸Šä½ç½®
+	float dz,							// å¥¥è¡Œ
+	float dw, float dh,					// å¹…ã€é«˜ã•
+	float sx, float sy,					// ç”»åƒåˆ‡ã‚ŠæŠœãä½ç½®
+	float sw, float sh,					// ç”»åƒåˆ‡ã‚ŠæŠœãã‚µã‚¤ã‚º
+	float angle,						// è§’åº¦
+	float r, float g, float b, float a	// è‰²
 	) const
 {
-	// ’¸“_À•W
+	// é ‚ç‚¹åº§æ¨™
 	DirectX::XMFLOAT2 positions[] = {
-		DirectX::XMFLOAT2(dx,      dy),			// ¶ã
-		DirectX::XMFLOAT2(dx + dw, dy),			// ‰Eã
-		DirectX::XMFLOAT2(dx,      dy + dh),	// ¶‰º
-		DirectX::XMFLOAT2(dx + dw, dy + dh),	// ‰E‰º
+		DirectX::XMFLOAT2(dx,      dy),			// å·¦ä¸Š
+		DirectX::XMFLOAT2(dx + dw, dy),			// å³ä¸Š
+		DirectX::XMFLOAT2(dx,      dy + dh),	// å·¦ä¸‹
+		DirectX::XMFLOAT2(dx + dw, dy + dh),	// å³ä¸‹
 	};
 
-	// ƒeƒNƒXƒ`ƒƒÀ•W
+	// ãƒ†ã‚¯ã‚¹ãƒãƒ£åº§æ¨™
 	DirectX::XMFLOAT2 texcoords[] = {
-		DirectX::XMFLOAT2(sx,      sy),			// ¶ã
-		DirectX::XMFLOAT2(sx + sw, sy),			// ‰Eã
-		DirectX::XMFLOAT2(sx,      sy + sh),	// ¶‰º
-		DirectX::XMFLOAT2(sx + sw, sy + sh),	// ‰E‰º
+		DirectX::XMFLOAT2(sx,      sy),			// å·¦ä¸Š
+		DirectX::XMFLOAT2(sx + sw, sy),			// å³ä¸Š
+		DirectX::XMFLOAT2(sx,      sy + sh),	// å·¦ä¸‹
+		DirectX::XMFLOAT2(sx + sw, sy + sh),	// å³ä¸‹
 	};
 
-	// ƒXƒvƒ‰ƒCƒg‚Ì’†S‚Å‰ñ“]‚³‚¹‚é‚½‚ß‚É‚S’¸“_‚Ì’†SˆÊ’u‚ª
-	// Œ´“_(0, 0)‚É‚È‚é‚æ‚¤‚Éˆê’U’¸“_‚ğˆÚ“®‚³‚¹‚éB
+	// ã‚¹ãƒ—ãƒ©ã‚¤ãƒˆã®ä¸­å¿ƒã§å›è»¢ã•ã›ã‚‹ãŸã‚ã«ï¼”é ‚ç‚¹ã®ä¸­å¿ƒä½ç½®ãŒ
+	// åŸç‚¹(0, 0)ã«ãªã‚‹ã‚ˆã†ã«ä¸€æ—¦é ‚ç‚¹ã‚’ç§»å‹•ã•ã›ã‚‹ã€‚
 	float mx = dx + dw * 0.5f;
 	float my = dy + dh * 0.5f;
 	for (auto& p : positions)
@@ -121,7 +133,7 @@ void Sprite::Render(ID3D11DeviceContext* dc,
 		p.y -= my;
 	}
 
-	// ’¸“_‚ğ‰ñ“]‚³‚¹‚é
+	// é ‚ç‚¹ã‚’å›è»¢ã•ã›ã‚‹
 	float theta = DirectX::XMConvertToRadians(angle);
 	float c = cosf(theta);
 	float s = sinf(theta);
@@ -132,33 +144,33 @@ void Sprite::Render(ID3D11DeviceContext* dc,
 		p.y = s * r.x + c * r.y;
 	}
 
-	// ‰ñ“]‚Ì‚½‚ß‚ÉˆÚ“®‚³‚¹‚½’¸“_‚ğŒ³‚ÌˆÊ’u‚É–ß‚·
+	// å›è»¢ã®ãŸã‚ã«ç§»å‹•ã•ã›ãŸé ‚ç‚¹ã‚’å…ƒã®ä½ç½®ã«æˆ»ã™
 	for (auto& p : positions)
 	{
 		p.x += mx;
 		p.y += my;
 	}
 
-	// Œ»İİ’è‚³‚ê‚Ä‚¢‚éƒrƒ…[ƒ|[ƒg‚©‚çƒXƒNƒŠ[ƒ“ƒTƒCƒY‚ğæ“¾‚·‚éB
+	// ç¾åœ¨è¨­å®šã•ã‚Œã¦ã„ã‚‹ãƒ“ãƒ¥ãƒ¼ãƒãƒ¼ãƒˆã‹ã‚‰ã‚¹ã‚¯ãƒªãƒ¼ãƒ³ã‚µã‚¤ã‚ºã‚’å–å¾—ã™ã‚‹ã€‚
 	D3D11_VIEWPORT viewport;
 	UINT numViewports = 1;
 	dc->RSGetViewports(&numViewports, &viewport);
 	float screenWidth = viewport.Width;
 	float screenHeight = viewport.Height;
 
-	// ƒXƒNƒŠ[ƒ“À•WŒn‚©‚çNDCÀ•WŒn‚Ö•ÏŠ·‚·‚éB
+	// ã‚¹ã‚¯ãƒªãƒ¼ãƒ³åº§æ¨™ç³»ã‹ã‚‰NDCåº§æ¨™ç³»ã¸å¤‰æ›ã™ã‚‹ã€‚
 	for (DirectX::XMFLOAT2& p : positions)
 	{
 		p.x = 2.0f * p.x / screenWidth - 1.0f;
 		p.y = 1.0f - 2.0f * p.y / screenHeight;
 	}
 
-	// ’¸“_ƒoƒbƒtƒ@‚Ì“à—e‚Ì•ÒW‚ğŠJn‚·‚éB
+	// é ‚ç‚¹ãƒãƒƒãƒ•ã‚¡ã®å†…å®¹ã®ç·¨é›†ã‚’é–‹å§‹ã™ã‚‹ã€‚
 	D3D11_MAPPED_SUBRESOURCE mappedSubresource;
 	HRESULT hr = dc->Map(vertexBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedSubresource);
 	_ASSERT_EXPR(SUCCEEDED(hr), HRTrace(hr));
 
-	// ’¸“_ƒoƒbƒtƒ@‚Ì“à—e‚ğ•ÒW
+	// é ‚ç‚¹ãƒãƒƒãƒ•ã‚¡ã®å†…å®¹ã‚’ç·¨é›†
 	Vertex* v = static_cast<Vertex*>(mappedSubresource.pData);
 	for (int i = 0; i < 4; ++i)
 	{
@@ -175,10 +187,10 @@ void Sprite::Render(ID3D11DeviceContext* dc,
 		v[i].texcoord.y = texcoords[i].y / textureHeight;
 	}
 
-	// ’¸“_ƒoƒbƒtƒ@‚Ì“à—e‚Ì•ÒW‚ğI—¹‚·‚éB
+	// é ‚ç‚¹ãƒãƒƒãƒ•ã‚¡ã®å†…å®¹ã®ç·¨é›†ã‚’çµ‚äº†ã™ã‚‹ã€‚
 	dc->Unmap(vertexBuffer.Get(), 0);
 
-	// GPU‚É•`‰æ‚·‚é‚½‚ß‚Ìƒf[ƒ^‚ğ“n‚·
+	// GPUã«æç”»ã™ã‚‹ãŸã‚ã®ãƒ‡ãƒ¼ã‚¿ã‚’æ¸¡ã™
 	UINT stride = sizeof(Vertex);
 	UINT offset = 0;
 	dc->IASetVertexBuffers(0, 1, vertexBuffer.GetAddressOf(), &stride, &offset);
@@ -187,24 +199,25 @@ void Sprite::Render(ID3D11DeviceContext* dc,
 	dc->VSSetShader(vertexShader.Get(), nullptr, 0);
 	dc->PSSetShader(pixelShader.Get(), nullptr, 0);
 	dc->PSSetShaderResources(0, 1, shaderResourceView.GetAddressOf());
+	BindRenderState(dc);
 
-	// •`‰æ
+	// æç”»
 	dc->Draw(4, 0);
 }
 
-// •`‰æÀsiƒeƒNƒXƒ`ƒƒØ‚è”²‚«w’è‚È‚µj
+// æç”»å®Ÿè¡Œï¼ˆãƒ†ã‚¯ã‚¹ãƒãƒ£åˆ‡ã‚ŠæŠœãæŒ‡å®šãªã—ï¼‰
 void Sprite::Render(ID3D11DeviceContext* dc,
-	float dx, float dy,					// ¶ãˆÊ’u
-	float dz,							// ‰œs
-	float dw, float dh,					// •A‚‚³
-	float angle,						// Šp“x
-	float r, float g, float b, float a	// F
+	float dx, float dy,					// å·¦ä¸Šä½ç½®
+	float dz,							// å¥¥è¡Œ
+	float dw, float dh,					// å¹…ã€é«˜ã•
+	float angle,						// è§’åº¦
+	float r, float g, float b, float a	// è‰²
 	) const
 {
 	Render(dc, dx, dy, dz, dw, dh, 0, 0, textureWidth, textureHeight, angle, r, g, b, a);
 }
 
-// •`‰æÀsi3D‹óŠÔ‚ÉƒXƒvƒ‰ƒCƒg‚ğ•`‰æA×•ªŠ„ƒo[ƒWƒ‡ƒ“j
+// æç”»å®Ÿè¡Œï¼ˆ3Dç©ºé–“ã«ã‚¹ãƒ—ãƒ©ã‚¤ãƒˆã‚’æç”»ã€ç´°åˆ†å‰²ãƒãƒ¼ã‚¸ãƒ§ãƒ³ï¼‰
 void Sprite::Render(ID3D11DeviceContext* dc,
 	const Camera* camera,
 	float wx, float wy, float wz,
@@ -214,14 +227,14 @@ void Sprite::Render(ID3D11DeviceContext* dc,
 {
 	using namespace DirectX;
 
-	// •ªŠ„İ’è
+	// åˆ†å‰²è¨­å®š
 	const int divX = 40;
 	const int divY = 40;
 
 	std::vector<Vertex> vertices;
 	vertices.reserve(divX * divY * 6);
 
-	// s—ñŒvZ
+	// è¡Œåˆ—è¨ˆç®—
 	XMMATRIX matWorld = XMMatrixRotationRollPitchYaw(pitch, yaw, roll) * XMMatrixTranslation(wx, wy, wz);
 	XMMATRIX matVP = XMLoadFloat4x4(&camera->GetView()) * XMLoadFloat4x4(&camera->GetProjection());
 
@@ -234,7 +247,7 @@ void Sprite::Render(ID3D11DeviceContext* dc,
 	{
 		for (int x = 0; x < divX; ++x)
 		{
-			// À•W‚ÆUV‚ÌŒvZ
+			// åº§æ¨™ã¨UVã®è¨ˆç®—
 			float x0 = startX + x * cellW;
 			float y0 = startY - y * cellH;
 			float x1 = startX + (x + 1) * cellW;
@@ -245,7 +258,7 @@ void Sprite::Render(ID3D11DeviceContext* dc,
 			float u1 = (float)(x + 1) / divX;
 			float v1 = (float)(y + 1) / divY;
 
-			// ƒ[ƒJƒ‹’¸“_’è‹`
+			// ãƒ­ãƒ¼ã‚«ãƒ«é ‚ç‚¹å®šç¾©
 			XMFLOAT3 localPos[6] = {
 				{ x0, y0, 0 }, { x1, y0, 0 }, { x0, y1, 0 },
 				{ x1, y0, 0 }, { x1, y1, 0 }, { x0, y1, 0 }
@@ -258,17 +271,17 @@ void Sprite::Render(ID3D11DeviceContext* dc,
 			XMVECTOR clipPos[6];
 			bool isValid[6];
 
-			// À•W•ÏŠ·‚ÆƒNƒŠƒbƒsƒ“ƒO”»’è
+			// åº§æ¨™å¤‰æ›ã¨ã‚¯ãƒªãƒƒãƒ”ãƒ³ã‚°åˆ¤å®š
 			for (int i = 0; i < 6; ++i)
 			{
 				XMVECTOR vPos = XMVector3TransformCoord(XMLoadFloat3(&localPos[i]), matWorld);
-				clipPos[i] = XMVector3Transform(vPos, matVP); // W¬•ª‚ª•K—v‚È‚½‚ßTransform‚ğg—p
+				clipPos[i] = XMVector3Transform(vPos, matVP); // Wæˆåˆ†ãŒå¿…è¦ãªãŸã‚Transformã‚’ä½¿ç”¨
 
-				// ƒJƒƒ‰è‘O(NearZ)‚Ì”»’è
+				// ã‚«ãƒ¡ãƒ©æ‰‹å‰(NearZ)ã®åˆ¤å®š
 				isValid[i] = (XMVectorGetW(clipPos[i]) > 0.1f);
 			}
 
-			// OŠpŒ`¶¬ƒ‰ƒ€ƒ_®
+			// ä¸‰è§’å½¢ç”Ÿæˆãƒ©ãƒ ãƒ€å¼
 			auto AddTriangle = [&](int i0, int i1, int i2)
 				{
 					if (isValid[i0] && isValid[i1] && isValid[i2])
@@ -276,7 +289,7 @@ void Sprite::Render(ID3D11DeviceContext* dc,
 						int indices[] = { i0, i1, i2 };
 						for (int idx : indices)
 						{
-							XMVECTOR finalPos = clipPos[idx] / XMVectorGetW(clipPos[idx]); // “§‹œZ
+							XMVECTOR finalPos = clipPos[idx] / XMVectorGetW(clipPos[idx]); // é€è¦–é™¤ç®—
 							Vertex vert;
 							XMStoreFloat3(&vert.position, finalPos);
 							vert.color = XMFLOAT4(r, g, b, a);
@@ -286,7 +299,7 @@ void Sprite::Render(ID3D11DeviceContext* dc,
 					}
 				};
 
-			// 2‚Â‚ÌOŠpŒ`‚ğ’Ç‰Á
+			// 2ã¤ã®ä¸‰è§’å½¢ã‚’è¿½åŠ 
 			AddTriangle(0, 1, 2);
 			AddTriangle(3, 4, 5);
 		}
@@ -294,7 +307,7 @@ void Sprite::Render(ID3D11DeviceContext* dc,
 
 	if (vertices.empty()) return;
 
-	// GPUƒoƒbƒtƒ@XV
+	// GPUãƒãƒƒãƒ•ã‚¡æ›´æ–°
 	D3D11_MAPPED_SUBRESOURCE ms;
 	if (SUCCEEDED(dc->Map(vertexBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &ms)))
 	{
@@ -302,16 +315,18 @@ void Sprite::Render(ID3D11DeviceContext* dc,
 		dc->Unmap(vertexBuffer.Get(), 0);
 	}
 
-	// •`‰æİ’è
+	// æç”»è¨­å®š
 	UINT stride = sizeof(Vertex);
 	UINT offset = 0;
 	dc->IASetVertexBuffers(0, 1, vertexBuffer.GetAddressOf(), &stride, &offset);
 	dc->IASetInputLayout(inputLayout.Get());
-	dc->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // LIST‚ğg—p
+	dc->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST); // LISTã‚’ä½¿ç”¨
 
 	dc->VSSetShader(vertexShader.Get(), nullptr, 0);
 	dc->PSSetShader(pixelShader.Get(), nullptr, 0);
 	dc->PSSetShaderResources(0, 1, shaderResourceView.GetAddressOf());
+
+	BindRenderState(dc);
 
 	dc->Draw(static_cast<UINT>(vertices.size()), 0);
 }
@@ -327,8 +342,6 @@ void Sprite::Render3D(ID3D11DeviceContext* dc,
 {
 	using namespace DirectX;
 
-	// 1. Setup Data Vertex (Hanya 1 Quad / 4 Titik)
-	// Urutan: Kiri-Atas, Kanan-Atas, Kiri-Bawah, Kanan-Bawah (Triangle Strip)
 	Vertex vertices[4];
 
 	// Hitung UV dalam 0.0 - 1.0
@@ -337,27 +350,25 @@ void Sprite::Render3D(ID3D11DeviceContext* dc,
 	float u1 = (sx + sw) / textureWidth;
 	float v1 = (sy + sh) / textureHeight;
 
-	// Set UV & Warna
+	// UV Setup
 	vertices[0].texcoord = { u0, v0 }; vertices[0].color = { r, g, b, a };
 	vertices[1].texcoord = { u1, v0 }; vertices[1].color = { r, g, b, a };
 	vertices[2].texcoord = { u0, v1 }; vertices[2].color = { r, g, b, a };
 	vertices[3].texcoord = { u1, v1 }; vertices[3].color = { r, g, b, a };
 
-	// 2. Hitung Matrix
-	// Pivot huruf ada di tengah
+	// Create World and ViewProjection Matrices
 	XMMATRIX matWorld = XMMatrixRotationRollPitchYaw(pitch, yaw, roll) * XMMatrixTranslation(wx, wy, wz);
 	XMMATRIX matVP = XMLoadFloat4x4(&camera->GetView()) * XMLoadFloat4x4(&camera->GetProjection());
 
-	// 3. Transformasi Vertex Manual (Billboard Logic)
+	// Transform local positions to world space and then to clip space
 	float halfW = w / 2.0f;
 	float halfH = h / 2.0f;
 
-	// Posisi lokal relatif terhadap titik tengah (wx, wy, wz)
 	XMFLOAT3 localPos[4] = {
-		{ -halfW,  halfH, 0 }, // Kiri Atas
-		{  halfW,  halfH, 0 }, // Kanan Atas
-		{ -halfW, -halfH, 0 }, // Kiri Bawah
-		{  halfW, -halfH, 0 }  // Kanan Bawah
+		{ -halfW,  halfH, 0 },
+		{  halfW,  halfH, 0 },
+		{ -halfW, -halfH, 0 },
+		{  halfW, -halfH, 0 } 
 	};
 
 	for (int i = 0; i < 4; ++i)
@@ -366,30 +377,15 @@ void Sprite::Render3D(ID3D11DeviceContext* dc,
 		XMVECTOR vPos = XMLoadFloat3(&localPos[i]);
 		vPos = XMVector3TransformCoord(vPos, matWorld);
 
-		// World -> Clip Space (Wajib untuk Shader)
-		// Disini kita lakukan trik: Kita kirim posisi World ke Buffer, 
-		// tapi Shader VS kamu sepertinya mengharapkan posisi Clip Space (Screen).
-		// Karena SpriteVS.cso kamu didesain untuk 2D Screen Space (-1 s/d 1), 
-		// kita harus melakukan transformasi VP di CPU sini.
-
 		XMVECTOR vClip = XMVector3Transform(vPos, matVP);
-
-		// Perspective Divide (Penting agar menjadi -1 s/d 1 NDC)
-		// PERHATIAN: Shader 2D kamu mungkin tidak handle W component. 
-		// Idealnya kamu punya Shader 3D terpisah. 
-		// TAPI, agar kompatibel dengan Shader 2D "SpriteVS" yang ada:
-		// Kita simpan hasil proyeksi yang sudah dibagi W.
 
 		float vW = XMVectorGetW(vClip);
 		if (vW < 0.1f) vW = 0.1f; // Cegah bagi nol
 
 		XMStoreFloat3(&vertices[i].position, vClip / vW);
-
-		// Simpan Z asli untuk Depth Buffer (Optional, tergantung shader)
-		// vertices[i].position.z = XMVectorGetZ(vClip) / vW; 
 	}
 
-	// 4. Update Buffer & Draw
+	// Update Buffer & Draw
 	D3D11_MAPPED_SUBRESOURCE ms;
 	if (SUCCEEDED(dc->Map(vertexBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &ms)))
 	{
@@ -407,6 +403,8 @@ void Sprite::Render3D(ID3D11DeviceContext* dc,
 	dc->PSSetShader(pixelShader.Get(), nullptr, 0);
 	dc->PSSetShaderResources(0, 1, shaderResourceView.GetAddressOf());
 
+	BindRenderState(dc);
+
 	dc->Draw(4, 0);
 }
 
@@ -414,22 +412,20 @@ void Sprite::Render3DBatch(ID3D11DeviceContext* dc,
 	const Camera* camera,
 	const std::vector<Sprite3DBatchData>& batchData) const
 {
-	using namespace DirectX; // <--- TAMBAHKAN BARIS INI DI SINI!
+	using namespace DirectX; 
 
 	if (batchData.empty()) return;
 
 	std::vector<Vertex> vertices;
-	vertices.reserve(batchData.size() * 6); // 1 Kotak = 6 Titik (2 Segitiga)
+	vertices.reserve(batchData.size() * 6); 
 
 	XMMATRIX matVP = XMLoadFloat4x4(&camera->GetView()) * XMLoadFloat4x4(&camera->GetProjection());
 
 	for (const auto& data : batchData)
 	{
-		// Fitur Auto-Full Texture: Jika sw/sh 0, anggap pakai seluruh gambar
 		float actualSW = (data.sw <= 0.001f) ? textureWidth : data.sw;
 		float actualSH = (data.sh <= 0.001f) ? textureHeight : data.sh;
 
-		// Kalkulasi UV 0.0 -> 1.0
 		float u0 = data.sx / textureWidth;
 		float v0 = data.sy / textureHeight;
 		float u1 = (data.sx + actualSW) / textureWidth;
@@ -442,7 +438,6 @@ void Sprite::Render3DBatch(ID3D11DeviceContext* dc,
 		float halfW = data.w / 2.0f;
 		float halfH = data.h / 2.0f;
 
-		// Posisi lokal (Kiri-Atas, Kanan-Atas, Kiri-Bawah, Kanan-Bawah)
 		DirectX::XMFLOAT3 localPos[4] = {
 			{ -halfW,  halfH, 0 },
 			{  halfW,  halfH, 0 },
@@ -457,7 +452,7 @@ void Sprite::Render3DBatch(ID3D11DeviceContext* dc,
 			XMVECTOR vClip = XMVector3Transform(vPos, matVP);
 
 			float vW = XMVectorGetW(vClip);
-			if (vW < 0.1f) vW = 0.1f; // Cegah error dibagi nol
+			if (vW < 0.1f) vW = 0.1f; 
 
 			XMStoreFloat3(&v[i].position, vClip / vW);
 			v[i].color = color;
@@ -468,12 +463,10 @@ void Sprite::Render3DBatch(ID3D11DeviceContext* dc,
 		v[2].texcoord = { u0, v1 };
 		v[3].texcoord = { u1, v1 };
 
-		// Susun Triangle List (6 Titik)
 		vertices.push_back(v[0]); vertices.push_back(v[1]); vertices.push_back(v[2]); // Segitiga Atas
 		vertices.push_back(v[1]); vertices.push_back(v[3]); vertices.push_back(v[2]); // Segitiga Bawah
 	}
 
-	// --- SATU KALI BUKA VRAM UNTUK SEMUA SAYAP ---
 	D3D11_MAPPED_SUBRESOURCE ms;
 	if (SUCCEEDED(dc->Map(vertexBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &ms)))
 	{
@@ -491,6 +484,15 @@ void Sprite::Render3DBatch(ID3D11DeviceContext* dc,
 	dc->PSSetShader(pixelShader.Get(), nullptr, 0);
 	dc->PSSetShaderResources(0, 1, shaderResourceView.GetAddressOf());
 
-	// --- SATU KALI DRAW CALL UNTUK SEMUA SAYAP ---
+	BindRenderState(dc);
+
 	dc->Draw(static_cast<UINT>(vertices.size()), 0);
+}
+
+void Sprite::BindRenderState(ID3D11DeviceContext* dc) const
+{
+	// Straight alpha blending â€” required since transparent PNG regions
+	// still carry garbage/black RGB that must not be written opaque
+	float blendFactor[4]{ 0.0f, 0.0f, 0.0f, 0.0f };
+	dc->OMSetBlendState(m_blendState.Get(), blendFactor, 0xFFFFFFFF);
 }
