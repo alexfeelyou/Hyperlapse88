@@ -30,6 +30,8 @@ void EditorManager::Initialize() noexcept
 
     ImGuiIO& io{ ImGui::GetIO() };
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+
+    ApplyStyle(); // Apply the custom theme
 }
 
 void EditorManager::Draw(Scene* currentScene) noexcept
@@ -45,6 +47,59 @@ void EditorManager::Draw(Scene* currentScene) noexcept
     DrawProfiler();
 
     ImGui::End();
+}
+
+void EditorManager::ApplyStyle() const noexcept
+{
+    // Retrieve the global ImGui style instance and its color array
+    ImGuiStyle& style{ ImGui::GetStyle() };
+    ImVec4* colors{ style.Colors };
+
+    // Establish a baseline dark theme
+    ImGui::StyleColorsDark();
+
+    // Define the core color palette
+    const ImVec4 deepNavyBg{ 0.0f, 0.043f, 0.118f, 1.00f };         // Base editor background
+    const ImVec4 activeTabBg{ 0.929f, 0.094f, 0.541f, 1.00f };      // Active contexts
+    const ImVec4 hoverTabBg{ 0.309f, 0.043f, 0.117f, 1.00f };       // Highlight
+    const ImVec4 darkTitleBg{ 0.04f, 0.05f, 0.08f, 1.00f };         // Unfocused/header areas
+
+    // Customize Window and Child backgrounds
+    colors[ImGuiCol_WindowBg]   = deepNavyBg;
+    colors[ImGuiCol_ChildBg]    = deepNavyBg;
+
+    // Customize Tabs (Normal, Hovered, Active, and Unfocused)
+    colors[ImGuiCol_Tab]                = hoverTabBg;
+    colors[ImGuiCol_TabHovered]         = activeTabBg;
+    colors[ImGuiCol_TabActive]          = activeTabBg;
+    colors[ImGuiCol_TabUnfocused]       = darkTitleBg;
+    colors[ImGuiCol_TabUnfocusedActive] = hoverTabBg;
+    colors[ImGuiCol_TabSelectedOverline]= activeTabBg;
+
+    // Customize Title Bars
+    colors[ImGuiCol_TitleBg]            = deepNavyBg;
+    colors[ImGuiCol_TitleBgActive]      = deepNavyBg;
+    colors[ImGuiCol_TitleBgCollapsed]   = darkTitleBg;
+
+    // Customize Menu Bar and Menu Item Header colors
+    colors[ImGuiCol_MenuBarBg]          = darkTitleBg;
+    colors[ImGuiCol_Header]             = hoverTabBg;
+    colors[ImGuiCol_HeaderHovered]      = hoverTabBg;
+    colors[ImGuiCol_HeaderActive]       = hoverTabBg;
+
+    // Customize Dock splitters and window resize separators
+    colors[ImGuiCol_Border]             = hoverTabBg;
+    colors[ImGuiCol_ResizeGripHovered]  = activeTabBg;
+    colors[ImGuiCol_ResizeGripActive]   = activeTabBg;
+
+    // Docking Overlays
+    colors[ImGuiCol_DockingPreview]     = ImVec4{ activeTabBg.x, activeTabBg.y, activeTabBg.z, 0.40f };
+    colors[ImGuiCol_DockingEmptyBg]     = deepNavyBg;
+
+    // Adjust rounding settings
+    style.WindowRounding = 4.0f;
+    style.FrameRounding = 4.0f;
+    style.TabRounding = 2.0f;
 }
 
 void EditorManager::DrawDockSpace() const noexcept

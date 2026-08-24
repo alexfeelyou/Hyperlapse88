@@ -35,6 +35,7 @@ private:
     EditorManager() = default;
     ~EditorManager() = default;
 
+    void ApplyStyle() const noexcept;
     void DrawDockSpace() const noexcept;
     void DrawSceneView() noexcept;
     void EnsureSceneRenderTarget(UINT width, UINT height) noexcept;
