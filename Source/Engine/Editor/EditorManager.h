@@ -27,22 +27,16 @@ public:
     // Dispatches UI drawing. Takes the scene by pointer so it handles null states safely.
     void Draw(Scene* currentScene) const noexcept;
 
-	// Renders the current scene to a texture for preview in the editor
-    void RenderSceneToTexture(float dt, Scene* currentScene) noexcept;
-    [[nodiscard]] std::pair<float, float> GetSceneDimensions() const noexcept;
-
 private:
     EditorManager() = default;
     ~EditorManager() = default;
 
     void DrawDockSpace() const noexcept;
-    void DrawSceneView() noexcept;
     void DrawMenuBar() const noexcept;
     void DrawHierarchy() const noexcept;
     void DrawInspector(Scene* currentScene) const noexcept;
     void DrawConsole() const noexcept;
     void DrawProfiler() const noexcept;
-    void ResizeRenderTarget(float width, float height) noexcept;
 
     Microsoft::WRL::ComPtr<ID3D11Texture2D> m_sceneTexture;
     Microsoft::WRL::ComPtr<ID3D11RenderTargetView> m_sceneRTV;
