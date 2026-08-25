@@ -29,7 +29,6 @@
 #include "Player.h"
 #include "PlayerStates.h"
 #include "Stage.h"
-#include "UberShader.h"
 #include "UIDialogueBox.h"
 #include "UIPause.h"
 

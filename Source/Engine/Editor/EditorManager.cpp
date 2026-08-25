@@ -349,35 +349,31 @@ void EditorManager::DrawPostProcess(Scene* currentScene) noexcept
     // Pass the boolean pointer so ImGui renders an 'X' close button in the title bar
     if (ImGui::Begin(s_windowPostProcess, &m_showPostProcessPanel))
     {
-        // Check if a scene exists and actually supports post-processing
         if (currentScene && currentScene->GetPostProcessManager())
         {
-            // Bind directly to the mutable UberData reference
-            UberShader::UberData& data{ currentScene->GetPostProcessManager()->GetData() };
+            auto* ppm = currentScene->GetPostProcessManager();
 
-            ImGui::Checkbox("Master Enable", &data.enabled);
+            bool masterEnabled = ppm->IsEnabled();
+            if (ImGui::Checkbox("Master Post-Process Enabled", &masterEnabled))
+            {
+                ppm->SetEnabled(masterEnabled);
+            }
             ImGui::Separator();
 
-            ImGui::Text("Core Settings");
-            ImGui::SliderFloat("Intensity", &data.intensity, 0.0f, 1.0f);
-            ImGui::SliderFloat("Smoothness", &data.smoothness, 0.001f, 1.0f);
-
-            ImGui::Separator();
-            ImGui::Text("Lens & Distortion");
-            ImGui::SliderFloat("Blur Strength", &data.blurStrength, 0.0f, 0.1f);
-            ImGui::SliderFloat("Distortion", &data.distortion, -0.2f, 0.2f);
-            ImGui::SliderFloat("Chromatic Aberration", &data.chromaticAberration, 0.0f, 0.05f);
-            ImGui::SliderFloat("Glitch Strength", &data.glitchStrength, 0.0f, 1.0f);
-
-            ImGui::Separator();
-            ImGui::Text("Scanlines & CRT");
-            ImGui::SliderFloat("Scanline Strength", &data.scanlineStrength, 0.0f, 1.0f);
-            ImGui::SliderFloat("Scanline Speed", &data.scanlineSpeed, 0.0f, 100.0f);
-            ImGui::SliderFloat("Scanline Size", &data.scanlineSize, 1.0f, 500.0f);
+            // Automatically renders ImGui controls for every discrete effect pass
+            for (const auto& effect : ppm->GetEffects())
+            {
+                ImGui::PushID(effect.get());
+                if (ImGui::CollapsingHeader(effect->GetName().data(), ImGuiTreeNodeFlags_DefaultOpen))
+                {
+                    effect->DrawGUI();
+                }
+                ImGui::PopID();
+                ImGui::Spacing();
+            }
         }
         else
         {
-            // Provide clear UX feedback if the current scene lacks a PostProcessManager
             ImGui::TextDisabled("No Post-Processing active in the current scene.");
         }
     }

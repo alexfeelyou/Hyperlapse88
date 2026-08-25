@@ -238,10 +238,6 @@ void SceneTitle::Render(float dt, Camera* targetCamera)
     auto dc = Graphics::Instance().GetDeviceContext();
     auto rs = Graphics::Instance().GetRenderState();
 
-    UberShader::UberData& activeData = postProcess->GetData();
-
-    postProcess->SetEnabled(activeData.enabled);
-
     if (postProcess->IsEnabled())
     {
         postProcess->BeginCapture();
