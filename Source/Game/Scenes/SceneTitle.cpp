@@ -15,13 +15,7 @@ SceneTitle::SceneTitle()
 
     postProcess = std::make_unique<PostProcessManager>();
     postProcess->Initialize(1920, 1080);
-
-    m_uberParams.center = { 0.5f, 0.5f };
-    m_uberParams.roundness = 1.0f;
-    m_uberParams.psxResWidth = 1920.0f;
-    m_uberParams.psxResHeight = 1080.0f;
-    m_uberParams.psxColorDepth = 256.0f;
-    m_uberParams.psxDitherStrength = 1.0f;
+    postProcess->SetEnabled(false);
 
     // Load Assets
     auto device = Graphics::Instance().GetDevice();
@@ -237,9 +231,6 @@ void SceneTitle::Update(float elapsedTime)
 
     // Visual simulation interpolation
     AnimateMenu(elapsedTime);
-
-    m_uberParams.smoothness = FX_BASE_SMOOTHNESS;
-    m_uberParams.intensity = FX_BASE_INTENSITY;
 }
 
 void SceneTitle::Render(float dt, Camera* targetCamera)
@@ -247,19 +238,11 @@ void SceneTitle::Render(float dt, Camera* targetCamera)
     auto dc = Graphics::Instance().GetDeviceContext();
     auto rs = Graphics::Instance().GetRenderState();
 
-    postProcess->SetEnabled(m_fxState.MasterEnabled);
-
     UberShader::UberData& activeData = postProcess->GetData();
-    activeData = this->m_uberParams;
 
-    activeData.psxEnabled = (m_fxState.MasterEnabled && m_fxState.EnablePSX);
-    if (!m_fxState.EnableVignette)   activeData.intensity = 0.0f;
-    if (!m_fxState.EnableLens) { activeData.glitchStrength = 0.0f; activeData.distortion = 0.0f; activeData.blurStrength = 0.0f; }
-    if (!m_fxState.EnableChromatic)  activeData.chromaticAberration = 0.0f;
-    if (!m_fxState.EnableCRT) { activeData.scanlineStrength = 0.0f; activeData.fineOpacity = 0.0f; }
-    if (!m_fxState.EnableBloom)      activeData.bloomIntensity = 0.0f;
+    postProcess->SetEnabled(activeData.enabled);
 
-    if (m_fxState.MasterEnabled)
+    if (postProcess->IsEnabled())
     {
         postProcess->BeginCapture();
     }
@@ -354,7 +337,7 @@ void SceneTitle::Render(float dt, Camera* targetCamera)
         m_fadeSprite->Render(dc, fade.x, fade.y, 0.0f, fade.w, fade.h, 0.0f, 0.0f, 1920.0f, 1080.0f, 0.0f, 0.0f, 0.0f, 0.0f, m_fadeAlpha);
     }
 
-    if (m_fxState.MasterEnabled)
+    if (postProcess->IsEnabled())
     {
         postProcess->EndCapture(dt);
     }

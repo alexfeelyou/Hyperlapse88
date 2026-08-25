@@ -15,6 +15,7 @@ namespace
     inline constexpr const char* s_windowInspector{ "Inspector" };
     inline constexpr const char* s_windowConsole{ "Console" };
     inline constexpr const char* s_windowProfiler{ "Profiler" };
+    inline constexpr const char* s_windowPostProcess{ "Post Processing" };
 }
 
 EditorManager& EditorManager::Instance() noexcept
@@ -45,6 +46,7 @@ void EditorManager::Draw(Scene* currentScene) noexcept
     DrawInspector(currentScene);
     DrawConsole();
     DrawProfiler();
+    DrawPostProcess(currentScene);
 
     ImGui::End();
 }
@@ -102,7 +104,7 @@ void EditorManager::ApplyStyle() const noexcept
     style.TabRounding = 2.0f;
 }
 
-void EditorManager::DrawDockSpace() const noexcept
+void EditorManager::DrawDockSpace() noexcept
 {
     const ImGuiViewport* viewport{ ImGui::GetMainViewport() };
     ImGui::SetNextWindowPos(viewport->WorkPos);
@@ -145,6 +147,7 @@ void EditorManager::DrawDockSpace() const noexcept
         ImGui::DockBuilderDockWindow(s_windowInspector, dockRight);
         ImGui::DockBuilderDockWindow(s_windowConsole, dockBottom);
         ImGui::DockBuilderDockWindow(s_windowProfiler, dockBottom); 
+        ImGui::DockBuilderDockWindow(s_windowPostProcess, dockBottom);
 
         ImGui::DockBuilderFinish(dockspaceId);
     }
@@ -274,7 +277,7 @@ void EditorManager::DrawSceneView() noexcept
     ImGui::End();
 }
 
-void EditorManager::DrawMenuBar() const noexcept
+void EditorManager::DrawMenuBar() noexcept
 {
     if (ImGui::BeginMenuBar())
     {
@@ -295,7 +298,12 @@ void EditorManager::DrawMenuBar() const noexcept
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Debug")) { ImGui::EndMenu(); }
-        if (ImGui::BeginMenu("Graphics")) { ImGui::EndMenu(); }
+        if (ImGui::BeginMenu("Graphics"))
+        {
+            // Pass the address of the boolean to toggle window visibility
+            ImGui::MenuItem("Post Processing Panel", nullptr, &m_showPostProcessPanel);
+            ImGui::EndMenu();
+        }
         if (ImGui::BeginMenu("Time")) { ImGui::EndMenu(); }
         if (ImGui::BeginMenu("Curve Manager")) { ImGui::EndMenu(); }
         ImGui::EndMenuBar();
@@ -330,5 +338,53 @@ void EditorManager::DrawConsole() const noexcept
 void EditorManager::DrawProfiler() const noexcept
 {
     ImGui::Begin(s_windowProfiler);
+    ImGui::End();
+}
+
+void EditorManager::DrawPostProcess(Scene* currentScene) noexcept
+{
+    // Avoid processing ImGui logic if the user hasn't toggled the window open
+    if (!m_showPostProcessPanel) return;
+
+    // Pass the boolean pointer so ImGui renders an 'X' close button in the title bar
+    if (ImGui::Begin(s_windowPostProcess, &m_showPostProcessPanel))
+    {
+        // Check if a scene exists and actually supports post-processing
+        if (currentScene && currentScene->GetPostProcessManager())
+        {
+            // Bind directly to the mutable UberData reference
+            UberShader::UberData& data{ currentScene->GetPostProcessManager()->GetData() };
+
+            ImGui::Checkbox("Master Enable", &data.enabled);
+            ImGui::Separator();
+
+            ImGui::Text("Core Settings");
+            ImGui::SliderFloat("Intensity", &data.intensity, 0.0f, 1.0f);
+            ImGui::SliderFloat("Smoothness", &data.smoothness, 0.001f, 1.0f);
+
+            ImGui::Separator();
+            ImGui::Text("Lens & Distortion");
+            ImGui::SliderFloat("Blur Strength", &data.blurStrength, 0.0f, 0.1f);
+            ImGui::SliderFloat("Distortion", &data.distortion, -0.2f, 0.2f);
+            ImGui::SliderFloat("Chromatic Aberration", &data.chromaticAberration, 0.0f, 0.05f);
+            ImGui::SliderFloat("Glitch Strength", &data.glitchStrength, 0.0f, 1.0f);
+
+            ImGui::Separator();
+            ImGui::Text("Scanlines & CRT");
+            ImGui::SliderFloat("Scanline Strength", &data.scanlineStrength, 0.0f, 1.0f);
+            ImGui::SliderFloat("Scanline Speed", &data.scanlineSpeed, 0.0f, 100.0f);
+            ImGui::SliderFloat("Scanline Size", &data.scanlineSize, 1.0f, 500.0f);
+
+            ImGui::Separator();
+            ImGui::Text("Bloom");
+            ImGui::SliderFloat("Bloom Threshold", &data.bloomThreshold, 0.0f, 1.0f);
+            ImGui::SliderFloat("Bloom Intensity", &data.bloomIntensity, 0.0f, 1.0f);
+        }
+        else
+        {
+            // Provide clear UX feedback if the current scene lacks a PostProcessManager
+            ImGui::TextDisabled("No Post-Processing active in the current scene.");
+        }
+    }
     ImGui::End();
 }

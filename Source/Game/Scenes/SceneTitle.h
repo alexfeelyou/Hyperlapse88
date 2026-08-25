@@ -36,6 +36,7 @@ public:
     void OnResize(int width, int height) override;
 
     Camera* GetCamera() const { return camera.get(); }
+    [[nodiscard]] PostProcessManager* GetPostProcessManager() const noexcept override { return postProcess.get(); }
 
 private:
     // Subsystems 
@@ -44,20 +45,6 @@ private:
     std::unique_ptr<Sprite> logoSprite{};
     std::unique_ptr<Sprite> copyrightSprite{};
     std::unique_ptr<PostProcessManager> postProcess{};
-
-    // Post Process State
-    struct PostProcessState {
-        bool MasterEnabled{ false };
-        bool EnableVignette{ false };
-        bool EnableLens{ false };
-        bool EnableChromatic{ false };
-        bool EnableCRT{ false };
-        bool EnableBloom{ false };
-        bool EnablePSX{ false };
-    };
-
-    PostProcessState m_fxState{};
-    UberShader::UberData m_uberParams{};
 
     // Sprites
     std::unique_ptr<Sprite> m_fadeSprite{};

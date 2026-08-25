@@ -39,14 +39,15 @@ private:
     ~EditorManager() = default;
 
     void ApplyStyle() const noexcept;
-    void DrawDockSpace() const noexcept;
+    void DrawDockSpace() noexcept;
     void DrawSceneView() noexcept;
     void EnsureSceneRenderTarget(UINT width, UINT height) noexcept;
-    void DrawMenuBar() const noexcept;
+    void DrawMenuBar() noexcept;
     void DrawHierarchy() const noexcept;
     void DrawInspector(Scene* currentScene) const noexcept;
     void DrawConsole() const noexcept;
     void DrawProfiler() const noexcept;
+    void DrawPostProcess(Scene* currentScene) noexcept;
 
     Microsoft::WRL::ComPtr<ID3D11Texture2D> m_sceneTexture;
     Microsoft::WRL::ComPtr<ID3D11RenderTargetView> m_sceneRTV;
@@ -56,4 +57,6 @@ private:
 
     float m_sceneWidth{ 1920.0f };
     float m_sceneHeight{ 1080.0f };
+
+    bool m_showPostProcessPanel{ false };
 };
