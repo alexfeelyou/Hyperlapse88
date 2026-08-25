@@ -1,6 +1,3 @@
-#include <imgui_impl_win32.h>
-#include <imgui_impl_dx11.h>
-#include <ImGuizmo.h>
 #include "ImGuiRenderer.h"
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -10,8 +7,15 @@ void ImGuiRenderer::Initialize(HWND hWnd, ID3D11Device* device, ID3D11DeviceCont
 {
 	// Setup Dear ImGui context
 	IMGUI_CHECKVERSION();
+
+	// Allocate core ImGui state
 	ImGui::CreateContext();
-	ImGuiIO& io = ImGui::GetIO();
+
+	// Allocate ImPlot state
+	// ImPlot must be initialized after ImGui so it can hook into the active ImGui context for drawing
+	ImPlot::CreateContext();
+
+	ImGuiIO& io{ ImGui::GetIO() };
 
 	io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;       // Enable Keyboard Controls
 	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
@@ -56,7 +60,7 @@ void ImGuiRenderer::Initialize(HWND hWnd, ID3D11Device* device, ID3D11DeviceCont
 	//io.Fonts->AddFontFromFileTTF("../../misc/fonts/DroidSans.ttf", 16.0f);
 	//io.Fonts->AddFontFromFileTTF("../../misc/fonts/ProggyTiny.ttf", 10.0f);
 	ImFont* font = io.Fonts->AddFontFromFileTTF("Data/Font/ArialUni.ttf", 18.0f, NULL, io.Fonts->GetGlyphRangesJapanese());
-	IM_ASSERT(font != NULL);
+	IM_ASSERT(font != nullptr);
 }
 
 // èIóπâª
@@ -64,6 +68,7 @@ void ImGuiRenderer::Finalize()
 {
 	ImGui_ImplDX11_Shutdown();
 	ImGui_ImplWin32_Shutdown();
+	ImPlot::DestroyContext();
 	ImGui::DestroyContext();
 }
 

@@ -369,7 +369,19 @@ void EditorManager::DrawConsole() const noexcept
 
 void EditorManager::DrawProfiler() const noexcept
 {
-    ImGui::Begin(s_windowProfiler);
+    if (ImGui::Begin(s_windowProfiler))
+    {
+        // Simple test plot
+        if (ImPlot::BeginPlot("Performance Timeline"))
+        {
+            static float x_data[10] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 };
+            static float y_data[10] = { 16.6f, 16.2f, 17.1f, 16.4f, 33.3f, 16.5f, 16.6f, 16.8f, 16.3f, 16.6f };
+
+            ImPlot::SetupAxes("Frame", "Time (ms)");
+            ImPlot::PlotLine("Frame Time", x_data, y_data, 10);
+            ImPlot::EndPlot();
+        }
+    }
     ImGui::End();
 }
 

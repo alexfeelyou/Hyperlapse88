@@ -2,6 +2,7 @@
 #include <d3d11.h>
 #include <imgui.h>
 #include <imgui_internal.h>
+#include <implot.h>
 #include <utility>
 #include <wrl/client.h>
 #include "System/Graphics.h"
