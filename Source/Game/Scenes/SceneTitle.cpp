@@ -15,13 +15,7 @@ SceneTitle::SceneTitle()
 
     postProcess = std::make_unique<PostProcessManager>();
     postProcess->Initialize(1920, 1080);
-
-    m_uberParams.center = { 0.5f, 0.5f };
-    m_uberParams.roundness = 1.0f;
-    m_uberParams.psxResWidth = 1920.0f;
-    m_uberParams.psxResHeight = 1080.0f;
-    m_uberParams.psxColorDepth = 256.0f;
-    m_uberParams.psxDitherStrength = 1.0f;
+    postProcess->SetEnabled(false);
 
     // Load Assets
     auto device = Graphics::Instance().GetDevice();
@@ -237,9 +231,6 @@ void SceneTitle::Update(float elapsedTime)
 
     // Visual simulation interpolation
     AnimateMenu(elapsedTime);
-
-    m_uberParams.smoothness = FX_BASE_SMOOTHNESS;
-    m_uberParams.intensity = FX_BASE_INTENSITY;
 }
 
 void SceneTitle::Render(float dt, Camera* targetCamera)
@@ -247,22 +238,13 @@ void SceneTitle::Render(float dt, Camera* targetCamera)
     auto dc = Graphics::Instance().GetDeviceContext();
     auto rs = Graphics::Instance().GetRenderState();
 
-    postProcess->SetEnabled(m_fxState.MasterEnabled);
-
     UberShader::UberData& activeData = postProcess->GetData();
-    activeData = this->m_uberParams;
 
-    activeData.psxEnabled = (m_fxState.MasterEnabled && m_fxState.EnablePSX);
-    if (!m_fxState.EnableVignette)   activeData.intensity = 0.0f;
-    if (!m_fxState.EnableLens) { activeData.glitchStrength = 0.0f; activeData.distortion = 0.0f; activeData.blurStrength = 0.0f; }
-    if (!m_fxState.EnableChromatic)  activeData.chromaticAberration = 0.0f;
-    if (!m_fxState.EnableCRT) { activeData.scanlineStrength = 0.0f; activeData.fineOpacity = 0.0f; }
-    if (!m_fxState.EnableBloom)      activeData.bloomIntensity = 0.0f;
+    postProcess->SetEnabled(activeData.enabled);
 
-    if (m_fxState.MasterEnabled)
+    if (postProcess->IsEnabled())
     {
         postProcess->BeginCapture();
-        postProcess->EndCapture(dt);
     }
     else
     {
@@ -355,7 +337,7 @@ void SceneTitle::Render(float dt, Camera* targetCamera)
         m_fadeSprite->Render(dc, fade.x, fade.y, 0.0f, fade.w, fade.h, 0.0f, 0.0f, 1920.0f, 1080.0f, 0.0f, 0.0f, 0.0f, 0.0f, m_fadeAlpha);
     }
 
-    if (m_fxState.MasterEnabled)
+    if (postProcess->IsEnabled())
     {
         postProcess->EndCapture(dt);
     }
@@ -493,76 +475,4 @@ void SceneTitle::ExecuteMenuSelection() noexcept
 void SceneTitle::OnResize(int width, int height)
 {
     if (postProcess) postProcess->OnResize(width, height);
-}
-
-// GUI Debugging for Post-Processing Effects
-
-void SceneTitle::DrawGUI()
-{
-    ImGui::Begin("Title Scene Debugger");
-
-    if (ImGui::BeginTabBar("InspectorTabs"))
-    {
-        if (ImGui::BeginTabItem("Post-Process & FX"))
-        {
-            GUIPostProcessTab();
-            ImGui::EndTabItem();
-        }
-        ImGui::EndTabBar();
-    }
-    ImGui::End();
-}
-
-void SceneTitle::GUIPostProcessTab()
-{
-    ImGui::Spacing();
-
-    // Master Switch
-    const char* label = m_fxState.MasterEnabled ? "Turn Off Filter" : "Turn On Filter";
-    ImVec4 color = m_fxState.MasterEnabled ? ImVec4(0.6f, 0.2f, 0.2f, 1.0f) : ImVec4(0.2f, 0.6f, 0.2f, 1.0f);
-
-    ImGui::PushStyleColor(ImGuiCol_Button, color);
-    if (ImGui::Button(label, ImVec2(-1, 40))) m_fxState.MasterEnabled = !m_fxState.MasterEnabled;
-    ImGui::PopStyleColor();
-
-    if (!m_fxState.MasterEnabled) return;
-
-    ImGui::Separator();
-
-    auto CheckboxLayer = [&](const char* label, bool& val) {
-        ImGui::Checkbox(label, &val);
-        if (!val) ImGui::PushStyleVar(ImGuiStyleVar_Alpha, 0.5f);
-        };
-
-    // Vignette
-    if (ImGui::CollapsingHeader("Vignette & Color", ImGuiTreeNodeFlags_DefaultOpen))
-    {
-        CheckboxLayer("ACTIVATE: Vignette", m_fxState.EnableVignette);
-        ImGui::ColorEdit3("Tint", &m_uberParams.color.x);
-        ImGui::SliderFloat("Intensity", &m_uberParams.intensity, 0.0f, 3.0f);
-        ImGui::SliderFloat("Smoothness", &m_uberParams.smoothness, 0.01f, 1.0f);
-        ImGui::Checkbox("Rounded", &m_uberParams.rounded);
-        if (!m_fxState.EnableVignette) ImGui::PopStyleVar();
-    }
-
-    // Lens
-    if (ImGui::CollapsingHeader("Lens Distortion"))
-    {
-        CheckboxLayer("ACTIVATE: Lens", m_fxState.EnableLens);
-        ImGui::SliderFloat("Fisheye", &m_uberParams.distortion, -0.5f, 0.5f);
-        ImGui::SliderFloat("Chroma", &m_uberParams.blurStrength, 0.0f, 0.05f);
-        ImGui::SliderFloat("Glitch", &m_uberParams.glitchStrength, 0.0f, 1.0f);
-        if (!m_fxState.EnableLens) ImGui::PopStyleVar();
-    }
-
-    // CRT
-    if (ImGui::CollapsingHeader("CRT Monitor"))
-    {
-        CheckboxLayer("ACTIVATE: CRT", m_fxState.EnableCRT);
-        ImGui::SliderFloat("Density", &m_uberParams.fineDensity, 10.0f, 500.0f);
-        ImGui::SliderFloat("Opacity", &m_uberParams.fineOpacity, 0.0f, 1.0f);
-        ImGui::SliderFloat("Speed", &m_uberParams.scanlineSpeed, -10.0f, 10.0f);
-        ImGui::SliderFloat("Scan Opacity", &m_uberParams.scanlineStrength, 0.0f, 1.0f);
-        if (!m_fxState.EnableCRT) ImGui::PopStyleVar();
-    }
 }

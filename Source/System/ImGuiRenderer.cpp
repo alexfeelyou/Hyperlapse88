@@ -75,7 +75,7 @@ void ImGuiRenderer::NewFrame()
 
 	ImGui::NewFrame();
 
-	ImVec2 pos = ImGui::GetMainViewport()->GetWorkPos();
+	ImVec2 pos = ImGui::GetMainViewport()->WorkPos;
 	ImVec2 size = ImGui::GetIO().DisplaySize;
 	ImGuizmo::BeginFrame();
 	ImGuizmo::SetOrthographic(false);

@@ -1,10 +1,13 @@
 #pragma once
 
-#include <wrl.h>
 #include <d3d11.h>
 #include <DirectXMath.h>
-#include "Camera.h"
+#include <fstream>
 #include <vector>
+#include <wrl.h>
+#include "Camera.h"
+#include "GpuResourceUtils.h"
+#include "Misc.h"
 
 // スプライト
 class Sprite
@@ -21,14 +24,14 @@ public:
 		DirectX::XMFLOAT2	texcoord;
 	};
 
-	// --- STRUKTUR DATA UNTUK BATCHING ---
+	// Data structure for batching multiple 3D sprites in one draw call
 	struct Sprite3DBatchData
 	{
-		float wx, wy, wz;                   // Posisi Dunia
-		float w, h;                         // Ukuran
-		float sx, sy, sw, sh;               // UV Slicing (Isi sw/sh 0 untuk pakai 1 gambar full)
-		float pitch, yaw, roll;             // Rotasi
-		float r, g, b, a;                   // Warna
+		float wx, wy, wz;                   // World Position
+		float w, h;                         // Size
+		float sx, sy, sw, sh;               // UV Slicing (Set sw/sh to 0 to use full image)
+		float pitch, yaw, roll;             // Rotation
+		float r, g, b, a;                   // Color
 	};
 
 	// 描画実行 (Screen Space)
@@ -51,15 +54,15 @@ public:
 		float r, float g, float b, float a  // 色
 	) const;
 
-	// Render 3D dengan dukungan UV Slicing (Khusus untuk Font / Partikel)
+	// 描画実行（World Space、UV切り抜き指定あり）
 	void Render3D(ID3D11DeviceContext* dc,
 		const Camera* camera,
-		float wx, float wy, float wz,       // Posisi Dunia
-		float w, float h,                   // Ukuran Dunia
+		float wx, float wy, float wz,       // ワールド座標位置
+		float w, float h,                   // 幅、高さ
 		float sx, float sy,                 // UV Start (Pixel)
 		float sw, float sh,                 // UV Size (Pixel)
-		float pitch, float yaw, float roll, // Rotasi
-		float r, float g, float b, float a  // Warna
+		float pitch, float yaw, float roll, // 回転
+		float r, float g, float b, float a  // 色
 	) const;
 
 	// 描画実行（テクスチャ切り抜き指定なし）
@@ -75,6 +78,8 @@ public:
 		const Camera* camera,
 		const std::vector<Sprite3DBatchData>& batchData) const;
 
+	void BindRenderState(ID3D11DeviceContext* dc) const;
+
 private:
 	Microsoft::WRL::ComPtr<ID3D11VertexShader>			vertexShader;
 	Microsoft::WRL::ComPtr<ID3D11PixelShader>			pixelShader;
@@ -82,6 +87,8 @@ private:
 
 	Microsoft::WRL::ComPtr<ID3D11Buffer>				vertexBuffer;
 	Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>	shaderResourceView;
+
+	Microsoft::WRL::ComPtr<ID3D11BlendState> m_blendState;
 
 	float textureWidth = 0;
 	float textureHeight = 0;

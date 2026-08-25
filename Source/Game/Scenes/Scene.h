@@ -14,6 +14,8 @@ public:
 	virtual void Render(float dt, class Camera* camera = nullptr) = 0;
 	// GUIï`âÊèàóù
 	virtual void DrawGUI() {}
+	// Allows the editor to access post-processing universally without knowing the exact scene type
+	[[nodiscard]] virtual class PostProcessManager* GetPostProcessManager() const noexcept { return nullptr; }
 
 	virtual void OnResize(int width, int height) {}
 };

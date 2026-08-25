@@ -1,20 +1,21 @@
 #pragma once
-#include <windows.h>
+#include <imgui.h>
+#include <iostream> 
 #include <memory>
-#include "System/HighResolutionTimer.h"
-#include "RenderWindow.h"
-#include "Scene.h"
+#include <SDL3/SDL.h>
+#include <sstream>
+#include <windows.h>
+#include "System/AudioManager.h"
 #include "System/Graphics.h"
+#include "System/HighResolutionTimer.h"
 #include "System/ImGuiRenderer.h"
 #include "System/Input.h"
-#include "System/AudioManager.h"
-#include "WindowManager.h"
-#include "SceneTitle.h"
+#include "EditorManager.h"
+#include "RenderWindow.h"
+#include "Scene.h"
 #include "SceneGame.h"
-#include <sstream>
-#include <iostream> 
-#include <imgui.h>
-#include <SDL3/SDL.h>
+#include "SceneTitle.h"
+#include "WindowManager.h"
 
 class Framework
 {

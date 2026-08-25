@@ -1,9 +1,5 @@
 ﻿#define STB_TRUETYPE_IMPLEMENTATION
 #include "FontTTF.h"
-#include "stb_truetype.h"
-#include "System/Graphics.h"
-#include "System/GpuResourceUtils.h"
-#include <fstream>
 
 struct FontVertex {
     DirectX::XMFLOAT3 position;
@@ -67,7 +63,7 @@ bool FontTTF::Initialize(const std::string& ttfPath, float fontSize, const std::
     std::vector<uint32_t> rgbaPixels(static_cast<size_t>(m_atlasSize * m_atlasSize));
     for (size_t i = 0; i < rgbaPixels.size(); ++i) {
         unsigned char alpha = atlasPixels[i];
-        rgbaPixels[i] = (alpha << 24) | (0xFF << 16) | (0xFF << 8) | 0xFF; 
+        rgbaPixels[i] = (alpha << 24) | (0xFF << 16) | (0xFF << 8) | 0xFF;
     }
 
     auto device = Graphics::Instance().GetDevice();
@@ -102,19 +98,17 @@ std::vector<uint32_t> FontTTF::GenerateDefaultGlyphList(const std::vector<uint32
     // Basic ASCII 
     for (uint32_t cp = 32; cp <= 126; ++cp) list.push_back(cp);
 
-    // =========================================================
     // CJK Symbols & Punctuation (〜, 。, 、, 「」)
-    // =========================================================
     for (uint32_t cp = 0x3000; cp <= 0x303F; ++cp) list.push_back(cp);
 
     // Hiragana 
     for (uint32_t cp = 0x3040; cp <= 0x309F; ++cp) list.push_back(cp);
     // Katakana 
     for (uint32_t cp = 0x30A0; cp <= 0x30FF; ++cp) list.push_back(cp);
-	// Katakana Phonetic Extensions
+    // Katakana Phonetic Extensions
     for (uint32_t cp = 0xFF00; cp <= 0xFFEF; ++cp) list.push_back(cp);
 
-	// CJK Unified Ideographs (Kanji)
+    // CJK Unified Ideographs (Kanji)
     for (uint32_t cp : customKanji) {
         if (std::find(list.begin(), list.end(), cp) == list.end()) {
             list.push_back(cp);
@@ -157,12 +151,29 @@ void FontTTF::CreateShadersAndBuffers(ID3D11Device* device)
     GpuResourceUtils::LoadPixelShader(device, "Data/Shader/SpritePS.cso", m_pixelShader.GetAddressOf());
 
     D3D11_BUFFER_DESC bufDesc = {};
-    bufDesc.ByteWidth = sizeof(FontVertex) * 6 * 1000; // 1 Karakter = 2 Segitiga (6 Vertex List)
+    bufDesc.ByteWidth = sizeof(FontVertex) * 6 * 1000; // 1 Character = 2 Triangles (6 Vertex List)
     bufDesc.Usage = D3D11_USAGE_DYNAMIC;
     bufDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
     bufDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 
-    device->CreateBuffer(&bufDesc, nullptr, m_vertexBuffer.GetAddressOf());
+    HRESULT hr = device->CreateBuffer(&bufDesc, nullptr, m_vertexBuffer.GetAddressOf());
+    _ASSERT_EXPR(SUCCEEDED(hr), HRTrace(hr));
+
+    // Create a dedicated blend state for Font rendering to avoid relying on external context state
+    {
+        D3D11_BLEND_DESC blendDesc{};
+        blendDesc.RenderTarget[0].BlendEnable = TRUE;
+        blendDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_SRC_ALPHA;
+        blendDesc.RenderTarget[0].DestBlend = D3D11_BLEND_INV_SRC_ALPHA;
+        blendDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+        blendDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+        blendDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_INV_SRC_ALPHA;
+        blendDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+        blendDesc.RenderTarget[0].RenderTargetWriteMask = D3D11_COLOR_WRITE_ENABLE_ALL;
+
+        hr = device->CreateBlendState(&blendDesc, m_blendState.GetAddressOf());
+        _ASSERT_EXPR(SUCCEEDED(hr), HRTrace(hr));
+    }
 }
 
 void FontTTF::Draw(const std::string& utf8Text, float startX, float startY, float scale, DirectX::XMFLOAT4 color)
@@ -186,7 +197,6 @@ void FontTTF::Draw(const std::string& utf8Text, float startX, float startY, floa
         if (m_glyphDatabase.find(codepoint) == m_glyphDatabase.end()) continue;
         const auto& glyph = m_glyphDatabase[codepoint];
 
-        // Hitung batas koordinat quad di layar
         float x0 = cursorX + (glyph.xOffset * scale);
         float y0 = cursorY + (glyph.yOffset * scale);
         float x1 = x0 + (glyph.width * scale);
@@ -200,7 +210,7 @@ void FontTTF::Draw(const std::string& utf8Text, float startX, float startY, floa
         float screenH = viewport.Height;
 
         float ndcX0 = (2.0f * x0 / screenW) - 1.0f;
-        float ndcY0 = 1.0f - (2.0f * y0 / screenH); 
+        float ndcY0 = 1.0f - (2.0f * y0 / screenH);
         float ndcX1 = (2.0f * x1 / screenW) - 1.0f;
         float ndcY1 = 1.0f - (2.0f * y1 / screenH);
 
@@ -234,6 +244,9 @@ void FontTTF::Draw(const std::string& utf8Text, float startX, float startY, floa
     dc->PSSetShader(m_pixelShader.Get(), nullptr, 0);
     dc->PSSetShaderResources(0, 1, m_textureSRV.GetAddressOf());
 
+    // Bind the dedicated blend state to guarantee correct alpha blending on every font draw call
+    BindRenderState(dc);
+
     dc->Draw(static_cast<UINT>(vertices.size()), 0);
 }
 
@@ -254,7 +267,7 @@ void FontTTF::Draw3D(const std::string& utf8Text, const Camera* camera, DirectX:
         uint32_t codepoint = DecodeUTF8(utf8Text, charIdx);
         if (codepoint == '\n') {
             cursorX = 0.0f;
-            cursorY -= m_lineHeight * scale; 
+            cursorY -= m_lineHeight * scale;
             continue;
         }
 
@@ -312,8 +325,17 @@ void FontTTF::Draw3D(const std::string& utf8Text, const Camera* camera, DirectX:
     dc->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
     dc->VSSetShader(m_vertexShader.Get(), nullptr, 0);
     dc->PSSetShader(m_pixelShader.Get(), nullptr, 0);
-    
     dc->PSSetShaderResources(0, 1, m_textureSRV.GetAddressOf());
 
+    BindRenderState(dc);
+
     dc->Draw(static_cast<UINT>(vertices.size()), 0);
+}
+
+void FontTTF::BindRenderState(ID3D11DeviceContext* dc) const
+{
+    // Straight alpha blending — required since transparent font atlas areas 
+    // carry uninitialized/black RGB data that would otherwise overwrite the framebuffer incorrectly
+    float blendFactor[4]{ 0.0f, 0.0f, 0.0f, 0.0f };
+    dc->OMSetBlendState(m_blendState.Get(), blendFactor, 0xFFFFFFFF);
 }

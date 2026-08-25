@@ -59,10 +59,10 @@ public:
 
     void Update(float elapsedTime) override;
     void Render(float elapsedTime, Camera* camera = nullptr) override;
-    void DrawGUI() override;
     void OnResize(int width, int height) override;
 
     Camera* GetMainCamera() const { return m_mainCamera.get(); }
+    [[nodiscard]] PostProcessManager* GetPostProcessManager() const noexcept override { return m_postProcess.get(); }
 
 private:
     struct Config {
@@ -82,16 +82,6 @@ private:
 
     void RenderScene(float elapsedTime, Camera* camera);
 
-    struct PostProcessState {
-        bool MasterEnabled{ true };
-        bool EnableVignette{ false };
-        bool EnableLens{ true };
-        bool EnableChromatic{ true };
-        bool EnableCRT{ true };
-        bool EnableBloom{ true }; 
-        bool EnablePSX{ true };   
-    };
-
     std::unique_ptr<Player> m_player{};
     std::unique_ptr<NaviAlly> m_navi{};
     std::unique_ptr<CollisionManager> m_collisionManager{};
@@ -106,8 +96,6 @@ private:
     DirectX::XMFLOAT3 m_cameraTarget{ 0.0f, 0.0f, 0.0f };
     LightManager m_lightManager{};
     std::unique_ptr<PostProcessManager> m_postProcess{};
-    UberShader::UberData m_uberParams{};
-    PostProcessState m_fxState{};
 
     std::unique_ptr<Sprite> m_fadeSprite{};
     float m_fadeAlpha{ 1.0f };

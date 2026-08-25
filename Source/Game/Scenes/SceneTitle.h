@@ -35,9 +35,8 @@ public:
     void Render(float dt, Camera* camera = nullptr) override;
     void OnResize(int width, int height) override;
 
-    // Debug / Tools
-    void DrawGUI() override;
     Camera* GetCamera() const { return camera.get(); }
+    [[nodiscard]] PostProcessManager* GetPostProcessManager() const noexcept override { return postProcess.get(); }
 
 private:
     // Subsystems 
@@ -46,20 +45,6 @@ private:
     std::unique_ptr<Sprite> logoSprite{};
     std::unique_ptr<Sprite> copyrightSprite{};
     std::unique_ptr<PostProcessManager> postProcess{};
-
-    // Post Process State
-    struct PostProcessState {
-        bool MasterEnabled{ true };
-        bool EnableVignette{ false };
-        bool EnableLens{ true };
-        bool EnableChromatic{ true };
-        bool EnableCRT{ true };
-        bool EnableBloom{ true };
-        bool EnablePSX{ true };
-    };
-
-    PostProcessState m_fxState{};
-    UberShader::UberData m_uberParams{};
 
     // Sprites
     std::unique_ptr<Sprite> m_fadeSprite{};
@@ -149,7 +134,4 @@ private:
 
     // Deadzone threshold for the thumbstick to register as an intentional push
     static constexpr float THUMBSTICK_THRESHOLD{ 0.5f };
-
-    // Debug GUI Helpers 
-    void GUIPostProcessTab();
 };

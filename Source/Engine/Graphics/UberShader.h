@@ -8,25 +8,25 @@ class UberShader : public Shader
 {
 public:
     static constexpr bool  DEFAULT_ENABLED      = false;
-    static constexpr float DEFAULT_INTENSITY    = false;
-    static constexpr float DEFAULT_SMOOTHNESS   = 0.2f;
-    static constexpr bool  DEFAULT_ROUNDED      = false;
-    static constexpr float DEFAULT_ROUNDNESS    = 1.0f;
+    static constexpr float DEFAULT_INTENSITY = 0.0f;
+    static constexpr float DEFAULT_SMOOTHNESS = 0.0f; 
+    static constexpr bool  DEFAULT_ROUNDED = false;
+    static constexpr float DEFAULT_ROUNDNESS = 0.0f; 
 
-    static constexpr float DEFAULT_COLOR_R      = 0.0f;
-    static constexpr float DEFAULT_COLOR_G      = 0.0f;
-    static constexpr float DEFAULT_COLOR_B      = 0.0f;
+    static constexpr float DEFAULT_COLOR_R = 0.0f;
+    static constexpr float DEFAULT_COLOR_G = 0.0f;
+    static constexpr float DEFAULT_COLOR_B = 0.0f;
 
-    static constexpr float INTENSITY_FACTOR     = 3.0f;
-    static constexpr float SMOOTHNESS_FACTOR    = 5.0f;
-    static constexpr float SMOOTHNESS_MIN       = 0.000001f;
-    static constexpr float ROUNDNESS_POWER      = 6.0f;
-    static constexpr UINT  VERTEX_COUNT         = 3;
-    static constexpr bool  DEFAULT_PSX_ENABLED      { true };
-    static constexpr float DEFAULT_PSX_RES_WIDTH    { 720.0f };
-    static constexpr float DEFAULT_PSX_RES_HEIGHT   { 370.0f };
-    static constexpr float DEFAULT_PSX_COLOR_DEPTH  { 32.0f }; 
-    static constexpr float DEFAULT_PSX_DITHER       { 1.0f };
+    static constexpr float INTENSITY_FACTOR = 3.0f;
+    static constexpr float SMOOTHNESS_FACTOR = 5.0f;
+    static constexpr float SMOOTHNESS_MIN = 0.000001f;
+    static constexpr float ROUNDNESS_POWER = 6.0f;
+    static constexpr UINT  VERTEX_COUNT = 3;
+    static constexpr bool  DEFAULT_PSX_ENABLED{ false };
+    static constexpr float DEFAULT_PSX_RES_WIDTH{ 0.0f };
+    static constexpr float DEFAULT_PSX_RES_HEIGHT{ 0.0f };
+    static constexpr float DEFAULT_PSX_COLOR_DEPTH{ 0.0f };
+    static constexpr float DEFAULT_PSX_DITHER{ 0.0f };
 
     // =========================================================
     // DATA STRUCTURE 
@@ -35,28 +35,28 @@ public:
     {
         bool              enabled               = DEFAULT_ENABLED;
         DirectX::XMFLOAT4 color                 = { DEFAULT_COLOR_R, DEFAULT_COLOR_G, DEFAULT_COLOR_B, 1.0f };
-        DirectX::XMFLOAT2 center                = { 0.5f, 0.5f };
+        DirectX::XMFLOAT2 center                = { 0.0f, 0.0f };
         float             intensity             = DEFAULT_INTENSITY;
         float             smoothness            = DEFAULT_SMOOTHNESS;
         bool              rounded               = DEFAULT_ROUNDED;
         float             roundness             = DEFAULT_ROUNDNESS;
 
         // Effects
-        float             blurStrength          = 0.0f;
-        float             distortion            = 0.0f;
-        float             glitchStrength        = 0.01f;
-        float             chromaticAberration   = 0.00351f;
-        float             time                  = 0.0f;
-        float             bloomThreshold        = 0.300f;
-        float             bloomIntensity        = 0.150f;
+        float             blurStrength = 0.0f;
+        float             distortion = 0.0f;
+        float             glitchStrength = 0.0f;
+        float             chromaticAberration = 0.0f;
+        float             time = 0.0f;
+        float             bloomThreshold = 0.0f;
+        float             bloomIntensity = 0.0f;
 
         // Scanlines
-        float             scanlineStrength      = 0.2f;
-        float             scanlineSpeed         = 40.0f;
-        float             scanlineSize          = 150.0f;
-        float             fineOpacity           = 1.0f;
-        float             fineDensity           = 30.0f;
-        float             fineRotation          = 0.0f;
+        float             scanlineStrength = 0.0f;
+        float             scanlineSpeed = 0.0f;
+        float             scanlineSize = 0.0f;
+        float             fineOpacity = 0.0f;
+        float             fineDensity = 0.0f;
+        float             fineRotation = 0.0f;
 
 		// PSX Emulation
         bool  psxEnabled        { DEFAULT_PSX_ENABLED };

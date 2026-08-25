@@ -13,21 +13,31 @@ void WindowManager::Update(float dt)
 
 void WindowManager::RenderAll(float dt, Scene* scene)
 {
-    bool vsyncApplied = false;
+    auto context = Graphics::Instance().GetDeviceContext();
 
+#ifdef _DEBUG
+    // Editor build: render the game into the Scene View's own texture,
+    // sized to exactly match that docked panel — not the whole window
+    EditorManager::Instance().BeginSceneRender(context);
+    if (scene) scene->Render(dt, /* your scene-view camera */ nullptr);
+    EditorManager::Instance().EndSceneRender(context);
+#endif
+
+    bool vsyncApplied = false;
     for (auto& win : windows)
     {
         if (!win->GetSDLWindow()) continue;
 
-        win->BeginRender(0.0f, 0.0f, 0.0f, 1.0f);
+        win->BeginRender(0.05f, 0.05f, 0.05f, 1.0f); 
 
-        if (scene) scene->Render(dt, win->GetCamera());
-        ImGuiRenderer::Render(Graphics::Instance().GetDeviceContext());
+#ifndef _DEBUG
+        if (scene) scene->Render(dt, win->GetCamera()); // release: full-screen 
+#endif
 
-		// Determine sync interval based on transparency and vsync application
+        ImGuiRenderer::Render(context); // draws dockspace + panels, including the Scene View image
+
         int syncInterval = vsyncApplied ? 0 : 1;
         if (!vsyncApplied && syncInterval == 1) vsyncApplied = true;
-
         win->EndRender(syncInterval);
     }
 }
