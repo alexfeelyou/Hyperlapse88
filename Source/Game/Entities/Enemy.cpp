@@ -401,7 +401,6 @@ void Enemy::RenderProjectiles(ModelRenderer* renderer)
                 1.0f
             };
 
-            // Render using Phong to ensure the Bloom/HDR glow activates
             renderer->Draw(ShaderId::Phong, bullet->GetModel(), pulseColor);
         }
     }

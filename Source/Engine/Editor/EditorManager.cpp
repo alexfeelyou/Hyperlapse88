@@ -374,11 +374,6 @@ void EditorManager::DrawPostProcess(Scene* currentScene) noexcept
             ImGui::SliderFloat("Scanline Strength", &data.scanlineStrength, 0.0f, 1.0f);
             ImGui::SliderFloat("Scanline Speed", &data.scanlineSpeed, 0.0f, 100.0f);
             ImGui::SliderFloat("Scanline Size", &data.scanlineSize, 1.0f, 500.0f);
-
-            ImGui::Separator();
-            ImGui::Text("Bloom");
-            ImGui::SliderFloat("Bloom Threshold", &data.bloomThreshold, 0.0f, 1.0f);
-            ImGui::SliderFloat("Bloom Intensity", &data.bloomIntensity, 0.0f, 1.0f);
         }
         else
         {

@@ -25,17 +25,13 @@ cbuffer UberConstantBuffer : register(b0)
     
     float fineRotation; 
     
-    // HDR / Bloom Settings
-    float bloomThreshold;
-    float bloomIntensity;
-    
     // PSX / Retro Settings
     float psxEnabled;
     float psxResWidth;
     float psxResHeight;
     float psxColorDepth;
     float psxDitherStrength;
-    float3 padding_psx;
+    float padding_psx[5];
 };
 
 struct VS_OUT
@@ -72,38 +68,6 @@ static const float4x4 BayerMatrix = float4x4(
     3.0 / 16.0, 11.0 / 16.0, 1.0 / 16.0, 9.0 / 16.0,
     15.0 / 16.0, 7.0 / 16.0, 13.0 / 16.0, 5.0 / 16.0
 );
-
-// Single-Pass Vogel Disk Sampling for Bloom Effect
-float3 SampleBloom(float2 uv, float2 texelSize, float maxRadius)
-{
-    float3 bloom = 0;
-    float totalWeight = 0;
-
-    // Reduced to 16 taps. On an upscaled low-res buffer, 
-    // 16 taps provides a perfectly smooth Gaussian curve with half the GPU cost
-    const int TAPS = 16;
-    const float GOLDEN_ANGLE = 2.39996323;
-
-    [unroll]
-    for (int i = 0; i < TAPS; i++)
-    {
-        float r = sqrt(float(i) + 0.5f) / sqrt(float(TAPS));
-        float theta = float(i) * GOLDEN_ANGLE;
-        
-        float2 offset = float2(cos(theta), sin(theta)) * (r * maxRadius);
-        float3 c = sceneTexture.SampleLevel(samplerState, uv + offset * texelSize, 0).rgb;
-
-        // Fast brightness approximation
-        float brightness = dot(c, float3(0.2126, 0.7152, 0.0722));
-        float contribution = max(0.0f, brightness - bloomThreshold);
-        float weight = exp(-r * r * 3.0f);
-        
-        bloom += (c * (contribution / (brightness + 0.0001f))) * weight;
-        totalWeight += weight;
-    }
-    
-    return bloom / totalWeight;
-}
 
 // Main Pixel Shader Function
 float4 main(VS_OUT pin) : SV_TARGET
@@ -224,19 +188,6 @@ float4 main(VS_OUT pin) : SV_TARGET
         // [FIX] MULTIPLY instead of Subtract!
         finalColor.rgb *= (1.0f - (1.0f - mesh) * crt_fineOpacity * 0.3f);
     }
-    
-    // Voxel-Based Bloom Effect
-    float2 texelSize = 1.0f / float2(width, height);
-
-    float3 bloomColor = SampleBloom(uvG, texelSize, 15.0f);
-    
-    finalColor.rgb += (bloomColor * bloomIntensity);
-
-    float exposure = 2.0f;
-    finalColor.rgb *= exposure;
-    
-    finalColor.rgb = saturate((finalColor.rgb * (2.51f * finalColor.rgb + 0.03f)) /
-                              (finalColor.rgb * (2.43f * finalColor.rgb + 0.59f) + 0.14f));
     
     // 5-Bit Color Crunch with Dithering
     [branch]

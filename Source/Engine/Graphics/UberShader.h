@@ -47,8 +47,6 @@ public:
         float             glitchStrength = 0.0f;
         float             chromaticAberration = 0.0f;
         float             time = 0.0f;
-        float             bloomThreshold = 0.0f;
-        float             bloomIntensity = 0.0f;
 
         // Scanlines
         float             scanlineStrength = 0.0f;
@@ -81,8 +79,6 @@ public:
                 IsEqual(glitchStrength, other.glitchStrength) &&
                 IsEqual(chromaticAberration, other.chromaticAberration) &&
                 IsEqual(time, other.time) &&
-                IsEqual(bloomThreshold, other.bloomThreshold) &&
-                IsEqual(bloomIntensity, other.bloomIntensity) &&
                 IsEqual(scanlineStrength, other.scanlineStrength) &&
                 IsEqual(scanlineSpeed, other.scanlineSpeed) &&
                 IsEqual(scanlineSize, other.scanlineSize) &&
@@ -132,14 +128,12 @@ private:
         float fineOpacity;
         float fineDensity;
         float fineRotation;
-        float bloomThreshold;
-        float bloomIntensity;
         float psxEnabled;
         float psxResWidth;
         float psxResHeight;
         float psxColorDepth;
         float psxDitherStrength;
-        float padding_psx[3];
+        float padding_psx[5];
     };
 
     Microsoft::WRL::ComPtr<ID3D11VertexShader>  vertexShader;

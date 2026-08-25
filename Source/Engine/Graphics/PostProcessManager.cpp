@@ -50,10 +50,7 @@ void PostProcessManager::CreateBuffers(int width, int height)
     textureDesc.MipLevels = 1;
     textureDesc.ArraySize = 1;
 
-    // -------------------------------------------------------------
-	// HDR Support: Use R16G16B16A16_FLOAT for the render target to allow for HDR rendering
-    // -------------------------------------------------------------
-    textureDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+    textureDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 
     textureDesc.SampleDesc.Count = 1;
     textureDesc.Usage = D3D11_USAGE_DEFAULT;

@@ -63,9 +63,6 @@ void UberShader::Draw(ID3D11DeviceContext* dc, ID3D11ShaderResourceView* texture
         cb.fineDensity = data.fineDensity;
         cb.fineRotation = data.fineRotation;
 
-        cb.bloomThreshold = data.bloomThreshold;
-        cb.bloomIntensity = data.bloomIntensity;
-
         cb.psxEnabled = finalData.psxEnabled ? 1.0f : 0.0f;
         cb.psxResWidth = (std::max)(1.0f, finalData.psxResWidth); 
         cb.psxResHeight = (std::max)(1.0f, finalData.psxResHeight);
