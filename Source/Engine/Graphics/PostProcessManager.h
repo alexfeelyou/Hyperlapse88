@@ -1,9 +1,13 @@
 #pragma once
 
+#include <algorithm>
 #include <array>
 #include <cassert>
 #include <d3d11.h>
+#include <filesystem>
+#include <fstream>
 #include <memory>
+#include <string_view>
 #include <vector>
 #include <wrl/client.h>
 #include "System/Graphics.h"
@@ -45,6 +49,11 @@ public:
     {
         return m_effects;
     }
+
+	// Serialization Interface for saving/loading the entire post-process graph
+    void SaveConfig(std::string_view filepath) const;
+    void LoadConfig(std::string_view filepath);
+    void ResetToDefaults() noexcept;
 
 private:
     struct RenderTargetResource

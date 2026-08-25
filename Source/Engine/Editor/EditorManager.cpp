@@ -353,6 +353,29 @@ void EditorManager::DrawPostProcess(Scene* currentScene) noexcept
         {
             auto* ppm = currentScene->GetPostProcessManager();
 
+            // TOOLBAR: Save / Undo / Reset
+            static constexpr std::string_view configPath{ "Data/Config/PostProcess.json" };
+
+            if (ImGui::Button("Save"))
+            {
+                ppm->SaveConfig(configPath);
+            }
+            ImGui::SameLine();
+
+            if (ImGui::Button("Undo"))
+            {
+                ppm->LoadConfig(configPath);
+            }
+            ImGui::SameLine();
+
+            if (ImGui::Button("Reset Defaults"))
+            {
+                ppm->ResetToDefaults();
+            }
+
+            ImGui::Separator();
+
+			// Master toggle for the entire post-processing graph
             bool masterEnabled = ppm->IsEnabled();
             if (ImGui::Checkbox("Master Post-Process Enabled", &masterEnabled))
             {
@@ -361,16 +384,18 @@ void EditorManager::DrawPostProcess(Scene* currentScene) noexcept
             ImGui::Separator();
 
             // Automatically renders ImGui controls for every discrete effect pass
+            ImGui::BeginDisabled(!masterEnabled);
             for (const auto& effect : ppm->GetEffects())
             {
                 ImGui::PushID(effect.get());
-                if (ImGui::CollapsingHeader(effect->GetName().data(), ImGuiTreeNodeFlags_DefaultOpen))
+                if (ImGui::CollapsingHeader(effect->GetName().data()))
                 {
                     effect->DrawGUI();
                 }
                 ImGui::PopID();
                 ImGui::Spacing();
             }
+            ImGui::EndDisabled();
         }
         else
         {

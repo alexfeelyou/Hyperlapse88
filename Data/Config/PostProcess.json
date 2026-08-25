@@ -1,0 +1,55 @@
+{
+    "CRT_&_Scanlines": {
+        "enabled": false,
+        "fineDensity": 0.0,
+        "fineOpacity": 0.0,
+        "fineRotation": 0.0,
+        "scanlineSize": 0.0,
+        "scanlineSpeed": 0.0,
+        "scanlineStrength": 0.0,
+        "time": 19.740968704223633
+    },
+    "Lens_&_Distortion": {
+        "center": [
+            0.5,
+            0.5
+        ],
+        "chromaticAberration": 0.0,
+        "distortion": 0.0,
+        "enabled": false,
+        "glitchStrength": 0.0,
+        "time": 19.740968704223633
+    },
+    "PSX_Retro": {
+        "colorDepth": 32.0,
+        "ditherStrength": 1.0,
+        "enabled": false,
+        "resHeight": 240.0,
+        "resWidth": 320.0
+    },
+    "Radial_Blur": {
+        "blurStrength": 0.0,
+        "center": [
+            0.5,
+            0.5
+        ],
+        "enabled": false
+    },
+    "Vignette": {
+        "center": [
+            0.5,
+            0.5
+        ],
+        "color": [
+            0.0,
+            0.0,
+            0.0,
+            1.0
+        ],
+        "enabled": false,
+        "intensity": 0.0,
+        "rounded": false,
+        "roundness": 0.0,
+        "smoothness": 0.0
+    }
+}

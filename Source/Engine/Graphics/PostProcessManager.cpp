@@ -45,6 +45,9 @@ void PostProcessManager::Initialize(int screenWidth, int screenHeight)
     m_windowWidth = screenWidth;
     m_windowHeight = screenHeight;
     CreateBuffers(screenWidth, screenHeight);
+
+    // Automatically attempt to load the saved config on boot
+    LoadConfig("Data/Config/PostProcess.json");
 }
 
 void PostProcessManager::OnResize(int width, int height)
@@ -221,4 +224,75 @@ void PostProcessManager::Blit(ID3D11DeviceContext* dc, ID3D11ShaderResourceView*
     dc->PSSetShaderResources(0, 1, &src);
     dc->PSSetSamplers(0, 1, m_pointSampler.GetAddressOf());
     dc->Draw(3, 0);
+}
+
+void PostProcessManager::SaveConfig(std::string_view filepath) const
+{
+    nlohmann::json root;
+
+    for (const auto& effect : m_effects)
+    {
+        nlohmann::json effectJson;
+        effect->Serialize(effectJson);
+
+        // Convert the human-readable name into a safe JSON key (e.g., "Radial Blur" -> "Radial_Blur")
+        std::string key{ effect->GetName() };
+        std::replace(key.begin(), key.end(), ' ', '_');
+
+        root[key] = effectJson;
+    }
+
+    // Extract the folder path from the full filepath and ensure it exists
+    // std::ofstream will silently fail if the target directory doesn't exist
+    std::filesystem::path pathObj{ filepath };
+    std::filesystem::path directory = pathObj.parent_path();
+
+    if (!directory.empty() && !std::filesystem::exists(directory))
+    {
+        std::filesystem::create_directories(directory);
+    }
+
+    // Convert string_view to string because fstream constructor requires a null-terminated string
+    std::ofstream file{ std::string{filepath} };
+    if (file.is_open())
+    {
+        file << root.dump(4); // Pretty-print with 4 spaces of indentation
+    }
+}
+
+void PostProcessManager::LoadConfig(std::string_view filepath)
+{
+    std::ifstream file{ std::string{filepath} };
+    if (!file.is_open()) return;
+
+    try
+    {
+        nlohmann::json root;
+        file >> root; // Parse the JSON
+
+        for (auto& effect : m_effects)
+        {
+            std::string key{ effect->GetName() };
+            std::replace(key.begin(), key.end(), ' ', '_');
+
+            if (root.contains(key))
+            {
+                effect->Deserialize(root[key]);
+            }
+        }
+    }
+    catch (const std::exception& /*e*/)
+    {
+        // Catch all JSON parsing exceptions (nlohmann::json::parse_error, etc.).
+        // A designer might manually hand-edit the JSON and miss a comma. 
+        // We must never allow a typo in a config file to crash the C++ engine.
+    }
+}
+
+void PostProcessManager::ResetToDefaults() noexcept
+{
+    for (auto& effect : m_effects)
+    {
+        effect->ResetToDefault();
+    }
 }

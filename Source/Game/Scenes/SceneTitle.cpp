@@ -23,7 +23,7 @@ SceneTitle::SceneTitle()
 
     postProcess = std::make_unique<PostProcessManager>();
     postProcess->Initialize(static_cast<int>(screenW), static_cast<int>(screenH));
-    postProcess->SetEnabled(false);
+    postProcess->SetEnabled(true);
 
     // Load Assets
     auto device = Graphics::Instance().GetDevice();

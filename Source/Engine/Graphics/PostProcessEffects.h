@@ -36,6 +36,9 @@ public:
 
     [[nodiscard]] Data& GetData() noexcept { return m_data; }
     [[nodiscard]] const Data& GetData() const noexcept { return m_data; }
+    void Serialize(nlohmann::json& out) const override;
+    void Deserialize(const nlohmann::json& in) override;
+    void ResetToDefault() noexcept override;
 
 private:
     struct alignas(16) CbPSX
@@ -96,6 +99,9 @@ public:
 
     [[nodiscard]] Data& GetData() noexcept { return m_data; }
     [[nodiscard]] const Data& GetData() const noexcept { return m_data; }
+    void Serialize(nlohmann::json& out) const override;
+    void Deserialize(const nlohmann::json& in) override;
+    void ResetToDefault() noexcept override;
 
 private:
     struct alignas(16) CbDistortion
@@ -150,6 +156,9 @@ public:
 
     [[nodiscard]] Data& GetData() noexcept { return m_data; }
     [[nodiscard]] const Data& GetData() const noexcept { return m_data; }
+    void Serialize(nlohmann::json& out) const override;
+    void Deserialize(const nlohmann::json& in) override;
+    void ResetToDefault() noexcept override;
 
 private:
     struct alignas(16) CbRadialBlur
@@ -173,11 +182,11 @@ class VignetteEffect final : public PostProcessEffect
 public:
     struct Data
     {
-        bool              enabled{ true };
+        bool              enabled{ false };
         DirectX::XMFLOAT4 color{ 0.0f, 0.0f, 0.0f, 1.0f };
         DirectX::XMFLOAT2 center{ 0.5f, 0.5f };
-        float             intensity{ 0.38f };
-        float             smoothness{ 0.2f };
+        float             intensity{ 0.0f };
+        float             smoothness{ 0.0f };
         bool              rounded{ false };
         float             roundness{ 0.0f };
 
@@ -209,6 +218,9 @@ public:
 
     [[nodiscard]] Data& GetData() noexcept { return m_data; }
     [[nodiscard]] const Data& GetData() const noexcept { return m_data; }
+    void Serialize(nlohmann::json& out) const override;
+    void Deserialize(const nlohmann::json& in) override;
+    void ResetToDefault() noexcept override;
 
 private:
     struct alignas(16) CbVignette
@@ -273,6 +285,9 @@ public:
 
     [[nodiscard]] Data& GetData() noexcept { return m_data; }
     [[nodiscard]] const Data& GetData() const noexcept { return m_data; }
+    void Serialize(nlohmann::json& out) const override;
+    void Deserialize(const nlohmann::json& in) override;
+    void ResetToDefault() noexcept override;
 
 private:
     struct alignas(16) CbScanline

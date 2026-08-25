@@ -1,10 +1,11 @@
 #pragma once
 
-#include <d3d11.h>
-#include <wrl/client.h>
-#include <DirectXMath.h>
 #include <algorithm>
+#include <d3d11.h>
+#include <DirectXMath.h>
+#include <json.hpp>
 #include <string_view>
+#include <wrl/client.h>
 #include "System/GpuResourceUtils.h"
 
 // Base abstract class defining the contract for all discrete post-process passes
@@ -25,4 +26,14 @@ public:
 
     // Returns a human-readable identifier for debugging and profiling
     [[nodiscard]] virtual std::string_view GetName() const noexcept = 0;
+
+    // Serialization Interface
+    // Serializes this effect's unique data to a JSON object
+    virtual void Serialize(nlohmann::json& out) const = 0;
+
+    // Safely loads this effect's data from a JSON object
+    virtual void Deserialize(const nlohmann::json& in) = 0;
+
+    // Instantly reverts the active state to the hardcoded C++ defaults
+    virtual void ResetToDefault() noexcept = 0;
 };

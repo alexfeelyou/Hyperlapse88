@@ -222,3 +222,156 @@ void ScanlineEffect::DrawGUI() noexcept
     ImGui::SliderFloat("Fine Density", &m_data.fineDensity, 0.0f, 100.0f);
     ImGui::SliderFloat("Fine Rotation", &m_data.fineRotation, 0.0f, 6.28f);
 }
+
+// Serialization Implementations
+
+// PSXEffect Serialization
+void PSXEffect::Serialize(nlohmann::json& out) const
+{
+    out["enabled"] = m_data.enabled;
+    out["resWidth"] = m_data.resWidth;
+    out["resHeight"] = m_data.resHeight;
+    out["colorDepth"] = m_data.colorDepth;
+    out["ditherStrength"] = m_data.ditherStrength;
+}
+
+void PSXEffect::Deserialize(const nlohmann::json& in)
+{
+    m_data.enabled = in.value("enabled", false);
+    m_data.resWidth = in.value("resWidth", 320.0f);
+    m_data.resHeight = in.value("resHeight", 240.0f);
+    m_data.colorDepth = in.value("colorDepth", 32.0f);
+    m_data.ditherStrength = in.value("ditherStrength", 1.0f);
+}
+
+void PSXEffect::ResetToDefault() noexcept
+{
+    m_data = Data{};
+}
+
+// LensDistortionEffect Serialization
+void LensDistortionEffect::Serialize(nlohmann::json& out) const
+{
+    out["enabled"] = m_data.enabled;
+    out["distortion"] = m_data.distortion;
+    out["chromaticAberration"] = m_data.chromaticAberration;
+    out["glitchStrength"] = m_data.glitchStrength;
+    out["time"] = m_data.time;
+    out["center"] = { m_data.center.x, m_data.center.y };
+}
+
+void LensDistortionEffect::Deserialize(const nlohmann::json& in)
+{
+    m_data.enabled = in.value("enabled", false);
+    m_data.distortion = in.value("distortion", 0.0f);
+    m_data.chromaticAberration = in.value("chromaticAberration", 0.0f);
+    m_data.glitchStrength = in.value("glitchStrength", 0.0f);
+    m_data.time = in.value("time", 0.0f);
+
+    if (in.contains("center") && in["center"].is_array() && in["center"].size() == 2)
+    {
+        m_data.center.x = in["center"][0];
+        m_data.center.y = in["center"][1];
+    }
+}
+
+void LensDistortionEffect::ResetToDefault() noexcept
+{
+    m_data = Data{};
+}
+
+// RadialBlurEffect Serialization
+void RadialBlurEffect::Serialize(nlohmann::json& out) const
+{
+    out["enabled"] = m_data.enabled;
+    out["blurStrength"] = m_data.blurStrength;
+    out["center"] = { m_data.center.x, m_data.center.y };
+}
+
+void RadialBlurEffect::Deserialize(const nlohmann::json& in)
+{
+    m_data.enabled = in.value("enabled", false);
+    m_data.blurStrength = in.value("blurStrength", 0.0f);
+
+    if (in.contains("center") && in["center"].is_array() && in["center"].size() == 2)
+    {
+        m_data.center.x = in["center"][0];
+        m_data.center.y = in["center"][1];
+    }
+}
+
+void RadialBlurEffect::ResetToDefault() noexcept
+{
+    m_data = Data{};
+}
+
+// VignetteEffect Serialization
+void VignetteEffect::Serialize(nlohmann::json& out) const
+{
+    out["enabled"] = m_data.enabled;
+    out["color"] = { m_data.color.x, m_data.color.y, m_data.color.z, m_data.color.w };
+    out["center"] = { m_data.center.x, m_data.center.y };
+    out["intensity"] = m_data.intensity;
+    out["smoothness"] = m_data.smoothness;
+    out["rounded"] = m_data.rounded;
+    out["roundness"] = m_data.roundness;
+}
+
+void VignetteEffect::Deserialize(const nlohmann::json& in)
+{
+    m_data.enabled = in.value("enabled", false);
+
+    if (in.contains("color") && in["color"].is_array() && in["color"].size() == 4)
+    {
+        m_data.color.x = in["color"][0];
+        m_data.color.y = in["color"][1];
+        m_data.color.z = in["color"][2];
+        m_data.color.w = in["color"][3];
+    }
+
+    if (in.contains("center") && in["center"].is_array() && in["center"].size() == 2)
+    {
+        m_data.center.x = in["center"][0];
+        m_data.center.y = in["center"][1];
+    }
+
+    m_data.intensity = in.value("intensity", 0.0f);
+    m_data.smoothness = in.value("smoothness", 0.0f);
+    m_data.rounded = in.value("rounded", false);
+    m_data.roundness = in.value("roundness", 0.0f);
+}
+
+void VignetteEffect::ResetToDefault() noexcept
+{
+    m_data = Data{};
+}
+
+// ScanlineEffect Serialization
+void ScanlineEffect::Serialize(nlohmann::json& out) const
+{
+    out["enabled"] = m_data.enabled;
+    out["scanlineStrength"] = m_data.scanlineStrength;
+    out["scanlineSpeed"] = m_data.scanlineSpeed;
+    out["scanlineSize"] = m_data.scanlineSize;
+    out["fineOpacity"] = m_data.fineOpacity;
+    out["fineDensity"] = m_data.fineDensity;
+    out["fineRotation"] = m_data.fineRotation;
+    out["time"] = m_data.time;
+}
+
+void ScanlineEffect::Deserialize(const nlohmann::json& in)
+{
+    m_data.enabled = in.value("enabled", false);
+    m_data.scanlineStrength = in.value("scanlineStrength", 0.0f);
+    m_data.scanlineSpeed = in.value("scanlineSpeed", 0.0f);
+    m_data.scanlineSize = in.value("scanlineSize", 0.0f);
+    m_data.fineOpacity = in.value("fineOpacity", 0.0f);
+    m_data.fineDensity = in.value("fineDensity", 0.0f);
+    m_data.fineRotation = in.value("fineRotation", 0.0f);
+    m_data.time = in.value("time", 0.0f);
+}
+
+void ScanlineEffect::ResetToDefault() noexcept
+{
+    m_data = Data{};
+}
