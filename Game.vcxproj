@@ -186,6 +186,7 @@
     <ClInclude Include="Source\System\Keyboard.h" />
     <ClInclude Include="Source\System\LambertShader.h" />
     <ClInclude Include="Source\System\Light.h" />
+    <ClInclude Include="Source\System\Logger.h" />
     <ClInclude Include="Source\System\Misc.h" />
     <ClInclude Include="Source\System\Model.h" />
     <ClInclude Include="Source\System\ModelRenderer.h" />

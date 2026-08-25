@@ -11,6 +11,7 @@
 #include <vector>
 #include <wrl/client.h>
 #include "System/Graphics.h"
+#include "System/Logger.h"
 #include "PostProcessEffects.h"
 
 class PostProcessManager

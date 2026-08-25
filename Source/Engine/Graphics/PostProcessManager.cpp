@@ -250,17 +250,26 @@ void PostProcessManager::SaveConfig(std::string_view filepath) const
     }
 
     // Convert string_view to string because fstream constructor requires a null-terminated string
-    std::ofstream file{ std::string{filepath} };
+    std::ofstream file{ std::string{ filepath } };
     if (file.is_open())
     {
-        file << root.dump(4); // Pretty-print with 4 spaces of indentation
+        file << root.dump(4);
+        Log::Success("Saved post-process profile: " + std::string{ filepath });
+    }
+    else
+    {
+        Log::Error("Failed to write post-process profile: " + std::string{ filepath });
     }
 }
 
 void PostProcessManager::LoadConfig(std::string_view filepath)
 {
     std::ifstream file{ std::string{filepath} };
-    if (!file.is_open()) return;
+    if (!file.is_open())
+    {
+        Log::Warn("Profile not found, keeping defaults: " + std::string{ filepath });
+        return;
+    }
 
     try
     {
@@ -277,12 +286,11 @@ void PostProcessManager::LoadConfig(std::string_view filepath)
                 effect->Deserialize(root[key]);
             }
         }
+        Log::Info("Loaded post-process profile: " + std::string{ filepath });
     }
-    catch (const std::exception& /*e*/)
+    catch (const std::exception& e)
     {
-        // Catch all JSON parsing exceptions (nlohmann::json::parse_error, etc.).
-        // A designer might manually hand-edit the JSON and miss a comma. 
-        // We must never allow a typo in a config file to crash the C++ engine.
+        Log::Error("JSON parse error in " + std::string{ filepath } + ": " + e.what());
     }
 }
 

@@ -44,9 +44,9 @@ void EditorManager::Draw(Scene* currentScene) noexcept
     DrawSceneView();
     DrawHierarchy();
     DrawInspector(currentScene);
-    DrawConsole();
     DrawProfiler();
     DrawPostProcess(currentScene);
+    DrawConsole();
 
     ImGui::End();
 }
@@ -331,7 +331,40 @@ void EditorManager::DrawInspector(Scene* currentScene) const noexcept
 
 void EditorManager::DrawConsole() const noexcept
 {
-    ImGui::Begin(s_windowConsole);
+    if (ImGui::Begin(s_windowConsole))
+    {
+        if (ImGui::Button("Clear"))
+        {
+            Logger::Instance().Clear();
+        }
+        ImGui::Separator();
+
+        ImGui::BeginChild("ConsoleScrollRegion", ImVec2{ 0, 0 }, false, ImGuiWindowFlags_HorizontalScrollbar);
+
+        for (const auto& entry : Logger::Instance().GetEntries())
+        {
+            ImVec4 color{ 1.0f, 1.0f, 1.0f, 1.0f }; // Info = White
+
+            switch (entry.level)
+            {
+            case LogLevel::Success: color = ImVec4{ 0.2f, 0.9f, 0.2f, 1.0f }; break; // Green
+            case LogLevel::Warning: color = ImVec4{ 1.0f, 0.8f, 0.0f, 1.0f }; break; // Yellow
+            case LogLevel::Error:   color = ImVec4{ 1.0f, 0.2f, 0.2f, 1.0f }; break; // Red
+            default: break;
+            }
+
+            ImGui::TextDisabled("[%s]", entry.timestamp.c_str());
+            ImGui::SameLine();
+            ImGui::TextColored(color, "%s", entry.message.c_str());
+        }
+
+        if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+        {
+            ImGui::SetScrollHereY(1.0f);
+        }
+
+        ImGui::EndChild();
+    }
     ImGui::End();
 }
 

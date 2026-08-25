@@ -519,6 +519,9 @@
     <ClInclude Include="Source\Engine\Graphics\PostProcessEffects.h">
       <Filter>Source\Engine\Graphics</Filter>
     </ClInclude>
+    <ClInclude Include="Source\System\Logger.h">
+      <Filter>System</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Shader\Basic.hlsli">
