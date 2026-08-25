@@ -13,8 +13,16 @@ SceneTitle::SceneTitle()
     camera->SetOrthographic(1920.0f, 1080.0f, 0.1f, 1000.0f);
     camera->SetPosition(0.0f, 0.0f, -10.0f);
 
+    float screenW = 1920.0f;
+    float screenH = 1080.0f;
+    if (const auto* window = Framework::Instance()->GetMainWindow())
+    {
+        screenW = static_cast<float>(window->GetWidth());
+        screenH = static_cast<float>(window->GetHeight());
+    }
+
     postProcess = std::make_unique<PostProcessManager>();
-    postProcess->Initialize(1920, 1080);
+    postProcess->Initialize(static_cast<int>(screenW), static_cast<int>(screenH));
     postProcess->SetEnabled(false);
 
     // Load Assets
