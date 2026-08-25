@@ -15,7 +15,7 @@ namespace
     inline constexpr const char* s_windowInspector{ "Inspector" };
     inline constexpr const char* s_windowConsole{ "Console" };
     inline constexpr const char* s_windowProfiler{ "Profiler" };
-    inline constexpr const char* s_windowPostProcess{ "Post Processing" };
+    inline constexpr const char* s_windowPostProcess{ "Post-Processing" };
 }
 
 EditorManager& EditorManager::Instance() noexcept
@@ -44,9 +44,9 @@ void EditorManager::Draw(Scene* currentScene) noexcept
     DrawSceneView();
     DrawHierarchy();
     DrawInspector(currentScene);
-    DrawConsole();
     DrawProfiler();
     DrawPostProcess(currentScene);
+    DrawConsole();
 
     ImGui::End();
 }
@@ -300,8 +300,7 @@ void EditorManager::DrawMenuBar() noexcept
         if (ImGui::BeginMenu("Debug")) { ImGui::EndMenu(); }
         if (ImGui::BeginMenu("Graphics"))
         {
-            // Pass the address of the boolean to toggle window visibility
-            ImGui::MenuItem("Post Processing Panel", nullptr, &m_showPostProcessPanel);
+            ImGui::MenuItem("Post-Processing", nullptr, &m_showPostProcess);
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Time")) { ImGui::EndMenu(); }
@@ -331,7 +330,40 @@ void EditorManager::DrawInspector(Scene* currentScene) const noexcept
 
 void EditorManager::DrawConsole() const noexcept
 {
-    ImGui::Begin(s_windowConsole);
+    if (ImGui::Begin(s_windowConsole))
+    {
+        if (ImGui::Button("Clear"))
+        {
+            Logger::Instance().Clear();
+        }
+        ImGui::Separator();
+
+        ImGui::BeginChild("ConsoleScrollRegion", ImVec2{ 0, 0 }, false, ImGuiWindowFlags_HorizontalScrollbar);
+
+        for (const auto& entry : Logger::Instance().GetEntries())
+        {
+            ImVec4 color{ 1.0f, 1.0f, 1.0f, 1.0f }; // Info = White
+
+            switch (entry.level)
+            {
+            case LogLevel::Success: color = ImVec4{ 0.2f, 0.9f, 0.2f, 1.0f }; break; // Green
+            case LogLevel::Warning: color = ImVec4{ 1.0f, 0.8f, 0.0f, 1.0f }; break; // Yellow
+            case LogLevel::Error:   color = ImVec4{ 1.0f, 0.2f, 0.2f, 1.0f }; break; // Red
+            default: break;
+            }
+
+            ImGui::TextDisabled("[%s]", entry.timestamp.c_str());
+            ImGui::SameLine();
+            ImGui::TextColored(color, "%s", entry.message.c_str());
+        }
+
+        if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+        {
+            ImGui::SetScrollHereY(1.0f);
+        }
+
+        ImGui::EndChild();
+    }
     ImGui::End();
 }
 
@@ -344,40 +376,61 @@ void EditorManager::DrawProfiler() const noexcept
 void EditorManager::DrawPostProcess(Scene* currentScene) noexcept
 {
     // Avoid processing ImGui logic if the user hasn't toggled the window open
-    if (!m_showPostProcessPanel) return;
+    if (!m_showPostProcess) return;
 
     // Pass the boolean pointer so ImGui renders an 'X' close button in the title bar
-    if (ImGui::Begin(s_windowPostProcess, &m_showPostProcessPanel))
+    if (ImGui::Begin(s_windowPostProcess, &m_showPostProcess))
     {
-        // Check if a scene exists and actually supports post-processing
         if (currentScene && currentScene->GetPostProcessManager())
         {
-            // Bind directly to the mutable UberData reference
-            UberShader::UberData& data{ currentScene->GetPostProcessManager()->GetData() };
+            auto* ppm = currentScene->GetPostProcessManager();
 
-            ImGui::Checkbox("Master Enable", &data.enabled);
+            // TOOLBAR: Save / Undo / Reset
+            const std::string_view configPath{ currentScene->GetPostProcessProfilePath() };
+
+            if (ImGui::Button("Save"))
+            {
+                ppm->SaveConfig(configPath);
+            }
+            ImGui::SameLine();
+
+            if (ImGui::Button("Undo"))
+            {
+                ppm->LoadConfig(configPath);
+            }
+            ImGui::SameLine();
+
+            if (ImGui::Button("Reset Defaults"))
+            {
+                ppm->ResetToDefaults();
+            }
+
             ImGui::Separator();
 
-            ImGui::Text("Core Settings");
-            ImGui::SliderFloat("Intensity", &data.intensity, 0.0f, 1.0f);
-            ImGui::SliderFloat("Smoothness", &data.smoothness, 0.001f, 1.0f);
-
+			// Master toggle for the entire post-processing graph
+            bool masterEnabled = ppm->IsEnabled();
+            if (ImGui::Checkbox("Master Post-Process Enabled", &masterEnabled))
+            {
+                ppm->SetEnabled(masterEnabled);
+            }
             ImGui::Separator();
-            ImGui::Text("Lens & Distortion");
-            ImGui::SliderFloat("Blur Strength", &data.blurStrength, 0.0f, 0.1f);
-            ImGui::SliderFloat("Distortion", &data.distortion, -0.2f, 0.2f);
-            ImGui::SliderFloat("Chromatic Aberration", &data.chromaticAberration, 0.0f, 0.05f);
-            ImGui::SliderFloat("Glitch Strength", &data.glitchStrength, 0.0f, 1.0f);
 
-            ImGui::Separator();
-            ImGui::Text("Scanlines & CRT");
-            ImGui::SliderFloat("Scanline Strength", &data.scanlineStrength, 0.0f, 1.0f);
-            ImGui::SliderFloat("Scanline Speed", &data.scanlineSpeed, 0.0f, 100.0f);
-            ImGui::SliderFloat("Scanline Size", &data.scanlineSize, 1.0f, 500.0f);
+            // Automatically renders ImGui controls for every discrete effect pass
+            ImGui::BeginDisabled(!masterEnabled);
+            for (const auto& effect : ppm->GetEffects())
+            {
+                ImGui::PushID(effect.get());
+                if (ImGui::CollapsingHeader(effect->GetName().data()))
+                {
+                    effect->DrawGUI();
+                }
+                ImGui::PopID();
+                ImGui::Spacing();
+            }
+            ImGui::EndDisabled();
         }
         else
         {
-            // Provide clear UX feedback if the current scene lacks a PostProcessManager
             ImGui::TextDisabled("No Post-Processing active in the current scene.");
         }
     }

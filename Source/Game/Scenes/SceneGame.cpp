@@ -170,6 +170,9 @@ SceneGame::SceneGame()
     m_postProcess->Initialize(static_cast<int>(screenW), static_cast<int>(screenH));
     m_postProcess->SetEnabled(true);
 
+    // Automatically load this scene's unique post-process profile on boot
+    m_postProcess->LoadConfig(GetPostProcessProfilePath());
+
     m_dialogueBox = std::make_unique<UIDialogueBox>();
     m_dialogueBox->Initialize();
 
@@ -219,8 +222,8 @@ void SceneGame::Update(const float elapsedTime)
 
             // Smooth out the screen using uber shader parameters
             m_fadeAlpha = t;
-            m_postProcess->GetData().smoothness = FX_BASE_SMOOTHNESS + (FX_BLACK_SMOOTHNESS - FX_BASE_SMOOTHNESS) * t;
-            m_postProcess->GetData().intensity = FX_BASE_INTENSITY + (FX_BLACK_INTENSITY - FX_BASE_INTENSITY) * t;
+            m_postProcess->GetVignette().GetData().smoothness = FX_BASE_SMOOTHNESS + (FX_BLACK_SMOOTHNESS - FX_BASE_SMOOTHNESS) * t;
+            m_postProcess->GetVignette().GetData().intensity = FX_BASE_INTENSITY + (FX_BLACK_INTENSITY - FX_BASE_INTENSITY) * t;
 
             if (t >= 1.0f)
             {
@@ -313,14 +316,14 @@ void SceneGame::Update(const float elapsedTime)
         const float linearT{ std::clamp(m_naviDefeatTimer / NAVI_DEFEAT_FADE_DURATION, 0.0f, 1.0f) };
         const float t{ linearT * linearT * (3.0f - 2.0f * linearT) };
 
-        m_postProcess->GetData().smoothness = FX_BASE_SMOOTHNESS + (FX_BLACK_SMOOTHNESS - FX_BASE_SMOOTHNESS) * t;
-        m_postProcess->GetData().intensity = FX_BASE_INTENSITY + (FX_BLACK_INTENSITY - FX_BASE_INTENSITY) * t;
+        m_postProcess->GetVignette().GetData().smoothness = FX_BASE_SMOOTHNESS + (FX_BLACK_SMOOTHNESS - FX_BASE_SMOOTHNESS) * t;
+        m_postProcess->GetVignette().GetData().intensity = FX_BASE_INTENSITY + (FX_BLACK_INTENSITY - FX_BASE_INTENSITY) * t;
         m_fadeAlpha = t;
 
         if (linearT >= 1.0f)
         {
-            m_postProcess->GetData().smoothness = FX_BLACK_SMOOTHNESS;
-            m_postProcess->GetData().intensity = FX_BLACK_INTENSITY;
+            m_postProcess->GetVignette().GetData().smoothness = FX_BLACK_SMOOTHNESS;
+            m_postProcess->GetVignette().GetData().intensity = FX_BLACK_INTENSITY;
             m_fadeAlpha = 1.0f;
             m_isNaviDefeatReadyForNextScene = true;
             m_player.reset();
@@ -349,8 +352,8 @@ void SceneGame::Update(const float elapsedTime)
     {
         m_bootTimer -= elapsedTime;
         m_fadeAlpha = 1.0f;
-        m_postProcess->GetData().smoothness = FX_BLACK_SMOOTHNESS;
-        m_postProcess->GetData().intensity = FX_BLACK_INTENSITY;
+        m_postProcess->GetVignette().GetData().smoothness = FX_BLACK_SMOOTHNESS;
+        m_postProcess->GetVignette().GetData().intensity = FX_BLACK_INTENSITY;
 
         if (m_player)
         {
@@ -371,8 +374,8 @@ void SceneGame::Update(const float elapsedTime)
 
         if (m_deathTimer < DEATH_DELAY_DURATION)
         {
-            m_postProcess->GetData().smoothness = FX_BASE_SMOOTHNESS;
-            m_postProcess->GetData().intensity = FX_BASE_INTENSITY;
+            m_postProcess->GetVignette().GetData().smoothness = FX_BASE_SMOOTHNESS;
+            m_postProcess->GetVignette().GetData().intensity = FX_BASE_INTENSITY;
             m_fadeAlpha = 0.0f;
         }
         else
@@ -381,8 +384,8 @@ void SceneGame::Update(const float elapsedTime)
             const float t{ std::clamp(fadeTime / DEATH_FADE_DURATION, 0.0f, 1.0f) };
 
             // LERP towards pitch black
-            m_postProcess->GetData().smoothness = FX_BASE_SMOOTHNESS + (FX_BLACK_SMOOTHNESS - FX_BASE_SMOOTHNESS) * t;
-            m_postProcess->GetData().intensity = FX_BASE_INTENSITY + (FX_BLACK_INTENSITY - FX_BASE_INTENSITY) * t;
+            m_postProcess->GetVignette().GetData().smoothness = FX_BASE_SMOOTHNESS + (FX_BLACK_SMOOTHNESS - FX_BASE_SMOOTHNESS) * t;
+            m_postProcess->GetVignette().GetData().intensity = FX_BASE_INTENSITY + (FX_BLACK_INTENSITY - FX_BASE_INTENSITY) * t;
 
             m_fadeAlpha = t;
 
@@ -393,8 +396,8 @@ void SceneGame::Update(const float elapsedTime)
                 m_respawnTimer = RESPAWN_FADE_DURATION;
 
                 // Force screen to stay black for the first frame of respawn
-                m_postProcess->GetData().smoothness = FX_BLACK_SMOOTHNESS;
-                m_postProcess->GetData().intensity = FX_BLACK_INTENSITY;
+                m_postProcess->GetVignette().GetData().smoothness = FX_BLACK_SMOOTHNESS;
+                m_postProcess->GetVignette().GetData().intensity = FX_BLACK_INTENSITY;
                 m_fadeAlpha = 1.0f;
             }
         }
@@ -409,8 +412,8 @@ void SceneGame::Update(const float elapsedTime)
         const float linearT{ std::clamp(m_respawnTimer / RESPAWN_FADE_DURATION, 0.0f, 1.0f) };
         const float t{ linearT * linearT };
 
-        m_postProcess->GetData().smoothness = FX_BASE_SMOOTHNESS + (FX_BLACK_SMOOTHNESS - FX_BASE_SMOOTHNESS) * t;
-        m_postProcess->GetData().intensity = FX_BASE_INTENSITY + (FX_BLACK_INTENSITY - FX_BASE_INTENSITY) * t;
+        m_postProcess->GetVignette().GetData().smoothness = FX_BASE_SMOOTHNESS + (FX_BLACK_SMOOTHNESS - FX_BASE_SMOOTHNESS) * t;
+        m_postProcess->GetVignette().GetData().intensity = FX_BASE_INTENSITY + (FX_BLACK_INTENSITY - FX_BASE_INTENSITY) * t;
         m_fadeAlpha = t;
 
         if (m_respawnTimer <= 0.0f && m_player)
@@ -421,7 +424,7 @@ void SceneGame::Update(const float elapsedTime)
     else
     {
         // Normal Gameplay Lighting
-        m_postProcess->GetData().smoothness = FX_BASE_SMOOTHNESS;
+        m_postProcess->GetVignette().GetData().smoothness = FX_BASE_SMOOTHNESS;
         m_fadeAlpha = 0.0f;
 
         if (!m_hasBGMStarted)
@@ -727,7 +730,7 @@ void SceneGame::Update(const float elapsedTime)
 
     if (m_player)
     {
-        m_postProcess->GetData().glitchStrength = m_player->GetDamageGlitchIntensity();
+        m_postProcess->GetLensDistortion().GetData().glitchStrength = m_player->GetDamageGlitchIntensity();
     }
 
     EffectManager::Instance().Update(elapsedTime);
@@ -1066,10 +1069,10 @@ void SceneGame::RenderScene(const float elapsedTime, Camera* camera)
     auto modelRenderer{ Graphics::Instance().GetModelRenderer() };
     RenderContext rc{ dc, Graphics::Instance().GetRenderState(), camera, &m_lightManager };
 
-    const UberShader::UberData& data{ m_postProcess->GetData() };
-    rc.psxEnabled = (m_postProcess->IsEnabled() && data.psxEnabled);
-    rc.psxResWidth = data.psxResWidth;
-    rc.psxResHeight = data.psxResHeight;
+    const auto& psxData = m_postProcess->GetPSX().GetData();
+    rc.psxEnabled = (m_postProcess->IsEnabled() && psxData.enabled);
+    rc.psxResWidth = psxData.resWidth;
+    rc.psxResHeight = psxData.resHeight;
 
     if (m_player)
     {

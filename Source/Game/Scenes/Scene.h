@@ -1,4 +1,5 @@
 #pragma once
+#include <string_view>
 
 // ÉVÅ[ÉìäÓíÍ
 class Scene
@@ -14,8 +15,15 @@ public:
 	virtual void Render(float dt, class Camera* camera = nullptr) = 0;
 	// GUIï`âÊèàóù
 	virtual void DrawGUI() {}
-	// Allows the editor to access post-processing universally without knowing the exact scene type
+
+	// Allows the editor to access post-processing universally
 	[[nodiscard]] virtual class PostProcessManager* GetPostProcessManager() const noexcept { return nullptr; }
+
+	// Tells the engine where this specific scene saves its post-process settings
+	[[nodiscard]] virtual std::string_view GetPostProcessProfilePath() const noexcept
+	{
+		return "Data/Config/PostProcess_Default.json";
+	}
 
 	virtual void OnResize(int width, int height) {}
 };

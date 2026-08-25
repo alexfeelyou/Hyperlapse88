@@ -5,6 +5,7 @@
 #include <utility>
 #include <wrl/client.h>
 #include "System/Graphics.h"
+#include "System/Logger.h"
 #include "Framework.h"
 #include "Scene.h"
 #include "SceneGame.h"
@@ -58,5 +59,5 @@ private:
     float m_sceneWidth{ 1920.0f };
     float m_sceneHeight{ 1080.0f };
 
-    bool m_showPostProcessPanel{ false };
+    bool m_showPostProcess{ false };
 };

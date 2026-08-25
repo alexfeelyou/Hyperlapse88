@@ -139,10 +139,11 @@
     <ClInclude Include="Source\Engine\Camera\FreeCameraController.h" />
     <ClInclude Include="Source\Engine\Editor\EditorManager.h" />
     <ClInclude Include="Source\Engine\Graphics\FontTTF.h" />
+    <ClInclude Include="Source\Engine\Graphics\PostProcessEffect.h" />
+    <ClInclude Include="Source\Engine\Graphics\PostProcessEffects.h" />
     <ClInclude Include="Source\Engine\Graphics\PostProcessManager.h" />
     <ClInclude Include="Source\Engine\Graphics\Primitive.h" />
     <ClInclude Include="Source\Engine\Graphics\stb_truetype.h" />
-    <ClInclude Include="Source\Engine\Graphics\UberShader.h" />
     <ClInclude Include="Source\Engine\Helpers\CapeSimulator.h" />
     <ClInclude Include="Source\Engine\Helpers\PhysXutils.h" />
     <ClInclude Include="Source\Engine\Helpers\UIResizedWindow.h" />
@@ -185,6 +186,7 @@
     <ClInclude Include="Source\System\Keyboard.h" />
     <ClInclude Include="Source\System\LambertShader.h" />
     <ClInclude Include="Source\System\Light.h" />
+    <ClInclude Include="Source\System\Logger.h" />
     <ClInclude Include="Source\System\Misc.h" />
     <ClInclude Include="Source\System\Model.h" />
     <ClInclude Include="Source\System\ModelRenderer.h" />
@@ -219,9 +221,9 @@
     <ClCompile Include="Source\Engine\Camera\FreeCameraController.cpp" />
     <ClCompile Include="Source\Engine\Editor\EditorManager.cpp" />
     <ClCompile Include="Source\Engine\Graphics\FontTTF.cpp" />
+    <ClCompile Include="Source\Engine\Graphics\PostProcessEffects.cpp" />
     <ClCompile Include="Source\Engine\Graphics\PostProcessManager.cpp" />
     <ClCompile Include="Source\Engine\Graphics\Primitive.cpp" />
-    <ClCompile Include="Source\Engine\Graphics\UberShader.cpp" />
     <ClCompile Include="Source\Engine\Helpers\CapeSimulator.cpp" />
     <ClCompile Include="Source\Engine\UI\UIDialogueBox.cpp" />
     <ClCompile Include="Source\Engine\UI\UIOption.cpp" />
@@ -293,6 +295,14 @@
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
     </FxCompile>
+    <FxCompile Include="Shader\LensDistortionPS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+    </FxCompile>
+    <FxCompile Include="Shader\PassthroughPS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+    </FxCompile>
     <FxCompile Include="Shader\PhongPS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
@@ -300,6 +310,22 @@
     <FxCompile Include="Shader\PhongVS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
+    </FxCompile>
+    <FxCompile Include="Shader\PostProcessVS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
+    </FxCompile>
+    <FxCompile Include="Shader\PSXPS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+    </FxCompile>
+    <FxCompile Include="Shader\RadialBlurPS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+    </FxCompile>
+    <FxCompile Include="Shader\ScanlinePS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
     </FxCompile>
     <FxCompile Include="Shader\ShapeRendererPS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
@@ -325,13 +351,9 @@
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
     </FxCompile>
-    <FxCompile Include="Shader\UberPostProcessPS.hlsl">
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+    <FxCompile Include="Shader\VignettePS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
-    </FxCompile>
-    <FxCompile Include="Shader\UberPostProcessVS.hlsl">
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
-      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
     </FxCompile>
   </ItemGroup>
   <ItemGroup>
