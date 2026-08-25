@@ -5,6 +5,7 @@
 #include <thread>
 #include <windows.h>
 #include "Framework.h"
+#include "ProfilerManager.h"
 #include "WindowManager.h"
 
 int main(int argc, char* argv[])
@@ -68,6 +69,8 @@ int main(int argc, char* argv[])
                 framework->Update(elapsedTime);
                 framework->Render(elapsedTime);
             }
+
+            PROFILE_END_FRAME(elapsedTime);
 
             if (!WindowManager::Instance().HasWindows())
             {

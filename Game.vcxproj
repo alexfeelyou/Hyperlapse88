@@ -140,6 +140,7 @@
     <ClInclude Include="Source\Engine\Camera\CameraController.h" />
     <ClInclude Include="Source\Engine\Camera\FreeCameraController.h" />
     <ClInclude Include="Source\Engine\Editor\EditorManager.h" />
+    <ClInclude Include="Source\Engine\Editor\ProfilerManager.h" />
     <ClInclude Include="Source\Engine\Graphics\FontTTF.h" />
     <ClInclude Include="Source\Engine\Graphics\PostProcessEffect.h" />
     <ClInclude Include="Source\Engine\Graphics\PostProcessEffects.h" />
@@ -224,6 +225,7 @@
     <ClCompile Include="Source\Engine\Camera\CameraController.cpp" />
     <ClCompile Include="Source\Engine\Camera\FreeCameraController.cpp" />
     <ClCompile Include="Source\Engine\Editor\EditorManager.cpp" />
+    <ClCompile Include="Source\Engine\Editor\ProfilerManager.cpp" />
     <ClCompile Include="Source\Engine\Graphics\FontTTF.cpp" />
     <ClCompile Include="Source\Engine\Graphics\PostProcessEffects.cpp" />
     <ClCompile Include="Source\Engine\Graphics\PostProcessManager.cpp" />

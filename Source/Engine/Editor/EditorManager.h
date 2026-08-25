@@ -8,6 +8,7 @@
 #include "System/Graphics.h"
 #include "System/Logger.h"
 #include "Framework.h"
+#include "ProfilerManager.h"
 #include "Scene.h"
 #include "SceneGame.h"
 #include "SceneTitle.h"
@@ -61,4 +62,5 @@ private:
     float m_sceneHeight{ 1080.0f };
 
     bool m_showPostProcess{ false };
+    bool m_showProfiler{ false };
 };

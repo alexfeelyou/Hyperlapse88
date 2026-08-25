@@ -11,6 +11,7 @@
 #include "System/ImGuiRenderer.h"
 #include "System/Input.h"
 #include "EditorManager.h"
+#include "ProfilerManager.h"
 #include "RenderWindow.h"
 #include "Scene.h"
 #include "SceneGame.h"

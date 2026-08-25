@@ -264,6 +264,9 @@
     <ClCompile Include="External\implot\implot_items.cpp">
       <Filter>External\implot</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Engine\Editor\ProfilerManager.cpp">
+      <Filter>Source\Engine\Editor</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\System\BasicShader.h">
@@ -533,6 +536,9 @@
     </ClInclude>
     <ClInclude Include="External\implot\implot_internal.h">
       <Filter>External\implot</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Editor\ProfilerManager.h">
+      <Filter>Source\Engine\Editor</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
