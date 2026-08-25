@@ -354,7 +354,7 @@ void EditorManager::DrawPostProcess(Scene* currentScene) noexcept
             auto* ppm = currentScene->GetPostProcessManager();
 
             // TOOLBAR: Save / Undo / Reset
-            static constexpr std::string_view configPath{ "Data/Config/PostProcess.json" };
+            const std::string_view configPath{ currentScene->GetPostProcessProfilePath() };
 
             if (ImGui::Button("Save"))
             {

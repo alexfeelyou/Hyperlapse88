@@ -38,6 +38,12 @@ public:
     Camera* GetCamera() const { return camera.get(); }
     [[nodiscard]] PostProcessManager* GetPostProcessManager() const noexcept override { return postProcess.get(); }
 
+    // Assign unique JSON profile for the Title Screen
+    [[nodiscard]] std::string_view GetPostProcessProfilePath() const noexcept override
+    {
+        return "Data/Config/PostProcess_Title.json";
+    }
+
 private:
     // Subsystems 
     std::unique_ptr<Camera> camera{};

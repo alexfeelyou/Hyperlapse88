@@ -7,7 +7,7 @@
         "scanlineSize": 0.0,
         "scanlineSpeed": 0.0,
         "scanlineStrength": 0.0,
-        "time": 19.740968704223633
+        "time": 8.13224983215332
     },
     "Lens_&_Distortion": {
         "center": [
@@ -18,7 +18,7 @@
         "distortion": 0.0,
         "enabled": false,
         "glitchStrength": 0.0,
-        "time": 19.740968704223633
+        "time": 8.13224983215332
     },
     "PSX_Retro": {
         "colorDepth": 32.0,
@@ -50,6 +50,6 @@
         "intensity": 0.0,
         "rounded": false,
         "roundness": 0.0,
-        "smoothness": 0.0
+        "smoothness": 0.20000000298023224
     }
 }

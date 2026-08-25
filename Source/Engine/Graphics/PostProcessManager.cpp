@@ -45,9 +45,6 @@ void PostProcessManager::Initialize(int screenWidth, int screenHeight)
     m_windowWidth = screenWidth;
     m_windowHeight = screenHeight;
     CreateBuffers(screenWidth, screenHeight);
-
-    // Automatically attempt to load the saved config on boot
-    LoadConfig("Data/Config/PostProcess.json");
 }
 
 void PostProcessManager::OnResize(int width, int height)

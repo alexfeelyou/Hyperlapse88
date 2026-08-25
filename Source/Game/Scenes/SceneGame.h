@@ -63,6 +63,12 @@ public:
     Camera* GetMainCamera() const { return m_mainCamera.get(); }
     [[nodiscard]] PostProcessManager* GetPostProcessManager() const noexcept override { return m_postProcess.get(); }
 
+    // Assign unique JSON profile for the Game Screen
+    [[nodiscard]] std::string_view GetPostProcessProfilePath() const noexcept override
+    {
+        return "Data/Config/PostProcess_Game.json";
+    }
+
 private:
     struct Config {
         static constexpr float DEFAULT_SCREEN_W{ 1920.0f };

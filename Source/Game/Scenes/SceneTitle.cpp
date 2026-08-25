@@ -25,6 +25,9 @@ SceneTitle::SceneTitle()
     postProcess->Initialize(static_cast<int>(screenW), static_cast<int>(screenH));
     postProcess->SetEnabled(true);
 
+    // Automatically load this scene's unique post-process profile on boot
+    postProcess->LoadConfig(GetPostProcessProfilePath());
+
     // Load Assets
     auto device = Graphics::Instance().GetDevice();
     bgSprite = std::make_unique<Sprite>(device, "Data/Sprite/Scene Title/Back_Title.png");

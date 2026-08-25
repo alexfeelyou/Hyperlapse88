@@ -170,6 +170,9 @@ SceneGame::SceneGame()
     m_postProcess->Initialize(static_cast<int>(screenW), static_cast<int>(screenH));
     m_postProcess->SetEnabled(true);
 
+    // Automatically load this scene's unique post-process profile on boot
+    m_postProcess->LoadConfig(GetPostProcessProfilePath());
+
     m_dialogueBox = std::make_unique<UIDialogueBox>();
     m_dialogueBox->Initialize();
 
