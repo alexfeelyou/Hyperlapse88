@@ -59,5 +59,5 @@ private:
     float m_sceneWidth{ 1920.0f };
     float m_sceneHeight{ 1080.0f };
 
-    bool m_showPostProcessPanel{ false };
+    bool m_showPostProcess{ false };
 };

@@ -15,7 +15,7 @@ namespace
     inline constexpr const char* s_windowInspector{ "Inspector" };
     inline constexpr const char* s_windowConsole{ "Console" };
     inline constexpr const char* s_windowProfiler{ "Profiler" };
-    inline constexpr const char* s_windowPostProcess{ "Post Processing" };
+    inline constexpr const char* s_windowPostProcess{ "Post-Processing" };
 }
 
 EditorManager& EditorManager::Instance() noexcept
@@ -300,8 +300,7 @@ void EditorManager::DrawMenuBar() noexcept
         if (ImGui::BeginMenu("Debug")) { ImGui::EndMenu(); }
         if (ImGui::BeginMenu("Graphics"))
         {
-            // Pass the address of the boolean to toggle window visibility
-            ImGui::MenuItem("Post Processing Panel", nullptr, &m_showPostProcessPanel);
+            ImGui::MenuItem("Post-Processing", nullptr, &m_showPostProcess);
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Time")) { ImGui::EndMenu(); }
@@ -377,10 +376,10 @@ void EditorManager::DrawProfiler() const noexcept
 void EditorManager::DrawPostProcess(Scene* currentScene) noexcept
 {
     // Avoid processing ImGui logic if the user hasn't toggled the window open
-    if (!m_showPostProcessPanel) return;
+    if (!m_showPostProcess) return;
 
     // Pass the boolean pointer so ImGui renders an 'X' close button in the title bar
-    if (ImGui::Begin(s_windowPostProcess, &m_showPostProcessPanel))
+    if (ImGui::Begin(s_windowPostProcess, &m_showPostProcess))
     {
         if (currentScene && currentScene->GetPostProcessManager())
         {
