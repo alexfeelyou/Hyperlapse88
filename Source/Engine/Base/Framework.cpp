@@ -153,11 +153,17 @@ platform::Window* Framework::GetMainWindow() const
 
 void Framework::Render(float elapsedTime)
 {
+    // Tracks rendering submission time
+    PROFILE_SCOPE("Framework::Render");
+
     WindowManager::Instance().RenderAll(elapsedTime, scene.get());
 }
 
 void Framework::Update(float elapsedTime)
 {
+    // It tracks the duration of the entire Update function
+    PROFILE_SCOPE("Framework::Update Total");
+
     if (nextScene)
     {
         scene = std::move(nextScene);

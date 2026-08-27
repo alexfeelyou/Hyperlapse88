@@ -1,9 +1,11 @@
 #pragma once
 
-#include <vector>
-#include <wrl.h>
 #include <d3d11.h>
 #include <DirectXMath.h>
+#include <vector>
+#include <wrl.h>
+#include "GpuResourceUtils.h"
+#include "Misc.h"
 
 class PrimitiveRenderer
 {

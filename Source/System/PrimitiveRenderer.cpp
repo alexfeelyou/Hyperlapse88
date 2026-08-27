@@ -1,6 +1,5 @@
-#include "Misc.h"
-#include "GpuResourceUtils.h"
 #include "PrimitiveRenderer.h"
+#include "ProfilerManager.h"
 
 // コンストラクタ
 PrimitiveRenderer::PrimitiveRenderer(ID3D11Device* device)
@@ -210,6 +209,7 @@ void PrimitiveRenderer::Render(
 		dc->Unmap(vertexBuffer.Get(), 0);
 
 		dc->Draw(count, 0);
+		PROFILE_DRAW_CALL();
 
 		start += count;
 		if ((start + count) > totalVertexCount)

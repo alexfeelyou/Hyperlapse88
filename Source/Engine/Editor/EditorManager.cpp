@@ -297,7 +297,11 @@ void EditorManager::DrawMenuBar() noexcept
 
             ImGui::EndMenu();
         }
-        if (ImGui::BeginMenu("Debug")) { ImGui::EndMenu(); }
+        if (ImGui::BeginMenu("Debug")) 
+        {
+            ImGui::MenuItem("Profiler", nullptr, &m_showProfiler);
+            ImGui::EndMenu(); 
+        }
         if (ImGui::BeginMenu("Graphics"))
         {
             ImGui::MenuItem("Post-Processing", nullptr, &m_showPostProcess);
@@ -369,7 +373,96 @@ void EditorManager::DrawConsole() const noexcept
 
 void EditorManager::DrawProfiler() const noexcept
 {
-    ImGui::Begin(s_windowProfiler);
+    // Early-out if the user closed the window via the menu or the 'X' button
+    if (!m_showProfiler) return;
+
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ 0.0f, 0.0f });
+
+    // Passing &m_showProfiler adds the 'X' close button to the tab
+    if (ImGui::Begin(s_windowProfiler, const_cast<bool*>(&m_showProfiler)))
+    {
+        ImGui::PopStyleVar(); // Pop immediately so internal elements pad normally
+
+        const auto& cpuData{ ProfilerManager::Instance().GetCpuData() };
+        const auto& metrics{ ProfilerManager::Instance().GetMetrics() };
+        const std::size_t currentIndex{ ProfilerManager::Instance().GetCurrentFrameIndex() };
+
+        const int maxFrames{ static_cast<int>(MAX_PROFILE_FRAMES) };
+        const int offset{ static_cast<int>(currentIndex) };
+
+        // TOP PANEL: Frame Time Graph
+        // Chosen over per-scope CPU timings as the headline visual: it answers
+        // "does this run well?" at a glance for any viewer, technical or not
+        if (ImPlot::BeginPlot("##FrameTime", ImVec2{ -1.0f, -90.0f }))
+        {
+            ImPlot::SetupAxes(nullptr, "Frame Time (ms)", ImPlotAxisFlags_NoTickLabels, ImPlotAxisFlags_AutoFit);
+            ImPlot::SetupAxisLimits(ImAxis_X1, 0.0, static_cast<double>(maxFrames), ImPlotCond_Always);
+
+            // The 16.6ms line marks the 60fps budget — any spike above it is a dropped frame
+            static double targetFrameTimeMs{ 16.666 };
+            ImPlot::DragLineY(0, &targetFrameTimeMs, ImVec4{ 0.9f, 0.1f, 0.1f, 0.8f }, 1.0f, ImPlotDragToolFlags_NoInputs);
+
+            const auto& frameTimeHistory{ ProfilerManager::Instance().GetFrameTimeHistory() };
+
+            ImPlotSpec spec{};
+            spec.Offset = offset;
+            spec.LineWeight = 1.5f;
+
+            ImPlot::PlotLine("Frame Time", frameTimeHistory.data(), maxFrames, 1.0, 0.0, spec);
+            ImPlot::EndPlot();
+        }
+
+        // BOTTOM PANEL: Metrics Dashboard
+        ImGui::Separator();
+
+        // Add subtle padding around the table
+        ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 8.0f);
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 4.0f);
+
+        // A 4-column table for organizing readouts
+        if (ImGui::BeginTable("MetricsDashboard", 4, ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingStretchProp))
+        {
+            ImGui::TableNextRow();
+
+            // Column 1: Core Performance
+            ImGui::TableSetColumnIndex(0);
+            ImGui::TextDisabled("PERFORMANCE");
+            ImGui::Text("FPS: %.1f", metrics.fps);
+            ImGui::Text("Frame: %.2f ms", (1000.0f / (std::max)(metrics.fps, 1.0f)));
+
+            // Column 2: Memory
+            ImGui::TableSetColumnIndex(1);
+            ImGui::TextDisabled("MEMORY");
+            ImGui::Text("Sys RAM: %.1f MB", metrics.ramUsageMB);
+            ImGui::Text("GPU VRAM: %.1f MB", metrics.vramUsageMB);
+
+            // Column 3: CPU Scopes
+            ImGui::TableSetColumnIndex(2);
+            ImGui::TextDisabled("CPU TIMINGS");
+
+            for (const auto& [name, data] : cpuData)
+            {
+                // Draw Calls lives in its own dedicated column below, not mixed into
+                // the CPU-scope ms readouts
+                if (name == std::string_view{ "Draw Calls (3D)" }) continue;
+
+                ImGui::Text("%s: %.2f ms", name, data.lastFrameTime);
+            }
+
+            // Column 4: Draw Call and Triangle counts, read straight from the dedicated
+            // accessors rather than pulled out of the generic CPU-timer map
+            ImGui::TableSetColumnIndex(3);
+            ImGui::TextDisabled("DRAW CALLS (3D)");
+            ImGui::Text("Calls: %zu", ProfilerManager::Instance().GetLastFrameDrawCallCount());
+            ImGui::Text("Triangles: %zu", ProfilerManager::Instance().GetLastFrameTriangleCount());
+
+            ImGui::EndTable();
+        }
+    }
+    else
+    {
+        ImGui::PopStyleVar(); // Safety pop if window is collapsed
+    }
     ImGui::End();
 }
 

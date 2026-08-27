@@ -1,10 +1,5 @@
-#include <algorithm>
-#include "Misc.h"
-#include "GpuResourceUtils.h"
+#include "ProfilerManager.h"
 #include "ModelRenderer.h"
-#include "BasicShader.h"
-#include "LambertShader.h"
-#include "PhongShader.h"
 
 // コンストラクタ
 ModelRenderer::ModelRenderer(ID3D11Device* device)
@@ -123,7 +118,12 @@ void ModelRenderer::Render(const RenderContext& rc)
 
             shader->Update(rc, mesh);
             dc->DrawIndexed(static_cast<UINT>(mesh.indices.size()), 0, 0);
-        };
+
+            // このラムダは不透明・半透明どちらのパスからも呼ばれるので、
+            // ここが唯一の DrawIndexed 呼び出し箇所になる
+            PROFILE_DRAW_CALL();
+            PROFILE_TRIANGLES(mesh.indices.size() / 3);   // インデックスバッファは三角形リストなので3で割る
+    };
 
     DirectX::XMVECTOR CameraPosition = DirectX::XMLoadFloat3(&rc.camera->GetPosition());
     DirectX::XMVECTOR CameraFront = DirectX::XMLoadFloat3(&rc.camera->GetFront());

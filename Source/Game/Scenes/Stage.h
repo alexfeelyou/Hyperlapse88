@@ -115,7 +115,7 @@ struct SpatialHashGrid
 
 namespace StageConfig
 {
-    static const char* MODEL_PATH = "Data/Model/Stage/MDL_Stage.glb";
+    static const char* MODEL_PATH = "Data/Model/Stage/ExampleStage.glb";
     static const DirectX::XMFLOAT3 DEFAULT_POS = { 0.0f, 0.0f, 0.0f };
     static const DirectX::XMFLOAT3 DEFAULT_ROT = { 0.0f, 0.0f, 0.1f };
     static const DirectX::XMFLOAT3 DEFAULT_SCALE = { 1.5f, 1.5f, 1.5f };

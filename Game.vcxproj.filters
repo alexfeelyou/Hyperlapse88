@@ -258,6 +258,15 @@
     <ClCompile Include="Source\Engine\Graphics\PostProcessEffects.cpp">
       <Filter>Source\Engine\Graphics</Filter>
     </ClCompile>
+    <ClCompile Include="External\implot\implot.cpp">
+      <Filter>External\implot</Filter>
+    </ClCompile>
+    <ClCompile Include="External\implot\implot_items.cpp">
+      <Filter>External\implot</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Engine\Editor\ProfilerManager.cpp">
+      <Filter>Source\Engine\Editor</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\System\BasicShader.h">
@@ -522,6 +531,15 @@
     <ClInclude Include="Source\System\Logger.h">
       <Filter>System</Filter>
     </ClInclude>
+    <ClInclude Include="External\implot\implot.h">
+      <Filter>External\implot</Filter>
+    </ClInclude>
+    <ClInclude Include="External\implot\implot_internal.h">
+      <Filter>External\implot</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Editor\ProfilerManager.h">
+      <Filter>Source\Engine\Editor</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Shader\Basic.hlsli">
@@ -609,6 +627,9 @@
     </Filter>
     <Filter Include="Source\Engine\Editor">
       <UniqueIdentifier>{94ec2468-0b63-44cb-b899-884449b8c5bf}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="External\implot">
+      <UniqueIdentifier>{073a93dd-fc27-42de-b961-3e5e2299ce4b}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
