@@ -122,7 +122,8 @@ void ModelRenderer::Render(const RenderContext& rc)
             // このラムダは不透明・半透明どちらのパスからも呼ばれるので、
             // ここが唯一の DrawIndexed 呼び出し箇所になる
             PROFILE_DRAW_CALL();
-        };
+            PROFILE_TRIANGLES(mesh.indices.size() / 3);   // インデックスバッファは三角形リストなので3で割る
+    };
 
     DirectX::XMVECTOR CameraPosition = DirectX::XMLoadFloat3(&rc.camera->GetPosition());
     DirectX::XMVECTOR CameraFront = DirectX::XMLoadFloat3(&rc.camera->GetFront());

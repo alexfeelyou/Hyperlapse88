@@ -24,6 +24,11 @@ void ProfilerManager::RecordDrawCall(std::size_t count) noexcept
     m_drawCallsThisFrame += count;
 }
 
+void ProfilerManager::RecordTriangles(std::size_t count) noexcept
+{
+    m_trianglesThisFrame += count;
+}
+
 void ProfilerManager::EndFrame(float deltaTime) noexcept
 {
     // Record this frame's total time (ms) at the current slot, matching the same
@@ -31,13 +36,16 @@ void ProfilerManager::EndFrame(float deltaTime) noexcept
     m_frameTimeHistory[m_currentFrameIndex] = deltaTime * 1000.0f;
 
     // Record this frame's total draw call count into the same rolling history used for CPU
-    // scope timings, so it graphs alongside them without a second buffer
-    PushCpuTime("Draw Calls", static_cast<float>(m_drawCallsThisFrame));
+    // scope timings. Labeled "(3D)" since only ModelRenderer/PrimitiveRenderer/ShapeRenderer
+    PushCpuTime("Draw Calls (3D)", static_cast<float>(m_drawCallsThisFrame));
 
     // Snapshot then reset: the next frame starts clean, and readers always get a stable,
     // fully-accumulated value instead of catching the counter mid-increment
     m_lastFrameDrawCallCount = m_drawCallsThisFrame;
     m_drawCallsThisFrame = 0;
+
+    m_lastFrameTriangleCount = m_trianglesThisFrame;
+    m_trianglesThisFrame = 0;
 
     m_currentFrameIndex = (m_currentFrameIndex + 1) % MAX_PROFILE_FRAMES;
 
@@ -105,6 +113,11 @@ std::size_t ProfilerManager::GetCurrentFrameIndex() const noexcept
 std::size_t ProfilerManager::GetLastFrameDrawCallCount() const noexcept
 {
     return m_lastFrameDrawCallCount;
+}
+
+std::size_t ProfilerManager::GetLastFrameTriangleCount() const noexcept
+{
+    return m_lastFrameTriangleCount;
 }
 
 const SystemMetrics& ProfilerManager::GetMetrics() const noexcept

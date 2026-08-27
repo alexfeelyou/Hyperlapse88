@@ -444,16 +444,17 @@ void EditorManager::DrawProfiler() const noexcept
             {
                 // Draw Calls lives in its own dedicated column below, not mixed into
                 // the CPU-scope ms readouts
-                if (name == std::string_view{ "Draw Calls" }) continue;
+                if (name == std::string_view{ "Draw Calls (3D)" }) continue;
 
                 ImGui::Text("%s: %.2f ms", name, data.lastFrameTime);
             }
 
-            // Column 4: Draw Call count, read straight from the dedicated accessor
-            // rather than pulled out of the generic CPU-timer map
+            // Column 4: Draw Call and Triangle counts, read straight from the dedicated
+            // accessors rather than pulled out of the generic CPU-timer map
             ImGui::TableSetColumnIndex(3);
-            ImGui::TextDisabled("DRAW CALLS");
-            ImGui::Text("Total: %zu", ProfilerManager::Instance().GetLastFrameDrawCallCount());
+            ImGui::TextDisabled("DRAW CALLS (3D)");
+            ImGui::Text("Calls: %zu", ProfilerManager::Instance().GetLastFrameDrawCallCount());
+            ImGui::Text("Triangles: %zu", ProfilerManager::Instance().GetLastFrameTriangleCount());
 
             ImGui::EndTable();
         }
