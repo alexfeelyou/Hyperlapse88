@@ -136,6 +136,9 @@
     <ClInclude Include="External\implot\implot_internal.h" />
     <ClInclude Include="External\SphereCast\Include\SphereCast.h" />
     <ClInclude Include="Source\Engine\Base\Framework.h" />
+    <ClInclude Include="Source\Engine\Base\GameObject.h" />
+    <ClInclude Include="Source\Engine\Base\IComponent.h" />
+    <ClInclude Include="Source\Engine\Base\Transform.h" />
     <ClInclude Include="Source\Engine\Camera\Camera.h" />
     <ClInclude Include="Source\Engine\Camera\CameraController.h" />
     <ClInclude Include="Source\Engine\Camera\FreeCameraController.h" />
@@ -220,7 +223,9 @@
     <ClCompile Include="External\implot\implot.cpp" />
     <ClCompile Include="External\implot\implot_items.cpp" />
     <ClCompile Include="Source\Engine\Base\Framework.cpp" />
+    <ClCompile Include="Source\Engine\Base\GameObject.cpp" />
     <ClCompile Include="Source\Engine\Base\Main.cpp" />
+    <ClCompile Include="Source\Engine\Base\Transform.cpp" />
     <ClCompile Include="Source\Engine\Camera\Camera.cpp" />
     <ClCompile Include="Source\Engine\Camera\CameraController.cpp" />
     <ClCompile Include="Source\Engine\Camera\FreeCameraController.cpp" />
