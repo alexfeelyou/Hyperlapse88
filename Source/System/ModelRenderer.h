@@ -1,11 +1,17 @@
 #pragma once
 
+#include <algorithm>
+#include <d3d11.h>
+#include <DirectXMath.h>
 #include <memory>
 #include <vector>
 #include <wrl.h>
-#include <d3d11.h>
-#include <DirectXMath.h>
+#include "BasicShader.h"
+#include "GpuResourceUtils.h"
+#include "LambertShader.h"
+#include "Misc.h"
 #include "Model.h"
+#include "PhongShader.h"
 #include "Shader.h"
 
 enum class ShaderId

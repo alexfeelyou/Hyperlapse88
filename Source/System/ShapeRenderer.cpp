@@ -1,7 +1,4 @@
-//VERSION: 2
-
-#include "Misc.h"
-#include "GpuResourceUtils.h"
+#include "ProfilerManager.h"
 #include "ShapeRenderer.h"
 
 // コンストラクタ
@@ -469,6 +466,7 @@ void ShapeRenderer::Render(
 
 		// 描画
 		dc->Draw(instance.mesh->vertexCount, 0);
+		PROFILE_DRAW_CALL();   // instances のループ1回転ごとに1回のDrawコール
 	}
 	instances.clear();
 }

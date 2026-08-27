@@ -18,8 +18,23 @@ void ProfilerManager::PushCpuTime(const char* scopeName, float timeMs)
     data.lastFrameTime = timeMs;
 }
 
+void ProfilerManager::RecordDrawCall(std::size_t count) noexcept
+{
+    // Caller decides how many draw calls this invocation represents
+    m_drawCallsThisFrame += count;
+}
+
 void ProfilerManager::EndFrame(float deltaTime) noexcept
 {
+    // Record this frame's total draw call count into the same rolling history used for CPU
+    // scope timings, so it graphs alongside them (e.g. in ImPlot) without a second buffer
+    PushCpuTime("Draw Calls", static_cast<float>(m_drawCallsThisFrame));
+
+    // Snapshot then reset: the next frame starts clean, and readers always get a stable,
+    // fully-accumulated value instead of catching the counter mid-increment
+    m_lastFrameDrawCallCount = m_drawCallsThisFrame;
+    m_drawCallsThisFrame = 0;
+
     m_currentFrameIndex = (m_currentFrameIndex + 1) % MAX_PROFILE_FRAMES;
 
     // Smooth FPS calculation
@@ -81,6 +96,11 @@ const std::unordered_map<const char*, ProfileData>& ProfilerManager::GetCpuData(
 std::size_t ProfilerManager::GetCurrentFrameIndex() const noexcept
 {
     return m_currentFrameIndex;
+}
+
+std::size_t ProfilerManager::GetLastFrameDrawCallCount() const noexcept
+{
+    return m_lastFrameDrawCallCount;
 }
 
 const SystemMetrics& ProfilerManager::GetMetrics() const noexcept

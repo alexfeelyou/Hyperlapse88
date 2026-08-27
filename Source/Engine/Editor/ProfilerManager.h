@@ -47,8 +47,15 @@ public:
     // Stores the calculated time in the circular buffer
     void PushCpuTime(const char* scopeName, float timeMs);
 
+    // Increments the running draw-call counter for the frame currently in progress
+    // count defaults to 1 since most call sites issue exactly one draw call per invocation
+    void RecordDrawCall(std::size_t count = 1) noexcept;
+
     // Advances the internal ring buffer index. Must be called exactly once per frame.
     void EndFrame(float deltaTime) noexcept;
+
+    // Returns the draw-call total captured at the end of the most recently completed frame
+    [[nodiscard]] std::size_t GetLastFrameDrawCallCount() const noexcept;
 
     // Read-only accessor for the UI to draw the graphs
     [[nodiscard]] const std::unordered_map<const char*, ProfileData>& GetCpuData() const noexcept;
@@ -70,6 +77,13 @@ private:
     // The core data store. Maps a static string literal to its historical timings.
     std::unordered_map<const char*, ProfileData> m_cpuTimers{};
     std::size_t m_currentFrameIndex{ 0 };
+
+    // Running total of draw calls issued so far during the current, still-in-progress frame.
+    // Reset to 0 every time EndFrame() is called.
+    std::size_t m_drawCallsThisFrame{ 0 };
+
+    // Snapshot of m_drawCallsThisFrame taken at the end of the last completed frame
+    std::size_t m_lastFrameDrawCallCount{ 0 };
 
     SystemMetrics m_metrics{};
     float m_hardwareUpdateTimer{ 0.0f };
@@ -108,7 +122,10 @@ private:
 #define PROFILE_SCOPE(name) ScopedTimer MACRO_CONCAT(timer, __LINE__){name}
 
 #define PROFILE_END_FRAME(dt) ProfilerManager::Instance().EndFrame(dt)
+
+#define PROFILE_DRAW_CALL() ProfilerManager::Instance().RecordDrawCall()
 #else
 #define PROFILE_SCOPE(name) ((void)0)
 #define PROFILE_END_FRAME(dt) ((void)0)
+#define PROFILE_DRAW_CALL() ((void)0)
 #endif

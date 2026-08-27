@@ -402,6 +402,11 @@ void EditorManager::DrawProfiler() const noexcept
 
             for (const auto& [name, data] : cpuData)
             {
+                // Draw Calls is a count, not a millisecond timing — plotting it on the
+                // same ms-scaled axis as CPU scopes would either flatten the CPU lines
+                // or blow out the axis range, so it gets its own graph below instead
+                if (name == std::string_view{ "Draw Calls" }) continue;
+
                 ImPlotSpec spec{};
                 spec.Offset = offset;
                 spec.LineWeight = 1.5f;
@@ -435,22 +440,24 @@ void EditorManager::DrawProfiler() const noexcept
             ImGui::Text("Sys RAM: %.1f MB", metrics.ramUsageMB);
             ImGui::Text("GPU VRAM: %.1f MB", metrics.vramUsageMB);
 
-            // Column 3 & 4: CPU Scopes (Dynamically filled)
+            // Column 3: CPU Scopes
             ImGui::TableSetColumnIndex(2);
             ImGui::TextDisabled("CPU TIMINGS");
 
-            int scopeCount{ 0 };
             for (const auto& [name, data] : cpuData)
             {
-                ImGui::Text("%s: %.2f ms", name, data.lastFrameTime);
+                // Draw Calls lives in its own dedicated column below, not mixed into
+                // the CPU-scope ms readouts
+                if (name == std::string_view{ "Draw Calls" }) continue;
 
-                // Wrap to the final column if we have a lot of tracked scopes
-                if (++scopeCount == 2)
-                {
-                    ImGui::TableSetColumnIndex(3);
-                    ImGui::TextDisabled(" "); // Spacer header
-                }
+                ImGui::Text("%s: %.2f ms", name, data.lastFrameTime);
             }
+
+            // Column 4: Draw Call count, read straight from the dedicated accessor
+            // rather than pulled out of the generic CPU-timer map
+            ImGui::TableSetColumnIndex(3);
+            ImGui::TextDisabled("DRAW CALLS");
+            ImGui::Text("Total: %zu", ProfilerManager::Instance().GetLastFrameDrawCallCount());
 
             ImGui::EndTable();
         }
