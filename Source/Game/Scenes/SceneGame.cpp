@@ -138,6 +138,13 @@ SceneGame::SceneGame()
     m_player->ApplyConfig(gameConfig);
     m_player->GetMovement()->SetRotationY(DirectX::XM_PI);
 
+    // Create a GameObject node named "Player"
+    auto playerNode{ std::make_unique<GameObject>("Player") };
+    playerNode->AddComponent<LegacyCharacterComponent>(m_player.get());
+
+    // Add it to the Scene's Root GameObject 
+    m_sceneRoot->AddChild(std::move(playerNode));
+
     m_enemyManager = std::make_unique<EnemyManager>();
     m_enemyManager->Initialize(Graphics::Instance().GetDevice());
 
@@ -227,7 +234,7 @@ void SceneGame::Update(const float elapsedTime)
 
             if (t >= 1.0f)
             {
-                Framework::Instance()->ChangeScene(std::make_unique<SceneTitle>());
+                Framework::Instance()->ChangeScene([]() { return std::make_unique<SceneTitle>(); });
             }
             return; 
         }
@@ -343,7 +350,7 @@ void SceneGame::Update(const float elapsedTime)
             m_foundation.reset();
 
             CameraController::Instance().ClearCamera();
-            Framework::Instance()->ChangeScene(std::make_unique<SceneTitle>());
+            Framework::Instance()->ChangeScene([]() { return std::make_unique<SceneTitle>(); });
 
             return;
         }
@@ -732,6 +739,10 @@ void SceneGame::Update(const float elapsedTime)
     {
         m_postProcess->GetLensDistortion().GetData().glitchStrength = m_player->GetDamageGlitchIntensity();
     }
+
+    // Tick the Scene Graph / GameObjects
+    // syncing the live game logic data to the ImGui Inspector
+    Scene::Update(elapsedTime);
 
     EffectManager::Instance().Update(elapsedTime);
 }

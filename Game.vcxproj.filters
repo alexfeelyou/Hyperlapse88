@@ -273,6 +273,9 @@
     <ClCompile Include="Source\Engine\Base\GameObject.cpp">
       <Filter>Source\Engine\Base</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Game\Entities\LegacyCharacterComponent.cpp">
+      <Filter>Source\Game\Entities</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\System\BasicShader.h">
@@ -554,6 +557,9 @@
     </ClInclude>
     <ClInclude Include="Source\Engine\Base\GameObject.h">
       <Filter>Source\Engine\Base</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Game\Entities\LegacyCharacterComponent.h">
+      <Filter>Source\Game\Entities</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

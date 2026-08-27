@@ -1,4 +1,6 @@
 #pragma once
+
+#include <functional>
 #include <imgui.h>
 #include <iostream> 
 #include <memory>
@@ -28,7 +30,7 @@ public:
     void Update(float elapsedTime);
     void Render(float elapsedTime);
     void ForceUpdateRender();
-    void ChangeScene(std::unique_ptr<Scene> newScene);
+    void ChangeScene(std::function<std::unique_ptr<Scene>()> sceneFactory);
     void OnResize(int width, int height);
     void Quit();
 
@@ -43,5 +45,5 @@ private:
     HighResolutionTimer timer;
 
     std::unique_ptr<Scene> scene;
-    std::unique_ptr<Scene> nextScene;
+    std::function<std::unique_ptr<Scene>()> m_nextSceneFactory{};
 };

@@ -42,7 +42,7 @@ void EditorManager::Draw(Scene* currentScene) noexcept
     DrawDockSpace();
 
     DrawSceneView();
-    DrawHierarchy();
+    DrawHierarchy(currentScene);
     DrawInspector(currentScene);
     DrawProfiler();
     DrawPostProcess(currentScene);
@@ -283,16 +283,13 @@ void EditorManager::DrawMenuBar() noexcept
     {
         if (ImGui::BeginMenu("Scene"))
         {
-            // Swap to the Title when clicked
             if (ImGui::MenuItem("Title"))
             {
-                Framework::Instance()->ChangeScene(std::make_unique<SceneTitle>());
+                Framework::Instance()->ChangeScene([]() { return std::make_unique<SceneTitle>(); });
             }
-
-            // Swap to the Game when clicked
             if (ImGui::MenuItem("Game"))
             {
-                Framework::Instance()->ChangeScene(std::make_unique<SceneGame>());
+                Framework::Instance()->ChangeScene([]() { return std::make_unique<SceneGame>(); });
             }
 
             ImGui::EndMenu();
@@ -313,18 +310,76 @@ void EditorManager::DrawMenuBar() noexcept
     }
 }
 
-void EditorManager::DrawHierarchy() const noexcept
+void EditorManager::DrawHierarchyNode(GameObject* node) noexcept
+{
+    if (!node) return;
+
+    // Configure ImGui visual flags
+    ImGuiTreeNodeFlags flags{ ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_SpanAvailWidth };
+
+    if (m_selectedObject == node)
+    {
+        flags |= ImGuiTreeNodeFlags_Selected;
+    }
+
+    if (node->GetChildren().empty())
+    {
+        flags |= ImGuiTreeNodeFlags_Leaf;
+    }
+
+    // Draw the node
+    const bool isOpen{ ImGui::TreeNodeEx(static_cast<void*>(node), flags, "%s", node->GetName().c_str()) };
+
+    // Handle Selection Logic (Clicking)
+    if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
+    {
+        m_selectedObject = node;
+    }
+
+    // If expanded, recurse through children
+    if (isOpen)
+    {
+        for (const auto& child : node->GetChildren())
+        {
+            DrawHierarchyNode(child.get());
+        }
+        ImGui::TreePop();
+    }
+}
+
+void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
 {
     ImGui::Begin(s_windowHierarchy);
+
+    if (currentScene && currentScene->GetRootGameObject())
+    {
+        DrawHierarchyNode(currentScene->GetRootGameObject());
+    }
+    else
+    {
+        ImGui::TextDisabled("No Scene Loaded");
+    }
+
+    // Deselect if clicking on empty space in the hierarchy window
+    if (ImGui::IsWindowHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsAnyItemHovered())
+    {
+        m_selectedObject = nullptr;
+    }
+
     ImGui::End();
 }
 
-void EditorManager::DrawInspector(Scene* currentScene) const noexcept
+void EditorManager::DrawInspector(Scene* currentScene) noexcept
 {
     ImGui::Begin(s_windowInspector);
 
-    // Fallback protection: safely ignore if no scene is loaded
-    if (currentScene)
+    // 1. If an object is selected in the Hierarchy, draw its GameObject Inspector
+    if (m_selectedObject)
+    {
+        m_selectedObject->DrawInspector();
+    }
+    // 2. Otherwise, fall back to the old Scene GUI
+    else if (currentScene)
     {
         currentScene->DrawGUI();
     }

@@ -167,6 +167,7 @@
     <ClInclude Include="Source\Game\Entities\EnemyManager.h" />
     <ClInclude Include="Source\Game\Entities\Item.h" />
     <ClInclude Include="Source\Game\Entities\ItemManager.h" />
+    <ClInclude Include="Source\Game\Entities\LegacyCharacterComponent.h" />
     <ClInclude Include="Source\Game\Entities\NaviAlly.h" />
     <ClInclude Include="Source\Game\Entities\Player.h" />
     <ClInclude Include="Source\Game\Entities\PlayerConstants.h" />
@@ -250,6 +251,7 @@
     <ClCompile Include="Source\Game\Entities\EnemyManager.cpp" />
     <ClCompile Include="Source\Game\Entities\Item.cpp" />
     <ClCompile Include="Source\Game\Entities\ItemManager.cpp" />
+    <ClCompile Include="Source\Game\Entities\LegacyCharacterComponent.cpp" />
     <ClCompile Include="Source\Game\Entities\NaviAlly.cpp" />
     <ClCompile Include="Source\Game\Entities\Player.cpp" />
     <ClCompile Include="Source\Game\Entities\Weapon.cpp" />

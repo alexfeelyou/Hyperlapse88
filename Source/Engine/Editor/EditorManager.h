@@ -8,6 +8,7 @@
 #include "System/Graphics.h"
 #include "System/Logger.h"
 #include "Framework.h"
+#include "GameObject.h"
 #include "ProfilerManager.h"
 #include "Scene.h"
 #include "SceneGame.h"
@@ -37,6 +38,9 @@ public:
     void BeginSceneRender(ID3D11DeviceContext* context) noexcept;
     void EndSceneRender(ID3D11DeviceContext* context) noexcept;
 
+    // Safely clears the active inspector target to prevent dangling pointers
+    void ClearSelection() noexcept { m_selectedObject = nullptr; }
+
 private:
     EditorManager() = default;
     ~EditorManager() = default;
@@ -46,8 +50,10 @@ private:
     void DrawSceneView() noexcept;
     void EnsureSceneRenderTarget(UINT width, UINT height) noexcept;
     void DrawMenuBar() noexcept;
-    void DrawHierarchy() const noexcept;
-    void DrawInspector(Scene* currentScene) const noexcept;
+    void DrawHierarchyNode(GameObject* node) noexcept;
+    GameObject* m_selectedObject{ nullptr }; // Tracks what the user clicked on
+    void DrawHierarchy(Scene* currentScene) noexcept;
+    void DrawInspector(Scene* currentScene) noexcept;
     void DrawConsole() const noexcept;
     void DrawProfiler() const noexcept;
     void DrawPostProcess(Scene* currentScene) noexcept;

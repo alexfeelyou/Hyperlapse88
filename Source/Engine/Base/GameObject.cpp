@@ -1,6 +1,6 @@
-#include "GameObject.h"
-#include <imgui.h> 
 #include <algorithm>
+#include <imgui.h> 
+#include "GameObject.h"
 
 // Use the member-initializer list to set up variables before the constructor body executes
 GameObject::GameObject(std::string_view name) noexcept
@@ -31,7 +31,7 @@ void GameObject::DrawInspector()
 {
     // Draw the basic GameObject properties (Name & Active state)
     static char s_nameBuffer[128];
-    strncpy_s(s_nameBuffer, m_name.c_str(), sizeof(s_nameBuffer));
+    strncpy_s(s_nameBuffer, sizeof(s_nameBuffer), m_name.c_str(), _TRUNCATE);
 
     if (ImGui::InputText("Name", s_nameBuffer, sizeof(s_nameBuffer)))
     {
