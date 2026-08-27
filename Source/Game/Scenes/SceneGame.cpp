@@ -98,6 +98,10 @@ SceneGame::SceneGame()
 
     m_stage = std::make_unique<Stage>(Graphics::Instance().GetDevice());
 
+    auto stageNode{ std::make_unique<GameObject>("Stage") };
+    stageNode->AddComponent<StageComponent>(m_stage.get());
+    m_sceneRoot->AddChild(std::move(stageNode));
+
     m_foundation.reset(PxCreateFoundation(PX_PHYSICS_VERSION, m_allocator, m_errorCallback));
     assert(m_foundation != nullptr && "CRITICAL ERROR: PxCreateFoundation failed!");
 

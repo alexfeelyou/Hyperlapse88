@@ -31,6 +31,7 @@
 #include "Player.h"
 #include "PlayerStates.h"
 #include "Stage.h"
+#include "StageComponent.h"
 #include "UIDialogueBox.h"
 #include "UIPause.h"
 
