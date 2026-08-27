@@ -390,29 +390,25 @@ void EditorManager::DrawProfiler() const noexcept
         const int maxFrames{ static_cast<int>(MAX_PROFILE_FRAMES) };
         const int offset{ static_cast<int>(currentIndex) };
 
-        // TOP PANEL: Timeline Graph
-        if (ImPlot::BeginPlot("##CPU_Performance", ImVec2{ -1.0f, -90.0f }))
+        // TOP PANEL: Frame Time Graph
+        // Chosen over per-scope CPU timings as the headline visual: it answers
+        // "does this run well?" at a glance for any viewer, technical or not
+        if (ImPlot::BeginPlot("##FrameTime", ImVec2{ -1.0f, -90.0f }))
         {
-            ImPlot::SetupAxes(nullptr, "Time (ms)", ImPlotAxisFlags_NoTickLabels, ImPlotAxisFlags_AutoFit);
+            ImPlot::SetupAxes(nullptr, "Frame Time (ms)", ImPlotAxisFlags_NoTickLabels, ImPlotAxisFlags_AutoFit);
             ImPlot::SetupAxisLimits(ImAxis_X1, 0.0, static_cast<double>(maxFrames), ImPlotCond_Always);
 
-            // The 16.6ms threshold line
-            static double targetFPS{ 16.666 };
-            ImPlot::DragLineY(0, &targetFPS, ImVec4{ 0.9f, 0.1f, 0.1f, 0.8f }, 1.0f, ImPlotDragToolFlags_NoInputs);
+            // The 16.6ms line marks the 60fps budget — any spike above it is a dropped frame
+            static double targetFrameTimeMs{ 16.666 };
+            ImPlot::DragLineY(0, &targetFrameTimeMs, ImVec4{ 0.9f, 0.1f, 0.1f, 0.8f }, 1.0f, ImPlotDragToolFlags_NoInputs);
 
-            for (const auto& [name, data] : cpuData)
-            {
-                // Draw Calls is a count, not a millisecond timing — plotting it on the
-                // same ms-scaled axis as CPU scopes would either flatten the CPU lines
-                // or blow out the axis range, so it gets its own graph below instead
-                if (name == std::string_view{ "Draw Calls" }) continue;
+            const auto& frameTimeHistory{ ProfilerManager::Instance().GetFrameTimeHistory() };
 
-                ImPlotSpec spec{};
-                spec.Offset = offset;
-                spec.LineWeight = 1.5f;
+            ImPlotSpec spec{};
+            spec.Offset = offset;
+            spec.LineWeight = 1.5f;
 
-                ImPlot::PlotLine(name, data.timings.data(), maxFrames, 1.0, 0.0, spec);
-            }
+            ImPlot::PlotLine("Frame Time", frameTimeHistory.data(), maxFrames, 1.0, 0.0, spec);
             ImPlot::EndPlot();
         }
 

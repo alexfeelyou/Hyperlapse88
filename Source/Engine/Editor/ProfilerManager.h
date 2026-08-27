@@ -60,6 +60,10 @@ public:
     // Read-only accessor for the UI to draw the graphs
     [[nodiscard]] const std::unordered_map<const char*, ProfileData>& GetCpuData() const noexcept;
 
+    // Returns the rolling per-frame history of total frame time (milliseconds),
+    // used to draw the FPS/Frame performance graph in the Editor
+    [[nodiscard]] const std::array<float, MAX_PROFILE_FRAMES>& GetFrameTimeHistory() const noexcept;
+
     // Returns the current offset so ImPlot knows where the circular buffer wraps around
     [[nodiscard]] std::size_t GetCurrentFrameIndex() const noexcept;
 
@@ -77,6 +81,10 @@ private:
     // The core data store. Maps a static string literal to its historical timings.
     std::unordered_map<const char*, ProfileData> m_cpuTimers{};
     std::size_t m_currentFrameIndex{ 0 };
+
+    // Rolling per-frame history of total frame time in milliseconds, kept separate
+    // from m_cpuTimers since it's a single global value rather than a named scope
+    std::array<float, MAX_PROFILE_FRAMES> m_frameTimeHistory{};
 
     // Running total of draw calls issued so far during the current, still-in-progress frame.
     // Reset to 0 every time EndFrame() is called.

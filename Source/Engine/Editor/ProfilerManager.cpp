@@ -26,8 +26,12 @@ void ProfilerManager::RecordDrawCall(std::size_t count) noexcept
 
 void ProfilerManager::EndFrame(float deltaTime) noexcept
 {
+    // Record this frame's total time (ms) at the current slot, matching the same
+    // index this frame's CPU scope timings were already written to during the frame
+    m_frameTimeHistory[m_currentFrameIndex] = deltaTime * 1000.0f;
+
     // Record this frame's total draw call count into the same rolling history used for CPU
-    // scope timings, so it graphs alongside them (e.g. in ImPlot) without a second buffer
+    // scope timings, so it graphs alongside them without a second buffer
     PushCpuTime("Draw Calls", static_cast<float>(m_drawCallsThisFrame));
 
     // Snapshot then reset: the next frame starts clean, and readers always get a stable,
@@ -108,8 +112,12 @@ const SystemMetrics& ProfilerManager::GetMetrics() const noexcept
     return m_metrics;
 }
 
-// ScopedTimer Implementation 
+const std::array<float, MAX_PROFILE_FRAMES>& ProfilerManager::GetFrameTimeHistory() const noexcept
+{
+    return m_frameTimeHistory;
+}
 
+// ScopedTimer Implementation 
 ScopedTimer::ScopedTimer(const char* name) noexcept
     : m_name{ name }
     , m_start{ std::chrono::high_resolution_clock::now() }
