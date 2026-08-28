@@ -48,4 +48,5 @@ private:
     int m_debugHighlightIndex{ -1 };
 
     GameObject* m_parentNode{ nullptr }; // Tracks the Hierarchy folder
+    uint32_t m_spawnCounter{ 0 }; // Tracks spawns per scene reload
 };

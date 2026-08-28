@@ -61,7 +61,7 @@ public:
     AttackType GetAttackType() const { return m_attackType; }
     std::deque<std::unique_ptr<Bullet>>& GetProjectiles() { return m_projectiles; }
 
-    bool IsActive() const { return m_isActive; }
+    [[nodiscard]] bool IsActive() const noexcept override { return m_isActive; }
     bool IsHighlighted() const { return m_isHighlighted; }
 
     float GetMinX() const { return m_patrolMinX - originalPosition.x; }

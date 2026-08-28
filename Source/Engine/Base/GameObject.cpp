@@ -12,7 +12,8 @@ GameObject::GameObject(std::string_view name) noexcept
 
 void GameObject::Update(float dt)
 {
-    if (!m_isActive) return;
+    // Fast fail if inactive or pending destruction
+    if (!m_isActive || m_isDestroyed) return;
 
     // Update all attached components
     for (const auto& component : m_components)
@@ -20,7 +21,22 @@ void GameObject::Update(float dt)
         component->Update(dt);
     }
 
-    // Recursively update all children in the hierarchy
+    // Moves elements marked for destruction to the back, then truncates the vector
+    const auto eraseBegin = std::remove_if(
+        m_children.begin(),
+        m_children.end(),
+        [](const std::unique_ptr<GameObject>& child) noexcept
+        {
+            return !child || child->IsDestroyed();
+        }
+    );
+
+    if (eraseBegin != m_children.end())
+    {
+        m_children.erase(eraseBegin, m_children.end());
+    }
+
+    // Recursively tick surviving children
     for (const auto& child : m_children)
     {
         child->Update(dt);

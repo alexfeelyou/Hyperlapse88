@@ -14,7 +14,7 @@ public:
     void Render(ModelRenderer* renderer);
 
     // Getters / Setters 
-    bool     IsActive()  const { return isActive; }
+    [[nodiscard]] bool IsActive() const noexcept override { return isActive; }
     ItemType GetType()   const { return m_type; }
 
     void SetActive(bool active) { isActive = active; }

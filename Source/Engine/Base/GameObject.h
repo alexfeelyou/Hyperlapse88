@@ -62,9 +62,14 @@ public:
     // Transform is deliberately public for direct access 
     Transform transform{};
 
+    // Marks this object to be destroyed and erased at the start of the next frame
+    void Destroy() noexcept { m_isDestroyed = true; }
+    [[nodiscard]] bool IsDestroyed() const noexcept { return m_isDestroyed; }
+
 private:
     std::string m_name{};
     bool m_isActive{ true };
+    bool m_isDestroyed{ false };
     GameObject* m_parent{ nullptr }; // Non-owning raw pointer (parent outlives child)
 
     std::vector<std::unique_ptr<GameObject>> m_children{};

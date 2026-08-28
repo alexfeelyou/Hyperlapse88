@@ -150,20 +150,12 @@ SceneGame::SceneGame()
     m_sceneRoot->AddChild(std::move(playerNode));
 
     m_enemyManager = std::make_unique<EnemyManager>();
-
-    // Create an "Enemies" folder and pass it to the Manager
-    auto enemiesFolder{ std::make_unique<GameObject>("Enemies") };
-    m_enemyManager->Initialize(Graphics::Instance().GetDevice(), enemiesFolder.get());
-    m_sceneRoot->AddChild(std::move(enemiesFolder));
+    m_enemyManager->Initialize(Graphics::Instance().GetDevice(), m_sceneRoot.get());
 
     m_navi = std::make_unique<NaviAlly>(Graphics::Instance().GetDevice(), m_player.get(), m_enemyManager.get());
 
     m_itemManager = std::make_unique<ItemManager>();
-    
-    // Create an "Items" folder and pass it to the Manager
-    auto itemsFolder{ std::make_unique<GameObject>("Items") };
-    m_itemManager->Initialize(Graphics::Instance().GetDevice(), itemsFolder.get());
-    m_sceneRoot->AddChild(std::move(itemsFolder));
+    m_itemManager->Initialize(Graphics::Instance().GetDevice(), m_sceneRoot.get());
     
     // Reads the JSON file and pushes the saved data into the managers
     SceneSerializer::Load(GetSceneSavePath(), m_sceneRoot.get(), m_enemyManager.get(), m_itemManager.get());
@@ -496,10 +488,6 @@ void SceneGame::Update(const float elapsedTime)
     if (m_collisionManager) m_collisionManager->Update(elapsedTime);
 
 	// Camera Zoom Logic 
-    static float targetZoom{ 0.0f };
-    static int   frameCounter{ 0 };
-    static const Enemy* cachedClosestEnemy{ nullptr };
-
     if (m_isBossCinematicActive)
     {
         float t = std::clamp(m_bossCinematicTimer / BOSS_CINEMATIC_DURATION, 0.0f, 1.0f);
@@ -521,7 +509,7 @@ void SceneGame::Update(const float elapsedTime)
         }
         else if (!m_bossDialogueStarted)
         {
-			// Phase 2: Start the boss dialogue sequence
+            // Phase 2: Start the boss dialogue sequence
             m_bossDialogueStarted = true;
             std::vector<std::string> dialogPages = {
                 u8"えっ...？ 何あのキノコ...。\n他のやつらより、ずっと大きい...？",
@@ -533,16 +521,14 @@ void SceneGame::Update(const float elapsedTime)
         }
         else if (m_bossDialogueStarted)
         {
-			// Phase 3: Check the current dialogue line and trigger the poison effect when reaching line 3
+            // Phase 3: Check the current dialogue line and trigger the poison effect when reaching line 3
             int currentLine = m_dialogueBox->GetCurrentDialogueIndex();
 
-			// Trigger the poison effect when the dialogue reaches line 3 (index 2)
             if (currentLine == 2 && !m_bossEffectTriggered)
             {
                 m_bossEffectTriggered = true;
 
                 static const std::string POISON_SFX{ "Data/Sound/SE_FakeBoss_Poison.wav" };
-
                 AudioManager::Instance().PlayAmbientSFX(POISON_SFX, 1.0f, 0.5f);
 
                 if (Enemy* fakeBoss = GetFakeBoss())
@@ -551,7 +537,7 @@ void SceneGame::Update(const float elapsedTime)
                     spawnPos.x += m_fakeBossEffectOffset.x;
                     spawnPos.y += m_fakeBossEffectOffset.y;
                     spawnPos.z += m_fakeBossEffectOffset.z;
-                    
+
                     m_poisonEffectHandle = EffectManager::Instance().Play(
                         "Data/Effect/FakeBossPoison.efk", spawnPos, m_fakeBossEffectScale
                     );
@@ -567,14 +553,12 @@ void SceneGame::Update(const float elapsedTime)
                 }
             }
 
-			// Phase 4: After the dialogue is done, start the whiteout effect and heal the player
+            // Phase 4: After the dialogue is done, start the whiteout effect and heal the player
             if (m_bossEffectTriggered && !m_dialogueBox->IsActive())
             {
                 AudioManager::Instance().FadeOutAmbientSFX(1.5f);
 
-				// Start the whiteout effect and heal the player
                 m_bossCinematicTimer += elapsedTime;
-
                 float timeInFade = m_bossCinematicTimer - BOSS_CINEMATIC_DURATION;
 
                 if (timeInFade < WHITEOUT_FADE_DURATION)
@@ -589,7 +573,7 @@ void SceneGame::Update(const float elapsedTime)
                     if (m_poisonEffectHandle >= 0)
                     {
                         EffectManager::Instance().Stop(m_poisonEffectHandle);
-                        m_poisonEffectHandle = -1; 
+                        m_poisonEffectHandle = -1;
                     }
                     if (!m_hasHealedForBoss)
                     {
@@ -602,24 +586,21 @@ void SceneGame::Update(const float elapsedTime)
                 }
                 else
                 {
-					// Phase 5: Fade back to normal gameplay
+                    // Phase 5: Fade back to normal gameplay
                     float fadeOutTime = timeInFade - (WHITEOUT_FADE_DURATION + WHITEOUT_HOLD_DURATION);
                     m_whiteAlpha = 1.0f - std::clamp(fadeOutTime / FADE_BACK_DURATION, 0.0f, 1.0f);
 
                     if (m_navi)
                     {
                         m_navi->SetPotionedState(true);
-
                         m_navi->StartAttackDelay(999.0f);
                     }
 
-					// Once the whiteout is fully faded out, end the boss cinematic and trigger the poison dialogue if it hasn't been triggered yet
                     if (m_whiteAlpha <= 0.0f)
                     {
                         m_whiteAlpha = 0.0f;
                         m_isBossCinematicActive = false;
 
-						// Trigger the poison dialogue if it hasn't been triggered yet
                         if (!m_hasTriggeredPoisonDialogue)
                         {
                             StartPoisonDialogue();
@@ -629,8 +610,7 @@ void SceneGame::Update(const float elapsedTime)
             }
         }
     }
-
-	else // Normal gameplay camera behavior
+    else // Normal gameplay camera behavior
     {
         // Target the Player securely
         if (m_player)
@@ -638,12 +618,8 @@ void SceneGame::Update(const float elapsedTime)
             CameraController::Instance().SetTarget(m_player->GetPosition());
         }
 
-		// Dynamic zoom based on the closest enemy
-        static float targetZoom{ 0.0f };
-        static int   frameCounter{ 0 };
-        static const Enemy* cachedClosestEnemy{ nullptr };
-
-        if (frameCounter++ % 10 == 0)
+        // Dynamic zoom based on the closest enemy
+        if (m_zoomFrameCounter++ % 10 == 0)
         {
             if (m_enemyManager && m_player)
             {
@@ -667,31 +643,32 @@ void SceneGame::Update(const float elapsedTime)
                     }
                 }
 
-                cachedClosestEnemy = currentClosest;
+                m_cachedClosestEnemy = currentClosest;
 
-                if (cachedClosestEnemy)
+                if (m_cachedClosestEnemy)
                 {
                     constexpr float combatRadius{ 25.0f };
                     constexpr float maxZoomIn{ -8.0f };
 
                     const float dist{ std::sqrt(closestDistSq) };
                     const float intensity{ std::clamp(1.0f - (dist / combatRadius), 0.0f, 1.0f) };
-                    targetZoom = maxZoomIn * intensity;
+                    m_targetZoom = maxZoomIn * intensity;
                 }
                 else
                 {
-                    targetZoom = 0.0f;
+                    m_targetZoom = 0.0f;
                 }
             }
         }
 
-        if (cachedClosestEnemy && !cachedClosestEnemy->IsActive())
+        // Safe check using the class member
+        if (m_cachedClosestEnemy && !m_cachedClosestEnemy->IsActive())
         {
-            cachedClosestEnemy = nullptr;
-            targetZoom = 0.0f;
+            m_cachedClosestEnemy = nullptr;
+            m_targetZoom = 0.0f;
         }
 
-        CameraController::Instance().SetDynamicZoomOffset(targetZoom);
+        CameraController::Instance().SetDynamicZoomOffset(m_targetZoom);
     }
 
     if (m_player && m_enemyManager && m_dialogueBox && !m_dialogueBox->IsActive())

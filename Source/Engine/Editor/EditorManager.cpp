@@ -385,10 +385,85 @@ void EditorManager::DrawHierarchyNode(GameObject* node) noexcept
 
 void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
 {
+    // If the object selected in the Inspector was destroyed this frame, clear it immediately
+    if (m_selectedObject && m_selectedObject->IsDestroyed())
+    {
+        m_selectedObject = nullptr;
+    }
+
     ImGui::Begin(s_windowHierarchy);
 
     if (currentScene && currentScene->GetRootGameObject())
     {
+		// "+ CREATE" Drop Down Menu
+        if (ImGui::Button("+ Create"))
+        {
+            ImGui::OpenPopup("CreateMenuPopup");
+        }
+
+        if (ImGui::BeginPopup("CreateMenuPopup"))
+        {
+            if (ImGui::MenuItem("Create Empty"))
+            {
+                currentScene->GetRootGameObject()->AddChild(std::make_unique<GameObject>("Empty"));
+            }
+
+            // Only show Gameplay Entities if we are currently editing the Game Scene
+            if (auto* gameScene{ dynamic_cast<SceneGame*>(currentScene) })
+            {
+                ImGui::Separator();
+                ImGui::TextDisabled("Gameplay Entities");
+
+                if (ImGui::BeginMenu("Enemy"))
+                {
+					// Local lambda for enemies
+                    auto spawnEnemy = [&](EnemyType type, AttackType attack)
+                        {
+                            EnemySpawnConfig config{};
+                            config.Type = type;
+                            config.AttackBehavior = attack;
+                            config.Position = { 0.0f, 1.1f, 5.0f }; 
+                            config.Scale = { 1.0f, 1.0f, 1.0f };
+
+                            gameScene->GetEnemyManager()->SpawnEnemy(config);
+                        };
+
+                    if (ImGui::MenuItem("Mushroom (Idle)"))     spawnEnemy(EnemyType::MushroomNone, AttackType::None);
+                    if (ImGui::MenuItem("Mushroom (Turret)"))   spawnEnemy(EnemyType::MushroomStatic, AttackType::Static);
+                    if (ImGui::MenuItem("Mushroom (Kamikaze)")) spawnEnemy(EnemyType::MushroomTracking, AttackType::Tracking);
+                    ImGui::Separator();
+                    if (ImGui::MenuItem("Paddle"))              spawnEnemy(EnemyType::Paddle, AttackType::None);
+                    if (ImGui::MenuItem("Ball"))                spawnEnemy(EnemyType::Ball, AttackType::None);
+                    if (ImGui::MenuItem("FakeBoss"))            spawnEnemy(EnemyType::FakeBoss, AttackType::None);
+
+                    ImGui::EndMenu();
+                }
+
+                if (ImGui::BeginMenu("Item"))
+                {
+                    // Local lambda for items
+                    auto spawnItem = [&](ItemType type)
+                        {
+                            ItemSpawnData data{};
+                            data.Type = type;
+                            data.Position = { 0.0f, 0.4f, 5.0f };
+                            data.Scale = { 2.0f, 2.0f, 2.0f };
+
+                            gameScene->GetItemManager()->SpawnItem(data);
+                        };
+
+                    if (ImGui::MenuItem("Heal Potion"))     spawnItem(ItemType::Heal);
+                    if (ImGui::MenuItem("Invincibility"))   spawnItem(ItemType::Invincible);
+
+                    ImGui::EndMenu();
+                }
+            }
+
+            ImGui::EndPopup();
+        }
+
+        ImGui::Separator();
+
         DrawHierarchyNode(currentScene->GetRootGameObject());
     }
     else

@@ -8,6 +8,7 @@
 
 // Forward declaration
 class Camera;
+class Enemy;
 
 // Enum for easing transitions
 enum class EasingType {
@@ -156,6 +157,10 @@ private:
 
     float m_targetZoomOffset = 0.0f;
     float m_currentZoomOffset = 0.0f;
+
+    float m_targetZoom{ 0.0f };
+    int m_zoomFrameCounter{ 0 };
+    const Enemy* m_cachedClosestEnemy{ nullptr };
 
     // Settings
     float m_moveSpeed = 15.0f;

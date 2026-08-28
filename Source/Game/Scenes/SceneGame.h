@@ -39,6 +39,7 @@
 // Forward Declarations
 class Camera;
 class CollisionManager;
+class Enemy;
 class EnemyManager;
 class GameBreakerGUI;
 class ItemManager;
@@ -214,4 +215,8 @@ private:
     DirectX::XMFLOAT3 m_fakeBossEffectRotation{ 0.000f, 25.000f, 0.000f };
     DirectX::XMFLOAT3 m_cinematicStartTarget{ 0.0f, 0.0f, 0.0f };
     DirectX::XMFLOAT3 m_cinematicEndTarget{ 0.0f, 0.0f, 0.0f };
+
+    float m_targetZoom{ 0.0f };
+    int m_zoomFrameCounter{ 0 };
+    const Enemy* m_cachedClosestEnemy{ nullptr };
 };

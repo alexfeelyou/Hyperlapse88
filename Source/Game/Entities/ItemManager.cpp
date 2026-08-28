@@ -11,6 +11,7 @@ void ItemManager::Initialize(ID3D11Device* device, GameObject* parentNode)
     m_deviceRef = device;
     m_parentNode = parentNode;
     m_items.clear();
+    m_spawnCounter = 0; // Reset counter on scene load
 }
 
 void ItemManager::SpawnItem(const ItemSpawnData& data)
@@ -34,7 +35,7 @@ void ItemManager::SpawnItem(const ItemSpawnData& data)
     if (m_parentNode)
     {
         std::string nodeName{ (data.Type == ItemType::Heal) ? "Item_Heal" : "Item_Invincibility" };
-        nodeName += "_" + std::to_string(m_items.size());
+        nodeName += "_" + std::to_string(++m_spawnCounter);
 
         auto itemNode{ std::make_unique<GameObject>(nodeName) };
         itemNode->AddComponent<LegacyCharacterComponent>(newItem.get());
@@ -145,7 +146,6 @@ void ItemManager::Serialize(nlohmann::json& outJson) const
 void ItemManager::Deserialize(const nlohmann::json& inJson)
 {
     m_items.clear();
-    if (m_parentNode) m_parentNode->ClearChildren();
 
     if (!inJson.contains("Items")) return;
 

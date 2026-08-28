@@ -40,21 +40,18 @@ enum class MoveDir
 
 struct EnemySpawnConfig
 {
-    DirectX::XMFLOAT3 Position;
-    DirectX::XMFLOAT3 Rotation;
-    DirectX::XMFLOAT4 Color;
-    EnemyType Type;
-    AttackType AttackBehavior;
-    MoveDir Direction = MoveDir::None;
-    float MinX = 0.0f;
-    float MaxX = 0.0f;
-    float MinZ = 0.0f;
-    float MaxZ = 0.0f;
+    DirectX::XMFLOAT3 Position{ 0.0f, 0.0f, 0.0f };
+    DirectX::XMFLOAT3 Rotation{ 0.0f, 0.0f, 0.0f };
+    DirectX::XMFLOAT4 Color{ 1.0f, 1.0f, 1.0f, 1.0f };
+    EnemyType Type{ EnemyType::MushroomNone };
+    AttackType AttackBehavior{ AttackType::None };
+    MoveDir Direction{ MoveDir::None };
+    float MinX{ 0.0f }; float MaxX{ 0.0f };
+    float MinZ{ 0.0f }; float MaxZ{ 0.0f };
 
-    DirectX::XMFLOAT3 Scale = { 0.5f, 0.5f, 0.5f };
-    float BaseSpeed = 2.0f;
-
-    int MaxHP = 50;
+    DirectX::XMFLOAT3 Scale{ 0.5f, 0.5f, 0.5f };
+    float BaseSpeed{ 2.0f };
+    int MaxHP{ 50 };
 };
 
 namespace EnemyLevelData
@@ -107,4 +104,5 @@ private:
     std::vector<std::unique_ptr<Enemy>> m_enemyPool{};
 
     GameObject* m_parentNode{ nullptr }; // Tracks the Hierarchy folder
+    uint32_t m_spawnCounter{ 0 }; // Tracks spawns per scene reload
 };

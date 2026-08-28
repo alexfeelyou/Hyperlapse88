@@ -27,6 +27,8 @@ public:
 
     DirectX::XMFLOAT3 scale = { 1.0f, 1.0f, 1.0f };
 
+    [[nodiscard]] virtual bool IsActive() const noexcept { return true; }
+
 protected:
     // Syncs movement state to the visual model's root node
     void SyncData();

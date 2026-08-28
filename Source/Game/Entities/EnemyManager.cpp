@@ -31,6 +31,7 @@ void EnemyManager::Initialize(ID3D11Device* device, GameObject* parentNode)
     m_parentNode = parentNode;
     m_enemies.clear();
     m_enemyPool.clear();
+    m_spawnCounter = 0;
 }
 
 void EnemyManager::SpawnEnemy(const EnemySpawnConfig& config)
@@ -56,9 +57,11 @@ void EnemyManager::SpawnEnemy(const EnemySpawnConfig& config)
 
     const int finalHP{ (config.AttackBehavior == AttackType::Tracking) ? 70 : config.MaxHP };
 
+    Enemy* activeEnemyPtr{ nullptr };
+
     if (!m_enemyPool.empty())
     {
-        // Re-use an existing memory allocation. Its existing GameObject will snap to the new position
+        // Re-use an existing memory allocation from the graveyard
         std::unique_ptr<Enemy> pooledEnemy{ std::move(m_enemyPool.back()) };
         m_enemyPool.pop_back();
 
@@ -73,6 +76,7 @@ void EnemyManager::SpawnEnemy(const EnemySpawnConfig& config)
         pooledEnemy->SetBaseMoveSpeed(config.BaseSpeed);
         pooledEnemy->SetMaxHP(finalHP);
 
+        activeEnemyPtr = pooledEnemy.get();
         m_enemies.push_back(std::move(pooledEnemy));
     }
     else
@@ -89,20 +93,20 @@ void EnemyManager::SpawnEnemy(const EnemySpawnConfig& config)
         newEnemy->SetBaseMoveSpeed(config.BaseSpeed);
         newEnemy->SetMaxHP(finalHP);
 
-        // Wrap the new memory in a GameObject
-        if (m_parentNode)
-        {
-            // Construct a unique name 
-            std::string nodeName{ GetEnemyTypeName(config.Type) };
-            nodeName += "_" + std::to_string(m_enemies.size() + m_enemyPool.size());
-
-            auto enemyNode{ std::make_unique<GameObject>(nodeName) };
-            enemyNode->AddComponent<LegacyCharacterComponent>(newEnemy.get());
-
-            m_parentNode->AddChild(std::move(enemyNode));
-        }
-
+        activeEnemyPtr = newEnemy.get();
         m_enemies.push_back(std::move(newEnemy));
+    }
+
+    // Always create a GameObject wrapper, whether it's new or from the pool
+    if (m_parentNode && activeEnemyPtr)
+    {
+        std::string nodeName{ GetEnemyTypeName(config.Type) };
+        nodeName += "_" + std::to_string(++m_spawnCounter);
+
+        auto enemyNode{ std::make_unique<GameObject>(nodeName) };
+        enemyNode->AddComponent<LegacyCharacterComponent>(activeEnemyPtr);
+
+        m_parentNode->AddChild(std::move(enemyNode));
     }
 }
 
@@ -205,26 +209,31 @@ void EnemyManager::RespawnEnemyAs(size_t index, AttackType attack, MoveDir dir, 
 void EnemyManager::ReviveKamikazes()
 {
     // Search the graveyard pool for the Kamikaze that killed the player
-    for (auto it = m_enemyPool.begin(); it != m_enemyPool.end(); )
+    for (auto it{ m_enemyPool.begin() }; it != m_enemyPool.end(); )
     {
         if ((*it)->HasKilledPlayer())
         {
-            // Reset the killer tag
+            // Reset state and position
             (*it)->SetKilledPlayer(false);
-
-            // Fully heal it and revive it
             (*it)->SetMaxHP(70);
             (*it)->SetActive(true);
-
-            // Snap it back to its original spawn position
             (*it)->SetPosition((*it)->GetOriginalPosition());
             (*it)->SetRotation((*it)->GetOriginalRotation());
-            (*it)->GetProjectiles().clear(); // Wipe any old bullets
+            (*it)->GetProjectiles().clear();
 
-            // Move it from the graveyard back to the active enemies list
+            // Recreate the GameObject Hierarchy wrapper before moving the pointer
+            if (m_parentNode)
+            {
+                static int s_reviveCount{ 0 };
+                std::string nodeName{ "Mushroom_Kamikaze_Revived_" + std::to_string(++s_reviveCount) };
+
+                auto enemyNode{ std::make_unique<GameObject>(nodeName) };
+                enemyNode->AddComponent<LegacyCharacterComponent>(it->get());
+                m_parentNode->AddChild(std::move(enemyNode));
+            }
+
+            // Move from the pool back to active list
             m_enemies.push_back(std::move(*it));
-
-            // Erase the empty shell from the pool
             it = m_enemyPool.erase(it);
         }
         else
@@ -273,7 +282,6 @@ void EnemyManager::Deserialize(const nlohmann::json& inJson)
     // Clear live memory and the GameObject Hierarchy folder
     m_enemies.clear();
     m_enemyPool.clear();
-    if (m_parentNode) m_parentNode->ClearChildren();
 
     if (!inJson.contains("Enemies")) return;
 

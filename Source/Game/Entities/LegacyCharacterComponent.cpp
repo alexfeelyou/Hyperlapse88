@@ -26,6 +26,13 @@ void LegacyCharacterComponent::Update(float dt)
     // Fast fail if references are dangling
     if (!m_character || !m_owner) return;
 
+    // If the game logic kills the entity, destroy its Editor wrapper
+    if (!m_character->IsActive())
+    {
+        m_owner->Destroy();
+        return;
+    }
+
     CharacterMovement* movement{ m_character->GetMovement() };
     if (!movement) return;
 
