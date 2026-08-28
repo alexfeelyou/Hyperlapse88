@@ -1,6 +1,7 @@
 #pragma once
 
-#include <DirectXMath.h> 
+#include <DirectXMath.h>
+#include <json.hpp>
 #include <memory>
 #include <vector>
 #include <array>
@@ -78,14 +79,6 @@ namespace EnemyLevelData
         static const DirectX::XMFLOAT3 Left = { 0.0f, -90.0f, 0.0f };
         static const DirectX::XMFLOAT3 Right = { 0.0f, 90.0f, 0.0f };
     }
-
-    // ==========================================
-    // MASTER SPAWN LIST
-    // ==========================================
-    static const std::array<EnemySpawnConfig, 1> Spawns =
-    { {
-            { { 0.0f, 1.1f, 10.0f }, Rot::Backward, None, EnemyType::MushroomNone, AttackType::None }
-    } };
 }
 
 class EnemyManager
@@ -103,6 +96,9 @@ public:
     void RespawnEnemyAs(size_t index, AttackType attack, MoveDir dir = MoveDir::None, float minX = 0, float maxX = 0, float minZ = 0, float maxZ = 0);
     void ReviveKamikazes();
     void SpawnEnemy(const EnemySpawnConfig& config);
+
+    void Serialize(nlohmann::json& outJson) const;
+    void Deserialize(const nlohmann::json& inJson);
 
     [[nodiscard]] std::vector<std::unique_ptr<Enemy>>& GetEnemies() noexcept { return m_enemies; }
 

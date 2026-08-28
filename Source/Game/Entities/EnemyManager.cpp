@@ -29,11 +29,8 @@ EnemyManager::~EnemyManager() { m_enemies.clear(); }
 void EnemyManager::Initialize(ID3D11Device* device, GameObject* parentNode)
 {
     m_parentNode = parentNode;
-
-    for (const auto& config : EnemyLevelData::Spawns)
-    {
-        SpawnEnemy(config);
-    }
+    m_enemies.clear();
+    m_enemyPool.clear();
 }
 
 void EnemyManager::SpawnEnemy(const EnemySpawnConfig& config)
@@ -234,5 +231,71 @@ void EnemyManager::ReviveKamikazes()
         {
             ++it;
         }
+    }
+}
+
+void EnemyManager::Serialize(nlohmann::json& outJson) const
+{
+    nlohmann::json enemiesArray{ nlohmann::json::array() };
+
+    for (const auto& enemy : m_enemies)
+    {
+        if (!enemy || !enemy->IsActive()) continue;
+
+        nlohmann::json eJson{};
+        const DirectX::XMFLOAT3 pos{ enemy->GetPosition() };
+        const DirectX::XMFLOAT3 rot{ enemy->GetRotation() };
+        const DirectX::XMFLOAT3 scale{ enemy->GetScale() };
+        const DirectX::XMFLOAT4 color{ enemy->GetBaseColor() };
+
+        eJson["PosX"] = pos.x; eJson["PosY"] = pos.y; eJson["PosZ"] = pos.z;
+        eJson["RotX"] = rot.x; eJson["RotY"] = rot.y; eJson["RotZ"] = rot.z;
+        eJson["ScaleX"] = scale.x; eJson["ScaleY"] = scale.y; eJson["ScaleZ"] = scale.z;
+        eJson["ColR"] = color.x; eJson["ColG"] = color.y; eJson["ColB"] = color.z; eJson["ColA"] = color.w;
+
+        eJson["Type"] = static_cast<int>(enemy->GetType());
+        eJson["AttackBehavior"] = static_cast<int>(enemy->GetAttackType());
+        eJson["Direction"] = static_cast<int>(enemy->GetMoveDir());
+
+        eJson["MinX"] = enemy->GetMinX(); eJson["MaxX"] = enemy->GetMaxX();
+        eJson["MinZ"] = enemy->GetMinZ(); eJson["MaxZ"] = enemy->GetMaxZ();
+
+        eJson["MaxHP"] = enemy->GetHP(); 
+
+        enemiesArray.push_back(eJson);
+    }
+
+    outJson["Enemies"] = enemiesArray;
+}
+
+void EnemyManager::Deserialize(const nlohmann::json& inJson)
+{
+    // Clear live memory and the GameObject Hierarchy folder
+    m_enemies.clear();
+    m_enemyPool.clear();
+    if (m_parentNode) m_parentNode->ClearChildren();
+
+    if (!inJson.contains("Enemies")) return;
+
+    for (const auto& eJson : inJson["Enemies"])
+    {
+        EnemySpawnConfig config{};
+
+        // .value() safely provides a default if the JSON key is missing
+        config.Position = { eJson.value("PosX", 0.0f), eJson.value("PosY", 0.0f), eJson.value("PosZ", 0.0f) };
+        config.Rotation = { eJson.value("RotX", 0.0f), eJson.value("RotY", 0.0f), eJson.value("RotZ", 0.0f) };
+        config.Scale = { eJson.value("ScaleX", 1.0f), eJson.value("ScaleY", 1.0f), eJson.value("ScaleZ", 1.0f) };
+        config.Color = { eJson.value("ColR", 1.0f), eJson.value("ColG", 1.0f), eJson.value("ColB", 1.0f), eJson.value("ColA", 1.0f) };
+
+        config.Type = static_cast<EnemyType>(eJson.value("Type", 0));
+        config.AttackBehavior = static_cast<AttackType>(eJson.value("AttackBehavior", 0));
+        config.Direction = static_cast<MoveDir>(eJson.value("Direction", 0));
+
+        config.MinX = eJson.value("MinX", 0.0f); config.MaxX = eJson.value("MaxX", 0.0f);
+        config.MinZ = eJson.value("MinZ", 0.0f); config.MaxZ = eJson.value("MaxZ", 0.0f);
+
+        config.MaxHP = eJson.value("MaxHP", 50);
+
+        SpawnEnemy(config); // Spawn automatically handles GameObject creation
     }
 }

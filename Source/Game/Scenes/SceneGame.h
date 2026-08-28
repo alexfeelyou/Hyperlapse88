@@ -30,6 +30,7 @@
 #include "NaviAlly.h"
 #include "Player.h"
 #include "PlayerStates.h"
+#include "SceneSerializer.h"
 #include "Stage.h"
 #include "StageComponent.h"
 #include "UIDialogueBox.h"
@@ -66,11 +67,20 @@ public:
     Camera* GetMainCamera() const { return m_mainCamera.get(); }
     [[nodiscard]] PostProcessManager* GetPostProcessManager() const noexcept override { return m_postProcess.get(); }
 
+	// Assign unique JSON save path for the Game Screen
+    [[nodiscard]] std::string_view GetSceneSavePath() const noexcept override
+    {
+        return "Data/Scenes/Scene_Game.json"; // or "Data/Scenes/Stage_01.json"
+    }
+
     // Assign unique JSON profile for the Game Screen
     [[nodiscard]] std::string_view GetPostProcessProfilePath() const noexcept override
     {
         return "Data/Config/PostProcess_Game.json";
     }
+
+    [[nodiscard]] EnemyManager* GetEnemyManager() const noexcept { return m_enemyManager.get(); }
+    [[nodiscard]] ItemManager* GetItemManager() const noexcept { return m_itemManager.get(); }
 
 private:
     struct Config {

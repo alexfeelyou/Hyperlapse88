@@ -164,6 +164,9 @@ SceneGame::SceneGame()
     auto itemsFolder{ std::make_unique<GameObject>("Items") };
     m_itemManager->Initialize(Graphics::Instance().GetDevice(), itemsFolder.get());
     m_sceneRoot->AddChild(std::move(itemsFolder));
+    
+    // Reads the JSON file and pushes the saved data into the managers
+    SceneSerializer::Load(GetSceneSavePath(), m_sceneRoot.get(), m_enemyManager.get(), m_itemManager.get());
 
     m_collisionManager = std::make_unique<CollisionManager>();
     m_collisionManager->Initialize(m_player.get(), m_stage.get(), m_enemyManager.get(), m_itemManager.get());

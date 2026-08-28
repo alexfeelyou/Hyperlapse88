@@ -38,6 +38,12 @@ public:
     Camera* GetCamera() const { return camera.get(); }
     [[nodiscard]] PostProcessManager* GetPostProcessManager() const noexcept override { return postProcess.get(); }
 
+	// Assign unique JSON save path for the Title Screen
+    [[nodiscard]] std::string_view GetSceneSavePath() const noexcept override
+    {
+        return "Data/Scenes/Scene_Title.json";
+    }
+
     // Assign unique JSON profile for the Title Screen
     [[nodiscard]] std::string_view GetPostProcessProfilePath() const noexcept override
     {

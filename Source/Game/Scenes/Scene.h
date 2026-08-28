@@ -29,6 +29,12 @@ public:
 	// Allows the editor to access post-processing universally
 	[[nodiscard]] virtual class PostProcessManager* GetPostProcessManager() const noexcept { return nullptr; }
 
+	// Tells the engine where this specific scene saves its state
+	[[nodiscard]] virtual std::string_view GetSceneSavePath() const noexcept
+	{
+		return "Data/Scenes/Scene_Default.json";
+	}
+
 	// Tells the engine where this specific scene saves its post-process settings
 	[[nodiscard]] virtual std::string_view GetPostProcessProfilePath() const noexcept
 	{

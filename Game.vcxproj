@@ -152,6 +152,7 @@
     <ClInclude Include="Source\Engine\Graphics\stb_truetype.h" />
     <ClInclude Include="Source\Engine\Helpers\CapeSimulator.h" />
     <ClInclude Include="Source\Engine\Helpers\PhysXutils.h" />
+    <ClInclude Include="Source\Engine\Helpers\SceneSerializer.h" />
     <ClInclude Include="Source\Engine\Helpers\UIResizedWindow.h" />
     <ClInclude Include="Source\Engine\UI\UIDialogueBox.h" />
     <ClInclude Include="Source\Engine\UI\UIOption.h" />
@@ -238,6 +239,7 @@
     <ClCompile Include="Source\Engine\Graphics\PostProcessManager.cpp" />
     <ClCompile Include="Source\Engine\Graphics\Primitive.cpp" />
     <ClCompile Include="Source\Engine\Helpers\CapeSimulator.cpp" />
+    <ClCompile Include="Source\Engine\Helpers\SceneSerializer.cpp" />
     <ClCompile Include="Source\Engine\UI\UIDialogueBox.cpp" />
     <ClCompile Include="Source\Engine\UI\UIOption.cpp" />
     <ClCompile Include="Source\Engine\UI\UIPause.cpp" />

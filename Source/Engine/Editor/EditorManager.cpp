@@ -39,7 +39,7 @@ void EditorManager::Draw(Scene* currentScene) noexcept
 {
     if constexpr (!s_isDebugMode) return;
 
-    DrawDockSpace();
+    DrawDockSpace(currentScene);
 
     DrawSceneView();
     DrawHierarchy(currentScene);
@@ -104,7 +104,7 @@ void EditorManager::ApplyStyle() const noexcept
     style.TabRounding = 2.0f;
 }
 
-void EditorManager::DrawDockSpace() noexcept
+void EditorManager::DrawDockSpace(Scene* currentScene) noexcept
 {
     const ImGuiViewport* viewport{ ImGui::GetMainViewport() };
     ImGui::SetNextWindowPos(viewport->WorkPos);
@@ -122,7 +122,8 @@ void EditorManager::DrawDockSpace() noexcept
     ImGui::Begin("EditorDockSpace", nullptr, windowFlags);
     ImGui::PopStyleVar(3);
 
-    DrawMenuBar();
+    // Pass the scene into the Menu Bar
+    DrawMenuBar(currentScene);
 
     const ImGuiID dockspaceId{ ImGui::GetID("MainDockSpace") };
 
@@ -277,10 +278,45 @@ void EditorManager::DrawSceneView() noexcept
     ImGui::End();
 }
 
-void EditorManager::DrawMenuBar() noexcept
+void EditorManager::DrawMenuBar(Scene* currentScene) noexcept
 {
     if (ImGui::BeginMenuBar())
     {
+        if (ImGui::BeginMenu("File"))
+        {
+            if (ImGui::MenuItem("Save Scene"))
+            {
+                if (currentScene)
+                {
+                    // Default to nullptrs for managers
+                    EnemyManager* enemyMgr{ nullptr };
+                    ItemManager* itemMgr{ nullptr };
+
+                    // Try to safely extract managers IF this happens to be a SceneGame
+                    if (auto* gameScene{ dynamic_cast<SceneGame*>(currentScene) })
+                    {
+                        enemyMgr = gameScene->GetEnemyManager();
+                        itemMgr = gameScene->GetItemManager();
+                    }
+
+                    // Save the scene! 
+                    // - If it's SceneGame, it passes the Root + Managers.
+                    // - If it's SceneTitle, it passes the Root + nullptrs.
+                    SceneSerializer::Save(
+                        currentScene->GetSceneSavePath(),
+                        currentScene->GetRootGameObject(),
+                        enemyMgr,
+                        itemMgr
+                    );
+                }
+                else
+                {
+                    Log::Error("Cannot save: No active scene loaded.");
+                }
+            }
+            ImGui::EndMenu();
+        }
+
         if (ImGui::BeginMenu("Scene"))
         {
             if (ImGui::MenuItem("Title"))

@@ -33,6 +33,9 @@ public:
     // Hierarchy / Tree Operations 
     void AddChild(std::unique_ptr<GameObject> child);
 
+    // Clears all child nodes, safely destroying their memory and components
+    void ClearChildren() noexcept { m_children.clear(); }
+
     // Changing parents requires reparenting logic to maintain tree integrity.
     void SetParent(GameObject* newParent) noexcept;
 

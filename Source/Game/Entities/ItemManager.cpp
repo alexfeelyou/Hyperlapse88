@@ -11,11 +11,6 @@ void ItemManager::Initialize(ID3D11Device* device, GameObject* parentNode)
     m_deviceRef = device;
     m_parentNode = parentNode;
     m_items.clear();
-
-    for (const auto& data : ItemLevelData::Spawns)
-    {
-        SpawnItem(data);
-    }
 }
 
 void ItemManager::SpawnItem(const ItemSpawnData& data)
@@ -121,4 +116,47 @@ void ItemManager::RenderDebug(ShapeRenderer* renderer)
 void ItemManager::ResetAllAnimations()
 {
     for (auto& item : m_items) { if (item) item->ResetAnimation(); }
+}
+
+void ItemManager::Serialize(nlohmann::json& outJson) const
+{
+    nlohmann::json itemsArray{ nlohmann::json::array() };
+
+    for (const auto& item : m_items)
+    {
+        if (!item || !item->IsActive()) continue;
+
+        nlohmann::json iJson{};
+        const DirectX::XMFLOAT3 pos{ item->GetBasePosition() }; // Base pos avoids saving mid-bounce
+        const DirectX::XMFLOAT3 rot{ item->GetRotation() };
+        const DirectX::XMFLOAT3 scale{ item->scale };
+
+        iJson["PosX"] = pos.x; iJson["PosY"] = pos.y; iJson["PosZ"] = pos.z;
+        iJson["RotX"] = rot.x; iJson["RotY"] = rot.y; iJson["RotZ"] = rot.z;
+        iJson["ScaleX"] = scale.x; iJson["ScaleY"] = scale.y; iJson["ScaleZ"] = scale.z;
+        iJson["Type"] = static_cast<int>(item->GetType());
+
+        itemsArray.push_back(iJson);
+    }
+
+    outJson["Items"] = itemsArray;
+}
+
+void ItemManager::Deserialize(const nlohmann::json& inJson)
+{
+    m_items.clear();
+    if (m_parentNode) m_parentNode->ClearChildren();
+
+    if (!inJson.contains("Items")) return;
+
+    for (const auto& iJson : inJson["Items"])
+    {
+        ItemSpawnData data{};
+        data.Position = { iJson.value("PosX", 0.0f), iJson.value("PosY", 0.0f), iJson.value("PosZ", 0.0f) };
+        data.Rotation = { iJson.value("RotX", 0.0f), iJson.value("RotY", 0.0f), iJson.value("RotZ", 0.0f) };
+        data.Scale = { iJson.value("ScaleX", 1.0f), iJson.value("ScaleY", 1.0f), iJson.value("ScaleZ", 1.0f) };
+        data.Type = static_cast<ItemType>(iJson.value("Type", 0));
+
+        SpawnItem(data);
+    }
 }

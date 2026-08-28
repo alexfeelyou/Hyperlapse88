@@ -279,6 +279,9 @@
     <ClCompile Include="Source\Game\Entities\StageComponent.cpp">
       <Filter>Source\Game\Entities</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Engine\Helpers\SceneSerializer.cpp">
+      <Filter>Source\Engine\Helpers</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\System\BasicShader.h">
@@ -566,6 +569,9 @@
     </ClInclude>
     <ClInclude Include="Source\Game\Entities\StageComponent.h">
       <Filter>Source\Game\Entities</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Helpers\SceneSerializer.h">
+      <Filter>Source\Engine\Helpers</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

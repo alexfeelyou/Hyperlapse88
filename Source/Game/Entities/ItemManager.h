@@ -1,5 +1,6 @@
 #pragma once
 
+#include <json.hpp>
 #include <memory>
 #include <vector>
 #include "System/Graphics.h"
@@ -13,18 +14,6 @@ struct ItemSpawnData {
     DirectX::XMFLOAT3 Scale;
     ItemType Type;
 };
-
-// ==========================================
-// ITEM CONFIGURATION 
-// ==========================================
-namespace ItemLevelData
-{
-    static const std::vector<ItemSpawnData> Spawns =
-    {
-        // Heal Items
-        { { -3.0f, 0.4f, 5.0f }, { 0.0f, 0.0f, 0.0f }, { 2.0f, 2.0f, 2.0f }, ItemType::Heal }
-    };
-}
 
 class ItemManager
 {
@@ -43,6 +32,9 @@ public:
     void ResetAllAnimations();
     void SpawnItem(const ItemSpawnData& data);
     void SpawnHealAt(const DirectX::XMFLOAT3& position);
+
+    void Serialize(nlohmann::json& outJson) const;
+    void Deserialize(const nlohmann::json& inJson);
 
     [[nodiscard]] std::vector<std::unique_ptr<Item>>& GetItems() noexcept { return m_items; }
 

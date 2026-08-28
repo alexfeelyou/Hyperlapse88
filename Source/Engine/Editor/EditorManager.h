@@ -12,6 +12,7 @@
 #include "ProfilerManager.h"
 #include "Scene.h"
 #include "SceneGame.h"
+#include "SceneSerializer.h"
 #include "SceneTitle.h"
 #include "WindowManager.h"
 
@@ -46,10 +47,10 @@ private:
     ~EditorManager() = default;
 
     void ApplyStyle() const noexcept;
-    void DrawDockSpace() noexcept;
+    void DrawDockSpace(Scene* currentScene) noexcept;
     void DrawSceneView() noexcept;
     void EnsureSceneRenderTarget(UINT width, UINT height) noexcept;
-    void DrawMenuBar() noexcept;
+    void DrawMenuBar(Scene* currentScene) noexcept;
     void DrawHierarchyNode(GameObject* node) noexcept;
     GameObject* m_selectedObject{ nullptr }; // Tracks what the user clicked on
     void DrawHierarchy(Scene* currentScene) noexcept;
