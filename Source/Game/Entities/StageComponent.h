@@ -2,7 +2,7 @@
 
 #include "IComponent.h"
 
-class Stage; // Forward declaration avoids unnecessary compilation dependencies
+class Stage; // Forward declaration 
 
 // Bridges the static Stage geometry into the GameObject hierarchy
 class StageComponent final : public IComponent

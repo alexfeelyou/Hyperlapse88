@@ -18,6 +18,8 @@ public:
     LegacyCharacterComponent(const LegacyCharacterComponent&) = delete;
     LegacyCharacterComponent& operator=(const LegacyCharacterComponent&) = delete;
 
+    void OnAttach(GameObject* owner) noexcept override;
+
     void Update(float dt) override;
     void DrawInspector() override;
 

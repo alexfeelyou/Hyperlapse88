@@ -1,13 +1,15 @@
 #include "ItemManager.h"
+#include "LegacyCharacterComponent.h"
 
 using namespace DirectX;
 
-ItemManager::ItemManager() {}
+ItemManager::ItemManager() = default;
 ItemManager::~ItemManager() { m_items.clear(); }
 
-void ItemManager::Initialize(ID3D11Device* device)
+void ItemManager::Initialize(ID3D11Device* device, GameObject* parentNode)
 {
     m_deviceRef = device;
+    m_parentNode = parentNode;
     m_items.clear();
 
     for (const auto& data : ItemLevelData::Spawns)
@@ -20,17 +22,31 @@ void ItemManager::SpawnItem(const ItemSpawnData& data)
 {
     if (!m_deviceRef) return;
 
-    auto newItem = std::make_unique<Item>(m_deviceRef, data.Position, data.Type);
+    auto newItem{ std::make_unique<Item>(m_deviceRef, data.Position, data.Type) };
     newItem->SetRotation(data.Rotation);
     newItem->scale = data.Scale;
-    if (data.Type == ItemType::Heal) 
+
+    if (data.Type == ItemType::Heal)
     {
-        newItem->color = { 1.0f, 0.89f, 0.58f, 1.0f }; 
+        newItem->color = { 1.0f, 0.89f, 0.58f, 1.0f };
     }
-    else if (data.Type == ItemType::Invincible) 
+    else if (data.Type == ItemType::Invincible)
     {
-        newItem->color = { 0.5f, 0.5f, 0.5f, 1.0f };   
+        newItem->color = { 0.5f, 0.5f, 0.5f, 1.0f };
     }
+
+    // Wrap the new item in a GameObject
+    if (m_parentNode)
+    {
+        std::string nodeName{ (data.Type == ItemType::Heal) ? "Item_Heal" : "Item_Invincibility" };
+        nodeName += "_" + std::to_string(m_items.size());
+
+        auto itemNode{ std::make_unique<GameObject>(nodeName) };
+        itemNode->AddComponent<LegacyCharacterComponent>(newItem.get());
+
+        m_parentNode->AddChild(std::move(itemNode));
+    }
+
     m_items.push_back(std::move(newItem));
 }
 

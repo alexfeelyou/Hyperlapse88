@@ -1,9 +1,11 @@
 #pragma once
-#include <vector>
+
 #include <memory>
-#include "Item.h"
+#include <vector>
 #include "System/Graphics.h"
 #include "System/ShapeRenderer.h"
+#include "Item.h"
+#include "GameObject.h"
 
 struct ItemSpawnData {
     DirectX::XMFLOAT3 Position;
@@ -19,11 +21,8 @@ namespace ItemLevelData
 {
     static const std::vector<ItemSpawnData> Spawns =
     {
-        // Heal Item
-        { { -4.0f, 0.4f, 20.0f }, { 0.0f, 0.0f, 0.0f }, { 2.0f, 2.0f, 2.0f }, ItemType::Heal },
-
-        // Invincible Item
-        { { 4.0f, 0.4f, 20.0f }, { 0.0f, 0.0f, 0.0f }, { 2.0f, 2.0f, 2.0f }, ItemType::Invincible }
+        // Heal Items
+        { { -3.0f, 0.4f, 5.0f }, { 0.0f, 0.0f, 0.0f }, { 2.0f, 2.0f, 2.0f }, ItemType::Heal }
     };
 }
 
@@ -33,25 +32,28 @@ public:
     ItemManager();
     ~ItemManager();
 
-    void Initialize(ID3D11Device* device);
+    void Initialize(ID3D11Device* device, GameObject* parentNode = nullptr);
+
     void Update(float elapsedTime, Camera* camera);
     void Render(ModelRenderer* renderer);
     void RenderDebug(ShapeRenderer* renderer);
 
     // Spawning
-    void AddItem(ItemType type); 
+    void AddItem(ItemType type);
     void ResetAllAnimations();
     void SpawnItem(const ItemSpawnData& data);
     void SpawnHealAt(const DirectX::XMFLOAT3& position);
 
-    std::vector<std::unique_ptr<Item>>& GetItems() { return m_items; }
+    [[nodiscard]] std::vector<std::unique_ptr<Item>>& GetItems() noexcept { return m_items; }
 
     // GUI Tools
-    void SetHighlight(int index) { m_debugHighlightIndex = index; }
-    int GetHighlight() const { return m_debugHighlightIndex; }
+    void SetHighlight(int index) noexcept { m_debugHighlightIndex = index; }
+    [[nodiscard]] int GetHighlight() const noexcept { return m_debugHighlightIndex; }
 
 private:
-    std::vector<std::unique_ptr<Item>> m_items;
-    ID3D11Device* m_deviceRef = nullptr;
-    int m_debugHighlightIndex = -1;
+    std::vector<std::unique_ptr<Item>> m_items{};
+    ID3D11Device* m_deviceRef{ nullptr };
+    int m_debugHighlightIndex{ -1 };
+
+    GameObject* m_parentNode{ nullptr }; // Tracks the Hierarchy folder
 };

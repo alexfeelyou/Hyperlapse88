@@ -150,12 +150,20 @@ SceneGame::SceneGame()
     m_sceneRoot->AddChild(std::move(playerNode));
 
     m_enemyManager = std::make_unique<EnemyManager>();
-    m_enemyManager->Initialize(Graphics::Instance().GetDevice());
+
+    // Create an "Enemies" folder and pass it to the Manager
+    auto enemiesFolder{ std::make_unique<GameObject>("Enemies") };
+    m_enemyManager->Initialize(Graphics::Instance().GetDevice(), enemiesFolder.get());
+    m_sceneRoot->AddChild(std::move(enemiesFolder));
 
     m_navi = std::make_unique<NaviAlly>(Graphics::Instance().GetDevice(), m_player.get(), m_enemyManager.get());
 
     m_itemManager = std::make_unique<ItemManager>();
-    m_itemManager->Initialize(Graphics::Instance().GetDevice());
+    
+    // Create an "Items" folder and pass it to the Manager
+    auto itemsFolder{ std::make_unique<GameObject>("Items") };
+    m_itemManager->Initialize(Graphics::Instance().GetDevice(), itemsFolder.get());
+    m_sceneRoot->AddChild(std::move(itemsFolder));
 
     m_collisionManager = std::make_unique<CollisionManager>();
     m_collisionManager->Initialize(m_player.get(), m_stage.get(), m_enemyManager.get(), m_itemManager.get());
