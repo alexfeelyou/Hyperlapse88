@@ -24,6 +24,7 @@ public:
     void DrawInspector() override;
 
     [[nodiscard]] const char* GetTypeName() const noexcept override { return "LegacyCharacterComponent"; }
+    [[nodiscard]] Character* GetCharacter() const noexcept { return m_character; }
 
 private:
     // Helper function to safely compare floats for Editor manipulation detection

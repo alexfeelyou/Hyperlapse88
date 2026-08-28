@@ -1,6 +1,9 @@
 #include <algorithm>
 #include <imgui.h> 
+#include "Character.h"
+#include "CharacterMovement.h"
 #include "GameObject.h"
+#include "LegacyCharacterComponent.h"
 
 // Use the member-initializer list to set up variables before the constructor body executes
 GameObject::GameObject(std::string_view name) noexcept
@@ -100,4 +103,25 @@ void GameObject::SetParent(GameObject* newParent) noexcept
 
     m_parent = newParent;
     transform.parent = newParent ? &newParent->transform : nullptr;
+}
+
+void GameObject::BroadcastTransformUpdate() noexcept
+{
+    for (const auto& comp : m_components)
+    {
+        if (auto* charComp{ dynamic_cast<LegacyCharacterComponent*>(comp.get()) })
+        {
+            if (Character * character{ charComp->GetCharacter() })
+            {
+                // Route position and rotation safely through the movement container
+                if (CharacterMovement * move{ character->GetMovement() })
+                {
+                    move->SetPosition(m_position);
+                    move->SetRotation(m_rotation);
+                }
+
+                character->scale = m_scale;
+            }
+        }
+    }
 }

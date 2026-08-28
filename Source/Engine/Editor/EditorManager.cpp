@@ -35,13 +35,13 @@ void EditorManager::Initialize() noexcept
     ApplyStyle(); // Apply the custom theme
 }
 
-void EditorManager::Draw(Scene* currentScene) noexcept
+void EditorManager::Draw(Scene* currentScene, Camera* activeCamera) noexcept 
 {
     if constexpr (!s_isDebugMode) return;
 
     DrawDockSpace(currentScene);
 
-    DrawSceneView();
+    DrawSceneView(activeCamera);
     DrawHierarchy(currentScene);
     DrawInspector(currentScene);
     DrawProfiler();
@@ -210,7 +210,7 @@ void EditorManager::EndSceneRender(ID3D11DeviceContext* context) noexcept
     context->OMSetRenderTargets(0, nullptr, nullptr);
 }
 
-void EditorManager::DrawSceneView() noexcept
+void EditorManager::DrawSceneView(Camera* activeCamera) noexcept
 {
     // Prevent the user from scrolling or collapsing this critical editor tab
     constexpr ImGuiWindowFlags windowFlags{
@@ -273,6 +273,68 @@ void EditorManager::DrawSceneView() noexcept
     if (m_sceneSRV)
     {
         ImGui::Image(reinterpret_cast<ImTextureID>(m_sceneSRV.Get()), renderSize);
+    }
+
+    // Gizmo Hotkeys & Toolbar
+    // Only process hotkeys if the user is actively working inside the Scene View
+    if (ImGui::IsWindowFocused() || ImGui::IsWindowHovered())
+    {
+        if (ImGui::IsKeyPressed(ImGuiKey_W)) m_gizmoOperation = ImGuizmo::TRANSLATE;
+        if (ImGui::IsKeyPressed(ImGuiKey_E)) m_gizmoOperation = ImGuizmo::ROTATE;
+        if (ImGui::IsKeyPressed(ImGuiKey_R)) m_gizmoOperation = ImGuizmo::SCALE;
+    }
+
+	// Imguizmo integration
+    if (activeCamera && m_selectedObject)
+    {
+        ImGuizmo::SetDrawlist();
+
+        // Match the Gizmo projection area perfectly to the letterboxed/pillarboxed scene texture
+        ImGuizmo::SetRect(
+            ImGui::GetWindowPos().x + cursorOffset.x,
+            ImGui::GetWindowPos().y + cursorOffset.y + ImGui::GetFrameHeight(), // Account for tab header
+            renderSize.x,
+            renderSize.y
+        );
+
+        // Retrieve standard DirectX matrices
+        DirectX::XMFLOAT4X4 view{ activeCamera->GetView() };
+        DirectX::XMFLOAT4X4 proj{ activeCamera->GetProjection() };
+
+        // Build the World Matrix from the selected object
+        DirectX::XMFLOAT4X4 objectMatrix{};
+        {
+            const DirectX::XMFLOAT3 pos{ m_selectedObject->GetPosition() };
+            const DirectX::XMFLOAT3 rot{ m_selectedObject->GetRotation() }; 
+            const DirectX::XMFLOAT3 scl{ m_selectedObject->GetScale() };
+
+            const DirectX::XMMATRIX S{ DirectX::XMMatrixScaling(scl.x, scl.y, scl.z) };
+            const DirectX::XMMATRIX R{ DirectX::XMMatrixRotationRollPitchYaw(
+                DirectX::XMConvertToRadians(rot.x),
+                DirectX::XMConvertToRadians(rot.y),
+                DirectX::XMConvertToRadians(rot.z))
+            };
+            const DirectX::XMMATRIX T{ DirectX::XMMatrixTranslation(pos.x, pos.y, pos.z) };
+
+            DirectX::XMStoreFloat4x4(&objectMatrix, S * R * T);
+        }
+
+        // Draw & Manipulate the Gizmo
+        ImGuizmo::Manipulate(&view._11, &proj._11, m_gizmoOperation, m_gizmoMode, &objectMatrix._11);
+
+        // If the user is dragging the gizmo, decompose the result and apply it back to the object
+        if (ImGuizmo::IsUsing())
+        {
+            float translation[3]{ 0.0f };
+            float rotation[3]{ 0.0f }; // Outputs in Degrees
+            float scale[3]{ 0.0f };
+
+            ImGuizmo::DecomposeMatrixToComponents(&objectMatrix._11, translation, rotation, scale);
+
+            m_selectedObject->SetPosition({ translation[0], translation[1], translation[2] });
+            m_selectedObject->SetRotation({ rotation[0], rotation[1], rotation[2] });
+            m_selectedObject->SetScale({ scale[0], scale[1], scale[2] });
+        }
     }
 
     ImGui::End();

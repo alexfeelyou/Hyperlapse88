@@ -2,6 +2,7 @@
 #include <d3d11.h>
 #include <imgui.h>
 #include <imgui_internal.h>
+#include <ImGuizmo.h>
 #include <implot.h>
 #include <utility>
 #include <wrl/client.h>
@@ -33,8 +34,7 @@ public:
     // Configures ImGui context settings (e.g., docking)
     void Initialize() noexcept;
 
-    // Dispatches UI drawing
-    void Draw(Scene* currentScene) noexcept;
+    void Draw(Scene* currentScene, Camera* activeCamera) noexcept;
 
     void BeginSceneRender(ID3D11DeviceContext* context) noexcept;
     void EndSceneRender(ID3D11DeviceContext* context) noexcept;
@@ -48,7 +48,7 @@ private:
 
     void ApplyStyle() const noexcept;
     void DrawDockSpace(Scene* currentScene) noexcept;
-    void DrawSceneView() noexcept;
+    void DrawSceneView(Camera* activeCamera) noexcept;
     void EnsureSceneRenderTarget(UINT width, UINT height) noexcept;
     void DrawMenuBar(Scene* currentScene) noexcept;
     void DrawHierarchyNode(GameObject* node) noexcept;
@@ -64,6 +64,10 @@ private:
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_sceneSRV;
     Microsoft::WRL::ComPtr<ID3D11Texture2D> m_depthTexture;
     Microsoft::WRL::ComPtr<ID3D11DepthStencilView> m_sceneDSV;
+
+    // Gizmo State
+    ImGuizmo::OPERATION m_gizmoOperation{ ImGuizmo::TRANSLATE };
+    ImGuizmo::MODE      m_gizmoMode{ ImGuizmo::WORLD };
 
     float m_sceneWidth{ 1920.0f };
     float m_sceneHeight{ 1080.0f };

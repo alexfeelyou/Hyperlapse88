@@ -184,7 +184,19 @@ void Framework::Update(float elapsedTime)
 
     ImGuiRenderer::NewFrame(); 
 
-    EditorManager::Instance().Draw(scene.get());
+    // Extract active for ImGuizmo
+    Camera* activeCam{ nullptr };
+    if (auto* gameScene{ dynamic_cast<SceneGame*>(scene.get()) })
+    {
+        activeCam = gameScene->GetMainCamera();
+    }
+    else if (auto* titleScene{ dynamic_cast<SceneTitle*>(scene.get()) })
+    {
+        activeCam = titleScene->GetCamera();
+    }
+
+    // Pass the camera down into the Editor so the Gizmo knows how to render
+    EditorManager::Instance().Draw(scene.get(), activeCam);
 
     if (scene) scene->Update(elapsedTime);
 }
