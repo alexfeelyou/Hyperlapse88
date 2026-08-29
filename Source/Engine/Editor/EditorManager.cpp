@@ -136,7 +136,7 @@ void EditorManager::Draw(Scene* currentScene, Camera* activeCamera) noexcept
 
     DrawDockSpace(currentScene);
 
-    DrawSceneView(activeCamera);
+    DrawSceneView(currentScene, activeCamera);
     DrawHierarchy(currentScene);
     DrawInspector(currentScene);
     DrawProfiler();
@@ -305,7 +305,7 @@ void EditorManager::EndSceneRender(ID3D11DeviceContext* context) noexcept
     context->OMSetRenderTargets(0, nullptr, nullptr);
 }
 
-void EditorManager::DrawSceneView(Camera* activeCamera) noexcept
+void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noexcept
 {
     constexpr ImGuiWindowFlags windowFlags{
         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse
@@ -403,7 +403,13 @@ void EditorManager::DrawSceneView(Camera* activeCamera) noexcept
         if (ImGui::IsKeyPressed(ImGuiKey_R)) m_gizmoOperation = ImGuizmo::SCALE;
     }
 
-    if (activeCamera && m_selectedObject)
+    // Gizmo Gating Pipeline
+    const bool isPlayMode{ m_editorMode == EditorMode::Play };
+    const bool hasSelection{ m_selectedObject != nullptr };
+    const bool isNotRoot{ currentScene && (m_selectedObject != currentScene->GetRootGameObject()) };
+
+    // Only draw the manipulator if all architectural conditions are met
+    if (activeCamera && hasSelection && isNotRoot && !isPlayMode)
     {
         ImGuizmo::SetDrawlist();
 
@@ -415,9 +421,10 @@ void EditorManager::DrawSceneView(Camera* activeCamera) noexcept
 
         DirectX::XMFLOAT4X4 objectMatrix{};
         {
-            const DirectX::XMFLOAT3 pos{ m_selectedObject->GetPosition() };
-            const DirectX::XMFLOAT3 rot{ m_selectedObject->GetRotation() };
-            const DirectX::XMFLOAT3 scl{ m_selectedObject->GetScale() };
+            // Read directly from the public Transform struct to sync perfectly with the Inspector
+            const DirectX::XMFLOAT3 pos{ m_selectedObject->transform.position };
+            const DirectX::XMFLOAT3 rot{ m_selectedObject->transform.rotation };
+            const DirectX::XMFLOAT3 scl{ m_selectedObject->transform.scale };
 
             const DirectX::XMMATRIX S{ DirectX::XMMatrixScaling(scl.x, scl.y, scl.z) };
             const DirectX::XMMATRIX R{ DirectX::XMMatrixRotationRollPitchYaw(
@@ -440,9 +447,11 @@ void EditorManager::DrawSceneView(Camera* activeCamera) noexcept
 
             ImGuizmo::DecomposeMatrixToComponents(&objectMatrix._11, translation, rotation, scale);
 
-            m_selectedObject->SetPosition({ translation[0], translation[1], translation[2] });
-            m_selectedObject->SetRotation({ rotation[0], rotation[1], rotation[2] });
-            m_selectedObject->SetScale({ scale[0], scale[1], scale[2] });
+            // Write directly to the Transform struct.
+            // LegacyCharacterComponent automatically detects this change and pushes it to PhysX
+            m_selectedObject->transform.position = { translation[0], translation[1], translation[2] };
+            m_selectedObject->transform.rotation = { rotation[0], rotation[1], rotation[2] };
+            m_selectedObject->transform.scale = { scale[0], scale[1], scale[2] };
         }
     }
 

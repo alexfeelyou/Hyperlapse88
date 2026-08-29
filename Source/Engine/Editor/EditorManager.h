@@ -60,7 +60,7 @@ private:
 
     void ApplyStyle() const noexcept;
     void DrawDockSpace(Scene* currentScene) noexcept;
-    void DrawSceneView(Camera* activeCamera) noexcept;
+    void DrawSceneView(Scene* currentScene, Camera* activeCamera) noexcept;
     void EnsureSceneRenderTarget(UINT width, UINT height) noexcept;
     void DrawMenuBar(Scene* currentScene) noexcept;
     void DrawHierarchyNode(GameObject* node) noexcept;
