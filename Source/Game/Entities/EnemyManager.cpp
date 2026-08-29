@@ -152,15 +152,15 @@ void EnemyManager::Render(ModelRenderer* renderer, Camera* camera)
 {
     for (auto& enemy : m_enemies)
     {
-        bool isBodyVisible = true;
+        bool isBodyVisible{ true };
 
         if (camera)
         {
-            DirectX::XMFLOAT3 pos = enemy->GetPosition();
-            DirectX::XMFLOAT3 scale = enemy->GetScale();
+            const DirectX::XMFLOAT3 pos{ enemy->GetPosition() };
+            const DirectX::XMFLOAT3 scale{ enemy->GetScale() };
 
-            float maxScale = max(scale.x, max(scale.y, scale.z));
-            float cullingRadius = 150.0f * maxScale;
+            const float maxScale{ (std::max)(scale.x, (std::max)(scale.y, scale.z)) };
+            const float cullingRadius{ 150.0f * maxScale };
 
             if (!camera->CheckSphere(pos.x, pos.y, pos.z, cullingRadius))
             {
@@ -173,7 +173,6 @@ void EnemyManager::Render(ModelRenderer* renderer, Camera* camera)
             renderer->Draw(ShaderId::Phong, enemy->GetModel(), enemy->GetRenderColor());
         }
 
-        // Projectiles tetap dirender terpisah (selalu render)
         enemy->RenderProjectiles(renderer);
     }
 }

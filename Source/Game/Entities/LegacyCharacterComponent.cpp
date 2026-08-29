@@ -42,10 +42,22 @@ void LegacyCharacterComponent::Update(float dt)
     const bool editorMovedX{ !IsFloatEqual(editorTransform.position.x, m_lastFramePos.x) };
     const bool editorMovedY{ !IsFloatEqual(editorTransform.position.y, m_lastFramePos.y) };
     const bool editorMovedZ{ !IsFloatEqual(editorTransform.position.z, m_lastFramePos.z) };
-    const bool editorRotated{ !IsFloatEqual(editorTransform.rotation.y, m_lastFrameRot.y) };
-    const bool editorScaled{ !IsFloatEqual(editorTransform.scale.x, m_lastFrameScale.x) };
 
-    const bool wasEditedInGUI{ editorMovedX || editorMovedY || editorMovedZ || editorRotated || editorScaled };
+    // Evaluate all rotation axes
+    const bool editorRotatedX{ !IsFloatEqual(editorTransform.rotation.x, m_lastFrameRot.x) };
+    const bool editorRotatedY{ !IsFloatEqual(editorTransform.rotation.y, m_lastFrameRot.y) };
+    const bool editorRotatedZ{ !IsFloatEqual(editorTransform.rotation.z, m_lastFrameRot.z) };
+
+    // Evaluate all scale axes
+    const bool editorScaledX{ !IsFloatEqual(editorTransform.scale.x, m_lastFrameScale.x) };
+    const bool editorScaledY{ !IsFloatEqual(editorTransform.scale.y, m_lastFrameScale.y) };
+    const bool editorScaledZ{ !IsFloatEqual(editorTransform.scale.z, m_lastFrameScale.z) };
+
+    const bool wasEditedInGUI{
+        editorMovedX || editorMovedY || editorMovedZ ||
+        editorRotatedX || editorRotatedY || editorRotatedZ ||
+        editorScaledX || editorScaledY || editorScaledZ
+    };
 
     if (wasEditedInGUI)
     {
@@ -53,6 +65,9 @@ void LegacyCharacterComponent::Update(float dt)
         movement->SetPosition(editorTransform.position);
         movement->SetRotation(editorTransform.rotation);
         m_character->scale = editorTransform.scale;
+
+        // Force underlying model's matrices to recalculate instantly
+        m_character->ForceVisualSync();
     }
     else
     {
@@ -84,6 +99,8 @@ void LegacyCharacterComponent::OnAttach(GameObject* owner) noexcept
         m_lastFramePos = m_owner->transform.position;
         m_lastFrameRot = m_owner->transform.rotation;
         m_lastFrameScale = m_owner->transform.scale;
+
+        m_character->ForceVisualSync();
     }
 }
 

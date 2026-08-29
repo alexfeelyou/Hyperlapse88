@@ -1,4 +1,5 @@
 ﻿#pragma once
+
 #include <DirectXMath.h>
 #include <memory>
 #include <string>
@@ -20,10 +21,11 @@ public:
     void Render(ModelRenderer* renderer);
     void RenderDebug(const RenderContext& rc, ShapeRenderer* renderer);
 
-    DirectX::XMFLOAT3 GetPosition() const { return movement->GetPosition(); }
+    [[nodiscard]] DirectX::XMFLOAT3 GetPosition() const { return movement->GetPosition(); }
+    [[nodiscard]] CharacterMovement* GetMovement() const { return movement.get(); }
 
-    // Returns raw pointer for read access — ownership stays here
-    CharacterMovement* GetMovement() const { return movement.get(); }
+    // Forces an immediate push of movement data to the visual model
+    void ForceVisualSync() noexcept { SyncData(); }
 
     DirectX::XMFLOAT3 scale = { 1.0f, 1.0f, 1.0f };
 
@@ -31,7 +33,7 @@ public:
 
 protected:
     // Syncs movement state to the visual model's root node
-    void SyncData();
+    void SyncData() noexcept;
 
 protected:
     std::unique_ptr<CharacterMovement> movement;
