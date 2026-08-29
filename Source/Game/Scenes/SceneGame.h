@@ -50,6 +50,8 @@ class Primitive;
 class Stage;
 class UIPause;
 
+enum class EditorMode : std::uint8_t;
+
 class SceneGame : public Scene
 {
     friend class GameBreakerGUI;
@@ -135,6 +137,9 @@ private:
     std::unique_ptr<physx::PxControllerManager, PhysXDeleter> m_controllerManager{};
     std::unique_ptr<physx::PxMaterial, PhysXDeleter> m_defaultMaterial{};
     std::unique_ptr<physx::PxRigidStatic, PhysXDeleter> m_groundPlane{};
+
+    // Editor state tracking
+    EditorMode m_lastEditorMode{};
 
 	// Pause & Exit to Title
     bool m_isPaused{ false };

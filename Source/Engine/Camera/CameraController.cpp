@@ -110,21 +110,10 @@ void CameraController::Update(float elapsedTime)
         m_shakeOffset = { 0.0f, 0.0f, 0.0f };
     }
 
-    // Global Inputs (Cursor Toggle) 
-    static bool isF1Pressed = false;
-    bool f1Down = (GetKeyState(VK_F1) & 0x8000) != 0;
-
-    if (f1Down && !isF1Pressed)
+    if (m_controlMode == CameraControlMode::Free)
     {
-        if (m_controlMode == CameraControlMode::Mouse || m_controlMode == CameraControlMode::Free)
-        {
-            m_toggleCursor = !m_toggleCursor;
-        }
-        isF1Pressed = true;
-    }
-    else if (!f1Down)
-    {
-        isF1Pressed = false;
+        // Unity-style Editor Camera: Hold Right Mouse Button to fly/look
+        m_toggleCursor = (GetKeyState(VK_RBUTTON) & 0x8000) != 0;
     }
 
     // Cursor Lock Logic
@@ -348,35 +337,35 @@ void CameraController::UpdateFixedStatic(std::shared_ptr<Camera>& camera)
 
 void CameraController::UpdateFreeCamera(float dt, std::shared_ptr<Camera>& camera)
 {
+    // Only allow looking and moving if the cursor is locked (Right-Click held)
+    if (!m_toggleCursor) return;
+
     // Rotation
-    if (m_toggleCursor)
-    {
-        Mouse& mouse = Input::Instance().GetMouse();
-        float sensitivity = 0.5f;
-        float rotSpeed = m_rollSpeed * dt;
+    Mouse& mouse = Input::Instance().GetMouse();
+    float sensitivity = 0.5f;
+    float rotSpeed = m_rollSpeed * dt;
 
-        XMFLOAT3 currentRot = camera->GetRotation();
-        currentRot.y += static_cast<float>(mouse.GetDeltaX()) * sensitivity * rotSpeed;
-        currentRot.x += static_cast<float>(mouse.GetDeltaY()) * sensitivity * rotSpeed;
+    DirectX::XMFLOAT3 currentRot = camera->GetRotation();
+    currentRot.y += static_cast<float>(mouse.GetDeltaX()) * sensitivity * rotSpeed;
+    currentRot.x += static_cast<float>(mouse.GetDeltaY()) * sensitivity * rotSpeed;
 
-        camera->SetRotation(currentRot);
-        m_currentAngle = currentRot; // Sync
-    }
+    camera->SetRotation(currentRot);
+    m_currentAngle = currentRot; // Sync
 
+    // Translation
     float moveAmount = m_moveSpeed * dt;
-    XMFLOAT3 moveDir = { 0, 0, 0 };
+    DirectX::XMFLOAT3 moveDir = { 0, 0, 0 };
 
     if (GetKeyState('W') & 0x8000) moveDir.z += moveAmount;
     if (GetKeyState('S') & 0x8000) moveDir.z -= moveAmount;
     if (GetKeyState('A') & 0x8000) moveDir.x -= moveAmount;
     if (GetKeyState('D') & 0x8000) moveDir.x += moveAmount;
-    if (GetKeyState(VK_SPACE) & 0x8000)   moveDir.y += moveAmount;
-    if (GetKeyState(VK_CONTROL) & 0x8000) moveDir.y -= moveAmount;
+    if (GetKeyState('E') & 0x8000) moveDir.y += moveAmount; // E to go Up
+    if (GetKeyState('Q') & 0x8000) moveDir.y -= moveAmount; // Q to go Down
 
     camera->Translate(moveDir);
     m_eyePos = camera->GetPosition();
 }
-
 void CameraController::UpdateOrbitCamera(float dt, std::shared_ptr<Camera>& camera)
 {
     float ax = 0.0f;
