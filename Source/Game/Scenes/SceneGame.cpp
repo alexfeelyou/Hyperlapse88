@@ -217,6 +217,21 @@ SceneGame::SceneGame()
         }
     }
 
+    else if (m_lastEditorMode == EditorMode::Edit)
+    {
+        if (m_scene)
+        {
+            m_scene->simulate(0.0f);
+            m_scene->fetchResults(true);
+        }
+
+        Camera* activeCam{ CameraController::Instance().GetActiveCamera().get() };
+
+        if (m_enemyManager) m_enemyManager->Update(0.0f, activeCam, m_cameraTarget, true);
+        if (m_itemManager) m_itemManager->Update(0.0f, activeCam);
+        if (m_sceneRoot) m_sceneRoot->Update(0.0f);
+    }
+
     m_postProcess = std::make_unique<PostProcessManager>();
     m_postProcess->Initialize(static_cast<int>(screenW), static_cast<int>(screenH));
     m_postProcess->SetEnabled(true);
@@ -321,13 +336,13 @@ void SceneGame::Update(const float elapsedTime)
                         child->Destroy();
                     }
                 }
-                m_sceneRoot->Update(0.0f);
+                m_sceneRoot->Update(0.0f); // Flush dead objects immediately
             }
 
             SceneSerializer::Load("Data/Scenes/AutoSave_PlayMode.json", m_sceneRoot.get(), m_enemyManager.get(), m_itemManager.get());
 
             Camera* activeCam{ CameraController::Instance().GetActiveCamera().get() };
-            if (m_enemyManager) m_enemyManager->Update(0.0f, activeCam, m_cameraTarget, false);
+            if (m_enemyManager) m_enemyManager->Update(0.0f, activeCam, m_cameraTarget, true); 
             if (m_itemManager) m_itemManager->Update(0.0f, activeCam);
             Scene::Update(0.0f);
 

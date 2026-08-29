@@ -412,13 +412,10 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
     if (activeCamera && hasSelection && isNotRoot && !isPlayMode)
     {
         ImGuizmo::SetDrawlist();
-
-        // Pass the cached screen coordinates directly to ImGuizmo
         ImGuizmo::SetRect(screenCursorPos.x, screenCursorPos.y, renderSize.x, renderSize.y);
 
         DirectX::XMFLOAT4X4 view{ activeCamera->GetView() };
         DirectX::XMFLOAT4X4 proj{ activeCamera->GetProjection() };
-
         DirectX::XMFLOAT4X4 objectMatrix{};
         {
             // Read directly from the public Transform struct to sync perfectly with the Inspector
@@ -447,8 +444,8 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
 
             ImGuizmo::DecomposeMatrixToComponents(&objectMatrix._11, translation, rotation, scale);
 
-            // Write directly to the Transform struct.
-            // LegacyCharacterComponent automatically detects this change and pushes it to PhysX
+            // Write directly to the Transform struct. 
+            // LegacyCharacterComponent automatically detects this change and pushes it to PhysX.
             m_selectedObject->transform.position = { translation[0], translation[1], translation[2] };
             m_selectedObject->transform.rotation = { rotation[0], rotation[1], rotation[2] };
             m_selectedObject->transform.scale = { scale[0], scale[1], scale[2] };

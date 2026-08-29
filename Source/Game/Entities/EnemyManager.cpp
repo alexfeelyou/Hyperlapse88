@@ -106,6 +106,10 @@ void EnemyManager::SpawnEnemy(const EnemySpawnConfig& config)
         auto enemyNode{ std::make_unique<GameObject>(nodeName) };
         enemyNode->AddComponent<LegacyCharacterComponent>(activeEnemyPtr);
 
+        enemyNode->transform.position = config.Position;
+        enemyNode->transform.rotation = config.Rotation;
+        enemyNode->transform.scale = finalScale;
+
         m_parentNode->AddChild(std::move(enemyNode));
     }
 }

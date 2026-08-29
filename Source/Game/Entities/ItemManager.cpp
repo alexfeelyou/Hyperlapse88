@@ -40,6 +40,10 @@ void ItemManager::SpawnItem(const ItemSpawnData& data)
         auto itemNode{ std::make_unique<GameObject>(nodeName) };
         itemNode->AddComponent<LegacyCharacterComponent>(newItem.get());
 
+        itemNode->transform.position = data.Position;
+        itemNode->transform.rotation = data.Rotation;
+        itemNode->transform.scale = data.Scale;
+
         m_parentNode->AddChild(std::move(itemNode));
     }
 
