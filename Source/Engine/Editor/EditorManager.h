@@ -17,6 +17,14 @@
 #include "SceneTitle.h"
 #include "WindowManager.h"
 
+// Scoped state machine for the engine's runtime
+enum class EditorMode : std::uint8_t
+{
+    Edit = 0,
+    Play,
+    Pause
+};
+
 // Manages out-of-scene debug UI (docking, menu bars, panels)
 // Ensures debug tools persist across scene
 class EditorManager
@@ -41,6 +49,10 @@ public:
 
     // Safely clears the active inspector target to prevent dangling pointers
     void ClearSelection() noexcept { m_selectedObject = nullptr; }
+
+    // State accessors for the Game loop to query
+    [[nodiscard]] EditorMode GetEditorMode() const noexcept { return m_editorMode; }
+    void SetEditorMode(EditorMode mode) noexcept { m_editorMode = mode; }
 
 private:
     EditorManager() = default;
@@ -68,6 +80,9 @@ private:
     // Gizmo State
     ImGuizmo::OPERATION m_gizmoOperation{ ImGuizmo::TRANSLATE };
     ImGuizmo::MODE      m_gizmoMode{ ImGuizmo::WORLD };
+
+	// Editor State
+    EditorMode m_editorMode{ EditorMode::Edit };
 
     float m_sceneWidth{ 1920.0f };
     float m_sceneHeight{ 1080.0f };

@@ -18,6 +18,101 @@ namespace
     inline constexpr const char* s_windowPostProcess{ "Post-Processing" };
 }
 
+namespace
+{
+    enum class ToolbarIcon : std::uint8_t
+    {
+        Play = 0,
+        Pause,
+        Stop
+    };
+
+    [[nodiscard]] bool DrawToolbarIconButton(
+        const char* strId,
+        ToolbarIcon icon,
+        bool isActive,
+        const ImVec4& activeColor,
+        const ImVec2& buttonSize = ImVec2{ 34.0f, 22.0f }) noexcept
+    {
+        if (isActive)
+        {
+            ImGui::PushStyleColor(ImGuiCol_Button, activeColor);
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4{ activeColor.x * 1.15f, activeColor.y * 1.15f, activeColor.z * 1.15f, 1.0f });
+        }
+
+        // Empty label with ## so ImGui only renders the button body
+        const bool isClicked{ ImGui::Button(strId, buttonSize) };
+
+        if (isActive)
+        {
+            ImGui::PopStyleColor(2);
+        }
+
+        ImDrawList* drawList{ ImGui::GetWindowDrawList() };
+        const ImVec2 rectMin{ ImGui::GetItemRectMin() };
+        const ImVec2 rectMax{ ImGui::GetItemRectMax() };
+
+        // Floor the center to exact integer pixels to prevent subpixel edge-blurring
+        const ImVec2 center{
+            std::floor((rectMin.x + rectMax.x) * 0.5f),
+            std::floor((rectMin.y + rectMax.y) * 0.5f)
+        };
+
+        constexpr ImU32 iconColor{ IM_COL32(235, 235, 235, 255) };
+
+        switch (icon)
+        {
+        case ToolbarIcon::Play:
+        {
+            constexpr float halfHeight{ 3.5f };
+            constexpr float halfWidth{ 4.5f };
+            const ImVec2 p1{ center.x - halfWidth + 1.0f, center.y - halfHeight };
+            const ImVec2 p2{ center.x - halfWidth + 1.0f, center.y + halfHeight };
+            const ImVec2 p3{ center.x + halfWidth + 1.0f, center.y };
+            drawList->AddTriangleFilled(p1, p2, p3, iconColor);
+            break;
+        }
+        case ToolbarIcon::Pause:
+        {
+            constexpr float barHalfHeight{ 4.0f };
+            constexpr float barWidth{ 2.5f };
+            constexpr float barGap{ 1.5f };
+            constexpr float rounding{ 0.5f };
+
+            // Left bar
+            drawList->AddRectFilled(
+                ImVec2{ center.x - barGap - barWidth, center.y - barHalfHeight },
+                ImVec2{ center.x - barGap,            center.y + barHalfHeight },
+                iconColor,
+                rounding
+            );
+            // Right bar
+            drawList->AddRectFilled(
+                ImVec2{ center.x + barGap,            center.y - barHalfHeight },
+                ImVec2{ center.x + barGap + barWidth, center.y + barHalfHeight },
+                iconColor,
+                rounding
+            );
+            break;
+        }
+        case ToolbarIcon::Stop:
+        {
+            constexpr float halfSize{ 4.0f };
+            constexpr float rounding{ 0.5f };
+            drawList->AddRectFilled(
+                ImVec2{ center.x - halfSize, center.y - halfSize },
+                ImVec2{ center.x + halfSize, center.y + halfSize },
+                iconColor,
+                rounding
+            );
+            break;
+        }
+        }
+
+        return isClicked;
+    }
+}
+
 EditorManager& EditorManager::Instance() noexcept
 {
     static EditorManager s_instance{};
@@ -140,14 +235,14 @@ void EditorManager::DrawDockSpace(Scene* currentScene) noexcept
         ImGuiID dockMain{ dockspaceId };
         const ImGuiID dockLeft{ ImGui::DockBuilderSplitNode(dockMain, ImGuiDir_Left, 0.20f, nullptr, &dockMain) };
         const ImGuiID dockRight{ ImGui::DockBuilderSplitNode(dockMain, ImGuiDir_Right, 0.25f, nullptr, &dockMain) };
-        const ImGuiID dockBottom{ ImGui::DockBuilderSplitNode(dockMain, ImGuiDir_Down, 0.25f, nullptr, &dockMain) };
+        const ImGuiID dockBottom{ ImGui::DockBuilderSplitNode(dockMain, ImGuiDir_Down, 0.29f, nullptr, &dockMain) };
 
         // Snap the permanent windows to their assigned docks
         ImGui::DockBuilderDockWindow(s_windowSceneView, dockMain);
         ImGui::DockBuilderDockWindow(s_windowHierarchy, dockLeft);
         ImGui::DockBuilderDockWindow(s_windowInspector, dockRight);
         ImGui::DockBuilderDockWindow(s_windowConsole, dockBottom);
-        ImGui::DockBuilderDockWindow(s_windowProfiler, dockBottom); 
+        ImGui::DockBuilderDockWindow(s_windowProfiler, dockBottom);
         ImGui::DockBuilderDockWindow(s_windowPostProcess, dockBottom);
 
         ImGui::DockBuilderFinish(dockspaceId);
@@ -212,22 +307,47 @@ void EditorManager::EndSceneRender(ID3D11DeviceContext* context) noexcept
 
 void EditorManager::DrawSceneView(Camera* activeCamera) noexcept
 {
-    // Prevent the user from scrolling or collapsing this critical editor tab
     constexpr ImGuiWindowFlags windowFlags{
-        ImGuiWindowFlags_NoScrollbar |
-        ImGuiWindowFlags_NoCollapse
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse
     };
 
     ImGui::Begin(s_windowSceneView, nullptr, windowFlags);
 
-    // Sync Render Target to Logical Game Resolution
-    // By locking the texture to the game's actual window size instead of the dock size, 
-    // UI matrices and viewports align 1:1
+    // Embedded scene toolbar
+    constexpr ImVec2 buttonSize{ 34.0f, 22.0f };
+    const float totalToolbarWidth{ (buttonSize.x * 3.0f) + (ImGui::GetStyle().ItemSpacing.x * 2.0f) };
+
+    // Center the buttons horizontally based on the Scene View's current width
+    const float availWidth{ ImGui::GetContentRegionAvail().x };
+    ImGui::SetCursorPosX((availWidth * 0.5f) - (totalToolbarWidth * 0.5f));
+
+    // Play Button
+    if (DrawToolbarIconButton("##PlayBtn", ToolbarIcon::Play, m_editorMode == EditorMode::Play, ImVec4{ 0.2f, 0.7f, 0.2f, 1.0f }, buttonSize))
+    {
+        SetEditorMode(EditorMode::Play);
+    }
+
+    ImGui::SameLine();
+
+    // Pause Button
+    if (DrawToolbarIconButton("##PauseBtn", ToolbarIcon::Pause, m_editorMode == EditorMode::Pause, ImVec4{ 0.7f, 0.7f, 0.2f, 1.0f }, buttonSize))
+    {
+        SetEditorMode(EditorMode::Pause);
+    }
+
+    ImGui::SameLine();
+
+    // Stop Button
+    if (DrawToolbarIconButton("##StopBtn", ToolbarIcon::Stop, m_editorMode == EditorMode::Edit, ImVec4{ 0.7f, 0.2f, 0.2f, 1.0f }, buttonSize))
+    {
+        SetEditorMode(EditorMode::Edit);
+    }
+
+	// Scene texture rendering 
     const auto* mainWindow{ WindowManager::Instance().GetWindowByIndex(0) };
     const float gameWidth{ mainWindow ? static_cast<float>(mainWindow->GetWidth()) : 1920.0f };
     const float gameHeight{ mainWindow ? static_cast<float>(mainWindow->GetHeight()) : 1080.0f };
 
-    // Reallocate the DirectX render target ONLY if the game's logical resolution changed
     if (m_sceneWidth != gameWidth || m_sceneHeight != gameHeight)
     {
         m_sceneWidth = gameWidth;
@@ -235,10 +355,8 @@ void EditorManager::DrawSceneView(Camera* activeCamera) noexcept
         EnsureSceneRenderTarget(static_cast<UINT>(gameWidth), static_cast<UINT>(gameHeight));
     }
 
-    // Calculate Letterbox/Pillarbox for ImGui Display
     const ImVec2 availSize{ ImGui::GetContentRegionAvail() };
 
-    // EARLY OUT: Protect against minimized windows causing division-by-zero
     if (availSize.x <= 0.0f || availSize.y <= 0.0f)
     {
         ImGui::End();
@@ -253,59 +371,52 @@ void EditorManager::DrawSceneView(Camera* activeCamera) noexcept
 
     if (windowAspect > targetAspect)
     {
-        // Pillarbox: Window is too wide. Constrain width based on height.
         renderSize.x = availSize.y * targetAspect;
         cursorOffset.x = (availSize.x - renderSize.x) * 0.5f;
     }
     else
     {
-        // Letterbox: Window is too tall. Constrain height based on width.
         renderSize.y = availSize.x / targetAspect;
         cursorOffset.y = (availSize.y - renderSize.y) * 0.5f;
     }
 
-    // Shift the ImGui cursor to perfectly center the texture in the dock node
-    const ImVec2 cursorPos{ ImGui::GetCursorPos() };
-    ImGui::SetCursorPos(ImVec2{ cursorPos.x + cursorOffset.x, cursorPos.y + cursorOffset.y });
+    // Cache the exact screen coordinates before we shift the cursor to draw the image
+    ImVec2 screenCursorPos{ ImGui::GetCursorScreenPos() };
+    screenCursorPos.x += cursorOffset.x;
+    screenCursorPos.y += cursorOffset.y;
 
-    // Render the Texture
-    // ImGui automatically handles sampling and downscaling the 1080p SRV to the calculated renderSize
+    const ImVec2 originalCursorPos{ ImGui::GetCursorPos() };
+    ImGui::SetCursorPos(ImVec2{ originalCursorPos.x + cursorOffset.x, originalCursorPos.y + cursorOffset.y });
+
     if (m_sceneSRV)
     {
         ImGui::Image(reinterpret_cast<ImTextureID>(m_sceneSRV.Get()), renderSize);
     }
 
-    // Gizmo Hotkeys & Toolbar
-    // Only process hotkeys if the user is actively working inside the Scene View
+
+	// Gizmo hotkeys (W, E, R) only work when the Scene View is focused or hovered
     if (ImGui::IsWindowFocused() || ImGui::IsWindowHovered())
     {
+        // Standard Maya/Unity hotkeys
         if (ImGui::IsKeyPressed(ImGuiKey_W)) m_gizmoOperation = ImGuizmo::TRANSLATE;
         if (ImGui::IsKeyPressed(ImGuiKey_E)) m_gizmoOperation = ImGuizmo::ROTATE;
         if (ImGui::IsKeyPressed(ImGuiKey_R)) m_gizmoOperation = ImGuizmo::SCALE;
     }
 
-	// Imguizmo integration
     if (activeCamera && m_selectedObject)
     {
         ImGuizmo::SetDrawlist();
 
-        // Match the Gizmo projection area perfectly to the letterboxed/pillarboxed scene texture
-        ImGuizmo::SetRect(
-            ImGui::GetWindowPos().x + cursorOffset.x,
-            ImGui::GetWindowPos().y + cursorOffset.y + ImGui::GetFrameHeight(), // Account for tab header
-            renderSize.x,
-            renderSize.y
-        );
+        // Pass the cached screen coordinates directly to ImGuizmo
+        ImGuizmo::SetRect(screenCursorPos.x, screenCursorPos.y, renderSize.x, renderSize.y);
 
-        // Retrieve standard DirectX matrices
         DirectX::XMFLOAT4X4 view{ activeCamera->GetView() };
         DirectX::XMFLOAT4X4 proj{ activeCamera->GetProjection() };
 
-        // Build the World Matrix from the selected object
         DirectX::XMFLOAT4X4 objectMatrix{};
         {
             const DirectX::XMFLOAT3 pos{ m_selectedObject->GetPosition() };
-            const DirectX::XMFLOAT3 rot{ m_selectedObject->GetRotation() }; 
+            const DirectX::XMFLOAT3 rot{ m_selectedObject->GetRotation() };
             const DirectX::XMFLOAT3 scl{ m_selectedObject->GetScale() };
 
             const DirectX::XMMATRIX S{ DirectX::XMMatrixScaling(scl.x, scl.y, scl.z) };
@@ -319,14 +430,12 @@ void EditorManager::DrawSceneView(Camera* activeCamera) noexcept
             DirectX::XMStoreFloat4x4(&objectMatrix, S * R * T);
         }
 
-        // Draw & Manipulate the Gizmo
         ImGuizmo::Manipulate(&view._11, &proj._11, m_gizmoOperation, m_gizmoMode, &objectMatrix._11);
 
-        // If the user is dragging the gizmo, decompose the result and apply it back to the object
         if (ImGuizmo::IsUsing())
         {
             float translation[3]{ 0.0f };
-            float rotation[3]{ 0.0f }; // Outputs in Degrees
+            float rotation[3]{ 0.0f };
             float scale[3]{ 0.0f };
 
             ImGuizmo::DecomposeMatrixToComponents(&objectMatrix._11, translation, rotation, scale);
@@ -404,6 +513,7 @@ void EditorManager::DrawMenuBar(Scene* currentScene) noexcept
         }
         if (ImGui::BeginMenu("Time")) { ImGui::EndMenu(); }
         if (ImGui::BeginMenu("Curve Manager")) { ImGui::EndMenu(); }
+
         ImGui::EndMenuBar();
     }
 }
