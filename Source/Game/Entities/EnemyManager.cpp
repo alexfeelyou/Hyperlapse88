@@ -283,6 +283,9 @@ void EnemyManager::Deserialize(const nlohmann::json& inJson)
     m_enemies.clear();
     m_enemyPool.clear();
 
+    // Reset the naming counter so reloaded enemies start at 1
+    m_spawnCounter = 0;
+
     if (!inJson.contains("Enemies")) return;
 
     for (const auto& eJson : inJson["Enemies"])

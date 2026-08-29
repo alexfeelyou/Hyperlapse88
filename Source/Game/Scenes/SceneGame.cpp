@@ -312,7 +312,17 @@ void SceneGame::Update(const float elapsedTime)
         {
             EditorManager::Instance().ClearSelection();
 
-            if (m_sceneRoot) m_sceneRoot->ClearChildren();
+            if (m_sceneRoot)
+            {
+                for (const auto& child : m_sceneRoot->GetChildren())
+                {
+                    if (child->GetName() != "Player" && child->GetName() != "Stage")
+                    {
+                        child->Destroy();
+                    }
+                }
+                m_sceneRoot->Update(0.0f);
+            }
 
             SceneSerializer::Load("Data/Scenes/AutoSave_PlayMode.json", m_sceneRoot.get(), m_enemyManager.get(), m_itemManager.get());
 
@@ -331,6 +341,10 @@ void SceneGame::Update(const float elapsedTime)
             m_isDying = false;
             m_respawnTimer = 0.0f;
             m_bootTimer = 0.0f;
+
+            // Prevent access violations from the camera tracking a deleted enemy
+            m_cachedClosestEnemy = nullptr;
+            m_targetZoom = 0.0f;
 
             m_bossCinematicTriggered = false;
             m_isBossCinematicActive = false;

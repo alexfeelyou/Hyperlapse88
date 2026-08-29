@@ -147,6 +147,9 @@ void ItemManager::Deserialize(const nlohmann::json& inJson)
 {
     m_items.clear();
 
+    // Reset the naming counter so reloaded items start at 1
+	m_spawnCounter = 0;
+
     if (!inJson.contains("Items")) return;
 
     for (const auto& iJson : inJson["Items"])
