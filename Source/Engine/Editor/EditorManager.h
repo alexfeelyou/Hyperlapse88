@@ -81,8 +81,12 @@ private:
     ImGuizmo::OPERATION m_gizmoOperation{ ImGuizmo::TRANSLATE };
     ImGuizmo::MODE      m_gizmoMode{ ImGuizmo::WORLD };
 
-	// Editor State
+    // Release vs Editor Boot State
+#ifdef _DEBUG
     EditorMode m_editorMode{ EditorMode::Edit };
+#else
+    EditorMode m_editorMode{ EditorMode::Play }; // Release builds strictly bypass the Editor
+#endif
 
     float m_sceneWidth{ 1920.0f };
     float m_sceneHeight{ 1080.0f };

@@ -1,3 +1,4 @@
+#include "EditorManager.h"
 #include "SceneTitle.h"
 
 namespace {
@@ -442,6 +443,14 @@ void SceneTitle::AnimateMenu(float elapsedTime)
 
 void SceneTitle::ExecuteMenuSelection() noexcept
 {
+#ifdef _DEBUG
+    if (EditorManager::Instance().GetEditorMode() != EditorMode::Play)
+    {
+        Log::Warn("Cannot start game in Edit Mode. Press the Play (▶) button on the Toolbar first.");
+        return;
+    }
+#endif
+
     switch (m_currentSelection)
     {
     case MenuOption::NewGame:

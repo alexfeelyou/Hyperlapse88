@@ -94,7 +94,7 @@ SceneGame::SceneGame()
     m_mainCamera->LookAt(m_cameraTarget);
     camCtrl.SetActiveCamera(m_mainCamera);
 
-	// Sync camera with initial editor mode state
+    // Sync camera with initial editor mode state
     camCtrl.SetFixedSetting(startPos);
     camCtrl.SetTarget(m_cameraTarget);
 
@@ -103,7 +103,7 @@ SceneGame::SceneGame()
     {
         camCtrl.SetControlMode(CameraControlMode::Free);
 
-        // INSTANT VISIBILITY: Remove the black screen boot fade
+        // Remove the black screen boot fade
         m_bootTimer = 0.0f;
         m_fadeAlpha = 0.0f;
     }
@@ -111,6 +111,8 @@ SceneGame::SceneGame()
     {
         camCtrl.SetControlMode(CameraControlMode::FixedFollow);
     }
+
+    m_respawnTimer = 0.0f;
 
     m_stage = std::make_unique<Stage>(Graphics::Instance().GetDevice());
 
@@ -196,6 +198,25 @@ SceneGame::SceneGame()
         m_hasCheckpoint = true;
     });
 
+    if (m_lastEditorMode == EditorMode::Play)
+    {
+        for (int i = 0; i < 60; ++i)
+        {
+            if (m_scene)
+            {
+                m_scene->simulate(0.01666f);
+                m_scene->fetchResults(true);
+            }
+            if (m_player) m_player->Update(0.01666f, nullptr);
+            if (m_navi) m_navi->Update(0.01666f, nullptr);
+        }
+        if (m_player)
+        {
+            CameraController::Instance().SetTarget(m_player->GetPosition());
+            CameraController::Instance().Update(1.0f);
+        }
+    }
+
     m_postProcess = std::make_unique<PostProcessManager>();
     m_postProcess->Initialize(static_cast<int>(screenW), static_cast<int>(screenH));
     m_postProcess->SetEnabled(true);
@@ -243,34 +264,106 @@ void SceneGame::Update(const float elapsedTime)
         {
             // STOP -> PLAY: Backup the scene layout so we can revert it later
             SceneSerializer::Save("Data/Scenes/AutoSave_PlayMode.json", m_sceneRoot.get(), m_enemyManager.get(), m_itemManager.get());
+
+            // ==========================================
+            // NEW: CACHE EDITOR CAMERA
+            // ==========================================
+            if (Camera* activeCam = CameraController::Instance().GetActiveCamera().get())
+            {
+                m_cachedEditorCamPos = activeCam->GetPosition();
+                m_cachedEditorCamRot = activeCam->GetRotation();
+            }
+
             CameraController::Instance().SetControlMode(CameraControlMode::FixedFollow);
 
-            // Start the game boot sequnce
+            // FIX: PHYSICS PRE-WARMING
+            for (int i = 0; i < 60; ++i)
+            {
+                if (m_scene)
+                {
+                    m_scene->simulate(0.01666f);
+                    m_scene->fetchResults(true);
+                }
+
+                if (m_player) m_player->Update(0.01666f, CameraController::Instance().GetActiveCamera().get());
+                if (m_navi) m_navi->Update(0.01666f, CameraController::Instance().GetActiveCamera().get());
+            }
+
+            // Snap camera directly to the settled, grounded player position
+            if (m_player)
+            {
+                CameraController::Instance().SetTarget(m_player->GetPosition());
+                CameraController::Instance().Update(1.0f);
+            }
+
+            // Start the game boot sequence
             m_bootTimer = 1.1f;
+
+            m_respawnTimer = 0.0f;
+            m_isDying = false;
+
             m_fadeAlpha = 1.0f;
-            m_postProcess->GetVignette().GetData().smoothness = FX_BLACK_SMOOTHNESS;
-            m_postProcess->GetVignette().GetData().intensity = FX_BLACK_INTENSITY;
+            if (m_postProcess)
+            {
+                m_postProcess->GetVignette().GetData().smoothness = FX_BLACK_SMOOTHNESS;
+                m_postProcess->GetVignette().GetData().intensity = FX_BLACK_INTENSITY;
+            }
             if (m_player) m_player->SetInputEnabled(false);
         }
         else if (currentMode == EditorMode::Edit)
         {
-            // PLAY/PAUSE -> STOP: Revert the scene to the exact layout before Play was pressed
+            EditorManager::Instance().ClearSelection();
+
+            if (m_sceneRoot) m_sceneRoot->ClearChildren();
+
             SceneSerializer::Load("Data/Scenes/AutoSave_PlayMode.json", m_sceneRoot.get(), m_enemyManager.get(), m_itemManager.get());
 
-            ResetLevel(); // Snaps Player and Navi back to spawn
+            Camera* activeCam{ CameraController::Instance().GetActiveCamera().get() };
+            if (m_enemyManager) m_enemyManager->Update(0.0f, activeCam, m_cameraTarget, false);
+            if (m_itemManager) m_itemManager->Update(0.0f, activeCam);
+            Scene::Update(0.0f);
+
+            ResetLevel();
+
+            // 3. UI & State Reset
+            m_isPaused = false;
+            m_isExitingToTitle = false;
+            m_exitToTitleTimer = 0.0f;
+
             m_isDying = false;
             m_respawnTimer = 0.0f;
             m_bootTimer = 0.0f;
+
+            m_bossCinematicTriggered = false;
+            m_isBossCinematicActive = false;
+            m_bossDialogueStarted = false;
+            m_bossEffectTriggered = false;
+            m_isPoisonDialogueActive = false;
+
+            m_hasBGMStarted = false;
+            m_hasIntroDialogueTestStarted = false;
+            m_hasTriggeredMushroomDialogue = false;
+            m_hasTriggeredTrackingDialogue = false;
+            m_hasTriggeredPoisonDialogue = false;
+
+            // Forcibly destroy and recreate the UI to clear active typewriter text
+            m_dialogueBox = std::make_unique<UIDialogueBox>();
+            m_dialogueBox->Initialize();
+
+            if (m_uiPause) m_uiPause->ResetSelection();
             if (m_player) m_player->SetInputEnabled(true);
 
-            m_isBossCinematicActive = false;
-            m_bossCinematicTriggered = false;
-
-            // Reset screen visual effects so the Editor isn't trapped in a black/white fade
+            // Visual & Audio Cleanup
             m_fadeAlpha = 0.0f;
             m_whiteAlpha = 0.0f;
-            m_postProcess->GetVignette().GetData().smoothness = FX_BASE_SMOOTHNESS;
-            m_postProcess->GetVignette().GetData().intensity = FX_BASE_INTENSITY;
+            if (m_postProcess)
+            {
+                m_postProcess->GetVignette().GetData().smoothness = FX_BASE_SMOOTHNESS;
+                m_postProcess->GetVignette().GetData().intensity = FX_BASE_INTENSITY;
+            }
+
+            EffectManager::Instance().StopAll();
+            AudioManager::Instance().StopMusic();
 
             CameraController::Instance().SetControlMode(CameraControlMode::Free);
         }
@@ -395,9 +488,12 @@ void SceneGame::Update(const float elapsedTime)
         else if (m_bootTimer > 0.0f)
         {
             m_bootTimer -= elapsedTime;
-            m_fadeAlpha = 1.0f;
-            m_postProcess->GetVignette().GetData().smoothness = FX_BLACK_SMOOTHNESS;
-            m_postProcess->GetVignette().GetData().intensity = FX_BLACK_INTENSITY;
+
+            const float t{ std::clamp(m_bootTimer / 1.1f, 0.0f, 1.0f) };
+            m_fadeAlpha = t;
+
+            m_postProcess->GetVignette().GetData().smoothness = FX_BASE_SMOOTHNESS + (FX_BLACK_SMOOTHNESS - FX_BASE_SMOOTHNESS) * t;
+            m_postProcess->GetVignette().GetData().intensity = FX_BASE_INTENSITY + (FX_BLACK_INTENSITY - FX_BASE_INTENSITY) * t;
 
             if (m_player)
             {
@@ -809,12 +905,22 @@ void SceneGame::ResetLevel()
         }
     }
 
-    // Smart Camera Reset
-    CameraController::Instance().SetDynamicZoomOffset(0.0f);
-    CameraController::Instance().SetTarget(respawnPos);
-    for (int i = 0; i < 60; ++i)
+    if (EditorManager::Instance().GetEditorMode() == EditorMode::Play)
     {
-        CameraController::Instance().Update(0.016f);
+        for (int i = 0; i < 60; ++i)
+        {
+            if (m_scene)
+            {
+                m_scene->simulate(0.01666f);
+                m_scene->fetchResults(true);
+            }
+            if (m_player) m_player->Update(0.01666f, nullptr);
+            if (m_navi) m_navi->Update(0.01666f, nullptr);
+        }
+
+        CameraController::Instance().SetDynamicZoomOffset(0.0f);
+        CameraController::Instance().SetTarget(m_player ? m_player->GetPosition() : respawnPos);
+        CameraController::Instance().Update(1.0f);
     }
 }
 
