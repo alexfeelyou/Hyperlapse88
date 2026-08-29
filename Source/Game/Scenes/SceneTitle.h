@@ -24,6 +24,9 @@
 #include "Scene.h"
 #include "SceneGame.h"
 
+// Forward Declarations
+enum class EditorMode : std::uint8_t;
+
 class SceneTitle : public Scene
 {
 public:
@@ -64,6 +67,10 @@ private:
     std::unique_ptr<Sprite> m_newGameSprite{};
     std::unique_ptr<Sprite> m_optionSprite{};
     std::unique_ptr<Sprite> m_exitSprite{};
+
+	// Editor State Tracking
+    EditorMode m_lastEditorMode{};
+    void ResetToInitialState() noexcept;
 
 	// UI Option Panel
     std::unique_ptr<UIOption> m_uiOption{};

@@ -265,9 +265,7 @@ void SceneGame::Update(const float elapsedTime)
             // STOP -> PLAY: Backup the scene layout so we can revert it later
             SceneSerializer::Save("Data/Scenes/AutoSave_PlayMode.json", m_sceneRoot.get(), m_enemyManager.get(), m_itemManager.get());
 
-            // ==========================================
-            // NEW: CACHE EDITOR CAMERA
-            // ==========================================
+            // Cache editor camera
             if (Camera* activeCam = CameraController::Instance().GetActiveCamera().get())
             {
                 m_cachedEditorCamPos = activeCam->GetPosition();
@@ -276,7 +274,7 @@ void SceneGame::Update(const float elapsedTime)
 
             CameraController::Instance().SetControlMode(CameraControlMode::FixedFollow);
 
-            // FIX: PHYSICS PRE-WARMING
+            // Physics Pre Warming
             for (int i = 0; i < 60; ++i)
             {
                 if (m_scene)
@@ -325,7 +323,7 @@ void SceneGame::Update(const float elapsedTime)
 
             ResetLevel();
 
-            // 3. UI & State Reset
+            // UI & State Reset
             m_isPaused = false;
             m_isExitingToTitle = false;
             m_exitToTitleTimer = 0.0f;
