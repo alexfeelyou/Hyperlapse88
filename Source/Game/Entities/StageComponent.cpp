@@ -25,6 +25,8 @@ void StageComponent::OnAttach(GameObject* owner) noexcept
 
     if (m_stage && m_owner)
     {
+        m_stage->SetOwnerNode(owner);
+
         m_owner->transform.position = m_stage->position;
         m_owner->transform.rotation = m_stage->rotation;
         m_owner->transform.scale = m_stage->scale;

@@ -9,6 +9,7 @@
 #include "CharacterMovement.h"
 
 class Camera;
+class GameObject;
 
 class Character
 {
@@ -37,11 +38,16 @@ public:
 
     [[nodiscard]] virtual bool IsActive() const noexcept { return true; }
 
+    // Editor visibility syncing
+    void SetOwnerNode(GameObject* node) noexcept { m_ownerNode = node; }
+    [[nodiscard]] GameObject* GetOwnerNode() const noexcept { return m_ownerNode; }
+
 protected:
     // Syncs movement state to the visual model's root node
     void SyncData() noexcept;
 
 protected:
-    std::unique_ptr<CharacterMovement> movement;
-    std::shared_ptr<Model>             model;
+    std::unique_ptr<CharacterMovement>  movement;
+    std::shared_ptr<Model>              model;
+    GameObject*                         m_ownerNode{ nullptr }; // Tracks the Inspector GameObject
 };

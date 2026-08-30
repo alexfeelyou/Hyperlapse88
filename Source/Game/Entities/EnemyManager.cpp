@@ -152,6 +152,9 @@ void EnemyManager::Render(ModelRenderer* renderer, Camera* camera)
 {
     for (auto& enemy : m_enemies)
     {
+        // Skip rendering if the Inspector active checkbox is disabled
+        if (enemy->GetOwnerNode() && !enemy->GetOwnerNode()->IsActive()) continue;
+
         bool isBodyVisible{ true };
 
         if (camera)

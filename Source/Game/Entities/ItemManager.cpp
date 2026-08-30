@@ -96,6 +96,9 @@ void ItemManager::Render(ModelRenderer* renderer)
 {
     for (auto& item : m_items)
     {
+        // Skip rendering if the Inspector active checkbox is disabled
+        if (item->GetOwnerNode() && !item->GetOwnerNode()->IsActive()) continue;
+
         item->Render(renderer);
     }
 }

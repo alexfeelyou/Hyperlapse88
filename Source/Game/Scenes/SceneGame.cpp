@@ -1177,22 +1177,41 @@ void SceneGame::RenderScene(const float elapsedTime, Camera* camera)
     rc.psxResWidth = psxData.resWidth;
     rc.psxResHeight = psxData.resHeight;
 
+    // Check Player Visibility
     if (m_player)
     {
-        modelRenderer->Draw(ShaderId::Phong, m_player->GetModel(), m_player->color);
-        m_player->RenderWeapon(modelRenderer);
-        m_player->RenderProjectiles(modelRenderer);
+        const bool isPlayerActive = m_player->GetOwnerNode() ? m_player->GetOwnerNode()->IsActive() : true;
+        if (isPlayerActive)
+        {
+            modelRenderer->Draw(ShaderId::Phong, m_player->GetModel(), m_player->color);
+            m_player->RenderWeapon(modelRenderer);
+            m_player->RenderProjectiles(modelRenderer);
+        }
     }
-    if (m_navi) {
-        m_navi->Render(modelRenderer);
-        m_navi->RenderProjectiles(modelRenderer);
+
+    // Check Navi Visibility
+    if (m_navi)
+    {
+        const bool isNaviActive = m_navi->GetOwnerNode() ? m_navi->GetOwnerNode()->IsActive() : true;
+        if (isNaviActive)
+        {
+            m_navi->Render(modelRenderer);
+            m_navi->RenderProjectiles(modelRenderer);
+        }
     }
+
     if (m_enemyManager) m_enemyManager->Render(modelRenderer);
     if (m_itemManager) m_itemManager->Render(modelRenderer);
+
+	// Check Stage Visibility
     if (m_stage)
     {
-        m_stage->UpdateTransform();
-        m_stage->Render(modelRenderer);
+        const bool isStageActive = m_stage->GetOwnerNode() ? m_stage->GetOwnerNode()->IsActive() : true;
+        if (isStageActive)
+        {
+            m_stage->UpdateTransform();
+            m_stage->Render(modelRenderer);
+        }
     }
 
     modelRenderer->Render(rc);

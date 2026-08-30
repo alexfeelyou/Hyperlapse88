@@ -88,19 +88,24 @@ void LegacyCharacterComponent::OnAttach(GameObject* owner) noexcept
     // Always call the base class implementation first to set m_owner
     IComponent::OnAttach(owner);
 
-    // Push the Character's starting data into the GameObject's transform
-    if (m_character && m_character->GetMovement() && m_owner)
+    if (m_character)
     {
-        m_owner->transform.position = m_character->GetMovement()->GetPosition();
-        m_owner->transform.rotation = m_character->GetMovement()->GetRotation();
-        m_owner->transform.scale = m_character->scale;
+        // Link the gameplay entity back to this editor node
+        m_character->SetOwnerNode(owner);
 
-        // Reset the cache to match
-        m_lastFramePos = m_owner->transform.position;
-        m_lastFrameRot = m_owner->transform.rotation;
-        m_lastFrameScale = m_owner->transform.scale;
+        // Push the Character's starting data into the GameObject's transform
+        if (m_character->GetMovement() && m_owner)
+        {
+            m_owner->transform.position = m_character->GetMovement()->GetPosition();
+            m_owner->transform.rotation = m_character->GetMovement()->GetRotation();
+            m_owner->transform.scale = m_character->scale;
 
-        m_character->ForceVisualSync();
+            m_lastFramePos = m_owner->transform.position;
+            m_lastFrameRot = m_owner->transform.rotation;
+            m_lastFrameScale = m_owner->transform.scale;
+
+            m_character->ForceVisualSync();
+        }
     }
 }
 
