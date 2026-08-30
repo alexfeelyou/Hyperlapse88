@@ -341,14 +341,42 @@ void SceneGame::Update(const float elapsedTime)
 
             SceneSerializer::Load("Data/Scenes/AutoSave_PlayMode.json", m_sceneRoot.get(), m_enemyManager.get(), m_itemManager.get());
 
+            if (m_player)
+            {
+                m_player->SetPosition(m_playerSpawnPos);
+                m_player->GetMovement()->SetVelocity({ 0.0f, 0.0f, 0.0f });
+                m_player->SetMaxHP(NORMAL_MAX_HP);
+                m_player->scale = { 1.0f, 1.0f, 1.0f };
+                m_player->GetStateMachine()->ChangeState(m_player.get(), std::make_unique<PlayerIdle>());
+                m_player->GetProjectiles().clear();
+                m_player->ForceVisualSync();
+            }
+
+            if (m_navi)
+            {
+                m_navi->Reset();
+                m_navi->SetPotionedState(false);
+                m_navi->SetPosition({ m_playerSpawnPos.x + 1.0f, m_playerSpawnPos.y + 2.0f, m_playerSpawnPos.z + 0.5f });
+                m_navi->ForceVisualSync();
+            }
+
+            if (Camera * activeCam{ CameraController::Instance().GetActiveCamera().get() })
+            {
+                activeCam->SetPosition(m_cachedEditorCamPos);
+                activeCam->SetRotation(m_cachedEditorCamRot);
+            }
+            CameraController::Instance().SetControlMode(CameraControlMode::Free);
+
             Camera* activeCam{ CameraController::Instance().GetActiveCamera().get() };
-            if (m_enemyManager) m_enemyManager->Update(0.0f, activeCam, m_cameraTarget, true); 
-            if (m_itemManager) m_itemManager->Update(0.0f, activeCam);
+            if (m_enemyManager) m_enemyManager->Update(0.0f, activeCam, m_cameraTarget, true);
+            if (m_itemManager)  m_itemManager->Update(0.0f, activeCam);
             Scene::Update(0.0f);
 
-            ResetLevel();
+            // Reset runtime progression and checkpoint flags
+            m_hasCheckpoint = false;
+            m_currentCheckpointPos = { 0.0f, 0.0f, 0.0f };
 
-            // UI & State Reset
+            // Reset gameplay menu, timers, and camera zoom targets
             m_isPaused = false;
             m_isExitingToTitle = false;
             m_exitToTitleTimer = 0.0f;
@@ -357,7 +385,6 @@ void SceneGame::Update(const float elapsedTime)
             m_respawnTimer = 0.0f;
             m_bootTimer = 0.0f;
 
-            // Prevent access violations from the camera tracking a deleted enemy
             m_cachedClosestEnemy = nullptr;
             m_targetZoom = 0.0f;
 
@@ -373,14 +400,14 @@ void SceneGame::Update(const float elapsedTime)
             m_hasTriggeredTrackingDialogue = false;
             m_hasTriggeredPoisonDialogue = false;
 
-            // Forcibly destroy and recreate the UI to clear active typewriter text
+            // Reinitialize dialogue UI to clear active typewriter buffers
             m_dialogueBox = std::make_unique<UIDialogueBox>();
             m_dialogueBox->Initialize();
 
             if (m_uiPause) m_uiPause->ResetSelection();
-            if (m_player) m_player->SetInputEnabled(true);
+            if (m_player)  m_player->SetInputEnabled(true);
 
-            // Visual & Audio Cleanup
+            // Visual & Audio cleanup
             m_fadeAlpha = 0.0f;
             m_whiteAlpha = 0.0f;
             if (m_postProcess)
@@ -391,8 +418,6 @@ void SceneGame::Update(const float elapsedTime)
 
             EffectManager::Instance().StopAll();
             AudioManager::Instance().StopMusic();
-
-            CameraController::Instance().SetControlMode(CameraControlMode::Free);
         }
         else if (currentMode == EditorMode::Pause)
         {
