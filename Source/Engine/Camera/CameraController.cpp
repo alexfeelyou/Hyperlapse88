@@ -337,24 +337,51 @@ void CameraController::UpdateFixedStatic(std::shared_ptr<Camera>& camera)
 
 void CameraController::UpdateFreeCamera(float dt, std::shared_ptr<Camera>& camera)
 {
+    // Track the Right Mouse Button state globally across all frames
+    static bool s_wasRightBtnDown{ false };
+    static int s_ignoreFrames{ 0 };
+
+    const bool rightBtnDown{ (GetKeyState(VK_RBUTTON) & 0x8000) != 0 };
+    const bool justPressed{ rightBtnDown && !s_wasRightBtnDown };
+    s_wasRightBtnDown = rightBtnDown;
+
+    if (justPressed)
+    {
+        // Absorb the initial click frame and the subsequent OS warp frame
+        s_ignoreFrames = 2;
+    }
+
     // Only allow looking and moving if the cursor is locked (Right-Click held)
     if (!m_toggleCursor) return;
 
-    // Rotation
     Mouse& mouse = Input::Instance().GetMouse();
-    float sensitivity = 0.5f;
-    float rotSpeed = m_rollSpeed * dt;
+    float deltaX{ static_cast<float>(mouse.GetDeltaX()) };
+    float deltaY{ static_cast<float>(mouse.GetDeltaY()) };
 
-    DirectX::XMFLOAT3 currentRot = camera->GetRotation();
-    currentRot.y += static_cast<float>(mouse.GetDeltaX()) * sensitivity * rotSpeed;
-    currentRot.x += static_cast<float>(mouse.GetDeltaY()) * sensitivity * rotSpeed;
+    // Discard the massive delta spike while the OS centers the cursor
+    if (s_ignoreFrames > 0)
+    {
+        deltaX = 0.0f;
+        deltaY = 0.0f;
+        --s_ignoreFrames;
+    }
 
-    camera->SetRotation(currentRot);
-    m_currentAngle = currentRot; // Sync
+    // Apply rotation purely using the cached angle to prevent matrix read-back drift
+    const float sensitivity{ 0.5f };
+    const float rotSpeed{ m_rollSpeed * dt };
+
+    m_currentAngle.y += deltaX * sensitivity * rotSpeed;
+    m_currentAngle.x += deltaY * sensitivity * rotSpeed;
+
+    // Ensure Pitch does not exceed vertical bounds to prevent screen flip
+    constexpr float PITCH_LIMIT{ DirectX::XM_PIDIV2 - 0.01f }; // Slightly less than 90 degrees
+    m_currentAngle.x = std::clamp(m_currentAngle.x, -PITCH_LIMIT, PITCH_LIMIT);
+
+    camera->SetRotation(m_currentAngle);
 
     // Translation
-    float moveAmount = m_moveSpeed * dt;
-    DirectX::XMFLOAT3 moveDir = { 0, 0, 0 };
+    const float moveAmount{ m_moveSpeed * dt };
+    DirectX::XMFLOAT3 moveDir{ 0.0f, 0.0f, 0.0f };
 
     if (GetKeyState('W') & 0x8000) moveDir.z += moveAmount;
     if (GetKeyState('S') & 0x8000) moveDir.z -= moveAmount;
@@ -366,6 +393,7 @@ void CameraController::UpdateFreeCamera(float dt, std::shared_ptr<Camera>& camer
     camera->Translate(moveDir);
     m_eyePos = camera->GetPosition();
 }
+
 void CameraController::UpdateOrbitCamera(float dt, std::shared_ptr<Camera>& camera)
 {
     float ax = 0.0f;
