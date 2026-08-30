@@ -74,7 +74,8 @@ public:
     [[nodiscard]] bool IsInputEnabled() const { return isInputEnabled; } 
     void SetCamera(Camera* cam) { activeCamera = cam; }
 
-    void SetPosition(const DirectX::XMFLOAT3& pos);
+    void SetPosition(const DirectX::XMFLOAT3& pos) noexcept override;
+    void SetRotation(const DirectX::XMFLOAT3& rot) noexcept override { if (movement) movement->SetRotation(rot); }
 
     // Movement config
     void ApplyConfig(const PlayerConfig& config) noexcept;

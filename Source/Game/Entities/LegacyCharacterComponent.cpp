@@ -62,8 +62,8 @@ void LegacyCharacterComponent::Update(float dt)
     if (wasEditedInGUI)
     {
         // Push the new Editor Transform down into the Game Logic
-        movement->SetPosition(editorTransform.position);
-        movement->SetRotation(editorTransform.rotation);
+        m_character->SetPosition(editorTransform.position);
+        m_character->SetRotation(editorTransform.rotation);
         m_character->scale = editorTransform.scale;
 
         // Force underlying model's matrices to recalculate instantly

@@ -1,44 +1,38 @@
 #include "NaviAlly.h"
-#include "Player.h"
-#include "EnemyManager.h"
-#include "Enemy.h"
 #include "Camera.h"
+#include "Enemy.h"
+#include "EnemyManager.h"
+#include "Player.h"
 #include "System/AudioManager.h"
 #include "System/Graphics.h"
-#include <cmath>
 #include <algorithm>
+#include <cmath>
 
 using namespace DirectX;
 
-float NaviAlly::GetRandomFloat(float min, float max)
+float NaviAlly::GetRandomFloat(float min, float max) noexcept
 {
-    float random = ((float)rand()) / (float)RAND_MAX;
+    const float random{ static_cast<float>(rand()) / static_cast<float>(RAND_MAX) };
     return min + random * (max - min);
 }
 
 NaviAlly::NaviAlly(ID3D11Device* device, Player* targetPlayer, EnemyManager* enemyManager)
-    : m_targetPlayer(targetPlayer) 
-    , m_enemyManager(enemyManager)
+    : m_targetPlayer{ targetPlayer }
+    , m_enemyManager{ enemyManager }
 {
     model = std::make_shared<Model>(device, "Data/Model/Character/MDL_Navi.glb");
     scale = { 0.4f, 0.4f, 0.4f };
-    movement->SetRotation({ 0.0f, 0.0f, 0.0f });
 
-    OutputDebugStringA("\n=== NAVI ANIMATIONS LOADED ===\n");
-    const auto& anims = model->GetAnimations();
-    for (size_t i = 0; i < anims.size(); ++i)
+    if (movement)
     {
-        std::string msg = "[" + std::to_string(i) + "] " + anims[i].name + "\n";
-        OutputDebugStringA(msg.c_str());
+        movement->SetRotation({ 0.0f, 0.0f, 0.0f });
     }
-    OutputDebugStringA("================================\n\n");
 
     m_animator = std::make_unique<AnimationController>();
     m_animator->Initialize(model);
-
     m_animator->Play("Armature|Flying", true, 0.2f);
 
-    if (m_targetPlayer)
+    if (m_targetPlayer && movement)
     {
         XMFLOAT3 startPos{ m_targetPlayer->GetPosition() };
         startPos.x += 1.0f;
@@ -46,22 +40,22 @@ NaviAlly::NaviAlly(ID3D11Device* device, Player* targetPlayer, EnemyManager* ene
         startPos.z += 0.5f;
         movement->SetPosition(startPos);
     }
+
     SyncData();
 }
 
 void NaviAlly::Reset() noexcept
 {
-    m_hp = MAX_HP;          
-    m_projectiles.clear();  
-    m_pulseTimer = 0.0f;    
+    m_hp = MAX_HP;
+    m_projectiles.clear();
+    m_pulseTimer = 0.0f;
 }
 
 void NaviAlly::UpdateAttackDelay(float dt) noexcept
 {
     if (m_attackDelayTimer > 0.0f)
     {
-        m_attackDelayTimer -= dt;
-        if (m_attackDelayTimer < 0.0f) m_attackDelayTimer = 0.0f;
+        m_attackDelayTimer = (std::max)(0.0f, m_attackDelayTimer - dt);
     }
 }
 
@@ -76,9 +70,11 @@ void NaviAlly::Update(float elapsedTime, Camera* camera)
         m_animator->Update(elapsedTime);
     }
 
-    if (m_isPotioned) {
+    if (m_isPotioned)
+    {
         m_pulseTimer += elapsedTime;
     }
+
     UpdateHoverLogic(elapsedTime);
     UpdateShootingLogic(elapsedTime, camera);
     UpdateProjectiles(elapsedTime, camera);
@@ -86,7 +82,7 @@ void NaviAlly::Update(float elapsedTime, Camera* camera)
 
 void NaviAlly::UpdateHoverLogic(float elapsedTime)
 {
-    if (!m_targetPlayer) return;
+    if (!m_targetPlayer || !movement) return;
     m_animTime += elapsedTime;
 
     if (m_isPotioned && !m_hasCapturedAnchor)
@@ -94,7 +90,6 @@ void NaviAlly::UpdateHoverLogic(float elapsedTime)
         m_potionAnchorPos = movement->GetPosition();
         m_hasCapturedAnchor = true;
     }
-
     else if (!m_isPotioned)
     {
         m_hasCapturedAnchor = false;
@@ -110,7 +105,7 @@ void NaviAlly::UpdateHoverLogic(float elapsedTime)
         {
             m_randomTargetOffset = {
                 GetRandomFloat(-TETHER_RADIUS, TETHER_RADIUS),
-                0.0f, // Locked Y
+                0.0f,
                 GetRandomFloat(-TETHER_RADIUS, TETHER_RADIUS)
             };
             m_randomMoveTimer = 0.0f;
@@ -118,7 +113,7 @@ void NaviAlly::UpdateHoverLogic(float elapsedTime)
 
         targetPos = {
             m_potionAnchorPos.x + m_randomTargetOffset.x,
-            m_potionAnchorPos.y, // Locked to anchor Y
+            m_potionAnchorPos.y,
             m_potionAnchorPos.z + m_randomTargetOffset.z
         };
     }
@@ -128,13 +123,13 @@ void NaviAlly::UpdateHoverLogic(float elapsedTime)
         const std::shared_ptr<Model> pModel{ m_targetPlayer->GetModel() };
         if (!pMovement || !pModel) return;
 
-        DirectX::XMFLOAT3 anchorPos{ pMovement->GetPosition() }; 
+        DirectX::XMFLOAT3 anchorPos{ pMovement->GetPosition() };
         const int bodyIndex{ pModel->GetNodeIndex("body") };
 
         if (bodyIndex != -1)
         {
             const auto& nodes{ pModel->GetNodes() };
-            if (bodyIndex < nodes.size())
+            if (static_cast<size_t>(bodyIndex) < nodes.size())
             {
                 const DirectX::XMFLOAT4X4& bodyMatrix{ nodes[bodyIndex].worldTransform };
                 anchorPos = { bodyMatrix._41, bodyMatrix._42, bodyMatrix._43 };
@@ -148,21 +143,21 @@ void NaviAlly::UpdateHoverLogic(float elapsedTime)
         float targetYaw{ DirectX::XMConvertToRadians(pMovement->GetRotation().y) };
         if ((aimDx * aimDx + aimDz * aimDz) > 0.0001f)
         {
-            targetYaw = std::atan2f(aimDx, aimDz);
+            targetYaw = std::atan2(aimDx, aimDz);
         }
 
         float angleDiff{ targetYaw - m_lazyHoverYaw };
         while (angleDiff > DirectX::XM_PI)  angleDiff -= DirectX::XM_2PI;
         while (angleDiff < -DirectX::XM_PI) angleDiff += DirectX::XM_2PI;
 
-        const float lazyLerp{ 1.0f - std::expf(-LAZY_ROTATION_SPEED * elapsedTime) };
+        const float lazyLerp{ 1.0f - std::exp(-LAZY_ROTATION_SPEED * elapsedTime) };
         m_lazyHoverYaw += angleDiff * lazyLerp;
 
         while (m_lazyHoverYaw > DirectX::XM_PI)  m_lazyHoverYaw -= DirectX::XM_2PI;
         while (m_lazyHoverYaw < -DirectX::XM_PI) m_lazyHoverYaw += DirectX::XM_2PI;
 
-        const float sinYaw{ std::sinf(m_lazyHoverYaw) };
-        const float cosYaw{ std::cosf(m_lazyHoverYaw) };
+        const float sinYaw{ std::sin(m_lazyHoverYaw) };
+        const float cosYaw{ std::cos(m_lazyHoverYaw) };
 
         const float offsetX{ (cosYaw * HOVER_RIGHT_OFFSET) - (sinYaw * HOVER_BACK_OFFSET) };
         const float offsetZ{ (-sinYaw * HOVER_RIGHT_OFFSET) - (cosYaw * HOVER_BACK_OFFSET) };
@@ -174,11 +169,11 @@ void NaviAlly::UpdateHoverLogic(float elapsedTime)
         };
     }
 
-    float lerpFactor{ 1.0f - std::expf(-FOLLOW_SPEED * elapsedTime) };
+    const float lerpFactor{ 1.0f - std::exp(-FOLLOW_SPEED * elapsedTime) };
     currentPos.x += (targetPos.x - currentPos.x) * lerpFactor;
     currentPos.z += (targetPos.z - currentPos.z) * lerpFactor;
 
-    float hoverBob = std::sinf(m_animTime * FLOAT_SPEED) * FLOAT_AMP;
+    const float hoverBob{ std::sin(m_animTime * FLOAT_SPEED) * FLOAT_AMP };
     currentPos.y += (targetPos.y - currentPos.y) * lerpFactor;
     currentPos.y += hoverBob;
 
@@ -202,21 +197,26 @@ void NaviAlly::SpawnBullet(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3
     newBullet->Fire(pos, fwd, speed);
     m_projectiles.push_back(std::move(newBullet));
 
-    if (m_projectiles.size() > MAX_BULLETS) m_projectiles.pop_front();
+    if (m_projectiles.size() > MAX_BULLETS)
+    {
+        m_projectiles.pop_front();
+    }
 }
 
 void NaviAlly::FireAtTarget(const DirectX::XMFLOAT3& targetPos)
 {
-    XMFLOAT3 myPos{ movement->GetPosition() };
-    float dx{ targetPos.x - myPos.x };
-    float dy{ targetPos.y - myPos.y };
-    float dz{ targetPos.z - myPos.z };
-    float distSq{ (dx * dx) + (dy * dy) + (dz * dz) };
+    if (!movement) return;
+
+    const XMFLOAT3 myPos{ movement->GetPosition() };
+    const float dx{ targetPos.x - myPos.x };
+    const float dy{ targetPos.y - myPos.y };
+    const float dz{ targetPos.z - myPos.z };
+    const float distSq{ (dx * dx) + (dy * dy) + (dz * dz) };
 
     XMFLOAT3 fwd{ 0.0f, 0.0f, 1.0f };
     if (distSq > 0.0001f)
     {
-        float dist{ std::sqrtf(distSq) };
+        const float dist{ std::sqrt(distSq) };
         fwd = { dx / dist, dy / dist, dz / dist };
     }
 
@@ -225,45 +225,46 @@ void NaviAlly::FireAtTarget(const DirectX::XMFLOAT3& targetPos)
 
 void NaviAlly::FireRadialBurst() noexcept
 {
-    XMFLOAT3 myPos{ movement->GetPosition() };
-    constexpr int bulletCount = 24;
-    constexpr float angleStep = DirectX::XM_2PI / bulletCount;
+    if (!movement) return;
 
-    for (int i = 0; i < bulletCount; ++i)
+    const XMFLOAT3 myPos{ movement->GetPosition() };
+    constexpr int bulletCount{ 24 };
+    constexpr float angleStep{ DirectX::XM_2PI / static_cast<float>(bulletCount) };
+
+    for (int i{ 0 }; i < bulletCount; ++i)
     {
-        float angle = i * angleStep;
-        XMFLOAT3 fwd{ std::sinf(angle), 0.0f, std::cosf(angle) };
+        const float angle{ static_cast<float>(i) * angleStep };
+        const XMFLOAT3 fwd{ std::sin(angle), 0.0f, std::cos(angle) };
         SpawnBullet(myPos, fwd, BOSS_BULLET_SPEED);
     }
 }
 
 void NaviAlly::FireFanBurst(const DirectX::XMFLOAT3& targetPos) noexcept
 {
-    XMFLOAT3 myPos{ movement->GetPosition() };
-    float dx{ targetPos.x - myPos.x };
-    float dz{ targetPos.z - myPos.z };
+    if (!movement) return;
 
-    // Divide-By-Zero guard
+    const XMFLOAT3 myPos{ movement->GetPosition() };
+    const float dx{ targetPos.x - myPos.x };
+    const float dz{ targetPos.z - myPos.z };
+
     if ((dx * dx + dz * dz) < 0.0001f) return;
 
-    float baseAngle = std::atan2f(dx, dz);
+    const float baseAngle{ std::atan2(dx, dz) };
+    constexpr int bulletCount{ 5 };
+    constexpr float spreadAngle{ 0.25f };
+    const float startAngle{ baseAngle - (spreadAngle * (static_cast<float>(bulletCount) / 2.0f)) };
 
-    constexpr int bulletCount = 5;
-    constexpr float spreadAngle = 0.25f; 
-    const float startAngle = baseAngle - (spreadAngle * (bulletCount / 2.0f));
-
-    for (int i = 0; i < bulletCount; ++i)
+    for (int i{ 0 }; i < bulletCount; ++i)
     {
-        float angle = startAngle + (i * spreadAngle);
-        XMFLOAT3 fwd{ std::sinf(angle), 0.0f, std::cosf(angle) };
-        SpawnBullet(myPos, fwd, BOSS_BULLET_SPEED * 1.5f); 
+        const float angle{ startAngle + (static_cast<float>(i) * spreadAngle) };
+        const XMFLOAT3 fwd{ std::sin(angle), 0.0f, std::cos(angle) };
+        SpawnBullet(myPos, fwd, BOSS_BULLET_SPEED * 1.5f);
     }
 }
 
 void NaviAlly::UpdateShootingLogic(float elapsedTime, Camera* camera)
 {
     if (m_targetPlayer && m_targetPlayer->GetHP() <= 0) return;
-
     if (m_attackDelayTimer > 0.0f) return;
 
     if (m_isPotioned)
@@ -273,9 +274,8 @@ void NaviAlly::UpdateShootingLogic(float elapsedTime, Camera* camera)
         m_bossAttackTimer += elapsedTime;
         if (m_bossAttackTimer >= BOSS_ATTACK_COOLDOWN)
         {
-            m_bossAttackTimer = 0.0f; 
+            m_bossAttackTimer = 0.0f;
 
-            // Alternate between attacks
             if (m_currentPattern == PotionAttackPattern::Radial)
             {
                 FireRadialBurst();
@@ -283,35 +283,34 @@ void NaviAlly::UpdateShootingLogic(float elapsedTime, Camera* camera)
             }
             else
             {
-                XMFLOAT3 aimPos = m_targetPlayer->GetPosition();
+                XMFLOAT3 aimPos{ m_targetPlayer->GetPosition() };
                 aimPos.y += 1.0f;
                 FireFanBurst(aimPos);
                 m_currentPattern = PotionAttackPattern::Radial;
             }
         }
-        return; 
+        return;
     }
 
-    if (!m_enemyManager || !camera) return;
+    if (!m_enemyManager || !camera || !movement) return;
 
-    XMFLOAT3 myPos{ movement->GetPosition() };
+    const XMFLOAT3 myPos{ movement->GetPosition() };
     Enemy* bestTarget{ nullptr };
     float closestDistSq{ ATTACK_RANGE_SQ };
 
-    // Target Selection (Scanning logic)
     for (const auto& enemy : m_enemyManager->GetEnemies())
     {
         if (!enemy || !enemy->IsActive()) continue;
         if (enemy->GetAttackType() == AttackType::None) continue;
 
-        XMFLOAT3 ePos{ enemy->GetPosition() };
-        float dx{ ePos.x - myPos.x };
-        float dz{ ePos.z - myPos.z };
-        float distSq{ (dx * dx) + (dz * dz) };
+        const XMFLOAT3 ePos{ enemy->GetPosition() };
+        const float dx{ ePos.x - myPos.x };
+        const float dz{ ePos.z - myPos.z };
+        const float distSq{ (dx * dx) + (dz * dz) };
 
         if (distSq < closestDistSq)
         {
-            float dynamicRadius{ 1.5f * enemy->GetScale().x };
+            const float dynamicRadius{ 1.5f * enemy->GetScale().x };
             if (camera->CheckSphere(ePos.x, ePos.y, ePos.z, dynamicRadius))
             {
                 closestDistSq = distSq;
@@ -320,7 +319,6 @@ void NaviAlly::UpdateShootingLogic(float elapsedTime, Camera* camera)
         }
     }
 
-    // If the target has changed (or was lost), reset the timers to enforce a fresh reaction delay.
     if (bestTarget != m_currentTarget)
     {
         m_currentTarget = bestTarget;
@@ -328,7 +326,6 @@ void NaviAlly::UpdateShootingLogic(float elapsedTime, Camera* camera)
         m_fireTimer = 0.0f;
     }
 
-    // Reaction & Shooting Execution
     if (m_currentTarget)
     {
         m_reactionTimer += elapsedTime;
@@ -347,7 +344,8 @@ void NaviAlly::UpdateShootingLogic(float elapsedTime, Camera* camera)
 
 void NaviAlly::UpdateProjectiles(float elapsedTime, Camera* camera)
 {
-    XMFLOAT3 myPos{ movement->GetPosition() };
+    if (!movement) return;
+    const XMFLOAT3 myPos{ movement->GetPosition() };
 
     for (auto& bullet : m_projectiles)
     {
@@ -355,9 +353,9 @@ void NaviAlly::UpdateProjectiles(float elapsedTime, Camera* camera)
 
         bullet->Update(elapsedTime, camera);
 
-        XMFLOAT3 bPos{ bullet->GetMovement()->GetPosition() };
-        float dx{ myPos.x - bPos.x };
-        float dz{ myPos.z - bPos.z };
+        const XMFLOAT3 bPos{ bullet->GetMovement()->GetPosition() };
+        const float dx{ myPos.x - bPos.x };
+        const float dz{ myPos.z - bPos.z };
 
         if ((dx * dx + dz * dz) > DESPAWN_DIST_SQ)
         {
@@ -372,9 +370,8 @@ void NaviAlly::TakeDamage(int damage) noexcept
 
     m_hp = (std::max)(0, m_hp - damage);
 
-    static const std::string HIT_SFX_PATH{ "Data/Sound/SE_Enemy_Hit.wav" };
-
-    AudioManager::Instance().PlaySFX(HIT_SFX_PATH, 0.6f);
+    static const std::string s_hitSfxPath{ "Data/Sound/SE_Enemy_Hit.wav" };
+    AudioManager::Instance().PlaySFX(s_hitSfxPath, 0.6f);
 
     if (m_hp <= 0)
     {
@@ -384,30 +381,36 @@ void NaviAlly::TakeDamage(int damage) noexcept
 
 void NaviAlly::SetPotionedState(bool isPotioned) noexcept
 {
-    if (m_isPotioned == isPotioned) return; 
+    if (m_isPotioned == isPotioned) return;
 
     m_isPotioned = isPotioned;
 
     if (m_isPotioned && m_targetPlayer)
     {
-        m_targetPlayer->SetMaxHP(150);
+        m_targetPlayer->SetMaxHP(150.0f);
     }
 }
 
-void NaviAlly::SetPosition(const DirectX::XMFLOAT3& pos)
+void NaviAlly::SetPosition(const DirectX::XMFLOAT3& pos) noexcept
 {
-    movement->SetPosition(pos);
+    if (movement) movement->SetPosition(pos);
+    SyncData();
+}
 
+void NaviAlly::SetRotation(const DirectX::XMFLOAT3& rot) noexcept
+{
+    if (movement) movement->SetRotation(rot);
     SyncData();
 }
 
 void NaviAlly::Render(ModelRenderer* renderer)
 {
-    if (!IsAlive() || !model) return;
-    Character::scale = scale;
-    DirectX::XMFLOAT4 renderColor = m_color;
+    if (!IsAlive() || !model || !renderer) return;
 
-    if (m_isPotioned) {
+    DirectX::XMFLOAT4 renderColor{ m_color };
+
+    if (m_isPotioned)
+    {
         const float wave{ (std::sin(m_pulseTimer * 15.0f) + 1.0f) * 0.5f };
         const auto& c1{ EnemyLevelData::ArcanePurple };
         const auto& c2{ EnemyLevelData::ToxicGreen };
@@ -424,24 +427,23 @@ void NaviAlly::Render(ModelRenderer* renderer)
 
 void NaviAlly::RenderProjectiles(ModelRenderer* renderer)
 {
-    if (!IsAlive()) return;
+    if (!IsAlive() || !renderer) return;
 
-    const DirectX::XMFLOAT4 navibulletColor{ 6.0f, 6.0f, 6.0f, 6.0f };
+    static constexpr DirectX::XMFLOAT4 s_naviBulletColor{ 6.0f, 6.0f, 6.0f, 6.0f };
 
     for (auto& bullet : m_projectiles)
     {
         if (bullet && bullet->IsActive())
         {
-            renderer->Draw(ShaderId::Phong, bullet->GetModel(), navibulletColor);
+            renderer->Draw(ShaderId::Phong, bullet->GetModel(), s_naviBulletColor);
         }
     }
 }
 
 void NaviAlly::RenderDebug(ShapeRenderer* shapeRenderer)
 {
-    if (!IsAlive() || !shapeRenderer) return;
+    if (!IsAlive() || !shapeRenderer || !movement) return;
 
-    const DirectX::XMFLOAT4 debugColor{ 0.0f, 1.0f, 1.0f, 0.5f };
-
-    shapeRenderer->DrawSphere(movement->GetPosition(), HITBOX_RADIUS, debugColor);
+    static constexpr DirectX::XMFLOAT4 s_debugColor{ 0.0f, 1.0f, 1.0f, 0.5f };
+    shapeRenderer->DrawSphere(movement->GetPosition(), HITBOX_RADIUS, s_debugColor);
 }

@@ -24,6 +24,12 @@ public:
     [[nodiscard]] DirectX::XMFLOAT3 GetPosition() const { return movement->GetPosition(); }
     [[nodiscard]] CharacterMovement* GetMovement() const { return movement.get(); }
 
+    // Virtual transform setters
+    // Allows LegacyCharacterComponent to update generic Characters, while giving 
+    // derived classes (like Player) the hook they need to update PhysX controllers simultaneously
+    virtual void SetPosition(const DirectX::XMFLOAT3& pos) noexcept { if (movement) movement->SetPosition(pos); }
+    virtual void SetRotation(const DirectX::XMFLOAT3& rot) noexcept { if (movement) movement->SetRotation(rot); }
+
     // Forces an immediate push of movement data to the visual model
     void ForceVisualSync() noexcept { SyncData(); }
 

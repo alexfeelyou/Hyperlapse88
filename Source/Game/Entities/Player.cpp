@@ -764,9 +764,8 @@ float Player::GetDamageGlitchIntensity() const noexcept
     return DAMAGE_GLITCH_MAX_INTENSITY * (t * t);
 }
 
-void Player::SetPosition(const DirectX::XMFLOAT3& pos)
+void Player::SetPosition(const DirectX::XMFLOAT3& pos) noexcept
 {
-    // Update komponen movement logical
     if (movement) movement->SetPosition(pos);
 
     if (m_physxController)

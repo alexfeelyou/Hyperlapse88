@@ -189,7 +189,7 @@ private:
     static constexpr float FX_BLACK_SMOOTHNESS{ 7.0f };
     static constexpr float FX_BLACK_INTENSITY{ 5.0f };
 
-    const DirectX::XMFLOAT3 m_playerSpawnPos{ 0.0f, 2.0f, 0.0f };
+    DirectX::XMFLOAT3 m_playerSpawnPos{ 0.0f, 0.1f, 0.0f };
 
     void StartPlayerDeathSequence();
     void StartNaviDefeatSequence();

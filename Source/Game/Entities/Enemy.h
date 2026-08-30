@@ -42,8 +42,8 @@ public:
     void SetPatrolLimitsX(float minOffset, float maxOffset) noexcept;
     void SetPatrolLimitsZ(float minOffset, float maxOffset) noexcept;
 
-    void SetPosition(const DirectX::XMFLOAT3& pos) noexcept;
-    void SetRotation(const DirectX::XMFLOAT3& rot) noexcept;
+    void SetPosition(const DirectX::XMFLOAT3& pos) noexcept override;
+    void SetRotation(const DirectX::XMFLOAT3& rot) noexcept override;
 
     void Reinitialize(ID3D11Device* device, const char* filePath, const DirectX::XMFLOAT3& startPos,
         const DirectX::XMFLOAT3& startRot, const DirectX::XMFLOAT4& startColor,

@@ -277,6 +277,11 @@ void SceneGame::Update(const float elapsedTime)
     {
         if (currentMode == EditorMode::Play && m_lastEditorMode == EditorMode::Edit)
         {
+            if (m_player)
+            {
+                m_playerSpawnPos = m_player->GetPosition();
+            }
+
             // STOP -> PLAY: Backup the scene layout so we can revert it later
             SceneSerializer::Save("Data/Scenes/AutoSave_PlayMode.json", m_sceneRoot.get(), m_enemyManager.get(), m_itemManager.get());
 
