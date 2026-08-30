@@ -78,6 +78,11 @@ public:
     void SetFixedRollOffset(float radians) { m_fixedRollOffset = radians; }
     void SetDynamicZoomOffset(float zoomOffset) { m_targetZoomOffset = zoomOffset; }
 
+    // Instantly teleports the camera to its mathematical target
+    // Used during scene loading and Edit -> Play transitions to prevent 
+    // the camera from violently swooping from the Editor position to the Player
+    void SnapToTarget();
+
     // Spline Settings
     void SetSplineTension(float tension) { m_splineTension = tension; }
     float GetSplineTension() const { return m_splineTension; }

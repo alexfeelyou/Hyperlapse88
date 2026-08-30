@@ -452,6 +452,32 @@ void CameraController::SetFixedSetting(const DirectX::XMFLOAT3& value)
     m_fixedPos = value;
 }
 
+void CameraController::SnapToTarget()
+{
+    std::shared_ptr<Camera> camera = m_activeCamera.lock();
+    if (!camera) return;
+
+    if (m_controlMode == CameraControlMode::FixedFollow)
+    {
+        // Calculate exact resting position based on current offsets
+        DirectX::XMFLOAT3 desiredPos;
+        desiredPos.x = m_targetPos.x + m_fixedPos.x;
+        desiredPos.y = m_targetPos.y + m_fixedPos.y + m_currentZoomOffset;
+        desiredPos.z = m_targetPos.z + m_fixedPos.z - (m_currentZoomOffset * 0.5f);
+
+        // Teleport instantly 
+        camera->SetPosition(desiredPos);
+
+        // Calculate exact look-at angle
+        DirectX::XMFLOAT3 desiredLookAt;
+        desiredLookAt.x = m_targetPos.x + m_targetOffset.x;
+        desiredLookAt.y = m_targetPos.y + m_targetOffset.y;
+        desiredLookAt.z = m_targetPos.z + m_targetOffset.z;
+
+        camera->LookAt(desiredLookAt);
+    }
+}
+
 void CameraController::SetControlMode(CameraControlMode mode)
 {
     if (m_controlMode != CameraControlMode::Mouse && mode == CameraControlMode::Mouse)

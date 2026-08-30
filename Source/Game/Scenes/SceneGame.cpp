@@ -200,7 +200,7 @@ SceneGame::SceneGame()
 
     if (m_lastEditorMode == EditorMode::Play)
     {
-        for (int i = 0; i < 60; ++i)
+        for (int i{ 0 }; i < 300; ++i)
         {
             if (m_scene)
             {
@@ -208,12 +208,31 @@ SceneGame::SceneGame()
                 m_scene->fetchResults(true);
             }
             if (m_player) m_player->Update(0.01666f, nullptr);
-            if (m_navi) m_navi->Update(0.01666f, nullptr);
+            if (m_navi)   m_navi->Update(0.01666f, nullptr);
+
+            // Break instantly once the PhysX capsule registers a floor collision
+            if (m_player && m_player->IsGrounded())
+            {
+                break;
+            }
         }
+
         if (m_player)
         {
-            CameraController::Instance().SetTarget(m_player->GetPosition());
-            CameraController::Instance().Update(1.0f);
+            // Camera Cut and Spawn Sync for Initial Boot
+            m_playerSpawnPos = m_player->GetPosition();
+
+            CameraController::Instance().SetTarget(m_playerSpawnPos);
+            CameraController::Instance().SnapToTarget();
+
+            // If the game boots directly from the Title Screen in Play Mode, 
+            // the Edit -> Play transition never occurs. This anchors the Stop button
+            // to the initial gameplay perspective instead of a blank forward vector
+            if (Camera * activeCam{ CameraController::Instance().GetActiveCamera().get() })
+            {
+                m_cachedEditorCamPos = activeCam->GetPosition();
+                m_cachedEditorCamRot = activeCam->GetRotation();
+            }
         }
     }
 
@@ -277,16 +296,11 @@ void SceneGame::Update(const float elapsedTime)
     {
         if (currentMode == EditorMode::Play && m_lastEditorMode == EditorMode::Edit)
         {
-            if (m_player)
-            {
-                m_playerSpawnPos = m_player->GetPosition();
-            }
-
-            // STOP -> PLAY: Backup the scene layout so we can revert it later
+            // Backup the authored scene layout 
             SceneSerializer::Save("Data/Scenes/AutoSave_PlayMode.json", m_sceneRoot.get(), m_enemyManager.get(), m_itemManager.get());
 
             // Cache editor camera
-            if (Camera* activeCam = CameraController::Instance().GetActiveCamera().get())
+            if (Camera * activeCam{ CameraController::Instance().GetActiveCamera().get() })
             {
                 m_cachedEditorCamPos = activeCam->GetPosition();
                 m_cachedEditorCamRot = activeCam->GetRotation();
@@ -295,7 +309,6 @@ void SceneGame::Update(const float elapsedTime)
             CameraController::Instance().SetControlMode(CameraControlMode::FixedFollow);
 
             // Dynamic Physics Settling (Pre-Warming)
-            // Simulate up to 300 frames, but break early the exact frame the player hits the floor
             for (int i{ 0 }; i < 300; ++i)
             {
                 if (m_scene)
@@ -314,11 +327,14 @@ void SceneGame::Update(const float elapsedTime)
                 }
             }
 
-            // Snap camera directly to the settled, grounded player position
+            // Camera Cut & Spawn Sync
             if (m_player)
             {
-                CameraController::Instance().SetTarget(m_player->GetPosition());
-                CameraController::Instance().Update(1.0f);
+                // Capture the newly grounded coordinate so the camera doesn't swoop down
+                m_playerSpawnPos = m_player->GetPosition();
+
+                CameraController::Instance().SetTarget(m_playerSpawnPos);
+                CameraController::Instance().SnapToTarget();
             }
 
             // Start the game boot sequence
