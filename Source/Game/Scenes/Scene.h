@@ -41,6 +41,12 @@ public:
 		return "Data/Config/PostProcess_Default.json";
 	}
 
+	// Tells the engine the human-readable name of this scene for the Editor
+	[[nodiscard]] virtual std::string_view GetSceneName() const noexcept
+	{
+		return "Scene_Default";
+	}
+
 	virtual void OnResize(int width, int height) {}
 	// Expose the Root GameObject to the EditorManager
 	[[nodiscard]] GameObject* GetRootGameObject() const noexcept { return m_sceneRoot.get(); }

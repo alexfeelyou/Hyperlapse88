@@ -48,16 +48,20 @@ void GameObject::Update(float dt)
 
 void GameObject::DrawInspector()
 {
-    // Draw the basic GameObject properties (Name & Active state)
+    // Unity-style Header: [X] Checkbox  [ Name Input ]
+    ImGui::Checkbox("##Active", &m_isActive);
+    ImGui::SameLine();
+
     static char s_nameBuffer[128];
     strncpy_s(s_nameBuffer, sizeof(s_nameBuffer), m_name.c_str(), _TRUNCATE);
 
-    if (ImGui::InputText("Name", s_nameBuffer, sizeof(s_nameBuffer)))
+    // Push item width to fill the remaining horizontal space
+    ImGui::PushItemWidth(-1.0f);
+    if (ImGui::InputText("##Name", s_nameBuffer, sizeof(s_nameBuffer)))
     {
         m_name = s_nameBuffer;
     }
-
-    ImGui::Checkbox("Active", &m_isActive);
+    ImGui::PopItemWidth();
 
     ImGui::Separator();
 

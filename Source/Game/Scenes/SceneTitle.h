@@ -53,6 +53,12 @@ public:
         return "Data/Config/PostProcess_Title.json";
     }
 
+    // Assign unique name identifier for the Editor Hierarchy
+    [[nodiscard]] std::string_view GetSceneName() const noexcept override
+    {
+        return "Scene_Title";
+    }
+
 private:
     // Subsystems 
     std::unique_ptr<Camera> camera{};

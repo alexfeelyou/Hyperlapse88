@@ -82,6 +82,12 @@ public:
         return "Data/Config/PostProcess_Game.json";
     }
 
+    // Assign unique name identifier for the Editor Hierarchy
+    [[nodiscard]] std::string_view GetSceneName() const noexcept override
+    {
+        return "Scene_Game";
+    }
+
     [[nodiscard]] EnemyManager* GetEnemyManager() const noexcept { return m_enemyManager.get(); }
     [[nodiscard]] ItemManager* GetItemManager() const noexcept { return m_itemManager.get(); }
 

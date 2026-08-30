@@ -469,16 +469,13 @@ void EditorManager::DrawMenuBar(Scene* currentScene) noexcept
                     EnemyManager* enemyMgr{ nullptr };
                     ItemManager* itemMgr{ nullptr };
 
-                    // Try to safely extract managers IF this happens to be a SceneGame
                     if (auto* gameScene{ dynamic_cast<SceneGame*>(currentScene) })
                     {
                         enemyMgr = gameScene->GetEnemyManager();
                         itemMgr = gameScene->GetItemManager();
                     }
 
-                    // Save the scene! 
-                    // - If it's SceneGame, it passes the Root + Managers.
-                    // - If it's SceneTitle, it passes the Root + nullptrs.
+                    // Save the scene
                     SceneSerializer::Save(
                         currentScene->GetSceneSavePath(),
                         currentScene->GetRootGameObject(),
@@ -573,7 +570,7 @@ void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
 
     if (currentScene && currentScene->GetRootGameObject())
     {
-		// "+ CREATE" Drop Down Menu
+        // "+ CREATE" Drop Down Menu
         if (ImGui::Button("+ Create"))
         {
             ImGui::OpenPopup("CreateMenuPopup");
@@ -594,13 +591,13 @@ void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
 
                 if (ImGui::BeginMenu("Enemy"))
                 {
-					// Local lambda for enemies
+                    // Local lambda for enemies
                     auto spawnEnemy = [&](EnemyType type, AttackType attack)
                         {
                             EnemySpawnConfig config{};
                             config.Type = type;
                             config.AttackBehavior = attack;
-                            config.Position = { 0.0f, 1.1f, 5.0f }; 
+                            config.Position = { 0.0f, 1.1f, 5.0f };
                             config.Scale = { 1.0f, 1.0f, 1.0f };
 
                             gameScene->GetEnemyManager()->SpawnEnemy(config);
@@ -641,7 +638,18 @@ void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
 
         ImGui::Separator();
 
-        DrawHierarchyNode(currentScene->GetRootGameObject());
+        ImGui::PushStyleColor(ImGuiCol_Header, ImVec4{ 0.15f, 0.15f, 0.15f, 1.0f });
+        const bool isSceneNodeOpen{ ImGui::CollapsingHeader(currentScene->GetSceneName().data(), ImGuiTreeNodeFlags_DefaultOpen) };
+        ImGui::PopStyleColor();
+
+        if (isSceneNodeOpen)
+        {
+            // Iterate directly over top-level children, bypassing the SceneRoot node entirely
+            for (const auto& child : currentScene->GetRootGameObject()->GetChildren())
+            {
+                DrawHierarchyNode(child.get());
+            }
+        }
     }
     else
     {
@@ -661,14 +669,25 @@ void EditorManager::DrawInspector(Scene* currentScene) noexcept
 {
     ImGui::Begin(s_windowInspector);
 
-    // 1. If an object is selected in the Hierarchy, draw its GameObject Inspector
+    // If an object is selected in the Hierarchy, draw its GameObject Inspector
     if (m_selectedObject)
     {
         m_selectedObject->DrawInspector();
     }
-    // 2. Otherwise, fall back to the old Scene GUI
+    // Fallback: Deselected State (Scene Metadata & Level Settings View)
     else if (currentScene)
     {
+        ImGui::TextDisabled("SCENE PROPERTIES");
+        ImGui::Separator();
+        
+        ImGui::Text("Active Scene: %s", currentScene->GetSceneName().data());
+        ImGui::TextDisabled("Save Path: %s", currentScene->GetSceneSavePath().data());
+        ImGui::TextDisabled("PostProcess: %s", currentScene->GetPostProcessProfilePath().data());
+        
+        ImGui::Spacing();
+        ImGui::Separator();
+        
+        // Render custom per-scene debug settings without file operation buttons
         currentScene->DrawGUI();
     }
 
