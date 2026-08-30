@@ -86,9 +86,6 @@ public:
     void SetInvincible(bool invincible) noexcept { m_isInvincible = invincible; }
     [[nodiscard]] bool IsInvincible() const noexcept { return m_isInvincible; }
 
-    void SetKilledPlayer(bool k) noexcept { m_killedPlayer = k; }
-    [[nodiscard]] bool HasKilledPlayer() const noexcept { return m_killedPlayer; }
-
 private:
     void UpdateAttackLogic(float elapsedTime, Camera* camera, const DirectX::XMFLOAT3& playerPos, bool allowAttack);
     [[nodiscard]] DirectX::XMFLOAT3 GetForwardVector() const noexcept;
@@ -105,7 +102,6 @@ private:
     // ATTACK SETTINGS 
     // ==========================================
     float m_attackTimer{ 0.0f };
-    float m_aggroTimer{ 0.0f };
     float m_fireRate{ 0.7f };
     float m_projectileSpeed{ 7.0f };
     float m_activationDistance{ 15.0f };
@@ -135,6 +131,5 @@ private:
 
     DirectX::XMFLOAT4 m_projectileColor{ 1.0f, 1.0f, 1.0f, 1.0f };
     bool m_isHighlighted{ false };
-    bool m_killedPlayer{ false };
     int m_hp{ 30 };
 };

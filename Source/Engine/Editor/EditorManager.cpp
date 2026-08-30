@@ -608,7 +608,6 @@ void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
 
                     if (ImGui::MenuItem("Mushroom (Idle)"))     spawnEnemy(EnemyType::MushroomNone, AttackType::None);
                     if (ImGui::MenuItem("Mushroom (Turret)"))   spawnEnemy(EnemyType::MushroomStatic, AttackType::Static);
-                    if (ImGui::MenuItem("Mushroom (Kamikaze)")) spawnEnemy(EnemyType::MushroomTracking, AttackType::Tracking);
                     ImGui::Separator();
                     if (ImGui::MenuItem("Paddle"))              spawnEnemy(EnemyType::Paddle, AttackType::None);
                     if (ImGui::MenuItem("Ball"))                spawnEnemy(EnemyType::Ball, AttackType::None);

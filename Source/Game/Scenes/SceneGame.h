@@ -170,7 +170,6 @@ private:
 
     bool m_hasIntroDialogueTestStarted{ false };
     bool m_hasTriggeredMushroomDialogue{ false };
-    bool m_hasTriggeredTrackingDialogue{ false };
     bool m_bossDialogueStarted{ false };
     bool m_hasTriggeredPoisonDialogue{ false };
     bool m_isPoisonDialogueActive{ false };
@@ -197,12 +196,10 @@ private:
     void UpdateDialogue(float elapsedTime);
     void RenderDialogue();
     void StartMushroomDialogue();
-    void StartTrackingDialogue();
     void StartPoisonDialogue();
     void ResetLevel();
 
     // Cinematic States
-    bool AreTrackingEnemiesDead() const;
     class Enemy* GetFakeBoss() const;
     void StartBossCinematic();
 

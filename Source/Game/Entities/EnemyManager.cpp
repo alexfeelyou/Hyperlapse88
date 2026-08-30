@@ -15,7 +15,6 @@ namespace
         case EnemyType::Ball:             return "Ball";
         case EnemyType::MushroomNone:     return "Mushroom_Idle";
         case EnemyType::MushroomStatic:   return "Mushroom_Turret";
-        case EnemyType::MushroomTracking: return "Mushroom_Kamikaze";
         case EnemyType::FakeBoss:         return "FakeBoss";
         default:                          return "Unknown";
         }
@@ -55,7 +54,7 @@ void EnemyManager::SpawnEnemy(const EnemySpawnConfig& config)
     default:                          modelPath = "Data/Model/Character/PLACEHOLDER_mdl_Paddle.glb"; break;
     }
 
-    const int finalHP{ (config.AttackBehavior == AttackType::Tracking) ? 70 : config.MaxHP };
+    const int finalHP{ config.MaxHP };
 
     Enemy* activeEnemyPtr{ nullptr };
 
@@ -210,43 +209,6 @@ void EnemyManager::RespawnEnemyAs(size_t index, AttackType attack, MoveDir dir, 
 
     m_enemies[index] = std::move(m_enemies.back());
     m_enemies.pop_back();
-}
-
-void EnemyManager::ReviveKamikazes()
-{
-    // Search the graveyard pool for the Kamikaze that killed the player
-    for (auto it{ m_enemyPool.begin() }; it != m_enemyPool.end(); )
-    {
-        if ((*it)->HasKilledPlayer())
-        {
-            // Reset state and position
-            (*it)->SetKilledPlayer(false);
-            (*it)->SetMaxHP(70);
-            (*it)->SetActive(true);
-            (*it)->SetPosition((*it)->GetOriginalPosition());
-            (*it)->SetRotation((*it)->GetOriginalRotation());
-            (*it)->GetProjectiles().clear();
-
-            // Recreate the GameObject Hierarchy wrapper before moving the pointer
-            if (m_parentNode)
-            {
-                static int s_reviveCount{ 0 };
-                std::string nodeName{ "Mushroom_Kamikaze_Revived_" + std::to_string(++s_reviveCount) };
-
-                auto enemyNode{ std::make_unique<GameObject>(nodeName) };
-                enemyNode->AddComponent<LegacyCharacterComponent>(it->get());
-                m_parentNode->AddChild(std::move(enemyNode));
-            }
-
-            // Move from the pool back to active list
-            m_enemies.push_back(std::move(*it));
-            it = m_enemyPool.erase(it);
-        }
-        else
-        {
-            ++it;
-        }
-    }
 }
 
 void EnemyManager::Serialize(nlohmann::json& outJson) const

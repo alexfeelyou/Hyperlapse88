@@ -25,7 +25,6 @@ enum class AttackType
 {
     None,
     Static,
-    Tracking,
     TrackingHorizontal,
     TrackingRandom,
     RadialBurst
@@ -91,7 +90,6 @@ public:
     void RenderDebug(ShapeRenderer* renderer);
 
     void RespawnEnemyAs(size_t index, AttackType attack, MoveDir dir = MoveDir::None, float minX = 0, float maxX = 0, float minZ = 0, float maxZ = 0);
-    void ReviveKamikazes();
     void SpawnEnemy(const EnemySpawnConfig& config);
 
     void Serialize(nlohmann::json& outJson) const;

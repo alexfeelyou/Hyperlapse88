@@ -186,10 +186,7 @@ SceneGame::SceneGame()
     m_collisionManager->SetOnEnableLineReachCallback([this](int lineIndex) {
         if (lineIndex == 0 && !m_bossCinematicTriggered)
         {
-            if (AreTrackingEnemiesDead())
-            {
-                StartBossCinematic();
-            }
+            StartBossCinematic(); 
         }
         });
 
@@ -425,7 +422,6 @@ void SceneGame::Update(const float elapsedTime)
             m_hasBGMStarted = false;
             m_hasIntroDialogueTestStarted = false;
             m_hasTriggeredMushroomDialogue = false;
-            m_hasTriggeredTrackingDialogue = false;
             m_hasTriggeredPoisonDialogue = false;
 
             // Reinitialize dialogue UI to clear active typewriter buffers
@@ -789,7 +785,7 @@ void SceneGame::Update(const float elapsedTime)
         // Dialogue Checkers
         if (m_player && m_enemyManager && m_dialogueBox && !m_dialogueBox->IsActive())
         {
-            if (!m_hasTriggeredMushroomDialogue || !m_hasTriggeredTrackingDialogue)
+            if (!m_hasTriggeredMushroomDialogue)
             {
                 const DirectX::XMFLOAT3 pPos = m_player->GetPosition();
                 for (const auto& enemy : m_enemyManager->GetEnemies())
@@ -800,7 +796,6 @@ void SceneGame::Update(const float elapsedTime)
                     if ((dx * dx) + (dz * dz) < 150.0f)
                     {
                         if (!m_hasTriggeredMushroomDialogue && enemy->GetType() == EnemyType::MushroomNone) { m_hasTriggeredMushroomDialogue = true; StartMushroomDialogue(); break; }
-                        else if (!m_hasTriggeredTrackingDialogue && enemy->GetAttackType() == AttackType::Tracking) { m_hasTriggeredTrackingDialogue = true; StartTrackingDialogue(); break; }
                     }
                 }
             }
@@ -895,19 +890,6 @@ void SceneGame::StartMushroomDialogue()
     }
 }
 
-void SceneGame::StartTrackingDialogue()
-{
-    if (m_dialogueBox)
-    {
-        std::vector<std::string> dialogPages = {
-            u8"危ない！あのキノコは他と違うわ！\nあなたを狙って自爆する気よ！",
-            u8"近づかれる前に早く撃ち落として！"
-        };
-
-        m_dialogueBox->StartDialogue(dialogPages);
-    }
-}
-
 void SceneGame::StartPoisonDialogue()
 {
     if (m_dialogueBox)
@@ -958,16 +940,6 @@ void SceneGame::ResetLevel()
         m_player->scale = { 1.0f, 1.0f, 1.0f };
         m_player->GetStateMachine()->ChangeState(m_player.get(), std::make_unique<PlayerIdle>());
         m_player->GetProjectiles().clear();
-    }
-
-    // 3. Reset Enemies & Items
-    if (!isBossStage)
-    {
-        if (m_enemyManager)
-        {
-           // Revive Kamikazes that successfully hit and killed the player.
-            m_enemyManager->ReviveKamikazes();
-        }
     }
 
     // Reset Navi Ally
@@ -1226,21 +1198,6 @@ void SceneGame::OnResize(int width, int height)
         m_mainCamera->SetPerspectiveFov(DirectX::XMConvertToRadians(Config::CAM_FOV), static_cast<float>(width) / static_cast<float>(height), Config::CAM_NEAR, Config::CAM_FAR);
     }
     if (m_postProcess) m_postProcess->OnResize(width, height);
-}
-
-bool SceneGame::AreTrackingEnemiesDead() const
-{
-    if (!m_enemyManager) return false;
-
-    for (const auto& enemy : m_enemyManager->GetEnemies())
-    {
-        // If we find even one active tracking enemy, abort
-        if (enemy && enemy->IsActive() && enemy->GetAttackType() == AttackType::Tracking)
-        {
-            return false;
-        }
-    }
-    return true;
 }
 
 Enemy* SceneGame::GetFakeBoss() const

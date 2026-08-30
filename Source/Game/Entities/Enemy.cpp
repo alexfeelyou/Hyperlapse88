@@ -104,174 +104,116 @@ void Enemy::UpdateAttackLogic(float elapsedTime, Camera* camera, const DirectX::
 
     if (distSq > activationDistSq)
     {
-        // If the player escapes the radius, reset the timer
-        // This forces the enemy to do the slow "creep" phase again next time
-        if (m_attackType == AttackType::Tracking) m_aggroTimer = 0.0f;
-        return;
+        return; 
     }
 
-	// Physics and movement logic for tracking enemies
+    // Physics and movement logic for tracking enemies
     const bool isTrackingType{
-        m_attackType == AttackType::Tracking ||
         m_attackType == AttackType::TrackingHorizontal ||
         m_attackType == AttackType::TrackingRandom
     };
 
     if (isTrackingType)
     {
-		// Rotate to face the player (only on the Y-axis)
+        // Rotate to face the player (only on the Y-axis)
         const float targetYawRad{ std::atan2(dx, dz) };
         const float targetYawDeg{ DirectX::XMConvertToDegrees(targetYawRad) };
         movement->SetRotation({ 0.0f, targetYawDeg, 0.0f });
-
-		// Move towards the player if it's a tracking type enemy
-        if (m_attackType == AttackType::Tracking && m_baseMoveSpeed > 0.0f)
-        {
-            constexpr float MELEE_STOPPING_DIST_SQ{ 0.1f * 0.1f };
-
-            if (distSq > MELEE_STOPPING_DIST_SQ)
-            {
-                // Tick the Aggro Timer up every frame it chases the player
-                m_aggroTimer += elapsedTime;
-
-                constexpr float CREEP_TIME{ 3.0f };          // How many seconds it stays slow
-                constexpr float CREEP_SPEED{ 1.5f };         // Slow, scary walking speed
-				constexpr float HILARIOUS_MAX_SPEED{ 14.5f };// The speed cap to prevent physics engine breakage
-                constexpr float RAMP_UP_RATE{ 18.0f };       // Acceleration multiplier
-
-                float currentSpeed{ 0.0f };
-
-                if (m_aggroTimer < CREEP_TIME)
-                {
-                    // PHASE 1: The Creeping Doom
-                    currentSpeed = CREEP_SPEED;
-                }
-                else
-                {
-                    // PHASE 2: The Explosive Sprint
-                    // Calculate how many seconds have passed since it got mad
-                    const float timeSprint{ m_aggroTimer - CREEP_TIME };
-
-                    // Linear Ramp: Speed = Base + (Time * Acceleration)
-                    currentSpeed = CREEP_SPEED + (timeSprint * RAMP_UP_RATE);
-
-                    // Cap the speed so it doesn't break the physics engine
-                    currentSpeed = (std::min)(currentSpeed, HILARIOUS_MAX_SPEED);
-                }
-
-                // Apply the terrifying speed to movement
-                const float dist{ std::sqrt(distSq) };
-                DirectX::XMFLOAT3 pos{ movement->GetPosition() };
-
-                pos.x += (dx / dist) * currentSpeed * elapsedTime;
-                pos.z += (dz / dist) * currentSpeed * elapsedTime;
-
-                movement->SetPosition(pos);
-            }
-            else
-            {
-
-            }
-        }
     }
 
-	// Fire projectiles if the enemy is not a tracking type 
-    if (m_attackType != AttackType::Tracking)
+    // Fire projectiles if the enemy is not a tracking type 
+    m_attackTimer += elapsedTime;
+    if (m_attackTimer >= m_fireRate)
     {
-        m_attackTimer += elapsedTime;
+        m_attackTimer = 0.0f;
 
-        if (m_attackTimer >= m_fireRate)
+        if (m_attackType == AttackType::RadialBurst)
         {
-            m_attackTimer = 0.0f;
+            constexpr int projectileCount{ 8 };
+            const float angleStep{ DirectX::XM_2PI / static_cast<float>(projectileCount) };
 
-            if (m_attackType == AttackType::RadialBurst)
+            for (int i{ 0 }; i < projectileCount; ++i)
             {
-                constexpr int projectileCount{ 8 };
-                const float angleStep{ DirectX::XM_2PI / static_cast<float>(projectileCount) };
+                const float currentAngle{ i * angleStep };
+                const float dirX{ std::sin(currentAngle) };
+                const float dirZ{ std::cos(currentAngle) };
+                const DirectX::XMFLOAT3 burstDir{ dirX, 0.0f, dirZ };
 
-                for (int i{ 0 }; i < projectileCount; ++i)
-                {
-                    const float currentAngle{ i * angleStep };
-                    const float dirX{ std::sin(currentAngle) };
-                    const float dirZ{ std::cos(currentAngle) };
-                    const DirectX::XMFLOAT3 burstDir{ dirX, 0.0f, dirZ };
-
-                    const DirectX::XMFLOAT3 spawnPos{
-                        myPos.x + (dirX * 1.0f),
-                        myPos.y,
-                        myPos.z + (dirZ * 1.0f)
-                    };
-
-                    // Implement zero-cost Object Pool for Burst
-                    bool bulletRecycled{ false };
-                    for (auto& bullet : m_projectiles)
-                    {
-                        if (!bullet->IsActive())
-                        {
-                            bullet->Fire(spawnPos, burstDir, m_projectileSpeed);
-                            bulletRecycled = true;
-                            break;
-                        }
-                    }
-
-                    if (!bulletRecycled)
-                    {
-                        auto newBullet{ std::make_unique<Bullet>() };
-                        newBullet->Fire(spawnPos, burstDir, m_projectileSpeed);
-                        m_projectiles.push_back(std::move(newBullet));
-                    }
-                }
-            }
-            else
-            {
-                DirectX::XMFLOAT3 fwd{ 0.0f, 0.0f, 1.0f };
-
-                // Calculate exact 3D trajectory
-                const float aimDx{ targetPos.x - myPos.x };
-                const float aimDy{ targetPos.y - myPos.y };
-                const float aimDz{ targetPos.z - myPos.z };
-                const float aimDistSq{ (aimDx * aimDx) + (aimDy * aimDy) + (aimDz * aimDz) };
-
-                // If the player and enemy perfectly overlap, math divides by zero and crashes the engine
-                if (aimDistSq > 0.0001f)
-                {
-                    const float aimDist{ std::sqrt(aimDistSq) };
-                    fwd = { aimDx / aimDist, aimDy / aimDist, aimDz / aimDist };
-                }
-                else
-                {
-                    fwd = GetForwardVector(); // Safe fallback if they are perfectly overlapping
-                }
-
-                // Calculate Spawn Position safely
                 const DirectX::XMFLOAT3 spawnPos{
-                    myPos.x + (fwd.x * SPAWN_OFFSET_FWD),
-                    myPos.y + SPAWN_OFFSET_Y,
-                    myPos.z + (fwd.z * SPAWN_OFFSET_FWD)
+                    myPos.x + (dirX * 1.0f),
+                    myPos.y,
+                    myPos.z + (dirZ * 1.0f)
                 };
 
-                // Recycle old bullets instead of 'new/delete' thrashing the CPU memory heap
+                // Implement zero-cost Object Pool for Burst
                 bool bulletRecycled{ false };
                 for (auto& bullet : m_projectiles)
                 {
                     if (!bullet->IsActive())
                     {
-                        bullet->Fire(spawnPos, fwd, m_projectileSpeed);
+                        bullet->Fire(spawnPos, burstDir, m_projectileSpeed);
                         bulletRecycled = true;
-                        break; // Instant exit
+                        break;
                     }
                 }
 
                 if (!bulletRecycled)
                 {
                     auto newBullet{ std::make_unique<Bullet>() };
-                    newBullet->Fire(spawnPos, fwd, m_projectileSpeed);
+                    newBullet->Fire(spawnPos, burstDir, m_projectileSpeed);
                     m_projectiles.push_back(std::move(newBullet));
+                }
+            }
+        }
+        else
+        {
+            DirectX::XMFLOAT3 fwd{ 0.0f, 0.0f, 1.0f };
 
-                    if (m_projectiles.size() > static_cast<size_t>(MAX_PROJECTILES))
-                    {
-                        m_projectiles.pop_front();
-                    }
+            // Calculate exact 3D trajectory
+            const float aimDx{ targetPos.x - myPos.x };
+            const float aimDy{ targetPos.y - myPos.y };
+            const float aimDz{ targetPos.z - myPos.z };
+            const float aimDistSq{ (aimDx * aimDx) + (aimDy * aimDy) + (aimDz * aimDz) };
+
+            // If the player and enemy perfectly overlap, math divides by zero and crashes the engine
+            if (aimDistSq > 0.0001f)
+            {
+                const float aimDist{ std::sqrt(aimDistSq) };
+                fwd = { aimDx / aimDist, aimDy / aimDist, aimDz / aimDist };
+            }
+            else
+            {
+                fwd = GetForwardVector(); // Safe fallback if they are perfectly overlapping
+            }
+
+            // Calculate Spawn Position safely
+            const DirectX::XMFLOAT3 spawnPos{
+                myPos.x + (fwd.x * SPAWN_OFFSET_FWD),
+                myPos.y + SPAWN_OFFSET_Y,
+                myPos.z + (fwd.z * SPAWN_OFFSET_FWD)
+            };
+
+            // Recycle old bullets instead of 'new/delete' thrashing the CPU memory heap
+            bool bulletRecycled{ false };
+            for (auto& bullet : m_projectiles)
+            {
+                if (!bullet->IsActive())
+                {
+                    bullet->Fire(spawnPos, fwd, m_projectileSpeed);
+                    bulletRecycled = true;
+                    break; // Instant exit
+                }
+            }
+
+            if (!bulletRecycled)
+            {
+                auto newBullet{ std::make_unique<Bullet>() };
+                newBullet->Fire(spawnPos, fwd, m_projectileSpeed);
+                m_projectiles.push_back(std::move(newBullet));
+
+                if (m_projectiles.size() > static_cast<size_t>(MAX_PROJECTILES))
+                {
+                    m_projectiles.pop_front();
                 }
             }
         }
@@ -346,7 +288,6 @@ void Enemy::Reinitialize(ID3D11Device* device, const char* filePath, const Direc
     // Reset Gameplay State
     m_projectiles.clear();
     m_attackTimer = 0.0f;
-    m_aggroTimer = 0.0f;
     m_blinkTimer = 0.0f;
     m_lifeTime = 0.0f;
     m_hp = 30;
