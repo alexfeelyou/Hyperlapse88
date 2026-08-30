@@ -395,7 +395,7 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
 
 
 	// Gizmo hotkeys (W, E, R) only work when the Scene View is focused or hovered
-    if (ImGui::IsWindowFocused() || ImGui::IsWindowHovered())
+    if ((ImGui::IsWindowFocused() || ImGui::IsWindowHovered()) && !ImGui::IsMouseDown(ImGuiMouseButton_Right))
     {
         // Standard Maya/Unity hotkeys
         if (ImGui::IsKeyPressed(ImGuiKey_W)) m_gizmoOperation = ImGuizmo::TRANSLATE;
