@@ -294,8 +294,9 @@ void SceneGame::Update(const float elapsedTime)
 
             CameraController::Instance().SetControlMode(CameraControlMode::FixedFollow);
 
-            // Physics Pre Warming
-            for (int i = 0; i < 60; ++i)
+            // Dynamic Physics Settling (Pre-Warming)
+            // Simulate up to 300 frames, but break early the exact frame the player hits the floor
+            for (int i{ 0 }; i < 300; ++i)
             {
                 if (m_scene)
                 {
@@ -304,7 +305,13 @@ void SceneGame::Update(const float elapsedTime)
                 }
 
                 if (m_player) m_player->Update(0.01666f, CameraController::Instance().GetActiveCamera().get());
-                if (m_navi) m_navi->Update(0.01666f, CameraController::Instance().GetActiveCamera().get());
+                if (m_navi)   m_navi->Update(0.01666f, CameraController::Instance().GetActiveCamera().get());
+
+                // Break instantly once the PhysX capsule registers a floor collision
+                if (m_player && m_player->IsGrounded())
+                {
+                    break;
+                }
             }
 
             // Snap camera directly to the settled, grounded player position

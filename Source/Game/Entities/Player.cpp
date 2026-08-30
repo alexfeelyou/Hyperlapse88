@@ -383,10 +383,10 @@ void Player::HandleAimInput(Camera* camera)
 
 void Player::UpdateHorizontalMovement(float dt)
 {
-    float displacementX = 0.0f;
-    float displacementZ = 0.0f;
+    float displacementX{ 0.0f };
+    float displacementZ{ 0.0f };
 
-    XMFLOAT3 stateVelocity = movement->GetVelocity();
+    const DirectX::XMFLOAT3 stateVelocity{ movement->GetVelocity() };
 
     if (stateVelocity.x != 0.0f || stateVelocity.z != 0.0f)
     {
@@ -400,13 +400,19 @@ void Player::UpdateHorizontalMovement(float dt)
     }
 
     // Apply displacement through PhysX capsule controller
-    const float gravityY = gravityEnabled ? PlayerConst::Gravity * dt : 0.0f;
-    physx::PxVec3 displacement(displacementX, gravityY, displacementZ);
-    m_physxController->move(displacement, PlayerConst::PhysXMinDist, dt, physx::PxControllerFilters());
+    const float gravityY{ gravityEnabled ? PlayerConst::Gravity * dt : 0.0f };
+    const physx::PxVec3 displacement{ displacementX, gravityY, displacementZ };
+
+    // Capture PhysX collision flags during movement
+    // Allows the engine to detect if the capsule hit the floor this frame,
+    // updating the grounded state organically without manual Raycasts
+    const physx::PxControllerCollisionFlags flags{ m_physxController->move(displacement, PlayerConst::PhysXMinDist, dt, physx::PxControllerFilters()) };
+
+    m_isGrounded = (flags & physx::PxControllerCollisionFlag::eCOLLISION_DOWN);
 
     // Mirror PhysX position back to our movement state (offset by capsule half-height)
-    physx::PxExtendedVec3 pxPos = m_physxController->getPosition();
-    movement->SetPosition({ (float)pxPos.x, (float)pxPos.y - PlayerConst::CapsuleHalfHeight, (float)pxPos.z });
+    const physx::PxExtendedVec3 pxPos{ m_physxController->getPosition() };
+    movement->SetPosition({ static_cast<float>(pxPos.x), static_cast<float>(pxPos.y) - PlayerConst::CapsuleHalfHeight, static_cast<float>(pxPos.z) });
 }
 
 void Player::UpdateFootRotation(float dt, float& outSmoothedYaw)

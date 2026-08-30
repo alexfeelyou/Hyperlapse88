@@ -118,6 +118,8 @@ public:
     }
     [[nodiscard]] bool IsBackpedaling() const { return m_isBackpedaling; }
 
+    [[nodiscard]] bool IsGrounded() const noexcept { return m_isGrounded; }
+
     // Visual tint (used by states for hit flash, etc)
     DirectX::XMFLOAT4 color = { 1.0f, 1.0f, 1.0f, 1.0f };
 
@@ -176,7 +178,8 @@ private:
     bool isInputEnabled = true;
     bool invertControls = false;
     bool m_isBackpedaling = false;
-    bool gravityEnabled = true;   
+    bool gravityEnabled = true;
+    bool m_isGrounded{ false };
     DirectX::XMFLOAT2 currentSmoothInput = { 0.0f, 0.0f };
     DirectX::XMFLOAT2 lastValidInput = { 0.0f, 1.0f };
 
