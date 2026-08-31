@@ -92,6 +92,9 @@ public:
     CameraControlMode GetControlMode() const { return m_controlMode; }
     void ClearCamera() { m_activeCamera.reset(); }
 
+    // Tells the camera if the mouse is safely inside the 3D viewport
+    void SetViewportHovered(bool hovered) noexcept { m_isViewportHovered = hovered; }
+
     // Sequence / Cutscene System 
     void PlaySequence(const std::vector<CameraKeyframe>& sequence, bool loop = false);
 
@@ -174,6 +177,7 @@ private:
     float m_maxAngleX = DirectX::XMConvertToRadians(85);
     float m_minAngleX = DirectX::XMConvertToRadians(-85);
     bool m_toggleCursor = true;
+    bool m_isViewportHovered = false;
 
     // Sequence State
     std::vector<CameraKeyframe> m_sequenceQueue;

@@ -13,6 +13,9 @@ class Model;
 class MeshComponent final : public IComponent
 {
 public:
+    // Default constructor required for the ComponentRegistry factory
+    MeshComponent() = default;
+
     // Explicitly require a model pointer; a mesh component is useless without geometry.
     explicit MeshComponent(std::shared_ptr<Model> model) noexcept;
     ~MeshComponent() override = default;

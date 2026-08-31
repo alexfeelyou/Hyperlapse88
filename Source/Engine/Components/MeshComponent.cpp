@@ -1,5 +1,6 @@
 #include <imgui.h>
 #include "System/Model.h"
+#include "ComponentRegistry.h"
 #include "MeshComponent.h"
 
 MeshComponent::MeshComponent(std::shared_ptr<Model> model) noexcept
@@ -50,3 +51,6 @@ void MeshComponent::DrawInspector()
         ImGui::TextColored(ImVec4{ 1.0f, 0.2f, 0.2f, 1.0f }, "Warning: No Model Attached!");
     }
 }
+
+// Automatically registers MeshComponent before main() runs
+REGISTER_COMPONENT(MeshComponent)

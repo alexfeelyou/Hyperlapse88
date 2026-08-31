@@ -42,6 +42,14 @@ public:
     // Changing parents requires reparenting logic to maintain tree integrity.
     void SetParent(GameObject* newParent) noexcept;
 
+    // Directly attaches a pre-instantiated component (used by ComponentRegistry)
+    void AddComponent(std::unique_ptr<IComponent> component)
+    {
+        if (!component) return;
+        component->OnAttach(this);
+        m_components.push_back(std::move(component));
+    }
+
     [[nodiscard]] const std::vector<std::unique_ptr<GameObject>>& GetChildren() const noexcept { return m_children; }
     [[nodiscard]] GameObject* GetParent() const noexcept { return m_parent; }
 

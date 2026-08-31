@@ -1,9 +1,9 @@
-#include "CameraController.h"
-#include "Camera.h"
-#include "System/Input.h" 
-#include <imgui.h>
-#include <cmath>
 #include <algorithm>
+#include <cmath>
+#include <imgui.h>
+#include "System/Input.h" 
+#include "Camera.h"
+#include "CameraController.h"
 
 using namespace DirectX;
 
@@ -103,7 +103,7 @@ void CameraController::Update(float elapsedTime)
         float rz = ((rand() % 200) - 100) / 100.0f;
 
         m_shakeOffset.x = rx * maxOffset * shake;
-        m_shakeOffset.y = 0.0f; 
+        m_shakeOffset.y = 0.0f;
         m_shakeOffset.z = rz * maxOffset * shake;
     }
     else {
@@ -113,7 +113,27 @@ void CameraController::Update(float elapsedTime)
     if (m_controlMode == CameraControlMode::Free)
     {
         // Unity-style Editor Camera: Hold Right Mouse Button to fly/look
-        m_toggleCursor = (GetKeyState(VK_RBUTTON) & 0x8000) != 0;
+        const bool isRightClickDown{ (GetKeyState(VK_RBUTTON) & 0x8000) != 0 };
+
+        // Ensure ImGui Context is ready before querying
+        if (ImGui::GetCurrentContext() != nullptr)
+        {
+            const ImGuiIO& io{ ImGui::GetIO() };
+
+            // If the user right-clicks over an ImGui window, ignore the input
+            if (io.WantCaptureMouse && !m_isViewportHovered && !m_toggleCursor)
+            {
+                m_toggleCursor = false;
+            }
+            else
+            {
+                m_toggleCursor = isRightClickDown;
+            }
+        }
+        else
+        {
+            m_toggleCursor = isRightClickDown;
+        }
     }
 
     // Cursor Lock Logic
@@ -135,9 +155,7 @@ void CameraController::Update(float elapsedTime)
     case CameraControlMode::Mouse:       UpdateOrbitCamera(elapsedTime, camera); break;
     }
 
-    // =========================================================
     // POST-UPDATE MODIFIERS (Shake, Sway, Headbob, etc.)
-    // =========================================================
     XMFLOAT3 shakePos = { 0.0f, 0.0f, 0.0f };
     XMFLOAT3 shakeRot = { 0.0f, 0.0f, 0.0f };
 
