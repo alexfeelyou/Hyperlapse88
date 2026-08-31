@@ -1,10 +1,10 @@
-#include "StaticMeshColliderComponent.h"
 #include <algorithm>
 #include <imgui.h>
-#include "ComponentRegistry.h"
-#include "MeshComponent.h"
 #include "System/Model.h"
 #include "System/PhysicsManager.h"
+#include "ComponentRegistry.h"
+#include "MeshComponent.h"
+#include "StaticMeshColliderComponent.h"
 
 StaticMeshColliderComponent::~StaticMeshColliderComponent()
 {

@@ -11,13 +11,13 @@ class Model;
 
 namespace PhysicsConfig
 {
-    // Fixed simulation delta time (60 Hz) for deterministic physics stepping
+    // Fixed simulation delta time 
     inline constexpr float s_fixedTimestep{ 1.0f / 60.0f };
 
-    // Maximum sub-steps per frame to prevent the "spiral of death" during frame drops
+    // Maximum sub-steps per frame 
     inline constexpr int s_maxSubSteps{ 4 };
 
-    // 64 KB scratch buffer size for zero-allocation contact generation in PxScene::simulate
+    // 64 KB scratch buffer size 
     inline constexpr std::size_t s_scratchBufferSize{ 64 * 1024 };
 
     // Tolerance thresholds for floating-point transform dirty checking
@@ -30,7 +30,6 @@ struct PhysXDeleter
     template <typename T>
     void operator()(T* resource) const noexcept
     {
-        // Guard against double-release or null pointer invocation
         if (resource)
         {
             resource->release();

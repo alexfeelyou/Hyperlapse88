@@ -1,21 +1,21 @@
-#include "System/PhysicsManager.h"
 #include <algorithm>
 #include <cassert>
 #include <DirectXMath.h>
+#include "System/PhysicsManager.h"
 #include "System/Model.h"
 
 void PhysicsManager::Initialize()
 {
-    // Step 1: Create PhysX Foundation
+    // Create PhysX Foundation
     m_foundation.reset(PxCreateFoundation(PX_PHYSICS_VERSION, m_allocator, m_errorCallback));
     assert(m_foundation && "PhysX Foundation initialization failed!");
 
-    // Step 2: Initialize main Physics SDK
+    // Initialize main Physics SDK
     const physx::PxTolerancesScale scale{};
     m_physics.reset(PxCreatePhysics(PX_PHYSICS_VERSION, *m_foundation, scale, true, nullptr));
     assert(m_physics && "PhysX Physics SDK initialization failed!");
 
-    // Step 3: Configure scene descriptor with dual-thread CPU dispatcher and BVH midphase
+    // Configure scene descriptor with dual-thread CPU dispatcher and BVH midphase
     physx::PxSceneDesc sceneDesc{ m_physics->getTolerancesScale() };
     sceneDesc.gravity = physx::PxVec3{ 0.0f, -9.81f, 0.0f };
 
@@ -23,7 +23,7 @@ void PhysicsManager::Initialize()
     sceneDesc.cpuDispatcher = m_dispatcher.get();
     sceneDesc.filterShader = physx::PxDefaultSimulationFilterShader;
 
-    // Step 4: Create Scene, Character Controller Manager, and Default Surface Material
+    // Create Scene, Character Controller Manager, and Default Surface Material
     m_scene.reset(m_physics->createScene(sceneDesc));
     assert(m_scene && "PhysX Scene creation failed!");
 
@@ -67,7 +67,7 @@ void PhysicsManager::Simulate(const float dt)
 
 void PhysicsManager::Shutdown() noexcept
 {
-    // Step 1: Release all cached triangle meshes before tearing down the Physics SDK
+    // Release all cached triangle meshes before tearing down the Physics SDK
     for (auto& [modelPtr, meshList] : m_meshCache)
     {
         for (auto* mesh : meshList)
@@ -80,7 +80,7 @@ void PhysicsManager::Shutdown() noexcept
     }
     m_meshCache.clear();
 
-    // Step 2: Release scene actors and controllers via RAII smart pointers
+    // Release scene actors and controllers via RAII smart pointers
     m_defaultMaterial.reset();
     m_controllerManager.reset();
     m_scene.reset();
