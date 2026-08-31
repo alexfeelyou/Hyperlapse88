@@ -1,4 +1,5 @@
 #include <algorithm>
+#include "System/AssetManager.h"
 #include "Enemy.h"
 
 using namespace DirectX;
@@ -257,7 +258,7 @@ void Enemy::Reinitialize(ID3D11Device* device, const char* filePath, const Direc
     EnemyType type, AttackType attackType, const float minX, const float maxX,
     const float minZ, const float maxZ, const MoveDir dir)
 {
-    m_model = std::make_shared<Model>(device, filePath);
+    m_model = Engine::System::AssetManager::Instance().GetOrLoadModel(device, filePath);
     model = m_model;
 
     // Reset Core Identity

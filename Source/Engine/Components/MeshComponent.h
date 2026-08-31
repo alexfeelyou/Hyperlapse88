@@ -2,6 +2,7 @@
 
 #include <DirectXMath.h>
 #include <memory>
+#include <string>
 #include "System/ModelRenderer.h" 
 #include "GameObject.h"
 #include "IComponent.h"
@@ -32,12 +33,14 @@ public:
     void SetShader(ShaderId shader) noexcept { m_shaderId = shader; }
     void SetColor(const DirectX::XMFLOAT4& color) noexcept { m_color = color; }
 
-    // Allow other systems (and the Editor) to get/set the 3D model
-    void SetModel(std::shared_ptr<Model> model) noexcept { m_model = std::move(model); }
+    void SetModel(std::shared_ptr<Model> model, std::string_view path = "") noexcept;
     [[nodiscard]] std::shared_ptr<Model> GetModel() const noexcept { return m_model; }
 
 private:
     std::shared_ptr<Model> m_model{};
+    std::string            m_modelPath{ "None" }; // Tracks the loaded asset path
+
+    // Master fallbacks (until ModelRenderer is updated to read per-material shaders)
     ShaderId               m_shaderId{ ShaderId::Phong };
     DirectX::XMFLOAT4      m_color{ 1.0f, 1.0f, 1.0f, 1.0f };
 };

@@ -123,6 +123,9 @@ public:
 	// マテリアルデータ取得
 	const std::vector<Material>& GetMaterials() const { return materials; }
 
+	// Non-const getter so the Inspector can edit materials directly
+	std::vector<Material>& GetMaterials() noexcept { return materials; }
+
 	// メッシュデータ取得
 	const std::vector<Mesh>& GetMeshes() const { return meshes; }
 

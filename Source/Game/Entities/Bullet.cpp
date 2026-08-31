@@ -1,5 +1,6 @@
 #include "Bullet.h"
 #include "EffectManager.h"
+#include "System/AssetManager.h"
 #include <cmath>
 
 using namespace DirectX;
@@ -7,7 +8,10 @@ using namespace DirectX;
 Bullet::Bullet()
 {
     ID3D11Device* device = Graphics::Instance().GetDevice();
-    model = std::make_shared<Model>(device, "Data/Model/Character/PLACEHOLDER_mdl_Ball.glb");
+
+    model = Engine::System::AssetManager::Instance().GetOrLoadModel(device, "Data/Model/Character/PLACEHOLDER_mdl_Ball.glb");
+
+    scale = { 0.01f, 0.01f, 0.01f };
 
     isActive = false;
     velocity = { 0, 0, 0 };

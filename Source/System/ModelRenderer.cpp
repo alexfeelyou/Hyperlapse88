@@ -98,22 +98,40 @@ void ModelRenderer::Render(const RenderContext& rc)
             dc->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
             CbSkeleton cbSkeleton{};
+
+            // Cache the manual world matrix once
+            DirectX::XMMATRIX manualWorldMat = DirectX::XMLoadFloat4x4(&manualMatrix);
+
             if (mesh.bones.size() > 0)
             {
                 for (size_t i = 0; i < mesh.bones.size(); ++i)
                 {
                     const Model::Bone& bone = mesh.bones.at(i);
-                    DirectX::XMMATRIX WorldTransform = useManual
-                        ? DirectX::XMLoadFloat4x4(&manualMatrix)
+
+                    // [FIX] Multiply bone's global model-space transform by the GameObject's world space
+                    DirectX::XMMATRIX nodeGlobalMat = DirectX::XMLoadFloat4x4(&bone.node->globalTransform);
+                    DirectX::XMMATRIX worldTransform = useManual
+                        ? (nodeGlobalMat * manualWorldMat)
                         : DirectX::XMLoadFloat4x4(&bone.node->worldTransform);
-                    DirectX::XMMATRIX OffsetTransform = DirectX::XMLoadFloat4x4(&bone.offsetTransform);
-                    DirectX::XMStoreFloat4x4(&cbSkeleton.boneTransforms[i], OffsetTransform * WorldTransform);
+
+                    DirectX::XMMATRIX offsetTransform = DirectX::XMLoadFloat4x4(&bone.offsetTransform);
+                    DirectX::XMStoreFloat4x4(&cbSkeleton.boneTransforms[i], offsetTransform * worldTransform);
                 }
             }
             else
             {
-                cbSkeleton.boneTransforms[0] = useManual ? manualMatrix : mesh.node->worldTransform;
+                // Multiply mesh's global model-space transform by the GameObject's world space
+                if (useManual)
+                {
+                    DirectX::XMMATRIX nodeGlobalMat = DirectX::XMLoadFloat4x4(&mesh.node->globalTransform);
+                    DirectX::XMStoreFloat4x4(&cbSkeleton.boneTransforms[0], nodeGlobalMat * manualWorldMat);
+                }
+                else
+                {
+                    cbSkeleton.boneTransforms[0] = mesh.node->worldTransform;
+                }
             }
+
             dc->UpdateSubresource(skeletonConstantBuffer.Get(), 0, 0, &cbSkeleton, 0, 0);
 
             shader->Update(rc, mesh);
@@ -155,10 +173,22 @@ void ModelRenderer::Render(const RenderContext& rc)
                 transparencyDrawInfo.useManualMatrix = drawInfo.useManualMatrix;
                 transparencyDrawInfo.worldMatrix = drawInfo.worldMatrix;
 
-                DirectX::XMFLOAT4X4 transformMatrix = drawInfo.useManualMatrix
-                    ? drawInfo.worldMatrix : mesh.node->worldTransform;
+                // Calculate accurate world position for depth sorting
+                DirectX::XMFLOAT4X4 transformMatrix{};
+                if (drawInfo.useManualMatrix)
+                {
+                    DirectX::XMMATRIX nodeGlobalMat = DirectX::XMLoadFloat4x4(&mesh.node->globalTransform);
+                    DirectX::XMMATRIX manualWorldMat = DirectX::XMLoadFloat4x4(&drawInfo.worldMatrix);
+                    DirectX::XMStoreFloat4x4(&transformMatrix, nodeGlobalMat * manualWorldMat);
+                }
+                else
+                {
+                    transformMatrix = mesh.node->worldTransform;
+                }
+
+                // Position W should be 1.0f to properly represent a coordinate in 3D space
                 DirectX::XMVECTOR Position = DirectX::XMVectorSet(
-                    transformMatrix._41, transformMatrix._42, transformMatrix._43, 0.0f);
+                    transformMatrix._41, transformMatrix._42, transformMatrix._43, 1.0f);
                 DirectX::XMVECTOR Vec = DirectX::XMVectorSubtract(Position, CameraPosition);
                 transparencyDrawInfo.distance = DirectX::XMVectorGetX(DirectX::XMVector3Dot(CameraFront, Vec));
                 continue;
