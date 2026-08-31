@@ -291,6 +291,9 @@
     <ClCompile Include="Source\Engine\Components\StaticMeshColliderComponent.cpp">
       <Filter>Source\Engine\Components</Filter>
     </ClCompile>
+    <ClCompile Include="Source\System\AssetManager.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\System\BasicShader.h">
@@ -590,6 +593,9 @@
     </ClInclude>
     <ClInclude Include="Source\Engine\Components\StaticMeshColliderComponent.h">
       <Filter>Source\Engine\Components</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\System\AssetManager.h">
+      <Filter>System</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -170,13 +170,14 @@ void GameObject::BroadcastTransformUpdate() noexcept
             if (Character * character{ charComp->GetCharacter() })
             {
                 // Route position and rotation safely through the movement container
+                // using the unified transform struct
                 if (CharacterMovement * move{ character->GetMovement() })
                 {
-                    move->SetPosition(m_position);
-                    move->SetRotation(m_rotation);
+                    move->SetPosition(transform.position);
+                    move->SetRotation(transform.rotation);
                 }
 
-                character->scale = m_scale;
+                character->scale = transform.scale;
             }
         }
     }

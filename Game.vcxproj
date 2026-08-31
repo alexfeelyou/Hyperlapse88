@@ -183,6 +183,7 @@
     <ClInclude Include="Source\Game\States\PlayerState.h" />
     <ClInclude Include="Source\Game\States\PlayerStates.h" />
     <ClInclude Include="Source\Game\States\StateMachine.h" />
+    <ClInclude Include="Source\System\AssetManager.h" />
     <ClInclude Include="Source\System\AudioManager.h" />
     <ClInclude Include="Source\System\Collision.h" />
     <ClInclude Include="Source\System\CollisionManager.h" />
@@ -268,6 +269,7 @@
     <ClCompile Include="Source\Game\Scenes\SceneGame.cpp" />
     <ClCompile Include="Source\Game\Scenes\SceneTitle.cpp" />
     <ClCompile Include="Source\Game\States\PlayerStates.cpp" />
+    <ClCompile Include="Source\System\AssetManager.cpp" />
     <ClCompile Include="Source\System\AudioManager.cpp" />
     <ClCompile Include="Source\System\BasicShader.cpp" />
     <ClCompile Include="Source\System\Collision.cpp" />
