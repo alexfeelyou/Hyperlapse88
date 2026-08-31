@@ -378,7 +378,7 @@ void GLTFImporter::LoadMaterials(MaterialList& materials, ID3D11Device* device)
 
 	for (const tinygltf::Material& gltfMaterial : gltfModel.materials)
 	{
-		Model::Material& material = materials.emplace_back();
+		Material& material = materials.emplace_back();
 		material.name = gltfMaterial.name;
 		material.baseColor.x = static_cast<float>(gltfMaterial.pbrMetallicRoughness.baseColorFactor.at(0));
 		material.baseColor.y = static_cast<float>(gltfMaterial.pbrMetallicRoughness.baseColorFactor.at(1));
@@ -392,17 +392,17 @@ void GLTFImporter::LoadMaterials(MaterialList& materials, ID3D11Device* device)
 		material.occlusionStrength = static_cast<float>(gltfMaterial.occlusionTexture.strength);
 		material.alphaCutoff = static_cast<float>(gltfMaterial.alphaCutoff);
 		if (gltfMaterial.alphaMode == "BLEND")
-		{
-			material.alphaMode = Model::AlphaMode::Blend;
-		}
-		else if (gltfMaterial.alphaMode == "MASK")
-		{
-			material.alphaMode = Model::AlphaMode::Mask;
-		}
-		else
-		{
-			material.alphaMode = Model::AlphaMode::Opaque;
-		}
+        {
+            material.alphaMode = AlphaMode::Blend; 
+        }
+        else if (gltfMaterial.alphaMode == "MASK")
+        {
+            material.alphaMode = AlphaMode::Mask; 
+        }
+        else
+        {
+            material.alphaMode = AlphaMode::Opaque;
+        }
 
 		auto loadTexture = [&](int gltfTextureIndex, const char* textureType, std::string& textureFilename, ID3D11ShaderResourceView** srv)
 			{

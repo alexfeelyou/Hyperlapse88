@@ -4,12 +4,13 @@
 #include <filesystem>
 #include <tiny_gltf.h>
 #include "Model.h"
+#include "Material.h"
 
 class GLTFImporter
 {
 private:
 	using MeshList = std::vector<Model::Mesh>;
-	using MaterialList = std::vector<Model::Material>;
+	using MaterialList = std::vector<Material>;
 	using NodeList = std::vector<Model::Node>;
 	using AnimationList = std::vector<Model::Animation>;
 

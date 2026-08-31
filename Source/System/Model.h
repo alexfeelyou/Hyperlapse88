@@ -1,10 +1,11 @@
 #pragma once
 
+#include <d3d11.h>
+#include <DirectXMath.h>
 #include <string>
 #include <vector>
-#include <DirectXMath.h>
 #include <wrl.h>
-#include <d3d11.h>
+#include "Material.h"
 
 class Model
 {
@@ -27,39 +28,6 @@ public:
 
 		Node*				parent = nullptr; 
 		std::vector<Node*>	children;
-
-		template<class Archive>
-		void serialize(Archive& archive);
-	};
-
-	enum class AlphaMode
-	{
-		Opaque,
-		Mask,
-		Blend
-	};
-
-	struct Material
-	{
-		std::string			name;
-		std::string			baseTextureFileName;
-		std::string			normalTextureFileName;
-		std::string			emissiveTextureFileName;
-		std::string			occlusionTextureFileName;
-		std::string			metalnessRoughnessTextureFileName;
-		DirectX::XMFLOAT4	baseColor = { 1, 1, 1, 1 };
-		DirectX::XMFLOAT3	emissiveColor = { 1, 1, 1 };
-		float				metalness = 0.0f;
-		float				roughness = 0.0f;
-		float				occlusionStrength = 0.0f;
-		float				alphaCutoff = 0.5f;
-		AlphaMode			alphaMode = AlphaMode::Opaque;
-
-		Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>	baseMap;
-		Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>	normalMap;
-		Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>	emissiveMap;
-		Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>	occlusionMap;
-		Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>	metalnessRoughnessMap;
 
 		template<class Archive>
 		void serialize(Archive& archive);

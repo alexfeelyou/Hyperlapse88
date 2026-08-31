@@ -145,7 +145,7 @@ void ModelRenderer::Render(const RenderContext& rc)
 
         for (const Model::Mesh& mesh : drawInfo.model->GetMeshes())
         {
-            if (mesh.material->alphaMode == Model::AlphaMode::Blend ||
+            if (mesh.material->alphaMode == AlphaMode::Blend ||
                 (mesh.material->baseColor.w > 0.01f && mesh.material->baseColor.w < 0.99f))
             {
                 TransparencyDrawInfo& transparencyDrawInfo = transparencyDrawInfos.emplace_back();

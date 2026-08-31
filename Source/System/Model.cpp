@@ -99,26 +99,6 @@ void Model::Node::serialize(Archive& archive)
 }
 
 template<class Archive>
-void Model::Material::serialize(Archive& archive)
-{
-	archive(
-		CEREAL_NVP(name),
-		CEREAL_NVP(baseTextureFileName),
-		CEREAL_NVP(normalTextureFileName),
-		CEREAL_NVP(emissiveTextureFileName),
-		CEREAL_NVP(occlusionTextureFileName),
-		CEREAL_NVP(metalnessRoughnessTextureFileName),
-		CEREAL_NVP(baseColor),
-		CEREAL_NVP(emissiveColor),
-		CEREAL_NVP(metalness),
-		CEREAL_NVP(roughness),
-		CEREAL_NVP(occlusionStrength),
-		CEREAL_NVP(alphaCutoff),
-		CEREAL_NVP(alphaMode)
-	);
-}
-
-template<class Archive>
 void Model::Vertex::serialize(Archive& archive)
 {
 	archive(
