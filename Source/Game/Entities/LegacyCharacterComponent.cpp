@@ -109,6 +109,15 @@ void LegacyCharacterComponent::OnAttach(GameObject* owner) noexcept
     }
 }
 
+void LegacyCharacterComponent::Render(ModelRenderer* renderer)
+{
+    // Fast fail if references are dangling or the component was disabled
+    if (!m_character || !m_owner || !renderer) return;
+
+    // Call the legacy character render pipeline (which preserves skeletal animations)
+    m_character->Render(renderer);
+}
+
 void LegacyCharacterComponent::DrawInspector()
 {
     if (!m_character)

@@ -313,6 +313,9 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
 
     ImGui::Begin(s_windowSceneView, nullptr, windowFlags);
 
+    // Tell the camera if the mouse is currently inside this specific Scene View window
+    CameraController::Instance().SetViewportHovered(ImGui::IsWindowHovered());
+
     // Embedded scene toolbar
     constexpr ImVec2 buttonSize{ 34.0f, 22.0f };
     const float totalToolbarWidth{ (buttonSize.x * 3.0f) + (ImGui::GetStyle().ItemSpacing.x * 2.0f) };
@@ -541,10 +544,39 @@ void EditorManager::DrawHierarchyNode(GameObject* node) noexcept
     // Draw the node
     const bool isOpen{ ImGui::TreeNodeEx(static_cast<void*>(node), flags, "%s", node->GetName().c_str()) };
 
-    // Handle Selection Logic (Clicking)
-    if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
+    // Left-Click: Select entity for the Inspector
+    if (ImGui::IsItemClicked(ImGuiMouseButton_Left) && !ImGui::IsItemToggledOpen())
     {
         m_selectedObject = node;
+    }
+
+    // Right-Click Context Menu: Unity-style child creation and deletion
+    if (ImGui::BeginPopupContextItem())
+    {
+        m_selectedObject = node; // Auto-select on right click
+
+        if (ImGui::MenuItem("Create Empty Child"))
+        {
+            node->AddChild(std::make_unique<GameObject>("New_Child"));
+        }
+
+        if (ImGui::MenuItem("Create Socket Anchor"))
+        {
+            node->AddChild(std::make_unique<GameObject>("Socket_Anchor"));
+        }
+
+        ImGui::Separator();
+
+        if (ImGui::MenuItem("Delete GameObject"))
+        {
+            node->Destroy(); // Triggers deferred deletion on next frame
+            if (m_selectedObject == node)
+            {
+                m_selectedObject = nullptr;
+            }
+        }
+
+        ImGui::EndPopup();
     }
 
     // If expanded, recurse through children

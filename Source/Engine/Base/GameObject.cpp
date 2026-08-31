@@ -2,6 +2,7 @@
 #include <imgui.h> 
 #include "Character.h"
 #include "CharacterMovement.h"
+#include "ComponentRegistry.h"
 #include "GameObject.h"
 #include "LegacyCharacterComponent.h"
 
@@ -46,6 +47,24 @@ void GameObject::Update(float dt)
     }
 }
 
+void GameObject::Render(ModelRenderer* renderer)
+{
+    // Active check: If deactivated, stop rendering self and all children
+    if (!m_isActive) return;
+
+    // Render all visual components attached to this node
+    for (const auto& component : m_components)
+    {
+        component->Render(renderer);
+    }
+
+    // Recurse down the hierarchy
+    for (const auto& child : m_children)
+    {
+        child->Render(renderer);
+    }
+}
+
 void GameObject::DrawInspector()
 {
     // Unity-style Header: [X] Checkbox  [ Name Input ]
@@ -78,11 +97,44 @@ void GameObject::DrawInspector()
     // Delegate to each Component to draw its own specialized UI
     for (const auto& component : m_components)
     {
-        // Use the component's TypeName as the CollapsingHeader title
         if (ImGui::CollapsingHeader(component->GetTypeName(), ImGuiTreeNodeFlags_DefaultOpen))
         {
             component->DrawInspector();
         }
+    }
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    // "+ Add Component" Button
+    constexpr float buttonWidth{ 200.0f };
+    const float availWidth{ ImGui::GetContentRegionAvail().x };
+    ImGui::SetCursorPosX((availWidth * 0.5f) - (buttonWidth * 0.5f));
+
+    if (ImGui::Button("+ Add Component", ImVec2{ buttonWidth, 26.0f }))
+    {
+        ImGui::OpenPopup("AddComponentPopup");
+    }
+
+    // Render the dropdown list populated dynamically from the Registry
+    if (ImGui::BeginPopup("AddComponentPopup"))
+    {
+        ImGui::TextDisabled("Available Components");
+        ImGui::Separator();
+
+        for (const auto& compName : ComponentRegistry::GetAvailableNames())
+        {
+            if (ImGui::MenuItem(compName.c_str()))
+            {
+                // Instantiate and attach the selected component
+                if (auto newComp{ ComponentRegistry::Create(compName) })
+                {
+                    AddComponent(std::move(newComp));
+                }
+            }
+        }
+        ImGui::EndPopup();
     }
 }
 

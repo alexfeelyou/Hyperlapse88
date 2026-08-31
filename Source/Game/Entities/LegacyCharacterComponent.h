@@ -21,6 +21,7 @@ public:
     void OnAttach(GameObject* owner) noexcept override;
 
     void Update(float dt) override;
+    void Render(class ModelRenderer* renderer) override;
     void DrawInspector() override;
 
     [[nodiscard]] const char* GetTypeName() const noexcept override { return "LegacyCharacterComponent"; }

@@ -282,6 +282,15 @@
     <ClCompile Include="Source\Engine\Helpers\SceneSerializer.cpp">
       <Filter>Source\Engine\Helpers</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Engine\Components\MeshComponent.cpp">
+      <Filter>Source\Engine\Components</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\System\PhysicsManager.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Engine\Components\StaticMeshColliderComponent.cpp">
+      <Filter>Source\Engine\Components</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\System\BasicShader.h">
@@ -421,9 +430,6 @@
     </ClInclude>
     <ClInclude Include="Source\Game\Entities\PlayerConstants.h">
       <Filter>Source\Game\Entities</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Engine\Helpers\PhysXutils.h">
-      <Filter>Source\Engine\Helpers</Filter>
     </ClInclude>
     <ClInclude Include="Source\Engine\UI\UIDialogueBox.h">
       <Filter>Source\Engine\UI</Filter>
@@ -573,6 +579,18 @@
     <ClInclude Include="Source\Engine\Helpers\SceneSerializer.h">
       <Filter>Source\Engine\Helpers</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Engine\Components\MeshComponent.h">
+      <Filter>Source\Engine\Components</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Components\ComponentRegistry.h">
+      <Filter>Source\Engine\Components</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\System\PhysicsManager.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Components\StaticMeshColliderComponent.h">
+      <Filter>Source\Engine\Components</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Shader\Basic.hlsli">
@@ -663,6 +681,9 @@
     </Filter>
     <Filter Include="External\implot">
       <UniqueIdentifier>{073a93dd-fc27-42de-b961-3e5e2299ce4b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Engine\Components">
+      <UniqueIdentifier>{a66154ad-9210-4b56-9276-8c2bdb6ae63d}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

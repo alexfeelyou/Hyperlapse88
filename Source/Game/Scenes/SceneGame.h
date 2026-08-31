@@ -24,9 +24,9 @@
 #include "GameObject.h"             
 #include "ItemManager.h"
 #include "LegacyCharacterComponent.h"
-#include "PhysXUtils.h"
 #include "PostProcessManager.h"
 #include "Primitive.h"
+#include "MeshComponent.h"
 #include "NaviAlly.h"
 #include "Player.h"
 #include "PlayerStates.h"
@@ -133,16 +133,6 @@ private:
     float m_globalTime{ 0.0f };
     float m_configFineDensity{ 30.0f };
     float m_configZoomDensity{ 0.0f };
-
-    physx::PxDefaultAllocator m_allocator{};
-    physx::PxDefaultErrorCallback m_errorCallback{};
-    std::unique_ptr<physx::PxFoundation, PhysXDeleter> m_foundation{};
-    std::unique_ptr<physx::PxPhysics, PhysXDeleter> m_physics{};
-    std::unique_ptr<physx::PxDefaultCpuDispatcher, PhysXDeleter> m_dispatcher{};
-    std::unique_ptr<physx::PxScene, PhysXDeleter> m_scene{};
-    std::unique_ptr<physx::PxControllerManager, PhysXDeleter> m_controllerManager{};
-    std::unique_ptr<physx::PxMaterial, PhysXDeleter> m_defaultMaterial{};
-    std::unique_ptr<physx::PxRigidStatic, PhysXDeleter> m_groundPlane{};
 
     // Editor state tracking
     EditorMode m_lastEditorMode{};
