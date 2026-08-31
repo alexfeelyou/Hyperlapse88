@@ -282,6 +282,9 @@
     <ClCompile Include="Source\Engine\Helpers\SceneSerializer.cpp">
       <Filter>Source\Engine\Helpers</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Engine\Graphics\MeshComponent.cpp">
+      <Filter>Source\Engine\Graphics</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\System\BasicShader.h">
@@ -572,6 +575,9 @@
     </ClInclude>
     <ClInclude Include="Source\Engine\Helpers\SceneSerializer.h">
       <Filter>Source\Engine\Helpers</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Graphics\MeshComponent.h">
+      <Filter>Source\Engine\Graphics</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

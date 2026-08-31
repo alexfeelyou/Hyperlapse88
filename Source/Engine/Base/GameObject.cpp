@@ -46,6 +46,24 @@ void GameObject::Update(float dt)
     }
 }
 
+void GameObject::Render(ModelRenderer* renderer)
+{
+    // Active check: If deactivated, stop rendering self and all children
+    if (!m_isActive) return;
+
+    // Render all visual components attached to this node
+    for (const auto& component : m_components)
+    {
+        component->Render(renderer);
+    }
+
+    // Recurse down the hierarchy
+    for (const auto& child : m_children)
+    {
+        child->Render(renderer);
+    }
+}
+
 void GameObject::DrawInspector()
 {
     // Unity-style Header: [X] Checkbox  [ Name Input ]

@@ -117,7 +117,12 @@ SceneGame::SceneGame()
     m_stage = std::make_unique<Stage>(Graphics::Instance().GetDevice());
 
     auto stageNode{ std::make_unique<GameObject>("Stage") };
+    // Add the physics/logic bridge
     stageNode->AddComponent<StageComponent>(m_stage.get());
+
+    // Add the visual rendering component
+    stageNode->AddComponent<MeshComponent>(m_stage->GetModel());
+
     m_sceneRoot->AddChild(std::move(stageNode));
 
     m_foundation.reset(PxCreateFoundation(PX_PHYSICS_VERSION, m_allocator, m_errorCallback));
@@ -1149,45 +1154,34 @@ void SceneGame::RenderScene(const float elapsedTime, Camera* camera)
     rc.psxResWidth = psxData.resWidth;
     rc.psxResHeight = psxData.resHeight;
 
-    // Check Player Visibility
-    if (m_player)
+    // Data-driven render pass
+    if (m_sceneRoot)
     {
-        const bool isPlayerActive = m_player->GetOwnerNode() ? m_player->GetOwnerNode()->IsActive() : true;
-        if (isPlayerActive)
-        {
-            modelRenderer->Draw(ShaderId::Phong, m_player->GetModel(), m_player->color);
-            m_player->RenderWeapon(modelRenderer);
-            m_player->RenderProjectiles(modelRenderer);
-        }
+        m_sceneRoot->Render(modelRenderer);
     }
 
-    // Check Navi Visibility
-    if (m_navi)
+    // Legacy Fallbacks (To be converted to Components later)
+    if (m_player && (!m_player->GetOwnerNode() || m_player->GetOwnerNode()->IsActive()))
     {
-        const bool isNaviActive = m_navi->GetOwnerNode() ? m_navi->GetOwnerNode()->IsActive() : true;
-        if (isNaviActive)
-        {
-            m_navi->Render(modelRenderer);
-            m_navi->RenderProjectiles(modelRenderer);
-        }
+        m_player->RenderWeapon(modelRenderer);
+        m_player->RenderProjectiles(modelRenderer);
     }
 
-    if (m_enemyManager) m_enemyManager->Render(modelRenderer);
-    if (m_itemManager) m_itemManager->Render(modelRenderer);
-
-	// Check Stage Visibility
-    if (m_stage)
+    if (m_navi && (!m_navi->GetOwnerNode() || m_navi->GetOwnerNode()->IsActive()))
     {
-        const bool isStageActive = m_stage->GetOwnerNode() ? m_stage->GetOwnerNode()->IsActive() : true;
-        if (isStageActive)
+        m_navi->RenderProjectiles(modelRenderer);
+    }
+
+    if (m_enemyManager)
+    {
+        for (auto& enemy : m_enemyManager->GetEnemies())
         {
-            m_stage->UpdateTransform();
-            m_stage->Render(modelRenderer);
+            if (enemy->GetOwnerNode() && !enemy->GetOwnerNode()->IsActive()) continue;
+            enemy->RenderProjectiles(modelRenderer);
         }
     }
 
     modelRenderer->Render(rc);
-
     EffectManager::Instance().Render(camera);
 }
 

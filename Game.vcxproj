@@ -145,6 +145,7 @@
     <ClInclude Include="Source\Engine\Editor\EditorManager.h" />
     <ClInclude Include="Source\Engine\Editor\ProfilerManager.h" />
     <ClInclude Include="Source\Engine\Graphics\FontTTF.h" />
+    <ClInclude Include="Source\Engine\Graphics\MeshComponent.h" />
     <ClInclude Include="Source\Engine\Graphics\PostProcessEffect.h" />
     <ClInclude Include="Source\Engine\Graphics\PostProcessEffects.h" />
     <ClInclude Include="Source\Engine\Graphics\PostProcessManager.h" />
@@ -235,6 +236,7 @@
     <ClCompile Include="Source\Engine\Editor\EditorManager.cpp" />
     <ClCompile Include="Source\Engine\Editor\ProfilerManager.cpp" />
     <ClCompile Include="Source\Engine\Graphics\FontTTF.cpp" />
+    <ClCompile Include="Source\Engine\Graphics\MeshComponent.cpp" />
     <ClCompile Include="Source\Engine\Graphics\PostProcessEffects.cpp" />
     <ClCompile Include="Source\Engine\Graphics\PostProcessManager.cpp" />
     <ClCompile Include="Source\Engine\Graphics\Primitive.cpp" />

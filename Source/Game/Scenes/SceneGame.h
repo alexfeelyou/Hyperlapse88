@@ -27,6 +27,7 @@
 #include "PhysXUtils.h"
 #include "PostProcessManager.h"
 #include "Primitive.h"
+#include "MeshComponent.h"
 #include "NaviAlly.h"
 #include "Player.h"
 #include "PlayerStates.h"

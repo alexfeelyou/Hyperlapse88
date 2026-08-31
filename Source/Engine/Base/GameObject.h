@@ -27,6 +27,9 @@ public:
     // Recursively updates this object, its components, and its children
     void Update(float dt);
 
+    // Recursively renders this object and all its children
+    void Render(class ModelRenderer* renderer);
+
     // Iterates over components to draw their ImGui Inspector UI
     void DrawInspector();
 
