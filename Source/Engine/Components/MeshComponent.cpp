@@ -53,4 +53,5 @@ void MeshComponent::DrawInspector()
 }
 
 // Automatically registers MeshComponent before main() runs
+#include "ComponentRegistry.h"
 REGISTER_COMPONENT(MeshComponent)

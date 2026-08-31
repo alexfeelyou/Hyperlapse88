@@ -1,5 +1,7 @@
+#include "System/PhysicsManager.h"
 #include "EditorManager.h"
 #include "SceneGame.h" 
+#include "StaticMeshColliderComponent.h"
 
 using namespace DirectX;
 
@@ -114,47 +116,32 @@ SceneGame::SceneGame()
 
     m_respawnTimer = 0.0f;
 
+    // Initialize the Global Physics Engine
+    PhysicsManager::Instance().Initialize();
+
+    // Setup the Stage 
     m_stage = std::make_unique<Stage>(Graphics::Instance().GetDevice());
 
     auto stageNode{ std::make_unique<GameObject>("Stage") };
-    // Add the physics/logic bridge
-    stageNode->AddComponent<StageComponent>(m_stage.get());
 
-    // Add the visual rendering component
-    stageNode->AddComponent<MeshComponent>(m_stage->GetModel());
+    // Syncs the GameObject transform with m_stage manually
+    stageNode->AddComponent(std::make_unique<StageComponent>(m_stage.get()));
+
+    // Draws the 3D model
+    stageNode->AddComponent(std::make_unique<MeshComponent>(m_stage->GetModel()));
+
+    // Bakes the PhysX collision
+    stageNode->AddComponent(std::make_unique<StaticMeshColliderComponent>());
 
     m_sceneRoot->AddChild(std::move(stageNode));
-
-    m_foundation.reset(PxCreateFoundation(PX_PHYSICS_VERSION, m_allocator, m_errorCallback));
-    assert(m_foundation != nullptr && "CRITICAL ERROR: PxCreateFoundation failed!");
-
-    m_physics.reset(PxCreatePhysics(PX_PHYSICS_VERSION, *m_foundation, physx::PxTolerancesScale(), true, nullptr));
-    assert(m_physics != nullptr && "CRITICAL ERROR: PxCreatePhysics failed!");
-
-    physx::PxSceneDesc sceneDesc(m_physics->getTolerancesScale());
-    sceneDesc.gravity = physx::PxVec3(0.0f, Config::GRAVITY, 0.0f);
-
-    m_dispatcher.reset(physx::PxDefaultCpuDispatcherCreate(2));
-    sceneDesc.cpuDispatcher = m_dispatcher.get();
-    sceneDesc.filterShader = physx::PxDefaultSimulationFilterShader;
-
-    m_scene.reset(m_physics->createScene(sceneDesc));
-    assert(m_scene != nullptr && "CRITICAL ERROR: createScene failed!");
-
-    m_controllerManager.reset(PxCreateControllerManager(*m_scene));
-    assert(m_controllerManager != nullptr && "CRITICAL ERROR: PxCreateControllerManager failed!");
-
-    m_defaultMaterial.reset(m_physics->createMaterial(0.5f, 0.5f, 0.1f));
-    assert(m_defaultMaterial != nullptr && "CRITICAL ERROR: createMaterial failed!");
-
-    m_groundPlane.reset(physx::PxCreatePlane(*m_physics, physx::PxPlane(0, 1, 0, 0), *m_defaultMaterial));
-    m_scene->addActor(*m_groundPlane);
 
     m_player = std::make_unique<Player>();
 
     m_player->SetPosition(m_playerSpawnPos);
-    m_player->InitPhysics(m_controllerManager.get(), m_defaultMaterial.get());
-    m_stage->InitPhysics(m_physics.get(), m_scene.get(), m_defaultMaterial.get());
+    m_player->InitPhysics(
+        PhysicsManager::Instance().GetControllerManager(),
+        PhysicsManager::Instance().GetDefaultMaterial()
+    );
 
     m_player->SetMaxHP(100);
 
@@ -204,11 +191,7 @@ SceneGame::SceneGame()
     {
         for (int i{ 0 }; i < 300; ++i)
         {
-            if (m_scene)
-            {
-                m_scene->simulate(0.01666f);
-                m_scene->fetchResults(true);
-            }
+            PhysicsManager::Instance().Simulate(0.0f);
             if (m_player) m_player->Update(0.01666f, nullptr);
             if (m_navi)   m_navi->Update(0.01666f, nullptr);
 
@@ -240,11 +223,7 @@ SceneGame::SceneGame()
 
     else if (m_lastEditorMode == EditorMode::Edit)
     {
-        if (m_scene)
-        {
-            m_scene->simulate(0.0f);
-            m_scene->fetchResults(true);
-        }
+        PhysicsManager::Instance().Simulate(0.0f);
 
         Camera* activeCam{ CameraController::Instance().GetActiveCamera().get() };
 
@@ -287,6 +266,10 @@ SceneGame::~SceneGame()
     m_stage.reset();
     m_enemyManager.reset();
     m_itemManager.reset();
+
+    m_sceneRoot.reset();
+
+    PhysicsManager::Instance().Shutdown();
 }
 
 void SceneGame::Update(const float elapsedTime)
@@ -313,11 +296,7 @@ void SceneGame::Update(const float elapsedTime)
             // Dynamic Physics Settling (Pre-Warming)
             for (int i{ 0 }; i < 300; ++i)
             {
-                if (m_scene)
-                {
-                    m_scene->simulate(0.01666f);
-                    m_scene->fetchResults(true);
-                }
+                PhysicsManager::Instance().Simulate(0.01666f);
 
                 if (m_player) m_player->Update(0.01666f, CameraController::Instance().GetActiveCamera().get());
                 if (m_navi)   m_navi->Update(0.01666f, CameraController::Instance().GetActiveCamera().get());
@@ -559,7 +538,9 @@ void SceneGame::Update(const float elapsedTime)
                 m_isNaviDefeatReadyForNextScene = true;
                 m_player.reset(); m_navi.reset(); m_enemyManager.reset(); m_itemManager.reset(); m_stage.reset(); m_collisionManager.reset();
 
-                m_groundPlane.reset(); m_defaultMaterial.reset(); m_controllerManager.reset(); m_scene.reset(); m_dispatcher.reset(); m_physics.reset(); m_foundation.reset();
+                m_sceneRoot.reset();
+
+                PhysicsManager::Instance().Shutdown();
 
                 CameraController::Instance().ClearCamera();
                 Framework::Instance()->ChangeScene([]() { return std::make_unique<SceneTitle>(); });
@@ -640,10 +621,7 @@ void SceneGame::Update(const float elapsedTime)
         if (m_dialogueBox) m_dialogueBox->Update(elapsedTime);
 
         // Run Physics
-        if (m_scene) {
-            m_scene->simulate(elapsedTime);
-            m_scene->fetchResults(true);
-        }
+        PhysicsManager::Instance().Simulate(elapsedTime);
 
         Camera* activeCam{ CameraController::Instance().GetActiveCamera().get() };
 
@@ -966,11 +944,7 @@ void SceneGame::ResetLevel()
     {
         for (int i = 0; i < 60; ++i)
         {
-            if (m_scene)
-            {
-                m_scene->simulate(0.01666f);
-                m_scene->fetchResults(true);
-            }
+            PhysicsManager::Instance().Simulate(0.01666f);
             if (m_player) m_player->Update(0.01666f, nullptr);
             if (m_navi) m_navi->Update(0.01666f, nullptr);
         }
