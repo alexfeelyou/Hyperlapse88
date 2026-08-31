@@ -19,6 +19,8 @@
 #pragma comment(lib, "PhysXCommon_64.lib")
 #pragma comment(lib, "PhysXFoundation_64.lib")
 
+class GameObject;
+
 struct DebugWallData {
     DirectX::XMFLOAT3 Position;
     DirectX::XMFLOAT3 Rotation;
@@ -191,6 +193,10 @@ public:
     std::shared_ptr<Model> GetModel() const { return model; }
     const SpatialHashGrid& GetSpatialGrid() const { return m_spatialGrid; }
 
+    // Bi-directional link to the Editor's GameObject
+    void SetOwnerNode(GameObject* node) noexcept { m_ownerNode = node; }
+    [[nodiscard]] GameObject* GetOwnerNode() const noexcept { return m_ownerNode; }
+
 public:
     // Public variables for GUI editing
     DirectX::XMFLOAT3 position;
@@ -205,6 +211,8 @@ public:
     std::vector<DebugLineData> m_linesCheckpoint;
 
 private:
+    GameObject* m_ownerNode{ nullptr }; 
+
     struct HighlightData {
         DebugLineType type = DebugLineType::Void; 
         int index = -1; 

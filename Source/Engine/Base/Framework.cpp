@@ -144,7 +144,14 @@ Framework::~Framework()
 }
 
 Framework* Framework::Instance() { return pInstance; }
-void Framework::ChangeScene(std::unique_ptr<Scene> newScene) { nextScene = std::move(newScene); }
+
+void Framework::ChangeScene(std::function<std::unique_ptr<Scene>()> sceneFactory)
+{
+    m_nextSceneFactory = std::move(sceneFactory);
+
+    // Prevent dangling pointers in the ImGui Inspector when the old scene is destroyed
+    EditorManager::Instance().ClearSelection();
+}
 
 platform::Window* Framework::GetMainWindow() const
 {
@@ -164,9 +171,11 @@ void Framework::Update(float elapsedTime)
     // It tracks the duration of the entire Update function
     PROFILE_SCOPE("Framework::Update Total");
 
-    if (nextScene)
+    if (m_nextSceneFactory)
     {
-        scene = std::move(nextScene);
+        scene.reset();                // Destroy old scene first (safely releases PhysX)
+        scene = m_nextSceneFactory(); // Construct new scene second (allocates new PhysX)
+        m_nextSceneFactory = nullptr; // Clear the factory queue
     }
 
     CalculateFrameStats(elapsedTime);
@@ -175,7 +184,19 @@ void Framework::Update(float elapsedTime)
 
     ImGuiRenderer::NewFrame(); 
 
-    EditorManager::Instance().Draw(scene.get());
+    // Extract active for ImGuizmo
+    Camera* activeCam{ nullptr };
+    if (auto* gameScene{ dynamic_cast<SceneGame*>(scene.get()) })
+    {
+        activeCam = gameScene->GetMainCamera();
+    }
+    else if (auto* titleScene{ dynamic_cast<SceneTitle*>(scene.get()) })
+    {
+        activeCam = titleScene->GetCamera();
+    }
+
+    // Pass the camera down into the Editor so the Gizmo knows how to render
+    EditorManager::Instance().Draw(scene.get(), activeCam);
 
     if (scene) scene->Update(elapsedTime);
 }

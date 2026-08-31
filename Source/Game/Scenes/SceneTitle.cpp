@@ -1,3 +1,4 @@
+#include "EditorManager.h"
 #include "SceneTitle.h"
 
 namespace {
@@ -43,6 +44,19 @@ SceneTitle::SceneTitle()
     m_primitive = std::make_unique<Primitive>(device);
     m_uiOption = std::make_unique<UIOption>();
     m_uiOption->Initialize(m_primitive.get());
+
+    // Editor boot sync
+    m_lastEditorMode = EditorManager::Instance().GetEditorMode();
+    if (m_lastEditorMode == EditorMode::Edit)
+    {
+        // FAST-FORWARD: Skip intro fades so the designer can edit the menu UI instantly
+        m_bootTimer = 0.0f;
+        m_copyrightTimer = 0.0f;
+        m_fadeAlpha = 0.0f;
+        m_copyrightAlpha = 0.0f;
+        m_isMenuPhase = true;
+        m_menuAlpha = 1.0f;
+    }
 }
 
 bool SceneTitle::IsUpTriggered() noexcept
@@ -116,7 +130,41 @@ bool SceneTitle::IsConfirmTriggered(bool allowSpace) noexcept
 
 void SceneTitle::Update(float elapsedTime)
 {
-	// Exit Phase: Fade Out and Transition to Game Scene
+    EditorMode currentMode = EditorManager::Instance().GetEditorMode();
+
+    // Editor State Machine
+    if (m_lastEditorMode != currentMode)
+    {
+        if (currentMode == EditorMode::Play && m_lastEditorMode == EditorMode::Edit)
+        {
+            // STOP -> PLAY: Rewind to the very beginning (Black screen -> Copyright)
+            ResetToInitialState();
+        }
+        else if (currentMode == EditorMode::Edit)
+        {
+            // PLAY/PAUSE -> STOP: Fast-Forward instantly to the fully visible menu
+            ResetToInitialState();
+            m_bootTimer = 0.0f;
+            m_copyrightTimer = 0.0f;
+            m_fadeAlpha = 0.0f;
+            m_copyrightAlpha = 0.0f;
+            m_isMenuPhase = true;
+            m_menuAlpha = 1.0f;
+
+            // Clean up any stray selection data
+            EditorManager::Instance().ClearSelection();
+        }
+
+        m_lastEditorMode = currentMode;
+    }
+
+    // Freeze animations if Paused or Stopped
+    if (currentMode != EditorMode::Play)
+    {
+        return;
+    }
+
+    // Exit Phase: Fade Out and Transition to Game Scene
     if (m_isExiting)
     {
         m_exitTimer += elapsedTime;
@@ -124,12 +172,12 @@ void SceneTitle::Update(float elapsedTime)
 
         if (m_exitTimer >= BOOT_FADE_DURATION)
         {
-            Framework::Instance()->ChangeScene(std::make_unique<SceneGame>());
+            Framework::Instance()->ChangeScene([]() { return std::make_unique<SceneGame>(); });
         }
         return;
     }
 
-	// Boot Phase: Fade In Logo and Background
+    // Boot Phase: Fade In Logo and Background
     if (m_bootTimer > 0.0f)
     {
         m_bootTimer -= elapsedTime;
@@ -137,7 +185,7 @@ void SceneTitle::Update(float elapsedTime)
         return;
     }
 
-	// Copyright Phase: Display Copyright Notice
+    // Copyright Phase: Display Copyright Notice
     if (m_copyrightTimer > 0.0f)
     {
         m_fadeAlpha = 0.0f;
@@ -145,7 +193,7 @@ void SceneTitle::Update(float elapsedTime)
         return;
     }
 
-	// After the boot and copyright phases, we can safely set
+    // After the boot and copyright phases, we can safely set
     m_fadeAlpha = 0.0f;
 
     // Fade out Copyright
@@ -164,33 +212,30 @@ void SceneTitle::Update(float elapsedTime)
         constexpr int maxOptions = static_cast<int>(MenuOption::Count);
         int current = static_cast<int>(m_currentSelection);
 
-		// If the user is in the Option Panel, we do not want to process main menu navigation
+        // If the user is in the Option Panel, we do not want to process main menu navigation
         if (m_isOptionPhase)
         {
-            // Allow the user to press Confirm or Exit (e.g. ESC) to close the menu
             if (IsConfirmTriggered() || Input::Instance().GetKeyboard().IsTriggered(VK_ESCAPE))
             {
                 m_isOptionPhase = false;
             }
-
             if (m_uiOption) m_uiOption->Update(elapsedTime);
-
-            return; // EXIT EARLY: Do not process main menu navigation
+            return;
         }
 
-		// Up navigation with wrap-around
+        // Up navigation with wrap-around
         if (IsUpTriggered())
         {
             current = (current + maxOptions - 1) % maxOptions;
             m_currentSelection = static_cast<MenuOption>(current);
         }
-		// Down navigation with wrap-around
+        // Down navigation with wrap-around
         else if (IsDownTriggered())
         {
             current = (current + 1) % maxOptions;
             m_currentSelection = static_cast<MenuOption>(current);
         }
-		// Confirm selection
+        // Confirm selection
         else if (IsConfirmTriggered())
         {
             ExecuteMenuSelection();
@@ -232,16 +277,34 @@ void SceneTitle::Update(float elapsedTime)
         m_pulseTimer += elapsedTime;
         m_startAlpha = 0.6f + 0.4f * sinf(m_pulseTimer * 3.0f);
 
-        // Only trigger once. Setting flag locks out further presses automatically
         if (IsConfirmTriggered(false))
         {
             m_isTransitioningMenu = true;
-            // Play SE here if needed: AudioManager::Instance().PlaySFX(...)
         }
     }
 
     // Visual simulation interpolation
     AnimateMenu(elapsedTime);
+}
+
+void SceneTitle::ResetToInitialState() noexcept
+{
+    m_bootTimer = BOOT_FADE_DURATION + 1.1f; // 4.1f
+    m_copyrightTimer = 4.0f;
+    m_fadeAlpha = 1.0f;
+    m_copyrightAlpha = 1.0f;
+    m_startAlpha = 0.0f;
+    m_pulseTimer = 0.0f;
+    m_gapTimer = 0.0f;
+    m_menuGapTimer = 0.0f;
+    m_menuAlpha = 0.0f;
+    m_isTransitioningMenu = false;
+    m_isMenuPhase = false;
+    m_isOptionPhase = false;
+    m_isExiting = false;
+    m_exitTimer = 0.0f;
+    m_currentSelection = MenuOption::NewGame;
+    m_isCursorInitialized = false;
 }
 
 void SceneTitle::Render(float dt, Camera* targetCamera)

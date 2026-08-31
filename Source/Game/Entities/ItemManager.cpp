@@ -1,36 +1,52 @@
 #include "ItemManager.h"
+#include "LegacyCharacterComponent.h"
 
 using namespace DirectX;
 
-ItemManager::ItemManager() {}
+ItemManager::ItemManager() = default;
 ItemManager::~ItemManager() { m_items.clear(); }
 
-void ItemManager::Initialize(ID3D11Device* device)
+void ItemManager::Initialize(ID3D11Device* device, GameObject* parentNode)
 {
     m_deviceRef = device;
+    m_parentNode = parentNode;
     m_items.clear();
-
-    for (const auto& data : ItemLevelData::Spawns)
-    {
-        SpawnItem(data);
-    }
+    m_spawnCounter = 0; // Reset counter on scene load
 }
 
 void ItemManager::SpawnItem(const ItemSpawnData& data)
 {
     if (!m_deviceRef) return;
 
-    auto newItem = std::make_unique<Item>(m_deviceRef, data.Position, data.Type);
+    auto newItem{ std::make_unique<Item>(m_deviceRef, data.Position, data.Type) };
     newItem->SetRotation(data.Rotation);
     newItem->scale = data.Scale;
-    if (data.Type == ItemType::Heal) 
+
+    if (data.Type == ItemType::Heal)
     {
-        newItem->color = { 1.0f, 0.89f, 0.58f, 1.0f }; 
+        newItem->color = { 1.0f, 0.89f, 0.58f, 1.0f };
     }
-    else if (data.Type == ItemType::Invincible) 
+    else if (data.Type == ItemType::Invincible)
     {
-        newItem->color = { 0.5f, 0.5f, 0.5f, 1.0f };   
+        newItem->color = { 0.5f, 0.5f, 0.5f, 1.0f };
     }
+
+    // Wrap the new item in a GameObject
+    if (m_parentNode)
+    {
+        std::string nodeName{ (data.Type == ItemType::Heal) ? "Item_Heal" : "Item_Invincibility" };
+        nodeName += "_" + std::to_string(++m_spawnCounter);
+
+        auto itemNode{ std::make_unique<GameObject>(nodeName) };
+        itemNode->AddComponent<LegacyCharacterComponent>(newItem.get());
+
+        itemNode->transform.position = data.Position;
+        itemNode->transform.rotation = data.Rotation;
+        itemNode->transform.scale = data.Scale;
+
+        m_parentNode->AddChild(std::move(itemNode));
+    }
+
     m_items.push_back(std::move(newItem));
 }
 
@@ -80,6 +96,9 @@ void ItemManager::Render(ModelRenderer* renderer)
 {
     for (auto& item : m_items)
     {
+        // Skip rendering if the Inspector active checkbox is disabled
+        if (item->GetOwnerNode() && !item->GetOwnerNode()->IsActive()) continue;
+
         item->Render(renderer);
     }
 }
@@ -105,4 +124,49 @@ void ItemManager::RenderDebug(ShapeRenderer* renderer)
 void ItemManager::ResetAllAnimations()
 {
     for (auto& item : m_items) { if (item) item->ResetAnimation(); }
+}
+
+void ItemManager::Serialize(nlohmann::json& outJson) const
+{
+    nlohmann::json itemsArray{ nlohmann::json::array() };
+
+    for (const auto& item : m_items)
+    {
+        if (!item || !item->IsActive()) continue;
+
+        nlohmann::json iJson{};
+        const DirectX::XMFLOAT3 pos{ item->GetBasePosition() }; // Base pos avoids saving mid-bounce
+        const DirectX::XMFLOAT3 rot{ item->GetRotation() };
+        const DirectX::XMFLOAT3 scale{ item->scale };
+
+        iJson["PosX"] = pos.x; iJson["PosY"] = pos.y; iJson["PosZ"] = pos.z;
+        iJson["RotX"] = rot.x; iJson["RotY"] = rot.y; iJson["RotZ"] = rot.z;
+        iJson["ScaleX"] = scale.x; iJson["ScaleY"] = scale.y; iJson["ScaleZ"] = scale.z;
+        iJson["Type"] = static_cast<int>(item->GetType());
+
+        itemsArray.push_back(iJson);
+    }
+
+    outJson["Items"] = itemsArray;
+}
+
+void ItemManager::Deserialize(const nlohmann::json& inJson)
+{
+    m_items.clear();
+
+    // Reset the naming counter so reloaded items start at 1
+	m_spawnCounter = 0;
+
+    if (!inJson.contains("Items")) return;
+
+    for (const auto& iJson : inJson["Items"])
+    {
+        ItemSpawnData data{};
+        data.Position = { iJson.value("PosX", 0.0f), iJson.value("PosY", 0.0f), iJson.value("PosZ", 0.0f) };
+        data.Rotation = { iJson.value("RotX", 0.0f), iJson.value("RotY", 0.0f), iJson.value("RotZ", 0.0f) };
+        data.Scale = { iJson.value("ScaleX", 1.0f), iJson.value("ScaleY", 1.0f), iJson.value("ScaleZ", 1.0f) };
+        data.Type = static_cast<ItemType>(iJson.value("Type", 0));
+
+        SpawnItem(data);
+    }
 }

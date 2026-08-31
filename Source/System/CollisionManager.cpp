@@ -198,8 +198,16 @@ void CollisionManager::CheckEnemyProjectilesFull(float elapsedTime)
 {
     if (!m_enemyManager) return;
 
+    // Check if the Stage is active before casting rays against its walls
+    const bool isStageActive = m_stage && (!m_stage->GetOwnerNode() || m_stage->GetOwnerNode()->IsActive());
+    const bool isPlayerActive = m_player && (!m_player->GetOwnerNode() || m_player->GetOwnerNode()->IsActive());
+
     for (auto& enemy : m_enemyManager->GetEnemies())
     {
+        // Do not process bullets from deactivated enemies
+        if (!enemy || !enemy->IsActive()) continue;
+        if (enemy->GetOwnerNode() && !enemy->GetOwnerNode()->IsActive()) continue;
+
         auto& projectiles = enemy->GetProjectiles();
         AttackType type = enemy->GetAttackType();
 
@@ -223,7 +231,7 @@ void CollisionManager::CheckEnemyProjectilesFull(float elapsedTime)
             float closestT = frameDist;
             XMVECTOR hitNormal = XMVectorZero();
 
-            if (m_stage)
+            if (isStageActive)
             {
                 for (const auto& wall : m_stage->m_debugWalls)
                 {
@@ -320,7 +328,7 @@ void CollisionManager::CheckEnemyProjectilesFull(float elapsedTime)
             XMFLOAT3 nextPosFloat;
             XMStoreFloat3(&nextPosFloat, vNextPos);
 
-            if (m_player && bullet->GetHomingTarget() == nullptr && m_player->GetHP() > 0 && !m_player->IsInvincible())
+            if (isPlayerActive && bullet->GetHomingTarget() == nullptr && m_player->GetHP() > 0 && !m_player->IsInvincible())
             {
                 DirectX::XMFLOAT3 playerPos = m_player->GetMovement()->GetPosition();
 
@@ -376,6 +384,9 @@ void CollisionManager::CheckPlayerVsEnemies()
     // If player is already dead, skip all enemy physics
     if (m_player->GetHP() <= 0) return;
 
+    // Fast-fail if Player is deactivated in the Editor
+    if (m_player->GetOwnerNode() && !m_player->GetOwnerNode()->IsActive()) return;
+
     auto& enemies{ m_enemyManager->GetEnemies() };
     DirectX::XMFLOAT3 playerPos{ m_player->GetMovement()->GetPosition() };
     DirectX::XMFLOAT3 playerVel{ m_player->GetMovement()->GetVelocity() };
@@ -386,6 +397,9 @@ void CollisionManager::CheckPlayerVsEnemies()
     for (const auto& enemy : enemies)
     {
         if (!enemy || !enemy->IsActive()) continue;
+
+        // Skip deactivated enemies
+        if (enemy->GetOwnerNode() && !enemy->GetOwnerNode()->IsActive()) continue;
 
         const DirectX::XMFLOAT3 ePos{ enemy->GetPosition() };
 
@@ -398,28 +412,7 @@ void CollisionManager::CheckPlayerVsEnemies()
 
         if (distSq < (combinedRadius * combinedRadius))
         {
-			// Kamikaze Enemy Logic: If the enemy is a tracking type and the player is not invincible, instantly kill the player
-            if (enemy->GetAttackType() == AttackType::Tracking && !m_player->IsInvincible())
-            {
-                // Instantly nuke player HP
-                m_player->TakeDamage(9999);
-
-                // Trigger standard death sequence
-                m_player->scale = { 0.0f, 0.0f, 0.0f }; // Hide 3D model
-                m_player->SetInputEnabled(false);       // Lock controls
-                m_player->GetMovement()->SetVelocity({ 0.0f, 0.0f, 0.0f }); // Stop sliding
-                m_player->GetStateMachine()->ChangeState(m_player, std::make_unique<PlayerDead>());
-
-                // Kill the kamikaze enemy so it doesn't survive the explosion
-                enemy->TakeDamage(9999);
-
-                enemy->SetKilledPlayer(true);
-
-                // Player is dead, no need to check other enemies
-                return;
-            }
-
-			// Normal Enemy Collision Logic: Push the player away from the enemy to prevent overlap
+            // Normal Enemy Collision Logic: Push the player away from the enemy to prevent overlap
             float dist{ std::sqrt(distSq) };
 
             if (dist < 0.0001f)
@@ -456,6 +449,10 @@ void CollisionManager::CheckPlayerVsEnemies()
 void CollisionManager::CheckPlayerVsCheckpointLines()
 {
     if (!m_player || !m_stage || m_player->GetHP() <= 0) return;
+
+    // Guard against inactive entities
+    if (m_player->GetOwnerNode() && !m_player->GetOwnerNode()->IsActive()) return;
+    if (m_stage->GetOwnerNode() && !m_stage->GetOwnerNode()->IsActive()) return;
 
     const float TRIGGER_RANGE_Z = 2.0f;
 
@@ -538,12 +535,18 @@ void CollisionManager::CheckPlayerVsItems()
 {
     if (!m_player || !m_itemManager) return;
 
+    // Ignore if player is disabled
+    if (m_player->GetOwnerNode() && !m_player->GetOwnerNode()->IsActive()) return;
+
     XMFLOAT3 pPos = m_player->GetMovement()->GetPosition();
     float pRadius = 0.5f;
 
     for (auto& item : m_itemManager->GetItems())
     {
         if (!item->IsActive()) continue;
+
+        // Ignore disabled items
+        if (item->GetOwnerNode() && !item->GetOwnerNode()->IsActive()) continue;
 
         XMFLOAT3 iPos = item->GetPosition();
         float iRadius = item->scale.x * 0.5f;
@@ -598,6 +601,9 @@ void CollisionManager::CheckPlayerProjectilesVsEnemies(const float elapsedTime)
         for (const auto& enemy : enemies)
         {
             if (!enemy || !enemy->IsActive()) continue;
+
+            // Prevent player bullets from hitting deactivated enemies
+            if (enemy->GetOwnerNode() && !enemy->GetOwnerNode()->IsActive()) continue;
 
             const DirectX::XMFLOAT3 ePos{ enemy->GetPosition() };
             const float enemyRadius{ GetEnemyPushRadius(enemy.get()) };
@@ -790,16 +796,16 @@ Enemy* CollisionManager::GetTargetInSlashCone(const DirectX::XMFLOAT3& playerPos
     {
         if (!enemy || !enemy->IsActive()) continue;
 
+        // Ignore deactivated enemies in the hierarchy
+        if (enemy->GetOwnerNode() && !enemy->GetOwnerNode()->IsActive()) continue;
+
         const DirectX::XMFLOAT3 ePos{ enemy->GetPosition() };
         const float enemyScale{ enemy->GetScale().x };
         float enemyRadius{ 1.0f * enemyScale };
 
         if (enemy->GetType() == EnemyType::Paddle) enemyRadius = 1.2f * enemyScale;
 
-        const bool isKamikaze{ enemy->GetAttackType() == AttackType::Tracking };
-        const float dynamicReach{ isKamikaze ? (baseReach * 3.5f) : baseReach };
-
-        const float exactSlashDistance{ 0.5f + enemyRadius + dynamicReach };
+        const float exactSlashDistance{ 0.5f + enemyRadius + baseReach };
         const float exactSlashDistSq{ exactSlashDistance * exactSlashDistance };
 
         const float dx{ ePos.x - playerPos.x };
@@ -815,15 +821,11 @@ Enemy* CollisionManager::GetTargetInSlashCone(const DirectX::XMFLOAT3& playerPos
 
             const float dot{ (dirX * aimDir.x) + (dirZ * aimDir.z) };
 
-            // If the dot product is less than the threshold 
-            // (e.g. Kamikaze is behind the player), this fails entirely. Player dies.
             if (dot >= minDotProduct)
             {
-                const float prioritizationDistSq{ isKamikaze ? (distSq * 0.1f) : distSq };
-
-                if (prioritizationDistSq < closestDistSq)
+                if (distSq < closestDistSq) // Prioritization logic removed
                 {
-                    closestDistSq = prioritizationDistSq;
+                    closestDistSq = distSq;
                     bestTarget = enemy.get();
                 }
             }

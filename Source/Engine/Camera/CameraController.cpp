@@ -110,21 +110,10 @@ void CameraController::Update(float elapsedTime)
         m_shakeOffset = { 0.0f, 0.0f, 0.0f };
     }
 
-    // Global Inputs (Cursor Toggle) 
-    static bool isF1Pressed = false;
-    bool f1Down = (GetKeyState(VK_F1) & 0x8000) != 0;
-
-    if (f1Down && !isF1Pressed)
+    if (m_controlMode == CameraControlMode::Free)
     {
-        if (m_controlMode == CameraControlMode::Mouse || m_controlMode == CameraControlMode::Free)
-        {
-            m_toggleCursor = !m_toggleCursor;
-        }
-        isF1Pressed = true;
-    }
-    else if (!f1Down)
-    {
-        isF1Pressed = false;
+        // Unity-style Editor Camera: Hold Right Mouse Button to fly/look
+        m_toggleCursor = (GetKeyState(VK_RBUTTON) & 0x8000) != 0;
     }
 
     // Cursor Lock Logic
@@ -348,30 +337,58 @@ void CameraController::UpdateFixedStatic(std::shared_ptr<Camera>& camera)
 
 void CameraController::UpdateFreeCamera(float dt, std::shared_ptr<Camera>& camera)
 {
-    // Rotation
-    if (m_toggleCursor)
+    // Track the Right Mouse Button state globally across all frames
+    static bool s_wasRightBtnDown{ false };
+    static int s_ignoreFrames{ 0 };
+
+    const bool rightBtnDown{ (GetKeyState(VK_RBUTTON) & 0x8000) != 0 };
+    const bool justPressed{ rightBtnDown && !s_wasRightBtnDown };
+    s_wasRightBtnDown = rightBtnDown;
+
+    if (justPressed)
     {
-        Mouse& mouse = Input::Instance().GetMouse();
-        float sensitivity = 0.5f;
-        float rotSpeed = m_rollSpeed * dt;
-
-        XMFLOAT3 currentRot = camera->GetRotation();
-        currentRot.y += static_cast<float>(mouse.GetDeltaX()) * sensitivity * rotSpeed;
-        currentRot.x += static_cast<float>(mouse.GetDeltaY()) * sensitivity * rotSpeed;
-
-        camera->SetRotation(currentRot);
-        m_currentAngle = currentRot; // Sync
+        // Absorb the initial click frame and the subsequent OS warp frame
+        s_ignoreFrames = 2;
     }
 
-    float moveAmount = m_moveSpeed * dt;
-    XMFLOAT3 moveDir = { 0, 0, 0 };
+    // Only allow looking and moving if the cursor is locked (Right-Click held)
+    if (!m_toggleCursor) return;
+
+    Mouse& mouse = Input::Instance().GetMouse();
+    float deltaX{ static_cast<float>(mouse.GetDeltaX()) };
+    float deltaY{ static_cast<float>(mouse.GetDeltaY()) };
+
+    // Discard the massive delta spike while the OS centers the cursor
+    if (s_ignoreFrames > 0)
+    {
+        deltaX = 0.0f;
+        deltaY = 0.0f;
+        --s_ignoreFrames;
+    }
+
+    // Apply rotation purely using the cached angle to prevent matrix read-back drift
+    const float sensitivity{ 0.5f };
+    const float rotSpeed{ m_rollSpeed * dt };
+
+    m_currentAngle.y += deltaX * sensitivity * rotSpeed;
+    m_currentAngle.x += deltaY * sensitivity * rotSpeed;
+
+    // Ensure Pitch does not exceed vertical bounds to prevent screen flip
+    constexpr float PITCH_LIMIT{ DirectX::XM_PIDIV2 - 0.01f }; // Slightly less than 90 degrees
+    m_currentAngle.x = std::clamp(m_currentAngle.x, -PITCH_LIMIT, PITCH_LIMIT);
+
+    camera->SetRotation(m_currentAngle);
+
+    // Translation
+    const float moveAmount{ m_moveSpeed * dt };
+    DirectX::XMFLOAT3 moveDir{ 0.0f, 0.0f, 0.0f };
 
     if (GetKeyState('W') & 0x8000) moveDir.z += moveAmount;
     if (GetKeyState('S') & 0x8000) moveDir.z -= moveAmount;
     if (GetKeyState('A') & 0x8000) moveDir.x -= moveAmount;
     if (GetKeyState('D') & 0x8000) moveDir.x += moveAmount;
-    if (GetKeyState(VK_SPACE) & 0x8000)   moveDir.y += moveAmount;
-    if (GetKeyState(VK_CONTROL) & 0x8000) moveDir.y -= moveAmount;
+    if (GetKeyState('E') & 0x8000) moveDir.y += moveAmount; // E to go Up
+    if (GetKeyState('Q') & 0x8000) moveDir.y -= moveAmount; // Q to go Down
 
     camera->Translate(moveDir);
     m_eyePos = camera->GetPosition();
@@ -433,6 +450,32 @@ void CameraController::SetTarget(const DirectX::XMFLOAT3& target)
 void CameraController::SetFixedSetting(const DirectX::XMFLOAT3& value)
 {
     m_fixedPos = value;
+}
+
+void CameraController::SnapToTarget()
+{
+    std::shared_ptr<Camera> camera = m_activeCamera.lock();
+    if (!camera) return;
+
+    if (m_controlMode == CameraControlMode::FixedFollow)
+    {
+        // Calculate exact resting position based on current offsets
+        DirectX::XMFLOAT3 desiredPos;
+        desiredPos.x = m_targetPos.x + m_fixedPos.x;
+        desiredPos.y = m_targetPos.y + m_fixedPos.y + m_currentZoomOffset;
+        desiredPos.z = m_targetPos.z + m_fixedPos.z - (m_currentZoomOffset * 0.5f);
+
+        // Teleport instantly 
+        camera->SetPosition(desiredPos);
+
+        // Calculate exact look-at angle
+        DirectX::XMFLOAT3 desiredLookAt;
+        desiredLookAt.x = m_targetPos.x + m_targetOffset.x;
+        desiredLookAt.y = m_targetPos.y + m_targetOffset.y;
+        desiredLookAt.z = m_targetPos.z + m_targetOffset.z;
+
+        camera->LookAt(desiredLookAt);
+    }
 }
 
 void CameraController::SetControlMode(CameraControlMode mode)

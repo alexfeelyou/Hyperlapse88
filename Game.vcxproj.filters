@@ -168,9 +168,6 @@
     <ClCompile Include="Source\Engine\VFX\AnimationController.cpp">
       <Filter>Source\Engine\VFX</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Game\Scenes\Stage.cpp">
-      <Filter>Source\Game\Scenes</Filter>
-    </ClCompile>
     <ClCompile Include="Source\Game\States\PlayerStates.cpp">
       <Filter>Source\Game\States</Filter>
     </ClCompile>
@@ -266,6 +263,24 @@
     </ClCompile>
     <ClCompile Include="Source\Engine\Editor\ProfilerManager.cpp">
       <Filter>Source\Engine\Editor</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Engine\Base\Transform.cpp">
+      <Filter>Source\Engine\Base</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Engine\Base\GameObject.cpp">
+      <Filter>Source\Engine\Base</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Game\Entities\LegacyCharacterComponent.cpp">
+      <Filter>Source\Game\Entities</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Game\Entities\Stage.cpp">
+      <Filter>Source\Game\Entities</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Game\Entities\StageComponent.cpp">
+      <Filter>Source\Game\Entities</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Engine\Helpers\SceneSerializer.cpp">
+      <Filter>Source\Engine\Helpers</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -404,9 +419,6 @@
     <ClInclude Include="Source\Engine\VFX\AnimationController.h">
       <Filter>Source\Engine\VFX</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Game\Scenes\Stage.h">
-      <Filter>Source\Game\Scenes</Filter>
-    </ClInclude>
     <ClInclude Include="Source\Game\Entities\PlayerConstants.h">
       <Filter>Source\Game\Entities</Filter>
     </ClInclude>
@@ -539,6 +551,27 @@
     </ClInclude>
     <ClInclude Include="Source\Engine\Editor\ProfilerManager.h">
       <Filter>Source\Engine\Editor</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Base\Transform.h">
+      <Filter>Source\Engine\Base</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Base\IComponent.h">
+      <Filter>Source\Engine\Base</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Base\GameObject.h">
+      <Filter>Source\Engine\Base</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Game\Entities\LegacyCharacterComponent.h">
+      <Filter>Source\Game\Entities</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Game\Entities\Stage.h">
+      <Filter>Source\Game\Entities</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Game\Entities\StageComponent.h">
+      <Filter>Source\Game\Entities</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Helpers\SceneSerializer.h">
+      <Filter>Source\Engine\Helpers</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

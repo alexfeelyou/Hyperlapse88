@@ -69,10 +69,7 @@ namespace {
                 player->GetStateMachine()->ChangeState(player, std::make_unique<PlayerSlash>());
 
                 constexpr int MELEE_DAMAGE{ 30 };
-                const bool isKamikaze{ slashTarget->GetAttackType() == AttackType::Tracking };
-                const int finalDamage{ isKamikaze ? 9999 : MELEE_DAMAGE };
-
-                slashTarget->TakeDamage(finalDamage);
+                slashTarget->TakeDamage(MELEE_DAMAGE);
 
                 return true;
             }

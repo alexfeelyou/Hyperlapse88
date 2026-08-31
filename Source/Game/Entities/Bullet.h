@@ -30,7 +30,7 @@ public:
     float GetRadius() const { return radius; }
 	void SetRadius(float r) { radius = r; }
 	void SetTurnSpeed(float speed) { m_turnSpeed = speed; }
-    [[nodiscard]] bool IsActive() const { return isActive; }
+    [[nodiscard]] bool IsActive() const noexcept override { return isActive; }
     void SetActive(bool active);
 
     void SetDamage(int damage) { m_damage = damage; }

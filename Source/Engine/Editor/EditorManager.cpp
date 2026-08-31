@@ -18,6 +18,101 @@ namespace
     inline constexpr const char* s_windowPostProcess{ "Post-Processing" };
 }
 
+namespace
+{
+    enum class ToolbarIcon : std::uint8_t
+    {
+        Play = 0,
+        Pause,
+        Stop
+    };
+
+    [[nodiscard]] bool DrawToolbarIconButton(
+        const char* strId,
+        ToolbarIcon icon,
+        bool isActive,
+        const ImVec4& activeColor,
+        const ImVec2& buttonSize = ImVec2{ 34.0f, 22.0f }) noexcept
+    {
+        if (isActive)
+        {
+            ImGui::PushStyleColor(ImGuiCol_Button, activeColor);
+            ImGui::PushStyleColor(ImGuiCol_ButtonHovered, ImVec4{ activeColor.x * 1.15f, activeColor.y * 1.15f, activeColor.z * 1.15f, 1.0f });
+        }
+
+        // Empty label with ## so ImGui only renders the button body
+        const bool isClicked{ ImGui::Button(strId, buttonSize) };
+
+        if (isActive)
+        {
+            ImGui::PopStyleColor(2);
+        }
+
+        ImDrawList* drawList{ ImGui::GetWindowDrawList() };
+        const ImVec2 rectMin{ ImGui::GetItemRectMin() };
+        const ImVec2 rectMax{ ImGui::GetItemRectMax() };
+
+        // Floor the center to exact integer pixels to prevent subpixel edge-blurring
+        const ImVec2 center{
+            std::floor((rectMin.x + rectMax.x) * 0.5f),
+            std::floor((rectMin.y + rectMax.y) * 0.5f)
+        };
+
+        constexpr ImU32 iconColor{ IM_COL32(235, 235, 235, 255) };
+
+        switch (icon)
+        {
+        case ToolbarIcon::Play:
+        {
+            constexpr float halfHeight{ 3.5f };
+            constexpr float halfWidth{ 4.5f };
+            const ImVec2 p1{ center.x - halfWidth + 1.0f, center.y - halfHeight };
+            const ImVec2 p2{ center.x - halfWidth + 1.0f, center.y + halfHeight };
+            const ImVec2 p3{ center.x + halfWidth + 1.0f, center.y };
+            drawList->AddTriangleFilled(p1, p2, p3, iconColor);
+            break;
+        }
+        case ToolbarIcon::Pause:
+        {
+            constexpr float barHalfHeight{ 4.0f };
+            constexpr float barWidth{ 2.5f };
+            constexpr float barGap{ 1.5f };
+            constexpr float rounding{ 0.5f };
+
+            // Left bar
+            drawList->AddRectFilled(
+                ImVec2{ center.x - barGap - barWidth, center.y - barHalfHeight },
+                ImVec2{ center.x - barGap,            center.y + barHalfHeight },
+                iconColor,
+                rounding
+            );
+            // Right bar
+            drawList->AddRectFilled(
+                ImVec2{ center.x + barGap,            center.y - barHalfHeight },
+                ImVec2{ center.x + barGap + barWidth, center.y + barHalfHeight },
+                iconColor,
+                rounding
+            );
+            break;
+        }
+        case ToolbarIcon::Stop:
+        {
+            constexpr float halfSize{ 4.0f };
+            constexpr float rounding{ 0.5f };
+            drawList->AddRectFilled(
+                ImVec2{ center.x - halfSize, center.y - halfSize },
+                ImVec2{ center.x + halfSize, center.y + halfSize },
+                iconColor,
+                rounding
+            );
+            break;
+        }
+        }
+
+        return isClicked;
+    }
+}
+
 EditorManager& EditorManager::Instance() noexcept
 {
     static EditorManager s_instance{};
@@ -35,14 +130,14 @@ void EditorManager::Initialize() noexcept
     ApplyStyle(); // Apply the custom theme
 }
 
-void EditorManager::Draw(Scene* currentScene) noexcept
+void EditorManager::Draw(Scene* currentScene, Camera* activeCamera) noexcept 
 {
     if constexpr (!s_isDebugMode) return;
 
-    DrawDockSpace();
+    DrawDockSpace(currentScene);
 
-    DrawSceneView();
-    DrawHierarchy();
+    DrawSceneView(currentScene, activeCamera);
+    DrawHierarchy(currentScene);
     DrawInspector(currentScene);
     DrawProfiler();
     DrawPostProcess(currentScene);
@@ -104,7 +199,7 @@ void EditorManager::ApplyStyle() const noexcept
     style.TabRounding = 2.0f;
 }
 
-void EditorManager::DrawDockSpace() noexcept
+void EditorManager::DrawDockSpace(Scene* currentScene) noexcept
 {
     const ImGuiViewport* viewport{ ImGui::GetMainViewport() };
     ImGui::SetNextWindowPos(viewport->WorkPos);
@@ -122,7 +217,8 @@ void EditorManager::DrawDockSpace() noexcept
     ImGui::Begin("EditorDockSpace", nullptr, windowFlags);
     ImGui::PopStyleVar(3);
 
-    DrawMenuBar();
+    // Pass the scene into the Menu Bar
+    DrawMenuBar(currentScene);
 
     const ImGuiID dockspaceId{ ImGui::GetID("MainDockSpace") };
 
@@ -139,14 +235,14 @@ void EditorManager::DrawDockSpace() noexcept
         ImGuiID dockMain{ dockspaceId };
         const ImGuiID dockLeft{ ImGui::DockBuilderSplitNode(dockMain, ImGuiDir_Left, 0.20f, nullptr, &dockMain) };
         const ImGuiID dockRight{ ImGui::DockBuilderSplitNode(dockMain, ImGuiDir_Right, 0.25f, nullptr, &dockMain) };
-        const ImGuiID dockBottom{ ImGui::DockBuilderSplitNode(dockMain, ImGuiDir_Down, 0.25f, nullptr, &dockMain) };
+        const ImGuiID dockBottom{ ImGui::DockBuilderSplitNode(dockMain, ImGuiDir_Down, 0.29f, nullptr, &dockMain) };
 
         // Snap the permanent windows to their assigned docks
         ImGui::DockBuilderDockWindow(s_windowSceneView, dockMain);
         ImGui::DockBuilderDockWindow(s_windowHierarchy, dockLeft);
         ImGui::DockBuilderDockWindow(s_windowInspector, dockRight);
         ImGui::DockBuilderDockWindow(s_windowConsole, dockBottom);
-        ImGui::DockBuilderDockWindow(s_windowProfiler, dockBottom); 
+        ImGui::DockBuilderDockWindow(s_windowProfiler, dockBottom);
         ImGui::DockBuilderDockWindow(s_windowPostProcess, dockBottom);
 
         ImGui::DockBuilderFinish(dockspaceId);
@@ -209,24 +305,49 @@ void EditorManager::EndSceneRender(ID3D11DeviceContext* context) noexcept
     context->OMSetRenderTargets(0, nullptr, nullptr);
 }
 
-void EditorManager::DrawSceneView() noexcept
+void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noexcept
 {
-    // Prevent the user from scrolling or collapsing this critical editor tab
     constexpr ImGuiWindowFlags windowFlags{
-        ImGuiWindowFlags_NoScrollbar |
-        ImGuiWindowFlags_NoCollapse
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse
     };
 
     ImGui::Begin(s_windowSceneView, nullptr, windowFlags);
 
-    // Sync Render Target to Logical Game Resolution
-    // By locking the texture to the game's actual window size instead of the dock size, 
-    // UI matrices and viewports align 1:1
+    // Embedded scene toolbar
+    constexpr ImVec2 buttonSize{ 34.0f, 22.0f };
+    const float totalToolbarWidth{ (buttonSize.x * 3.0f) + (ImGui::GetStyle().ItemSpacing.x * 2.0f) };
+
+    // Center the buttons horizontally based on the Scene View's current width
+    const float availWidth{ ImGui::GetContentRegionAvail().x };
+    ImGui::SetCursorPosX((availWidth * 0.5f) - (totalToolbarWidth * 0.5f));
+
+    // Play Button
+    if (DrawToolbarIconButton("##PlayBtn", ToolbarIcon::Play, m_editorMode == EditorMode::Play, ImVec4{ 0.2f, 0.7f, 0.2f, 1.0f }, buttonSize))
+    {
+        SetEditorMode(EditorMode::Play);
+    }
+
+    ImGui::SameLine();
+
+    // Pause Button
+    if (DrawToolbarIconButton("##PauseBtn", ToolbarIcon::Pause, m_editorMode == EditorMode::Pause, ImVec4{ 0.7f, 0.7f, 0.2f, 1.0f }, buttonSize))
+    {
+        SetEditorMode(EditorMode::Pause);
+    }
+
+    ImGui::SameLine();
+
+    // Stop Button
+    if (DrawToolbarIconButton("##StopBtn", ToolbarIcon::Stop, m_editorMode == EditorMode::Edit, ImVec4{ 0.7f, 0.2f, 0.2f, 1.0f }, buttonSize))
+    {
+        SetEditorMode(EditorMode::Edit);
+    }
+
+	// Scene texture rendering 
     const auto* mainWindow{ WindowManager::Instance().GetWindowByIndex(0) };
     const float gameWidth{ mainWindow ? static_cast<float>(mainWindow->GetWidth()) : 1920.0f };
     const float gameHeight{ mainWindow ? static_cast<float>(mainWindow->GetHeight()) : 1080.0f };
 
-    // Reallocate the DirectX render target ONLY if the game's logical resolution changed
     if (m_sceneWidth != gameWidth || m_sceneHeight != gameHeight)
     {
         m_sceneWidth = gameWidth;
@@ -234,10 +355,8 @@ void EditorManager::DrawSceneView() noexcept
         EnsureSceneRenderTarget(static_cast<UINT>(gameWidth), static_cast<UINT>(gameHeight));
     }
 
-    // Calculate Letterbox/Pillarbox for ImGui Display
     const ImVec2 availSize{ ImGui::GetContentRegionAvail() };
 
-    // EARLY OUT: Protect against minimized windows causing division-by-zero
     if (availSize.x <= 0.0f || availSize.y <= 0.0f)
     {
         ImGui::End();
@@ -252,47 +371,135 @@ void EditorManager::DrawSceneView() noexcept
 
     if (windowAspect > targetAspect)
     {
-        // Pillarbox: Window is too wide. Constrain width based on height.
         renderSize.x = availSize.y * targetAspect;
         cursorOffset.x = (availSize.x - renderSize.x) * 0.5f;
     }
     else
     {
-        // Letterbox: Window is too tall. Constrain height based on width.
         renderSize.y = availSize.x / targetAspect;
         cursorOffset.y = (availSize.y - renderSize.y) * 0.5f;
     }
 
-    // Shift the ImGui cursor to perfectly center the texture in the dock node
-    const ImVec2 cursorPos{ ImGui::GetCursorPos() };
-    ImGui::SetCursorPos(ImVec2{ cursorPos.x + cursorOffset.x, cursorPos.y + cursorOffset.y });
+    // Cache the exact screen coordinates before we shift the cursor to draw the image
+    ImVec2 screenCursorPos{ ImGui::GetCursorScreenPos() };
+    screenCursorPos.x += cursorOffset.x;
+    screenCursorPos.y += cursorOffset.y;
 
-    // Render the Texture
-    // ImGui automatically handles sampling and downscaling the 1080p SRV to the calculated renderSize
+    const ImVec2 originalCursorPos{ ImGui::GetCursorPos() };
+    ImGui::SetCursorPos(ImVec2{ originalCursorPos.x + cursorOffset.x, originalCursorPos.y + cursorOffset.y });
+
     if (m_sceneSRV)
     {
         ImGui::Image(reinterpret_cast<ImTextureID>(m_sceneSRV.Get()), renderSize);
     }
 
+
+	// Gizmo hotkeys (W, E, R) only work when the Scene View is focused or hovered
+    if ((ImGui::IsWindowFocused() || ImGui::IsWindowHovered()) && !ImGui::IsMouseDown(ImGuiMouseButton_Right))
+    {
+        // Standard Maya/Unity hotkeys
+        if (ImGui::IsKeyPressed(ImGuiKey_W)) m_gizmoOperation = ImGuizmo::TRANSLATE;
+        if (ImGui::IsKeyPressed(ImGuiKey_E)) m_gizmoOperation = ImGuizmo::ROTATE;
+        if (ImGui::IsKeyPressed(ImGuiKey_R)) m_gizmoOperation = ImGuizmo::SCALE;
+    }
+
+    // Gizmo Gating Pipeline
+    const bool isPlayMode{ m_editorMode == EditorMode::Play };
+    const bool hasSelection{ m_selectedObject != nullptr };
+    const bool isNotRoot{ currentScene && (m_selectedObject != currentScene->GetRootGameObject()) };
+
+    // Only draw the manipulator if all architectural conditions are met
+    if (activeCamera && hasSelection && isNotRoot && !isPlayMode)
+    {
+        ImGuizmo::SetDrawlist();
+        ImGuizmo::SetRect(screenCursorPos.x, screenCursorPos.y, renderSize.x, renderSize.y);
+
+        DirectX::XMFLOAT4X4 view{ activeCamera->GetView() };
+        DirectX::XMFLOAT4X4 proj{ activeCamera->GetProjection() };
+        DirectX::XMFLOAT4X4 objectMatrix{};
+        {
+            // Read directly from the public Transform struct to sync perfectly with the Inspector
+            const DirectX::XMFLOAT3 pos{ m_selectedObject->transform.position };
+            const DirectX::XMFLOAT3 rot{ m_selectedObject->transform.rotation };
+            const DirectX::XMFLOAT3 scl{ m_selectedObject->transform.scale };
+
+            const DirectX::XMMATRIX S{ DirectX::XMMatrixScaling(scl.x, scl.y, scl.z) };
+            const DirectX::XMMATRIX R{ DirectX::XMMatrixRotationRollPitchYaw(
+                DirectX::XMConvertToRadians(rot.x),
+                DirectX::XMConvertToRadians(rot.y),
+                DirectX::XMConvertToRadians(rot.z))
+            };
+            const DirectX::XMMATRIX T{ DirectX::XMMatrixTranslation(pos.x, pos.y, pos.z) };
+
+            DirectX::XMStoreFloat4x4(&objectMatrix, S * R * T);
+        }
+
+        ImGuizmo::Manipulate(&view._11, &proj._11, m_gizmoOperation, m_gizmoMode, &objectMatrix._11);
+
+        if (ImGuizmo::IsUsing())
+        {
+            float translation[3]{ 0.0f };
+            float rotation[3]{ 0.0f };
+            float scale[3]{ 0.0f };
+
+            ImGuizmo::DecomposeMatrixToComponents(&objectMatrix._11, translation, rotation, scale);
+
+            // Write directly to the Transform struct. 
+            // LegacyCharacterComponent automatically detects this change and pushes it to PhysX.
+            m_selectedObject->transform.position = { translation[0], translation[1], translation[2] };
+            m_selectedObject->transform.rotation = { rotation[0], rotation[1], rotation[2] };
+            m_selectedObject->transform.scale = { scale[0], scale[1], scale[2] };
+        }
+    }
+
     ImGui::End();
 }
 
-void EditorManager::DrawMenuBar() noexcept
+void EditorManager::DrawMenuBar(Scene* currentScene) noexcept
 {
     if (ImGui::BeginMenuBar())
     {
+        if (ImGui::BeginMenu("File"))
+        {
+            if (ImGui::MenuItem("Save Scene"))
+            {
+                if (currentScene)
+                {
+                    // Default to nullptrs for managers
+                    EnemyManager* enemyMgr{ nullptr };
+                    ItemManager* itemMgr{ nullptr };
+
+                    if (auto* gameScene{ dynamic_cast<SceneGame*>(currentScene) })
+                    {
+                        enemyMgr = gameScene->GetEnemyManager();
+                        itemMgr = gameScene->GetItemManager();
+                    }
+
+                    // Save the scene
+                    SceneSerializer::Save(
+                        currentScene->GetSceneSavePath(),
+                        currentScene->GetRootGameObject(),
+                        enemyMgr,
+                        itemMgr
+                    );
+                }
+                else
+                {
+                    Log::Error("Cannot save: No active scene loaded.");
+                }
+            }
+            ImGui::EndMenu();
+        }
+
         if (ImGui::BeginMenu("Scene"))
         {
-            // Swap to the Title when clicked
             if (ImGui::MenuItem("Title"))
             {
-                Framework::Instance()->ChangeScene(std::make_unique<SceneTitle>());
+                Framework::Instance()->ChangeScene([]() { return std::make_unique<SceneTitle>(); });
             }
-
-            // Swap to the Game when clicked
             if (ImGui::MenuItem("Game"))
             {
-                Framework::Instance()->ChangeScene(std::make_unique<SceneGame>());
+                Framework::Instance()->ChangeScene([]() { return std::make_unique<SceneGame>(); });
             }
 
             ImGui::EndMenu();
@@ -309,23 +516,178 @@ void EditorManager::DrawMenuBar() noexcept
         }
         if (ImGui::BeginMenu("Time")) { ImGui::EndMenu(); }
         if (ImGui::BeginMenu("Curve Manager")) { ImGui::EndMenu(); }
+
         ImGui::EndMenuBar();
     }
 }
 
-void EditorManager::DrawHierarchy() const noexcept
+void EditorManager::DrawHierarchyNode(GameObject* node) noexcept
 {
+    if (!node) return;
+
+    // Configure ImGui visual flags
+    ImGuiTreeNodeFlags flags{ ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_SpanAvailWidth };
+
+    if (m_selectedObject == node)
+    {
+        flags |= ImGuiTreeNodeFlags_Selected;
+    }
+
+    if (node->GetChildren().empty())
+    {
+        flags |= ImGuiTreeNodeFlags_Leaf;
+    }
+
+    // Draw the node
+    const bool isOpen{ ImGui::TreeNodeEx(static_cast<void*>(node), flags, "%s", node->GetName().c_str()) };
+
+    // Handle Selection Logic (Clicking)
+    if (ImGui::IsItemClicked() && !ImGui::IsItemToggledOpen())
+    {
+        m_selectedObject = node;
+    }
+
+    // If expanded, recurse through children
+    if (isOpen)
+    {
+        for (const auto& child : node->GetChildren())
+        {
+            DrawHierarchyNode(child.get());
+        }
+        ImGui::TreePop();
+    }
+}
+
+void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
+{
+    // If the object selected in the Inspector was destroyed this frame, clear it immediately
+    if (m_selectedObject && m_selectedObject->IsDestroyed())
+    {
+        m_selectedObject = nullptr;
+    }
+
     ImGui::Begin(s_windowHierarchy);
+
+    if (currentScene && currentScene->GetRootGameObject())
+    {
+        // "+ CREATE" Drop Down Menu
+        if (ImGui::Button("+ Create"))
+        {
+            ImGui::OpenPopup("CreateMenuPopup");
+        }
+
+        if (ImGui::BeginPopup("CreateMenuPopup"))
+        {
+            if (ImGui::MenuItem("Create Empty"))
+            {
+                currentScene->GetRootGameObject()->AddChild(std::make_unique<GameObject>("Empty"));
+            }
+
+            // Only show Gameplay Entities if we are currently editing the Game Scene
+            if (auto* gameScene{ dynamic_cast<SceneGame*>(currentScene) })
+            {
+                ImGui::Separator();
+                ImGui::TextDisabled("Gameplay Entities");
+
+                if (ImGui::BeginMenu("Enemy"))
+                {
+                    // Local lambda for enemies
+                    auto spawnEnemy = [&](EnemyType type, AttackType attack)
+                        {
+                            EnemySpawnConfig config{};
+                            config.Type = type;
+                            config.AttackBehavior = attack;
+                            config.Position = { 0.0f, 1.1f, 5.0f };
+                            config.Scale = { 1.0f, 1.0f, 1.0f };
+
+                            gameScene->GetEnemyManager()->SpawnEnemy(config);
+                        };
+
+                    if (ImGui::MenuItem("Mushroom (Idle)"))     spawnEnemy(EnemyType::MushroomNone, AttackType::None);
+                    if (ImGui::MenuItem("Mushroom (Turret)"))   spawnEnemy(EnemyType::MushroomStatic, AttackType::Static);
+                    ImGui::Separator();
+                    if (ImGui::MenuItem("Paddle"))              spawnEnemy(EnemyType::Paddle, AttackType::None);
+                    if (ImGui::MenuItem("Ball"))                spawnEnemy(EnemyType::Ball, AttackType::None);
+                    if (ImGui::MenuItem("FakeBoss"))            spawnEnemy(EnemyType::FakeBoss, AttackType::None);
+
+                    ImGui::EndMenu();
+                }
+
+                if (ImGui::BeginMenu("Item"))
+                {
+                    // Local lambda for items
+                    auto spawnItem = [&](ItemType type)
+                        {
+                            ItemSpawnData data{};
+                            data.Type = type;
+                            data.Position = { 0.0f, 0.4f, 5.0f };
+                            data.Scale = { 2.0f, 2.0f, 2.0f };
+
+                            gameScene->GetItemManager()->SpawnItem(data);
+                        };
+
+                    if (ImGui::MenuItem("Heal Potion"))     spawnItem(ItemType::Heal);
+                    if (ImGui::MenuItem("Invincibility"))   spawnItem(ItemType::Invincible);
+
+                    ImGui::EndMenu();
+                }
+            }
+
+            ImGui::EndPopup();
+        }
+
+        ImGui::Separator();
+
+        ImGui::PushStyleColor(ImGuiCol_Header, ImVec4{ 0.15f, 0.15f, 0.15f, 1.0f });
+        const bool isSceneNodeOpen{ ImGui::CollapsingHeader(currentScene->GetSceneName().data(), ImGuiTreeNodeFlags_DefaultOpen) };
+        ImGui::PopStyleColor();
+
+        if (isSceneNodeOpen)
+        {
+            // Iterate directly over top-level children, bypassing the SceneRoot node entirely
+            for (const auto& child : currentScene->GetRootGameObject()->GetChildren())
+            {
+                DrawHierarchyNode(child.get());
+            }
+        }
+    }
+    else
+    {
+        ImGui::TextDisabled("No Scene Loaded");
+    }
+
+    // Deselect if clicking on empty space in the hierarchy window
+    if (ImGui::IsWindowHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsAnyItemHovered())
+    {
+        m_selectedObject = nullptr;
+    }
+
     ImGui::End();
 }
 
-void EditorManager::DrawInspector(Scene* currentScene) const noexcept
+void EditorManager::DrawInspector(Scene* currentScene) noexcept
 {
     ImGui::Begin(s_windowInspector);
 
-    // Fallback protection: safely ignore if no scene is loaded
-    if (currentScene)
+    // If an object is selected in the Hierarchy, draw its GameObject Inspector
+    if (m_selectedObject)
     {
+        m_selectedObject->DrawInspector();
+    }
+    // Fallback: Deselected State (Scene Metadata & Level Settings View)
+    else if (currentScene)
+    {
+        ImGui::TextDisabled("SCENE PROPERTIES");
+        ImGui::Separator();
+        
+        ImGui::Text("Active Scene: %s", currentScene->GetSceneName().data());
+        ImGui::TextDisabled("Save Path: %s", currentScene->GetSceneSavePath().data());
+        ImGui::TextDisabled("PostProcess: %s", currentScene->GetPostProcessProfilePath().data());
+        
+        ImGui::Spacing();
+        ImGui::Separator();
+        
+        // Render custom per-scene debug settings without file operation buttons
         currentScene->DrawGUI();
     }
 

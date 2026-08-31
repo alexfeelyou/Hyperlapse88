@@ -8,6 +8,7 @@
 
 // Forward declaration
 class Camera;
+class Enemy;
 
 // Enum for easing transitions
 enum class EasingType {
@@ -76,6 +77,11 @@ public:
     void SetFixedYawOffset(float radians) { m_fixedYawOffset = radians; }
     void SetFixedRollOffset(float radians) { m_fixedRollOffset = radians; }
     void SetDynamicZoomOffset(float zoomOffset) { m_targetZoomOffset = zoomOffset; }
+
+    // Instantly teleports the camera to its mathematical target
+    // Used during scene loading and Edit -> Play transitions to prevent 
+    // the camera from violently swooping from the Editor position to the Player
+    void SnapToTarget();
 
     // Spline Settings
     void SetSplineTension(float tension) { m_splineTension = tension; }
@@ -156,6 +162,10 @@ private:
 
     float m_targetZoomOffset = 0.0f;
     float m_currentZoomOffset = 0.0f;
+
+    float m_targetZoom{ 0.0f };
+    int m_zoomFrameCounter{ 0 };
+    const Enemy* m_cachedClosestEnemy{ nullptr };
 
     // Settings
     float m_moveSpeed = 15.0f;

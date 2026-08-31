@@ -18,34 +18,33 @@ void Character::RenderDebug(const RenderContext& rc, ShapeRenderer* renderer)
 {
     if (!movement) return;
 
-    XMFLOAT3 pos = movement->GetPosition();
-    XMMATRIX T = XMMatrixTranslation(pos.x, pos.y, pos.z);
+    const XMFLOAT3 pos{ movement->GetPosition() };
+    const XMMATRIX T{ XMMatrixTranslation(pos.x, pos.y, pos.z) };
 
-    XMFLOAT3 rot = movement->GetRotation();
-    XMMATRIX R = XMMatrixRotationRollPitchYaw(rot.x, rot.y, rot.z);
+    const XMFLOAT3 rot{ movement->GetRotation() };
+    const XMMATRIX R{ XMMatrixRotationRollPitchYaw(rot.x, rot.y, rot.z) };
 
-    XMFLOAT4X4 transform;
+    XMFLOAT4X4 transform{};
     XMStoreFloat4x4(&transform, R * T);
 
-    renderer->DrawCapsule(transform, 0.5f, 1.6f, { 0, 1, 0, 1 });
+    renderer->DrawCapsule(transform, 0.5f, 1.6f, { 0.0f, 1.0f, 0.0f, 1.0f });
 }
 
-void Character::SyncData()
+void Character::SyncData() noexcept
 {
     if (!model || model->GetNodes().empty()) return;
 
-    Model::Node& rootNode = model->GetNodes().at(0);
+    Model::Node& rootNode{ model->GetNodes().front() };
 
-    // Sync position, rotation, and scale from movement state to model root node
     rootNode.position = movement->GetPosition();
 
-    XMFLOAT3 rot = movement->GetRotation();
-    XMVECTOR qRot = XMQuaternionRotationRollPitchYaw(rot.x, rot.y, rot.z);
+    const XMFLOAT3 rot{ movement->GetRotation() };
+    const XMVECTOR qRot{ XMQuaternionRotationRollPitchYaw(rot.x, rot.y, rot.z) };
     XMStoreFloat4(&rootNode.rotation, qRot);
 
     rootNode.scale = scale;
 
-    XMFLOAT4X4 identity;
+    XMFLOAT4X4 identity{};
     XMStoreFloat4x4(&identity, XMMatrixIdentity());
     model->UpdateTransform(identity);
 }

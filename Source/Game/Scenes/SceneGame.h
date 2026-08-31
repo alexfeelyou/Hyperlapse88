@@ -21,20 +21,25 @@
 #include "Enemy.h"
 #include "EnemyManager.h"
 #include "Framework.h"
+#include "GameObject.h"             
 #include "ItemManager.h"
+#include "LegacyCharacterComponent.h"
 #include "PhysXUtils.h"
 #include "PostProcessManager.h"
 #include "Primitive.h"
 #include "NaviAlly.h"
 #include "Player.h"
 #include "PlayerStates.h"
+#include "SceneSerializer.h"
 #include "Stage.h"
+#include "StageComponent.h"
 #include "UIDialogueBox.h"
 #include "UIPause.h"
 
 // Forward Declarations
 class Camera;
 class CollisionManager;
+class Enemy;
 class EnemyManager;
 class GameBreakerGUI;
 class ItemManager;
@@ -44,6 +49,8 @@ class PostProcessManager;
 class Primitive;
 class Stage;
 class UIPause;
+
+enum class EditorMode : std::uint8_t;
 
 class SceneGame : public Scene
 {
@@ -63,11 +70,26 @@ public:
     Camera* GetMainCamera() const { return m_mainCamera.get(); }
     [[nodiscard]] PostProcessManager* GetPostProcessManager() const noexcept override { return m_postProcess.get(); }
 
+	// Assign unique JSON save path for the Game Screen
+    [[nodiscard]] std::string_view GetSceneSavePath() const noexcept override
+    {
+        return "Data/Scenes/Scene_Game.json"; // or "Data/Scenes/Stage_01.json"
+    }
+
     // Assign unique JSON profile for the Game Screen
     [[nodiscard]] std::string_view GetPostProcessProfilePath() const noexcept override
     {
         return "Data/Config/PostProcess_Game.json";
     }
+
+    // Assign unique name identifier for the Editor Hierarchy
+    [[nodiscard]] std::string_view GetSceneName() const noexcept override
+    {
+        return "Scene_Game";
+    }
+
+    [[nodiscard]] EnemyManager* GetEnemyManager() const noexcept { return m_enemyManager.get(); }
+    [[nodiscard]] ItemManager* GetItemManager() const noexcept { return m_itemManager.get(); }
 
 private:
     struct Config {
@@ -122,6 +144,11 @@ private:
     std::unique_ptr<physx::PxMaterial, PhysXDeleter> m_defaultMaterial{};
     std::unique_ptr<physx::PxRigidStatic, PhysXDeleter> m_groundPlane{};
 
+    // Editor state tracking
+    EditorMode m_lastEditorMode{};
+    DirectX::XMFLOAT3 m_cachedEditorCamPos{ 0.0f, 18.0f, -14.0f };
+    DirectX::XMFLOAT3 m_cachedEditorCamRot{ 0.0f, 0.0f, 0.0f };
+
 	// Pause & Exit to Title
     bool m_isPaused{ false };
     bool m_isExitingToTitle{ false };
@@ -149,7 +176,6 @@ private:
 
     bool m_hasIntroDialogueTestStarted{ false };
     bool m_hasTriggeredMushroomDialogue{ false };
-    bool m_hasTriggeredTrackingDialogue{ false };
     bool m_bossDialogueStarted{ false };
     bool m_hasTriggeredPoisonDialogue{ false };
     bool m_isPoisonDialogueActive{ false };
@@ -168,7 +194,7 @@ private:
     static constexpr float FX_BLACK_SMOOTHNESS{ 7.0f };
     static constexpr float FX_BLACK_INTENSITY{ 5.0f };
 
-    const DirectX::XMFLOAT3 m_playerSpawnPos{ 0.0f, 2.0f, 0.0f };
+    DirectX::XMFLOAT3 m_playerSpawnPos{ 0.0f, 0.0f, 0.0f };
 
     void StartPlayerDeathSequence();
     void StartNaviDefeatSequence();
@@ -176,12 +202,10 @@ private:
     void UpdateDialogue(float elapsedTime);
     void RenderDialogue();
     void StartMushroomDialogue();
-    void StartTrackingDialogue();
     void StartPoisonDialogue();
     void ResetLevel();
 
     // Cinematic States
-    bool AreTrackingEnemiesDead() const;
     class Enemy* GetFakeBoss() const;
     void StartBossCinematic();
 
@@ -201,4 +225,8 @@ private:
     DirectX::XMFLOAT3 m_fakeBossEffectRotation{ 0.000f, 25.000f, 0.000f };
     DirectX::XMFLOAT3 m_cinematicStartTarget{ 0.0f, 0.0f, 0.0f };
     DirectX::XMFLOAT3 m_cinematicEndTarget{ 0.0f, 0.0f, 0.0f };
+
+    float m_targetZoom{ 0.0f };
+    int m_zoomFrameCounter{ 0 };
+    const Enemy* m_cachedClosestEnemy{ nullptr };
 };

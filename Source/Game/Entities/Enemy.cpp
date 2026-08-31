@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "Enemy.h"
 
 using namespace DirectX;
@@ -10,14 +11,14 @@ Enemy::Enemy(ID3D11Device* device, const char* filePath, XMFLOAT3 startPos, XMFL
     Reinitialize(device, filePath, startPos, startRot, startColor, type, attackType, minX, maxX, minZ, maxZ, dir);
 }
 
-float Enemy::GetRandomFloat(float min, float max)
+float Enemy::GetRandomFloat(float min, float max) noexcept
 {
-    float random = ((float)rand()) / (float)RAND_MAX;
-    float range = max - min;
+    const float random{ static_cast<float>(rand()) / static_cast<float>(RAND_MAX) };
+    const float range{ max - min };
     return (random * range) + min;
 }
 
-Enemy::~Enemy() {}
+Enemy::~Enemy() = default;
 
 void Enemy::Update(float elapsedTime, Camera* camera)
 {
@@ -30,7 +31,7 @@ void Enemy::Update(float elapsedTime, Camera* camera)
 
     if (m_attackType == AttackType::TrackingHorizontal)
     {
-        XMFLOAT3 pos = movement->GetPosition();
+        XMFLOAT3 pos{ movement->GetPosition() };
         pos.x += m_currentSpeed * elapsedTime;
 
         if (pos.x >= m_patrolMaxX)
@@ -47,10 +48,10 @@ void Enemy::Update(float elapsedTime, Camera* camera)
     }
     else if (m_attackType == AttackType::TrackingRandom)
     {
-        XMFLOAT3 pos = movement->GetPosition();
-        float dx = m_randomTargetPos.x - pos.x;
-        float dz = m_randomTargetPos.z - pos.z;
-        float distSq = dx * dx + dz * dz;
+        XMFLOAT3 pos{ movement->GetPosition() };
+        const float dx{ m_randomTargetPos.x - pos.x };
+        const float dz{ m_randomTargetPos.z - pos.z };
+        const float distSq{ (dx * dx) + (dz * dz) };
 
         if (distSq < 0.1f)
         {
@@ -59,33 +60,24 @@ void Enemy::Update(float elapsedTime, Camera* camera)
             m_randomTargetPos.y = pos.y;
         }
 
-        XMVECTOR vPos = XMLoadFloat3(&pos);
-        XMVECTOR vTarget = XMLoadFloat3(&m_randomTargetPos);
-        XMVECTOR vDir = XMVectorSubtract(vTarget, vPos);
+        const XMVECTOR vPos{ XMLoadFloat3(&pos) };
+        const XMVECTOR vTarget{ XMLoadFloat3(&m_randomTargetPos) };
+        XMVECTOR vDir{ XMVectorSubtract(vTarget, vPos) };
+
         vDir = XMVector3Normalize(vDir);
-        XMVECTOR vOffset = vDir * m_baseMoveSpeed * elapsedTime;
-        XMVECTOR vNewPos = XMVectorAdd(vPos, vOffset);
+
+        const XMVECTOR vOffset{ vDir * m_baseMoveSpeed * elapsedTime };
+        const XMVECTOR vNewPos{ XMVectorAdd(vPos, vOffset) };
+
         XMStoreFloat3(&pos, vNewPos);
         movement->SetPosition(pos);
     }
 
     UpdateProjectiles(elapsedTime, camera);
 
-    XMFLOAT3 pos = movement->GetPosition();
-    XMFLOAT3 rot = movement->GetRotation();
-
-    XMMATRIX S = XMMatrixScaling(m_scale.x, m_scale.y, m_scale.z);
-    XMMATRIX R = XMMatrixRotationRollPitchYaw(
-        XMConvertToRadians(rot.x),
-        XMConvertToRadians(rot.y),
-        XMConvertToRadians(rot.z)
-    );
-    XMMATRIX T = XMMatrixTranslation(pos.x, pos.y, pos.z);
-
-    XMFLOAT4X4 worldMatrix;
-    XMStoreFloat4x4(&worldMatrix, S * R * T);
-
-    if (m_model) m_model->UpdateTransform(worldMatrix);
+    // Route visual tracking through the base SyncData architecture instead to perfectly match 
+    // the LegacyCharacterComponent rendering path used by the Editor Gizmo
+    SyncData();
 }
 
 void Enemy::UpdateTracking(float elapsedTime, Camera* camera, const DirectX::XMFLOAT3& playerPos, bool allowAttack)
@@ -112,174 +104,116 @@ void Enemy::UpdateAttackLogic(float elapsedTime, Camera* camera, const DirectX::
 
     if (distSq > activationDistSq)
     {
-        // If the player escapes the radius, reset the timer
-        // This forces the enemy to do the slow "creep" phase again next time
-        if (m_attackType == AttackType::Tracking) m_aggroTimer = 0.0f;
-        return;
+        return; 
     }
 
-	// Physics and movement logic for tracking enemies
+    // Physics and movement logic for tracking enemies
     const bool isTrackingType{
-        m_attackType == AttackType::Tracking ||
         m_attackType == AttackType::TrackingHorizontal ||
         m_attackType == AttackType::TrackingRandom
     };
 
     if (isTrackingType)
     {
-		// Rotate to face the player (only on the Y-axis)
+        // Rotate to face the player (only on the Y-axis)
         const float targetYawRad{ std::atan2(dx, dz) };
         const float targetYawDeg{ DirectX::XMConvertToDegrees(targetYawRad) };
         movement->SetRotation({ 0.0f, targetYawDeg, 0.0f });
-
-		// Move towards the player if it's a tracking type enemy
-        if (m_attackType == AttackType::Tracking && m_baseMoveSpeed > 0.0f)
-        {
-            constexpr float MELEE_STOPPING_DIST_SQ{ 0.1f * 0.1f };
-
-            if (distSq > MELEE_STOPPING_DIST_SQ)
-            {
-                // Tick the Aggro Timer up every frame it chases the player
-                m_aggroTimer += elapsedTime;
-
-                constexpr float CREEP_TIME{ 3.0f };          // How many seconds it stays slow
-                constexpr float CREEP_SPEED{ 1.5f };         // Slow, scary walking speed
-				constexpr float HILARIOUS_MAX_SPEED{ 14.5f };// The speed cap to prevent physics engine breakage
-                constexpr float RAMP_UP_RATE{ 18.0f };       // Acceleration multiplier
-
-                float currentSpeed{ 0.0f };
-
-                if (m_aggroTimer < CREEP_TIME)
-                {
-                    // PHASE 1: The Creeping Doom
-                    currentSpeed = CREEP_SPEED;
-                }
-                else
-                {
-                    // PHASE 2: The Explosive Sprint
-                    // Calculate how many seconds have passed since it got mad
-                    const float timeSprint{ m_aggroTimer - CREEP_TIME };
-
-                    // Linear Ramp: Speed = Base + (Time * Acceleration)
-                    currentSpeed = CREEP_SPEED + (timeSprint * RAMP_UP_RATE);
-
-                    // Cap the speed so it doesn't break the physics engine
-                    currentSpeed = (std::min)(currentSpeed, HILARIOUS_MAX_SPEED);
-                }
-
-                // Apply the terrifying speed to movement
-                const float dist{ std::sqrt(distSq) };
-                DirectX::XMFLOAT3 pos{ movement->GetPosition() };
-
-                pos.x += (dx / dist) * currentSpeed * elapsedTime;
-                pos.z += (dz / dist) * currentSpeed * elapsedTime;
-
-                movement->SetPosition(pos);
-            }
-            else
-            {
-
-            }
-        }
     }
 
-	// Fire projectiles if the enemy is not a tracking type 
-    if (m_attackType != AttackType::Tracking)
+    // Fire projectiles if the enemy is not a tracking type 
+    m_attackTimer += elapsedTime;
+    if (m_attackTimer >= m_fireRate)
     {
-        m_attackTimer += elapsedTime;
+        m_attackTimer = 0.0f;
 
-        if (m_attackTimer >= m_fireRate)
+        if (m_attackType == AttackType::RadialBurst)
         {
-            m_attackTimer = 0.0f;
+            constexpr int projectileCount{ 8 };
+            const float angleStep{ DirectX::XM_2PI / static_cast<float>(projectileCount) };
 
-            if (m_attackType == AttackType::RadialBurst)
+            for (int i{ 0 }; i < projectileCount; ++i)
             {
-                constexpr int projectileCount{ 8 };
-                const float angleStep{ DirectX::XM_2PI / static_cast<float>(projectileCount) };
+                const float currentAngle{ i * angleStep };
+                const float dirX{ std::sin(currentAngle) };
+                const float dirZ{ std::cos(currentAngle) };
+                const DirectX::XMFLOAT3 burstDir{ dirX, 0.0f, dirZ };
 
-                for (int i{ 0 }; i < projectileCount; ++i)
-                {
-                    const float currentAngle{ i * angleStep };
-                    const float dirX{ std::sin(currentAngle) };
-                    const float dirZ{ std::cos(currentAngle) };
-                    const DirectX::XMFLOAT3 burstDir{ dirX, 0.0f, dirZ };
-
-                    const DirectX::XMFLOAT3 spawnPos{
-                        myPos.x + (dirX * 1.0f),
-                        myPos.y,
-                        myPos.z + (dirZ * 1.0f)
-                    };
-
-                    // Implement zero-cost Object Pool for Burst
-                    bool bulletRecycled{ false };
-                    for (auto& bullet : m_projectiles)
-                    {
-                        if (!bullet->IsActive())
-                        {
-                            bullet->Fire(spawnPos, burstDir, m_projectileSpeed);
-                            bulletRecycled = true;
-                            break;
-                        }
-                    }
-
-                    if (!bulletRecycled)
-                    {
-                        auto newBullet{ std::make_unique<Bullet>() };
-                        newBullet->Fire(spawnPos, burstDir, m_projectileSpeed);
-                        m_projectiles.push_back(std::move(newBullet));
-                    }
-                }
-            }
-            else
-            {
-                DirectX::XMFLOAT3 fwd{ 0.0f, 0.0f, 1.0f };
-
-                // Calculate exact 3D trajectory
-                const float aimDx{ targetPos.x - myPos.x };
-                const float aimDy{ targetPos.y - myPos.y };
-                const float aimDz{ targetPos.z - myPos.z };
-                const float aimDistSq{ (aimDx * aimDx) + (aimDy * aimDy) + (aimDz * aimDz) };
-
-                // If the player and enemy perfectly overlap, math divides by zero and crashes the engine
-                if (aimDistSq > 0.0001f)
-                {
-                    const float aimDist{ std::sqrt(aimDistSq) };
-                    fwd = { aimDx / aimDist, aimDy / aimDist, aimDz / aimDist };
-                }
-                else
-                {
-                    fwd = GetForwardVector(); // Safe fallback if they are perfectly overlapping
-                }
-
-                // Calculate Spawn Position safely
                 const DirectX::XMFLOAT3 spawnPos{
-                    myPos.x + (fwd.x * SPAWN_OFFSET_FWD),
-                    myPos.y + SPAWN_OFFSET_Y,
-                    myPos.z + (fwd.z * SPAWN_OFFSET_FWD)
+                    myPos.x + (dirX * 1.0f),
+                    myPos.y,
+                    myPos.z + (dirZ * 1.0f)
                 };
 
-                // Recycle old bullets instead of 'new/delete' thrashing the CPU memory heap
+                // Implement zero-cost Object Pool for Burst
                 bool bulletRecycled{ false };
                 for (auto& bullet : m_projectiles)
                 {
                     if (!bullet->IsActive())
                     {
-                        bullet->Fire(spawnPos, fwd, m_projectileSpeed);
+                        bullet->Fire(spawnPos, burstDir, m_projectileSpeed);
                         bulletRecycled = true;
-                        break; // Instant exit
+                        break;
                     }
                 }
 
                 if (!bulletRecycled)
                 {
                     auto newBullet{ std::make_unique<Bullet>() };
-                    newBullet->Fire(spawnPos, fwd, m_projectileSpeed);
+                    newBullet->Fire(spawnPos, burstDir, m_projectileSpeed);
                     m_projectiles.push_back(std::move(newBullet));
+                }
+            }
+        }
+        else
+        {
+            DirectX::XMFLOAT3 fwd{ 0.0f, 0.0f, 1.0f };
 
-                    if (m_projectiles.size() > static_cast<size_t>(MAX_PROJECTILES))
-                    {
-                        m_projectiles.pop_front();
-                    }
+            // Calculate exact 3D trajectory
+            const float aimDx{ targetPos.x - myPos.x };
+            const float aimDy{ targetPos.y - myPos.y };
+            const float aimDz{ targetPos.z - myPos.z };
+            const float aimDistSq{ (aimDx * aimDx) + (aimDy * aimDy) + (aimDz * aimDz) };
+
+            // If the player and enemy perfectly overlap, math divides by zero and crashes the engine
+            if (aimDistSq > 0.0001f)
+            {
+                const float aimDist{ std::sqrt(aimDistSq) };
+                fwd = { aimDx / aimDist, aimDy / aimDist, aimDz / aimDist };
+            }
+            else
+            {
+                fwd = GetForwardVector(); // Safe fallback if they are perfectly overlapping
+            }
+
+            // Calculate Spawn Position safely
+            const DirectX::XMFLOAT3 spawnPos{
+                myPos.x + (fwd.x * SPAWN_OFFSET_FWD),
+                myPos.y + SPAWN_OFFSET_Y,
+                myPos.z + (fwd.z * SPAWN_OFFSET_FWD)
+            };
+
+            // Recycle old bullets instead of 'new/delete' thrashing the CPU memory heap
+            bool bulletRecycled{ false };
+            for (auto& bullet : m_projectiles)
+            {
+                if (!bullet->IsActive())
+                {
+                    bullet->Fire(spawnPos, fwd, m_projectileSpeed);
+                    bulletRecycled = true;
+                    break; // Instant exit
+                }
+            }
+
+            if (!bulletRecycled)
+            {
+                auto newBullet{ std::make_unique<Bullet>() };
+                newBullet->Fire(spawnPos, fwd, m_projectileSpeed);
+                m_projectiles.push_back(std::move(newBullet));
+
+                if (m_projectiles.size() > static_cast<size_t>(MAX_PROJECTILES))
+                {
+                    m_projectiles.pop_front();
                 }
             }
         }
@@ -305,14 +239,16 @@ void Enemy::UpdateAttackLogic(float elapsedTime, Camera* camera, const DirectX::
     }
 }
 
-DirectX::XMFLOAT3 Enemy::GetForwardVector() const
+DirectX::XMFLOAT3 Enemy::GetForwardVector() const noexcept
 {
-    XMFLOAT3 rot = movement->GetRotation();
-    float yawRad = XMConvertToRadians(rot.y);
-    float pitchRad = XMConvertToRadians(rot.x);
-    float x = sinf(yawRad) * cosf(pitchRad);
-    float y = -sinf(pitchRad);
-    float z = cosf(yawRad) * cosf(pitchRad);
+    const XMFLOAT3 rot{ movement->GetRotation() };
+    const float yawRad{ XMConvertToRadians(rot.y) };
+    const float pitchRad{ XMConvertToRadians(rot.x) };
+    
+    const float x{ std::sin(yawRad) * std::cos(pitchRad) };
+    const float y{ -std::sin(pitchRad) };
+    const float z{ std::cos(yawRad) * std::cos(pitchRad) };
+    
     return { x, y, z };
 }
 
@@ -328,13 +264,15 @@ void Enemy::Reinitialize(ID3D11Device* device, const char* filePath, const Direc
     m_type = type;
     m_attackType = attackType;
     m_baseColor = startColor;
-    m_scale = DirectX::XMFLOAT3{ 1.0f, 1.0f, 1.0f };
+
+    // Assign to inherited Character::scale
+    scale = DirectX::XMFLOAT3{ 1.0f, 1.0f, 1.0f };
 
     // Reset Transforms & Patrols
     movement->SetPosition(startPos);
     movement->SetRotation(startRot);
-    originalPosition = startPos;
-    originalRotation = startRot;
+    m_originalPosition = startPos;
+    m_originalRotation = startRot;
 
     m_patrolMinX = startPos.x + minX;
     m_patrolMaxX = startPos.x + maxX;
@@ -347,13 +285,12 @@ void Enemy::Reinitialize(ID3D11Device* device, const char* filePath, const Direc
     else if (dir == MoveDir::Left)  m_currentSpeed = m_baseMoveSpeed;
     else                            m_currentSpeed = 0.0f;
 
-	// Reset Gameplay State
-    m_projectiles.clear(); 
+    // Reset Gameplay State
+    m_projectiles.clear();
     m_attackTimer = 0.0f;
-    m_aggroTimer = 0.0f;
     m_blinkTimer = 0.0f;
     m_lifeTime = 0.0f;
-    m_hp = 30; 
+    m_hp = 30;
     m_isHighlighted = false;
     m_isActive = true;
 }
@@ -425,7 +362,7 @@ void Enemy::RenderDebugProjectiles(ShapeRenderer* renderer)
     }*/
 }
 
-DirectX::XMFLOAT4 Enemy::GetRenderColor() const
+DirectX::XMFLOAT4 Enemy::GetRenderColor() const noexcept
 {
     // If the enemy just got hit, flash HDR White instantly
     if (m_blinkTimer > 0.0f)
@@ -455,22 +392,22 @@ DirectX::XMFLOAT4 Enemy::GetRenderColor() const
     return m_baseColor;
 }
 
-void Enemy::SetPatrolLimitsX(float minOffset, float maxOffset)
+void Enemy::SetPatrolLimitsX(float minOffset, float maxOffset) noexcept
 {
-    m_patrolMinX = originalPosition.x + minOffset;
-    m_patrolMaxX = originalPosition.x + maxOffset;
+    m_patrolMinX = m_originalPosition.x + minOffset;
+    m_patrolMaxX = m_originalPosition.x + maxOffset;
 }
 
-void Enemy::SetPatrolLimitsZ(float minOffset, float maxOffset)
+void Enemy::SetPatrolLimitsZ(float minOffset, float maxOffset) noexcept
 {
-    m_patrolMinZ = originalPosition.z + minOffset;
-    m_patrolMaxZ = originalPosition.z + maxOffset;
+    m_patrolMinZ = m_originalPosition.z + minOffset;
+    m_patrolMaxZ = m_originalPosition.z + maxOffset;
 }
 
-void Enemy::UpdateOriginalTransform(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& rot)
+void Enemy::UpdateOriginalTransform(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& rot) noexcept
 {
-    originalPosition = pos;
-    originalRotation = rot;
+    m_originalPosition = pos;
+    m_originalRotation = rot;
 
     if (!m_isActive)
     {
@@ -489,7 +426,7 @@ void Enemy::TakeDamage(int damage)
     static const std::string HIT_SFX_PATH{ "Data/Sound/SE_Enemy_Hit.wav" };
     AudioManager::Instance().PlaySFX(HIT_SFX_PATH, 0.6f);
 
-	// Play visual effect
+    // Play visual effect
     EffectManager::Instance().Play("Data/Effect/Hit.efk", GetPosition(), 1.0f);
 
     if (m_hp <= 0)
@@ -499,8 +436,8 @@ void Enemy::TakeDamage(int damage)
     }
 }
 
-void Enemy::SetPosition(const DirectX::XMFLOAT3& pos) { movement->SetPosition(pos); }
-void Enemy::SetRotation(const DirectX::XMFLOAT3& rot) { movement->SetRotation(rot); }
+void Enemy::SetPosition(const DirectX::XMFLOAT3& pos) noexcept { movement->SetPosition(pos); }
+void Enemy::SetRotation(const DirectX::XMFLOAT3& rot) noexcept { movement->SetRotation(rot); }
 
-DirectX::XMFLOAT3 Enemy::GetPosition() const { return movement->GetPosition(); }
-DirectX::XMFLOAT3 Enemy::GetRotation() const { return movement->GetRotation(); }
+DirectX::XMFLOAT3 Enemy::GetPosition() const noexcept { return movement->GetPosition(); }
+DirectX::XMFLOAT3 Enemy::GetRotation() const noexcept { return movement->GetRotation(); }

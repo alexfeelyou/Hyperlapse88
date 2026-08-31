@@ -1,9 +1,5 @@
 #pragma once
 
-#include "Bullet.h"
-#include "Character.h"
-#include "EffectManager.h"
-#include "EnemyManager.h"
 #include <cmath>
 #include <deque>
 #include <DirectXMath.h>
@@ -13,126 +9,127 @@
 #include "System/AudioManager.h"
 #include "System/Model.h"
 #include "System/ShapeRenderer.h"
+#include "Bullet.h"
+#include "Character.h"
+#include "EffectManager.h"
+#include "EnemyManager.h"
 
 enum class EnemyType;
 enum class AttackType;
 enum class MoveDir;
 
 class ShapeRenderer;
-class Enemy : public Character
+
+class Enemy final : public Character
 {
 public:
     Enemy(ID3D11Device* device, const char* filePath, DirectX::XMFLOAT3 startPos, DirectX::XMFLOAT3 startRot,
         DirectX::XMFLOAT4 startColor, EnemyType type, AttackType attackType,
         float minX = 0.0f, float maxX = 0.0f,
-        float minZ = 0.0f, float maxZ = 0.0f, MoveDir dir = (MoveDir)0);
+        float minZ = 0.0f, float maxZ = 0.0f, MoveDir dir = MoveDir::None);
     ~Enemy() override;
 
     void Update(float elapsedTime, Camera* camera) override;
     void UpdateTracking(float elapsedTime, Camera* camera, const DirectX::XMFLOAT3& playerPos, bool allowAttack = true);
     void UpdateProjectiles(float elapsedTime, Camera* camera);
-    void SetActive(bool active) { m_isActive = active; }
-    void SetHighlight(bool highlight) { m_isHighlighted = highlight; }
-    void UpdateOriginalTransform(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& rot);
-    void SetBaseMoveSpeed(float speed) { m_baseMoveSpeed = speed; }
-    void SetMoveDir(MoveDir dir) { m_moveDir = dir; }
-    void SetPatrolLimitsX(float minOffset, float maxOffset);
-    void SetPatrolLimitsZ(float minOffset, float maxOffset);
-    void SetPosition(const DirectX::XMFLOAT3& pos);
-    void SetRotation(const DirectX::XMFLOAT3& rot);
+
+    void SetActive(bool active) noexcept { m_isActive = active; }
+    void SetHighlight(bool highlight) noexcept { m_isHighlighted = highlight; }
+    void UpdateOriginalTransform(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& rot) noexcept;
+
+    void SetBaseMoveSpeed(float speed) noexcept { m_baseMoveSpeed = speed; }
+    void SetMoveDir(MoveDir dir) noexcept { m_moveDir = dir; }
+    void SetPatrolLimitsX(float minOffset, float maxOffset) noexcept;
+    void SetPatrolLimitsZ(float minOffset, float maxOffset) noexcept;
+
+    void SetPosition(const DirectX::XMFLOAT3& pos) noexcept override;
+    void SetRotation(const DirectX::XMFLOAT3& rot) noexcept override;
+
     void Reinitialize(ID3D11Device* device, const char* filePath, const DirectX::XMFLOAT3& startPos,
         const DirectX::XMFLOAT3& startRot, const DirectX::XMFLOAT4& startColor,
         EnemyType type, AttackType attackType, float minX, float maxX,
         float minZ, float maxZ, MoveDir dir);
+
     void RenderDebugProjectiles(ShapeRenderer* renderer);
     void RenderProjectiles(ModelRenderer* renderer);
 
-    DirectX::XMFLOAT3 GetPosition() const;
-    DirectX::XMFLOAT3 GetRotation() const;
-    [[nodiscard]] DirectX::XMFLOAT4 GetRenderColor() const;
-    [[nodiscard]] DirectX::XMFLOAT4 GetBaseColor() const { return m_baseColor; }
-    [[nodiscard]] DirectX::XMFLOAT4& GetMutableBaseColor() { return m_baseColor; }
-    DirectX::XMFLOAT3 GetOriginalPosition() const { return originalPosition; }
-    DirectX::XMFLOAT3 GetOriginalRotation() const { return originalRotation; }
+    [[nodiscard]] DirectX::XMFLOAT3 GetPosition() const noexcept;
+    [[nodiscard]] DirectX::XMFLOAT3 GetRotation() const noexcept;
+    [[nodiscard]] DirectX::XMFLOAT4 GetRenderColor() const noexcept;
+    [[nodiscard]] DirectX::XMFLOAT4 GetBaseColor() const noexcept { return m_baseColor; }
+    [[nodiscard]] DirectX::XMFLOAT4& GetMutableBaseColor() noexcept { return m_baseColor; }
+    [[nodiscard]] DirectX::XMFLOAT3 GetOriginalPosition() const noexcept { return m_originalPosition; }
+    [[nodiscard]] DirectX::XMFLOAT3 GetOriginalRotation() const noexcept { return m_originalRotation; }
 
-    EnemyType GetType() const { return m_type; }
-    std::shared_ptr<Model> GetModel() const { return m_model; }
+    [[nodiscard]] EnemyType GetType() const noexcept { return m_type; }
+    [[nodiscard]] std::shared_ptr<Model> GetModel() const noexcept { return m_model; }
+    [[nodiscard]] AttackType GetAttackType() const noexcept { return m_attackType; }
+    [[nodiscard]] std::deque<std::unique_ptr<Bullet>>& GetProjectiles() noexcept { return m_projectiles; }
 
-    AttackType GetAttackType() const { return m_attackType; }
-    std::deque<std::unique_ptr<Bullet>>& GetProjectiles() { return m_projectiles; }
+    [[nodiscard]] bool IsActive() const noexcept override { return m_isActive; }
+    [[nodiscard]] bool IsHighlighted() const noexcept { return m_isHighlighted; }
 
-    bool IsActive() const { return m_isActive; }
-    bool IsHighlighted() const { return m_isHighlighted; }
+    [[nodiscard]] float GetMinX() const noexcept { return m_patrolMinX - m_originalPosition.x; }
+    [[nodiscard]] float GetMaxX() const noexcept { return m_patrolMaxX - m_originalPosition.x; }
+    [[nodiscard]] float GetMinZ() const noexcept { return m_patrolMinZ - m_originalPosition.z; }
+    [[nodiscard]] float GetMaxZ() const noexcept { return m_patrolMaxZ - m_originalPosition.z; }
+    [[nodiscard]] MoveDir GetMoveDir() const noexcept { return m_moveDir; }
 
-    float GetMinX() const { return m_patrolMinX - originalPosition.x; }
-    float GetMaxX() const { return m_patrolMaxX - originalPosition.x; }
-    float GetMinZ() const { return m_patrolMinZ - originalPosition.z; }
-    float GetMaxZ() const { return m_patrolMaxZ - originalPosition.z; }
-    MoveDir GetMoveDir() const { return m_moveDir; }
-
-    void SetScale(const DirectX::XMFLOAT3& scale) { m_scale = scale; }
-    DirectX::XMFLOAT3 GetScale() const { return m_scale; }
+    // Map directly to the inherited Character::scale variable
+    void SetScale(const DirectX::XMFLOAT3& scl) noexcept { scale = scl; }
+    [[nodiscard]] DirectX::XMFLOAT3 GetScale() const noexcept { return scale; }
 
     void TakeDamage(int damage);
-    void SetMaxHP(int hp) { m_hp = hp; }
-    [[nodiscard]] int GetHP() const { return m_hp; }
+    void SetMaxHP(int hp) noexcept { m_hp = hp; }
+    [[nodiscard]] int GetHP() const noexcept { return m_hp; }
 
-    void SetInvincible(bool invincible) { m_isInvincible = invincible; }
-    [[nodiscard]] bool IsInvincible() const { return m_isInvincible; }
-
-    void SetKilledPlayer(bool k) { m_killedPlayer = k; }
-    bool HasKilledPlayer() const { return m_killedPlayer; }
+    void SetInvincible(bool invincible) noexcept { m_isInvincible = invincible; }
+    [[nodiscard]] bool IsInvincible() const noexcept { return m_isInvincible; }
 
 private:
     void UpdateAttackLogic(float elapsedTime, Camera* camera, const DirectX::XMFLOAT3& playerPos, bool allowAttack);
+    [[nodiscard]] DirectX::XMFLOAT3 GetForwardVector() const noexcept;
+    [[nodiscard]] static float GetRandomFloat(float min, float max) noexcept;
 
-    DirectX::XMFLOAT3 GetForwardVector() const;
-    DirectX::XMFLOAT3 originalPosition;
-    DirectX::XMFLOAT3 originalRotation;
-    EnemyType m_type;
-    AttackType m_attackType;
-    std::shared_ptr<Model> m_model;
-    std::deque<std::unique_ptr<Bullet>> m_projectiles;
+    DirectX::XMFLOAT3 m_originalPosition{ 0.0f, 0.0f, 0.0f };
+    DirectX::XMFLOAT3 m_originalRotation{ 0.0f, 0.0f, 0.0f };
+    EnemyType m_type{ EnemyType::MushroomNone };
+    AttackType m_attackType{ AttackType::None };
+    std::shared_ptr<Model> m_model{};
+    std::deque<std::unique_ptr<Bullet>> m_projectiles{};
 
     // ==========================================
     // ATTACK SETTINGS 
     // ==========================================
-    float m_attackTimer = 0.0f;
-    float m_aggroTimer = 0.0f;
-    float m_fireRate = 0.7f;
-    float m_projectileSpeed = 7.0f;
-    float m_activationDistance = 15.0f;
-    float m_despawnDistance = 55.0f;
-    float m_patrolMinX = 0.0f;
-    float m_patrolMaxX = 0.0f;
-    float m_patrolMinZ = 0.0f;
-    float m_patrolMaxZ = 0.0f;
-    float m_currentSpeed = 0.0f;
-    float m_baseMoveSpeed = 0.0f;
+    float m_attackTimer{ 0.0f };
+    float m_fireRate{ 0.7f };
+    float m_projectileSpeed{ 7.0f };
+    float m_activationDistance{ 15.0f };
+    float m_despawnDistance{ 55.0f };
+    float m_patrolMinX{ 0.0f };
+    float m_patrolMaxX{ 0.0f };
+    float m_patrolMinZ{ 0.0f };
+    float m_patrolMaxZ{ 0.0f };
+    float m_currentSpeed{ 0.0f };
+    float m_baseMoveSpeed{ 0.0f };
 
-    float GetRandomFloat(float min, float max);
-    DirectX::XMFLOAT3 m_randomTargetPos;
+    DirectX::XMFLOAT3 m_randomTargetPos{ 0.0f, 0.0f, 0.0f };
 
-    static constexpr int MAX_PROJECTILES = 5;
-    static constexpr float SPAWN_OFFSET_FWD = 0.6f;
-    static constexpr float SPAWN_OFFSET_Y = 0.0f;
+    static constexpr int MAX_PROJECTILES{ 5 };
+    static constexpr float SPAWN_OFFSET_FWD{ 0.6f };
+    static constexpr float SPAWN_OFFSET_Y{ 0.0f };
 
-    bool m_isActive = false;
-    MoveDir m_moveDir;
+    bool m_isActive{ false };
+    MoveDir m_moveDir{ MoveDir::None };
+    bool m_isInvincible{ false };
 
-    bool m_isInvincible = false;
-
-    DirectX::XMFLOAT4 m_baseColor{ 1.0f, 1.0f, 1.0f, 1.0f }; 
+    DirectX::XMFLOAT4 m_baseColor{ 1.0f, 1.0f, 1.0f, 1.0f };
 
     float m_blinkTimer{ 0.0f };
     float m_lifeTime{ 0.0f };
     static constexpr float BLINK_DURATION{ 0.1f };
 
-    DirectX::XMFLOAT4 m_projectileColor = { 1.0f, 1.0f, 1.0f, 1.0f };
-    DirectX::XMFLOAT3 m_scale = { 1.0f, 1.0f, 1.0f };
-    bool m_isHighlighted = false;
-
-    bool m_killedPlayer = false;
-
-    int m_hp = 30;
+    DirectX::XMFLOAT4 m_projectileColor{ 1.0f, 1.0f, 1.0f, 1.0f };
+    bool m_isHighlighted{ false };
+    int m_hp{ 30 };
 };
