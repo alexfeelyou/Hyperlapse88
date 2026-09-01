@@ -214,8 +214,8 @@ private:
     // Projectile pool 
     std::shared_ptr<Model> m_playerbulletModel{};
     DirectX::XMFLOAT3 m_playerbulletOffsetPos{ 0.000f, 0.460f, -0.950f };
-    DirectX::XMFLOAT3 m_playerbulletOffsetRot{ 0.000f, 0.000f, 0.000f };
-    DirectX::XMFLOAT3 m_playerbulletOffsetScale{ 20.000f, 20.000f, 70.000f };
+    DirectX::XMFLOAT3 m_playerbulletOffsetRot{ 0.000f, 90.000f, 0.000f };
+    DirectX::XMFLOAT3 m_playerbulletOffsetScale{ 0.200f, 0.200f, 0.700f };
     DirectX::XMFLOAT4 m_playerbulletColor{ 4.000f, 4.000f, 4.000f, 1.000f };
     std::deque<std::unique_ptr<Bullet>> m_projectiles;
     float m_bulletSpeed = PlayerConst::BulletSpeed;

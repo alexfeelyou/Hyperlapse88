@@ -8,6 +8,42 @@
 #include "GpuResourceUtils.h"
 #include "GLTFImporter.h"
 
+namespace
+{
+	[[nodiscard]] constexpr int HexCharToInt(char c) noexcept
+	{
+		if (c >= '0' && c <= '9') return c - '0';
+		if (c >= 'a' && c <= 'f') return c - 'a' + 10;
+		if (c >= 'A' && c <= 'F') return c - 'A' + 10;
+		return 0;
+	}
+
+	// Decodes web URIs 
+	[[nodiscard]] std::string DecodeURI(std::string_view uri) noexcept
+	{
+		std::string result{};
+		result.reserve(uri.length());
+
+		for (std::size_t i{ 0 }; i < uri.length(); ++i)
+		{
+			if (uri[i] == '%' && (i + 2) < uri.length())
+			{
+				const int high{ HexCharToInt(uri[i + 1]) };
+				const int low{ HexCharToInt(uri[i + 2]) };
+
+				// Shift the high nibble 4 bits left and bitwise OR with the low nibble
+				result += static_cast<char>((high << 4) | low);
+				i += 2;
+			}
+			else
+			{
+				result += uri[i];
+			}
+		}
+		return result;
+	}
+}
+
 bool LoadImageData(tinygltf::Image*, const int, std::string*,
 	std::string*, int, int,
 	const unsigned char*, int,
@@ -378,7 +414,7 @@ void GLTFImporter::LoadMaterials(MaterialList& materials, ID3D11Device* device)
 
 	for (const tinygltf::Material& gltfMaterial : gltfModel.materials)
 	{
-		Model::Material& material = materials.emplace_back();
+		Material& material = materials.emplace_back();
 		material.name = gltfMaterial.name;
 		material.baseColor.x = static_cast<float>(gltfMaterial.pbrMetallicRoughness.baseColorFactor.at(0));
 		material.baseColor.y = static_cast<float>(gltfMaterial.pbrMetallicRoughness.baseColorFactor.at(1));
@@ -392,17 +428,17 @@ void GLTFImporter::LoadMaterials(MaterialList& materials, ID3D11Device* device)
 		material.occlusionStrength = static_cast<float>(gltfMaterial.occlusionTexture.strength);
 		material.alphaCutoff = static_cast<float>(gltfMaterial.alphaCutoff);
 		if (gltfMaterial.alphaMode == "BLEND")
-		{
-			material.alphaMode = Model::AlphaMode::Blend;
-		}
-		else if (gltfMaterial.alphaMode == "MASK")
-		{
-			material.alphaMode = Model::AlphaMode::Mask;
-		}
-		else
-		{
-			material.alphaMode = Model::AlphaMode::Opaque;
-		}
+        {
+            material.alphaMode = AlphaMode::Blend; 
+        }
+        else if (gltfMaterial.alphaMode == "MASK")
+        {
+            material.alphaMode = AlphaMode::Mask; 
+        }
+        else
+        {
+            material.alphaMode = AlphaMode::Opaque;
+        }
 
 		auto loadTexture = [&](int gltfTextureIndex, const char* textureType, std::string& textureFilename, ID3D11ShaderResourceView** srv)
 			{
@@ -502,7 +538,7 @@ void GLTFImporter::LoadMaterials(MaterialList& materials, ID3D11Device* device)
 				}
 				else
 				{
-					textureFilename = gltfImage.uri;
+					textureFilename = DecodeURI(gltfImage.uri);
 				}
 			};
 		loadTexture(gltfMaterial.pbrMetallicRoughness.baseColorTexture.index, "Base", material.baseTextureFileName, material.baseMap.GetAddressOf());

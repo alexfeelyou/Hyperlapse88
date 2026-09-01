@@ -74,23 +74,25 @@ public:
     Transform transform{};
 
     // Transforms
-    [[nodiscard]] DirectX::XMFLOAT3 GetPosition() const noexcept { return m_position; }
-    [[nodiscard]] DirectX::XMFLOAT3 GetRotation() const noexcept { return m_rotation; }
-    [[nodiscard]] DirectX::XMFLOAT3 GetScale() const noexcept { return m_scale; }
+    [[nodiscard]] DirectX::XMFLOAT3 GetPosition() const noexcept { return transform.position; }
+    [[nodiscard]] DirectX::XMFLOAT3 GetRotation() const noexcept { return transform.rotation; }
+    [[nodiscard]] DirectX::XMFLOAT3 GetScale() const noexcept { return transform.scale; }
 
     void SetPosition(const DirectX::XMFLOAT3& pos) noexcept
     {
-        m_position = pos;
+        transform.position = pos;
         BroadcastTransformUpdate();
     }
+
     void SetRotation(const DirectX::XMFLOAT3& rot) noexcept
     {
-        m_rotation = rot;
+        transform.rotation = rot;
         BroadcastTransformUpdate();
     }
+
     void SetScale(const DirectX::XMFLOAT3& scl) noexcept
     {
-        m_scale = scl;
+        transform.scale = scl;
         BroadcastTransformUpdate();
     }
 
@@ -106,10 +108,6 @@ private:
 
     std::vector<std::unique_ptr<GameObject>> m_children{};
     std::vector<std::unique_ptr<IComponent>> m_components{};
-
-    DirectX::XMFLOAT3 m_position{ 0.0f, 0.0f, 0.0f };
-    DirectX::XMFLOAT3 m_rotation{ 0.0f, 0.0f, 0.0f };
-    DirectX::XMFLOAT3 m_scale{ 1.0f, 1.0f, 1.0f };
 
     // Dispatches the updated transform to all attached components
     void BroadcastTransformUpdate() noexcept;

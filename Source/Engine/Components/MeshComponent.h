@@ -2,6 +2,7 @@
 
 #include <DirectXMath.h>
 #include <memory>
+#include <string>
 #include "System/ModelRenderer.h" 
 #include "GameObject.h"
 #include "IComponent.h"
@@ -29,15 +30,14 @@ public:
     [[nodiscard]] const char* GetTypeName() const noexcept override { return "MeshComponent"; }
 
     // Mutators
-    void SetShader(ShaderId shader) noexcept { m_shaderId = shader; }
     void SetColor(const DirectX::XMFLOAT4& color) noexcept { m_color = color; }
 
-    // Allow other systems (and the Editor) to get/set the 3D model
-    void SetModel(std::shared_ptr<Model> model) noexcept { m_model = std::move(model); }
+    void SetModel(std::shared_ptr<Model> model, std::string_view path = "") noexcept;
     [[nodiscard]] std::shared_ptr<Model> GetModel() const noexcept { return m_model; }
 
 private:
     std::shared_ptr<Model> m_model{};
-    ShaderId               m_shaderId{ ShaderId::Phong };
+    std::string            m_modelPath{ "None" }; // Tracks the loaded asset path
+
     DirectX::XMFLOAT4      m_color{ 1.0f, 1.0f, 1.0f, 1.0f };
 };

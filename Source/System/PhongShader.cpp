@@ -52,6 +52,11 @@ void PhongShader::Update(const RenderContext& rc, const Model::Mesh& mesh)
 	// メッシュ用定数バッファ更新
 	CbMesh cbMesh{};
 	cbMesh.materialColor = mesh.material->baseColor;
+
+	// Pass Alpha Masking data to the GPU
+	cbMesh.alphaMode = static_cast<int>(mesh.material->alphaMode);
+	cbMesh.alphaCutoff = mesh.material->alphaCutoff;
+
 	dc->UpdateSubresource(meshConstantBuffer.Get(), 0, 0, &cbMesh, 0, 0);
 
 	// シェーダーリソースビュー設定

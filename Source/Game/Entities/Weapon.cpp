@@ -1,11 +1,16 @@
 #include "Weapon.h"
+#include "System/AssetManager.h"
 
 using namespace DirectX;
 
 Weapon::Weapon(ID3D11Device* device, const char* modelPath)
 {
-    m_model = std::make_shared<Model>(device, modelPath);
+    // Route through AssetManager
+    m_model = Engine::System::AssetManager::Instance().GetOrLoadModel(device, modelPath);
     XMStoreFloat4x4(&m_finalWorldMatrix, XMMatrixIdentity());
+
+    // If the weapon is still too large, adjust your m_offsetScale either here
+    // or wherever SetLocalOffset is called.
 }
 
 void Weapon::SetLocalOffset(const DirectX::XMFLOAT3& pos, const DirectX::XMFLOAT3& rotEuler, const DirectX::XMFLOAT3& scale)
@@ -46,5 +51,5 @@ void Weapon::Render(ModelRenderer* renderer)
 {
     if (!m_model) return;
 
-    renderer->Draw(ShaderId::Phong, m_model, { 1.0f, 1.0f, 1.0f, 1.0f }, m_finalWorldMatrix);
+    renderer->Draw(m_model, { 1.0f, 1.0f, 1.0f, 1.0f }, m_finalWorldMatrix);
 }

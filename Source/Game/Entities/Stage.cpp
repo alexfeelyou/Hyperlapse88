@@ -216,7 +216,7 @@ void Stage::UpdateTransform()
 void Stage::Render(ModelRenderer* renderer)
 {
     if (!model || !renderer) return;
-    renderer->Draw(ShaderId::Phong, model, color);
+    renderer->Draw(model, color);
 }
 
 void Stage::RenderDebug(ShapeRenderer* shapeRenderer, PrimitiveRenderer* primRenderer)

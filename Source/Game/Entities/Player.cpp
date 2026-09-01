@@ -1,4 +1,5 @@
-﻿#include "Player.h"
+﻿#include "System/AssetManager.h"
+#include "Player.h"
 
 using namespace DirectX;
 
@@ -7,7 +8,8 @@ Player::Player()
     , animator(std::make_unique<AnimationController>())
 {
     ID3D11Device* device = Graphics::Instance().GetDevice();
-    model = std::make_shared<Model>(device, "Data/Model/Character/TEST_mdl_Player3.glb");
+
+    model = Engine::System::AssetManager::Instance().GetOrLoadModel(device, "Data/Model/Character/TEST_mdl_Player3.glb");
     scale = { 1.0f, 1.0f, 1.0f };
 
 	// Load weapons and set their local offsets for correct hand positioning
@@ -15,21 +17,21 @@ Player::Player()
     m_weapons[static_cast<size_t>(WeaponType::Crossbow)]->SetLocalOffset(
         { 0.000f, 0.000f, 0.000f },
         { 90.000f, 99.000f, 0.000f },
-        { 0.900f, 0.900f, 0.400f }
+        { 0.01f, 0.01f, 0.01f } 
     );
 
     m_weapons[static_cast<size_t>(WeaponType::Sword)] = std::make_unique<Weapon>(device, "Data/Model/Character/WEAPON_mdl_Sword.glb");
     m_weapons[static_cast<size_t>(WeaponType::Sword)]->SetLocalOffset(
         { 0.000f, 0.001f, 0.000f },
         { 0.000f, 180.000f, 0.000f },
-        { 0.350f, 0.350f, 0.350f }
+        { 0.01f, 0.01f, 0.01f } 
     );
 
     if (model) {
         m_rightHandBoneIndex = model->GetNodeIndex("hand.r");
     }
 
-    m_playerbulletModel = std::make_shared<Model>(device, "Data/Model/Character/PLACEHOLDER_mdl_Paddle.glb");
+    m_playerbulletModel = Engine::System::AssetManager::Instance().GetOrLoadModel(device, "Data/Model/Character/PLACEHOLDER_mdl_Paddle.glb");
 
     animator->Initialize(model);
     animator->SetUpperBodyMaskRoot("body");
@@ -707,11 +709,11 @@ void Player::RenderProjectiles(ModelRenderer* renderer)
             DirectX::XMFLOAT4X4 worldMatrix;
             DirectX::XMStoreFloat4x4(&worldMatrix, S * R * T * bulletRot * bulletTrans);
 
-            renderer->Draw(ShaderId::Phong, m_playerbulletModel, m_playerbulletColor, worldMatrix);
+            renderer->Draw(m_playerbulletModel, m_playerbulletColor, worldMatrix);
         }
         else
         {
-            renderer->Draw(ShaderId::Phong, bullet->GetModel(), { 1.0f, 1.0f, 1.0f, 1.0f });
+            renderer->Draw(bullet->GetModel(), { 1.0f, 1.0f, 1.0f, 1.0f });
         }
     }
 }

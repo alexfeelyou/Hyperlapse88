@@ -11,7 +11,7 @@ Character::Character()
 
 void Character::Render(ModelRenderer* renderer)
 {
-    if (model) renderer->Draw(ShaderId::Lambert, model);
+    if (model) renderer->Draw(model);
 }
 
 void Character::RenderDebug(const RenderContext& rc, ShapeRenderer* renderer)
