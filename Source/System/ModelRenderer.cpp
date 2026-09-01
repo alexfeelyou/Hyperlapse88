@@ -146,10 +146,8 @@ void ModelRenderer::Render(const RenderContext& rc)
     DirectX::XMVECTOR CameraPosition = DirectX::XMLoadFloat3(&rc.camera->GetPosition());
     DirectX::XMVECTOR CameraFront = DirectX::XMLoadFloat3(&rc.camera->GetFront());
 
-    if (!rc.isTransparentWindow)
-    {
-        dc->OMSetBlendState(rc.renderState->GetBlendState(BlendState::Opaque), nullptr, 0xFFFFFFFF);
-    }
+    // Set Opaque blend state unconditionally
+    dc->OMSetBlendState(rc.renderState->GetBlendState(BlendState::Opaque), nullptr, 0xFFFFFFFF);
 
     // 不透明描画処理
     for (DrawInfo& drawInfo : drawInfos)
@@ -201,11 +199,9 @@ void ModelRenderer::Render(const RenderContext& rc)
     }
     drawInfos.clear();
 
-    if (!rc.isTransparentWindow)
-    {
-        dc->OMSetBlendState(rc.renderState->GetBlendState(BlendState::Transparency), nullptr, 0xFFFFFFFF);
-        dc->OMSetDepthStencilState(rc.renderState->GetDepthStencilState(DepthState::TestOnly), 0);
-    }
+    // Set Transparency blend state and disable depth writes unconditionally
+    dc->OMSetBlendState(rc.renderState->GetBlendState(BlendState::Transparency), nullptr, 0xFFFFFFFF);
+    dc->OMSetDepthStencilState(rc.renderState->GetDepthStencilState(DepthState::TestOnly), 0);
 
     // カメラから遠い順にソート
     std::sort(transparencyDrawInfos.begin(), transparencyDrawInfos.end(),

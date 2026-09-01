@@ -33,7 +33,6 @@ enum class BlendState
 	Additive,
 	Subtraction,
 	Multiply,
-	TransparentWindow,
 
 	EnumCount
 };
