@@ -422,7 +422,7 @@ void NaviAlly::Render(ModelRenderer* renderer)
             1.0f
         };
     }
-    renderer->Draw(ShaderId::Phong, model, renderColor);
+    renderer->Draw(model, renderColor);
 }
 
 void NaviAlly::RenderProjectiles(ModelRenderer* renderer)
@@ -435,7 +435,7 @@ void NaviAlly::RenderProjectiles(ModelRenderer* renderer)
     {
         if (bullet && bullet->IsActive())
         {
-            renderer->Draw(ShaderId::Phong, bullet->GetModel(), s_naviBulletColor);
+            renderer->Draw(bullet->GetModel(), s_naviBulletColor);
         }
     }
 }

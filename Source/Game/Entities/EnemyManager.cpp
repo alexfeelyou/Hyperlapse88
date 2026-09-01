@@ -172,7 +172,7 @@ void EnemyManager::Render(ModelRenderer* renderer, Camera* camera)
 
         if (isBodyVisible)
         {
-            renderer->Draw(ShaderId::Phong, enemy->GetModel(), enemy->GetRenderColor());
+            renderer->Draw(enemy->GetModel(), enemy->GetRenderColor());
         }
 
         enemy->RenderProjectiles(renderer);

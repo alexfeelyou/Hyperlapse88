@@ -339,7 +339,7 @@ void Enemy::RenderProjectiles(ModelRenderer* renderer)
                 1.0f
             };
 
-            renderer->Draw(ShaderId::Phong, bullet->GetModel(), pulseColor);
+            renderer->Draw(bullet->GetModel(), pulseColor);
         }
     }
 }

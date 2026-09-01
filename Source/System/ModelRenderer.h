@@ -29,14 +29,22 @@ public:
     ModelRenderer(ID3D11Device* device);
     ~ModelRenderer() {}
 
-    void Draw(ShaderId shaderId, std::shared_ptr<Model> model, const DirectX::XMFLOAT4& color = { 1.0f, 1.0f, 1.0f, 1.0f });
+    void Draw(std::shared_ptr<Model> model, const DirectX::XMFLOAT4& color = { 1.0f, 1.0f, 1.0f, 1.0f });
 
-    void Draw(ShaderId shader, std::shared_ptr<Model> model, DirectX::XMFLOAT4 color, const DirectX::XMFLOAT4X4& worldMatrix);
+    void Draw(std::shared_ptr<Model> model, DirectX::XMFLOAT4 color, const DirectX::XMFLOAT4X4& worldMatrix);
 
     // ï`âÊé¿çs
     void Render(const RenderContext& rc);
 
 private:
+    struct MeshDrawCommand
+    {
+        const Model::Mesh* mesh{};
+        DirectX::XMFLOAT4   color{};
+        bool                useManualMatrix{ false };
+        DirectX::XMFLOAT4X4 worldMatrix{};
+    };
+
     struct CbScene
     {
         DirectX::XMFLOAT4X4		viewProjection;
@@ -61,12 +69,10 @@ private:
 
     struct DrawInfo
     {
-        ShaderId				shaderId;
-        std::shared_ptr<Model>	model;
-        DirectX::XMFLOAT4       color; 
-
-        bool                    useManualMatrix = false;
-        DirectX::XMFLOAT4X4     worldMatrix;
+        std::shared_ptr<Model>	model{};
+        DirectX::XMFLOAT4       color{};
+        bool                    useManualMatrix{ false };
+        DirectX::XMFLOAT4X4     worldMatrix{};
     };
 
     struct TransparencyDrawInfo

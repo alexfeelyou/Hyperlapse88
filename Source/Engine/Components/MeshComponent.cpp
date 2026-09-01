@@ -56,7 +56,7 @@ void MeshComponent::Render(ModelRenderer* renderer)
     const DirectX::XMFLOAT4X4 worldMatrix{ m_owner->transform.GetWorldMatrix() };
 
     // Submit to the ModelRenderer using the manual matrix overload 
-    renderer->Draw(m_shaderId, m_model, m_color, worldMatrix);
+    renderer->Draw(m_model, m_color, worldMatrix);
 }
 
 void MeshComponent::DrawInspector()
@@ -92,12 +92,6 @@ void MeshComponent::DrawInspector()
     // Master overrides (Legacy compatibility)
     if (ImGui::CollapsingHeader("Master Rendering Settings", ImGuiTreeNodeFlags_DefaultOpen))
     {
-        static constexpr const char* const s_shaderNames[]{ "Basic", "Lambert", "Phong" };
-        int currentShader{ static_cast<int>(m_shaderId) };
-        if (ImGui::Combo("Master Shader", &currentShader, s_shaderNames, IM_ARRAYSIZE(s_shaderNames)))
-        {
-            m_shaderId = static_cast<ShaderId>(currentShader);
-        }
         ImGui::ColorEdit4("Master Tint", &m_color.x);
 
 

@@ -51,5 +51,5 @@ void Weapon::Render(ModelRenderer* renderer)
 {
     if (!m_model) return;
 
-    renderer->Draw(ShaderId::Phong, m_model, { 1.0f, 1.0f, 1.0f, 1.0f }, m_finalWorldMatrix);
+    renderer->Draw(m_model, { 1.0f, 1.0f, 1.0f, 1.0f }, m_finalWorldMatrix);
 }

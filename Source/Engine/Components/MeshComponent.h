@@ -30,7 +30,6 @@ public:
     [[nodiscard]] const char* GetTypeName() const noexcept override { return "MeshComponent"; }
 
     // Mutators
-    void SetShader(ShaderId shader) noexcept { m_shaderId = shader; }
     void SetColor(const DirectX::XMFLOAT4& color) noexcept { m_color = color; }
 
     void SetModel(std::shared_ptr<Model> model, std::string_view path = "") noexcept;
@@ -40,7 +39,5 @@ private:
     std::shared_ptr<Model> m_model{};
     std::string            m_modelPath{ "None" }; // Tracks the loaded asset path
 
-    // Master fallbacks (until ModelRenderer is updated to read per-material shaders)
-    ShaderId               m_shaderId{ ShaderId::Phong };
     DirectX::XMFLOAT4      m_color{ 1.0f, 1.0f, 1.0f, 1.0f };
 };

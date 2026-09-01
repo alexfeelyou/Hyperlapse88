@@ -41,5 +41,5 @@ void Item::Render(ModelRenderer* renderer)
 {
     if (!isActive) return;
 
-    renderer->Draw(ShaderId::Phong, model, color);
+    renderer->Draw(model, color);
 }

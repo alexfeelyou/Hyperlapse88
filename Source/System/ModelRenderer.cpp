@@ -19,20 +19,18 @@ ModelRenderer::ModelRenderer(ID3D11Device* device)
     shaders[static_cast<int>(ShaderId::Phong)] = std::make_unique<PhongShader>(device);
 }
 
-void ModelRenderer::Draw(ShaderId shaderId, std::shared_ptr<Model> model, const DirectX::XMFLOAT4& color)
+void ModelRenderer::Draw(std::shared_ptr<Model> model, const DirectX::XMFLOAT4& color)
 {
-    DrawInfo& drawInfo = drawInfos.emplace_back();
-    drawInfo.shaderId = shaderId;
-    drawInfo.model = model;
+    DrawInfo& drawInfo{ drawInfos.emplace_back() };
+    drawInfo.model = std::move(model);
     drawInfo.color = color;
     drawInfo.useManualMatrix = false;
 }
 
-void ModelRenderer::Draw(ShaderId shader, std::shared_ptr<Model> model, DirectX::XMFLOAT4 color, const DirectX::XMFLOAT4X4& worldMatrix)
+void ModelRenderer::Draw(std::shared_ptr<Model> model, DirectX::XMFLOAT4 color, const DirectX::XMFLOAT4X4& worldMatrix)
 {
-    DrawInfo& drawInfo = drawInfos.emplace_back();
-    drawInfo.shaderId = shader;
-    drawInfo.model = model;
+    DrawInfo& drawInfo{ drawInfos.emplace_back() };
+    drawInfo.model = std::move(model);
     drawInfo.color = color;
     drawInfo.useManualMatrix = true;
     drawInfo.worldMatrix = worldMatrix;
@@ -149,34 +147,30 @@ void ModelRenderer::Render(const RenderContext& rc)
     // Set Opaque blend state unconditionally
     dc->OMSetBlendState(rc.renderState->GetBlendState(BlendState::Opaque), nullptr, 0xFFFFFFFF);
 
-    // ïsìßñæï`âÊèàóù
-    for (DrawInfo& drawInfo : drawInfos)
+    // Setup buckets using std::array to group meshes by their requested shader
+    std::array<std::vector<MeshDrawCommand>, static_cast<std::size_t>(ShaderId::EnumCount)> opaqueBuckets{};
+
+    // Distribute meshes into transparent queue or their specific opaque shader bucket
+    for (const DrawInfo& drawInfo : drawInfos)
     {
-        Shader* shader = shaders[static_cast<int>(drawInfo.shaderId)].get();
-        shader->Begin(rc);
-
-        CbObject cbObject;
-        cbObject.color = drawInfo.color;
-        dc->UpdateSubresource(objectConstantBuffer.Get(), 0, 0, &cbObject, 0, 0);
-
         for (const Model::Mesh& mesh : drawInfo.model->GetMeshes())
         {
             if (mesh.material->alphaMode == AlphaMode::Blend ||
                 (mesh.material->baseColor.w > 0.01f && mesh.material->baseColor.w < 0.99f))
             {
-                TransparencyDrawInfo& transparencyDrawInfo = transparencyDrawInfos.emplace_back();
+                TransparencyDrawInfo& transparencyDrawInfo{ transparencyDrawInfos.emplace_back() };
                 transparencyDrawInfo.mesh = &mesh;
-                transparencyDrawInfo.shaderId = drawInfo.shaderId;
+                // Pull the shaderId directly from the individual material
+                transparencyDrawInfo.shaderId = static_cast<ShaderId>(mesh.material->shaderId);
                 transparencyDrawInfo.color = drawInfo.color;
                 transparencyDrawInfo.useManualMatrix = drawInfo.useManualMatrix;
                 transparencyDrawInfo.worldMatrix = drawInfo.worldMatrix;
 
-                // Calculate accurate world position for depth sorting
                 DirectX::XMFLOAT4X4 transformMatrix{};
                 if (drawInfo.useManualMatrix)
                 {
-                    DirectX::XMMATRIX nodeGlobalMat = DirectX::XMLoadFloat4x4(&mesh.node->globalTransform);
-                    DirectX::XMMATRIX manualWorldMat = DirectX::XMLoadFloat4x4(&drawInfo.worldMatrix);
+                    DirectX::XMMATRIX nodeGlobalMat{ DirectX::XMLoadFloat4x4(&mesh.node->globalTransform) };
+                    DirectX::XMMATRIX manualWorldMat{ DirectX::XMLoadFloat4x4(&drawInfo.worldMatrix) };
                     DirectX::XMStoreFloat4x4(&transformMatrix, nodeGlobalMat * manualWorldMat);
                 }
                 else
@@ -184,15 +178,36 @@ void ModelRenderer::Render(const RenderContext& rc)
                     transformMatrix = mesh.node->worldTransform;
                 }
 
-                // Position W should be 1.0f to properly represent a coordinate in 3D space
-                DirectX::XMVECTOR Position = DirectX::XMVectorSet(
-                    transformMatrix._41, transformMatrix._42, transformMatrix._43, 1.0f);
-                DirectX::XMVECTOR Vec = DirectX::XMVectorSubtract(Position, CameraPosition);
+                DirectX::XMVECTOR Position{ DirectX::XMVectorSet(transformMatrix._41, transformMatrix._42, transformMatrix._43, 1.0f) };
+                DirectX::XMVECTOR Vec{ DirectX::XMVectorSubtract(Position, CameraPosition) };
                 transparencyDrawInfo.distance = DirectX::XMVectorGetX(DirectX::XMVector3Dot(CameraFront, Vec));
                 continue;
             }
 
-            drawMesh(mesh, shader, drawInfo.useManualMatrix, drawInfo.worldMatrix);
+            // Route to correct opaque bucket using the Material's assigned shader
+            const std::size_t shaderIndex{ static_cast<std::size_t>(mesh.material->shaderId) };
+            opaqueBuckets[shaderIndex].emplace_back(MeshDrawCommand{
+                &mesh, drawInfo.color, drawInfo.useManualMatrix, drawInfo.worldMatrix
+            });
+        }
+    }
+    drawInfos.clear();
+
+    // 3. Render opaque buckets
+    for (std::size_t i{ 0 }; i < opaqueBuckets.size(); ++i)
+    {
+        if (opaqueBuckets[i].empty()) continue;
+
+        Shader* const shader{ shaders[i].get() };
+        shader->Begin(rc);
+
+        for (const MeshDrawCommand& cmd : opaqueBuckets[i])
+        {
+            CbObject cbObject{};
+            cbObject.color = cmd.color;
+            dc->UpdateSubresource(objectConstantBuffer.Get(), 0, 0, &cbObject, 0, 0);
+
+            drawMesh(*cmd.mesh, shader, cmd.useManualMatrix, cmd.worldMatrix);
         }
 
         shader->End(rc);

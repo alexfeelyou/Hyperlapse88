@@ -709,11 +709,11 @@ void Player::RenderProjectiles(ModelRenderer* renderer)
             DirectX::XMFLOAT4X4 worldMatrix;
             DirectX::XMStoreFloat4x4(&worldMatrix, S * R * T * bulletRot * bulletTrans);
 
-            renderer->Draw(ShaderId::Phong, m_playerbulletModel, m_playerbulletColor, worldMatrix);
+            renderer->Draw(m_playerbulletModel, m_playerbulletColor, worldMatrix);
         }
         else
         {
-            renderer->Draw(ShaderId::Phong, bullet->GetModel(), { 1.0f, 1.0f, 1.0f, 1.0f });
+            renderer->Draw(bullet->GetModel(), { 1.0f, 1.0f, 1.0f, 1.0f });
         }
     }
 }
