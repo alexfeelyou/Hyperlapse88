@@ -3,6 +3,9 @@
 cbuffer CbMesh : register(b0)
 {
     float4 materialColor;
+    int alphaMode;
+    float alphaCutoff;
+    float2 meshPadding;
 };
 
 cbuffer CbObject : register(b2)
@@ -36,7 +39,20 @@ float3 CalcHemiSphereLight(float3 normal, float3 up, float3 sky_color, float3 gr
 
 float4 main(VS_OUT pin) : SV_TARGET
 {
-    float4 color = DiffuseMap.Sample(LinearSampler, pin.texcoord) * materialColor * objectColor;
+    float4 texColor = DiffuseMap.Sample(LinearSampler, pin.texcoord);
+    float4 color = texColor * materialColor * objectColor;
+
+    // Alpha masking
+    if (alphaMode == 1)
+    {
+        // Mask mode
+        clip(color.a - alphaCutoff);
+    }
+    else if (alphaMode == 2)
+    {
+        // Blend mode
+        clip(color.a - 0.01f);
+    }
 
     // Normal
     float normalLenSq = dot(pin.normal, pin.normal);

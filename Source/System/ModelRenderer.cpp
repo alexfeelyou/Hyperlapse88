@@ -201,11 +201,10 @@ void ModelRenderer::Render(const RenderContext& rc)
     }
     drawInfos.clear();
 
-    // [FIX] Sama  transparent window tidak override blend state untuk transparent mesh pass.
-    // TransparentWindow blend state sudah handle alpha preservation dengan benar.
     if (!rc.isTransparentWindow)
     {
         dc->OMSetBlendState(rc.renderState->GetBlendState(BlendState::Transparency), nullptr, 0xFFFFFFFF);
+        dc->OMSetDepthStencilState(rc.renderState->GetDepthStencilState(DepthState::TestOnly), 0);
     }
 
     // カメラから遠い順にソート

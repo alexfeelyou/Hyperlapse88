@@ -37,6 +37,21 @@ void Material::DrawInspector() noexcept
     static constexpr const char* const s_shaderNames[]{ "Basic", "Lambert", "Phong" };
     ImGui::Combo("Shader", &shaderId, s_shaderNames, IM_ARRAYSIZE(s_shaderNames));
 
+    // Alpha mode
+    // Allows the user to fix broken GLB exports
+    ImGui::Spacing();
+    static constexpr const char* const s_alphaModes[]{ "Opaque", "Mask", "Blend" };
+    int currentAlphaMode{ static_cast<int>(alphaMode) };
+    if (ImGui::Combo("Alpha Mode", &currentAlphaMode, s_alphaModes, IM_ARRAYSIZE(s_alphaModes)))
+    {
+        alphaMode = static_cast<AlphaMode>(currentAlphaMode);
+    }
+
+    if (alphaMode == AlphaMode::Mask)
+    {
+        ImGui::SliderFloat("Alpha Cutoff", &alphaCutoff, 0.0f, 1.0f);
+    }
+
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::TextDisabled("ALBEDO / DIFFUSE");
