@@ -38,7 +38,6 @@ void Material::DrawInspector() noexcept
     ImGui::Combo("Shader", &shaderId, s_shaderNames, IM_ARRAYSIZE(s_shaderNames));
 
     // Alpha mode
-    // Allows the user to fix broken GLB exports
     ImGui::Spacing();
     static constexpr const char* const s_alphaModes[]{ "Opaque", "Mask", "Blend" };
     int currentAlphaMode{ static_cast<int>(alphaMode) };

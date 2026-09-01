@@ -47,18 +47,20 @@ void BasicShader::Begin(const RenderContext& rc)
 // 更新処理
 void BasicShader::Update(const RenderContext& rc, const Model::Mesh& mesh)
 {
-	ID3D11DeviceContext* dc = rc.deviceContext;
+	ID3D11DeviceContext* const dc{ rc.deviceContext };
 
 	// メッシュ用定数バッファ更新
-	CbMesh cbMesh{};
-	cbMesh.materialColor = mesh.material->baseColor;
+	const CbMesh cbMesh{
+		mesh.material->baseColor,
+		static_cast<int>(mesh.material->alphaMode),
+		mesh.material->alphaCutoff,
+		{ 0.0f, 0.0f }
+	};
+
 	dc->UpdateSubresource(meshConstantBuffer.Get(), 0, 0, &cbMesh, 0, 0);
 
 	// シェーダーリソースビュー設定
-	ID3D11ShaderResourceView* srvs[] =
-	{
-		mesh.material->baseMap.Get(),
-	};
+	ID3D11ShaderResourceView* const srvs[]{ mesh.material->baseMap.Get() };
 	dc->PSSetShaderResources(0, _countof(srvs), srvs);
 }
 
