@@ -615,31 +615,42 @@ void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
                 currentScene->GetRootGameObject()->AddChild(std::make_unique<GameObject>("Empty"));
             }
 
-            if (ImGui::BeginMenu("Light"))
-            {
-                if (ImGui::MenuItem("Directional Light"))
-                {
-                    auto lightObj = std::make_unique<GameObject>("Directional_Light");
-                    lightObj->transform.rotation = { 45.0f, -45.0f, 0.0f };
-                    auto* comp = lightObj->AddComponent<LightComponent>();
-                    comp->setLightType(LightType::Directional);
-                    currentScene->GetRootGameObject()->AddChild(std::move(lightObj));
-                }
-
-                if (ImGui::MenuItem("Point Light"))
-                {
-                    auto lightObj = std::make_unique<GameObject>("Point_Light");
-                    lightObj->transform.position = { 0.0f, 3.0f, 0.0f };
-                    auto* comp = lightObj->AddComponent<LightComponent>();
-                    comp->setLightType(LightType::Point);
-                    currentScene->GetRootGameObject()->AddChild(std::move(lightObj));
-                }
-                ImGui::EndMenu();
-            }
-
             // Only show Gameplay Entities if we are currently editing the Game Scene
+           // Only show Gameplay & Light Entities if we are currently editing the Game Scene
             if (auto* gameScene{ dynamic_cast<SceneGame*>(currentScene) })
             {
+                ImGui::Separator();
+                ImGui::TextDisabled("Lighting");
+
+                if (ImGui::BeginMenu("Light"))
+                {
+                    if (ImGui::MenuItem("Directional Light"))
+                    {
+                        auto lightObj = std::make_unique<GameObject>("Directional_Light");
+                        lightObj->transform.rotation = { 45.0f, -45.0f, 0.0f };
+                        lightObj->AddComponent<DirectionalLightComponent>();
+                        currentScene->GetRootGameObject()->AddChild(std::move(lightObj));
+                    }
+
+                    if (ImGui::MenuItem("Point Light"))
+                    {
+                        auto lightObj = std::make_unique<GameObject>("Point_Light");
+                        lightObj->transform.position = { 0.0f, 3.0f, 0.0f };
+                        lightObj->AddComponent<PointLightComponent>();
+                        currentScene->GetRootGameObject()->AddChild(std::move(lightObj));
+                    }
+
+                    if (ImGui::MenuItem("Spot Light"))
+                    {
+                        auto lightObj = std::make_unique<GameObject>("Spot_Light");
+                        lightObj->transform.position = { 0.0f, 5.0f, 0.0f };
+                        lightObj->transform.rotation = { 90.0f, 0.0f, 0.0f }; // Aim straight down
+                        lightObj->AddComponent<SpotLightComponent>();
+                        currentScene->GetRootGameObject()->AddChild(std::move(lightObj));
+                    }
+                    ImGui::EndMenu();
+                }
+
                 ImGui::Separator();
                 ImGui::TextDisabled("Gameplay Entities");
 

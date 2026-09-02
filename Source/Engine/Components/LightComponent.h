@@ -5,12 +5,12 @@
 #include "IComponent.h"
 #include "Light.h"
 
-// Component enabling a GameObject to act as a physical light source
-class LightComponent final : public IComponent
+// Abstract base class for all light types
+class LightComponent : public IComponent
 {
 public:
     LightComponent() = default;
-    ~LightComponent() override;
+    ~LightComponent() override; // Virtual by inheritance
 
     LightComponent(const LightComponent&) = delete;
     LightComponent& operator=(const LightComponent&) = delete;
@@ -18,34 +18,65 @@ public:
     LightComponent& operator=(LightComponent&&) noexcept = default;
 
     void OnAttach(GameObject* owner) noexcept override;
-    void DrawInspector() override;
 
-    [[nodiscard]] const char* GetTypeName() const noexcept override { return "LightComponent"; }
+    [[nodiscard]] virtual LightType GetLightType() const noexcept = 0;
 
     // World transformation accessors
     [[nodiscard]] DirectX::XMFLOAT3 GetDirection() const noexcept;
     [[nodiscard]] DirectX::XMFLOAT3 GetWorldPosition() const noexcept;
 
-    // Property accessors
-    [[nodiscard]] LightType GetLightType() const noexcept { return m_type; }
-    void setLightType(LightType type) noexcept { m_type = type; }
-
+    // Shared property accessors
     [[nodiscard]] DirectX::XMFLOAT3 GetColor() const noexcept { return m_color; }
-    void setColor(const DirectX::XMFLOAT3& color) noexcept { m_color = color; }
+    void SetColor(const DirectX::XMFLOAT3& color) noexcept { m_color = color; }
 
     [[nodiscard]] float GetIntensity() const noexcept { return m_intensity; }
-    void setIntensity(float intensity) noexcept { m_intensity = intensity; }
+    void SetIntensity(float intensity) noexcept { m_intensity = intensity; }
 
-    [[nodiscard]] float GetRange() const noexcept { return m_range; }
-    void setRange(float range) noexcept { m_range = range; }
+    // Virtual getters with safe defaults so LightManager can query blindly without dynamic_cast
+    [[nodiscard]] virtual float GetRange() const noexcept { return 0.0f; }
+    [[nodiscard]] virtual float GetSpotAngle() const noexcept { return 0.0f; }
 
-    [[nodiscard]] float GetSpotAngle() const noexcept { return m_spotAngle; }
-    void setSpotAngle(float angle) noexcept { m_spotAngle = angle; }
-
-private:
-    LightType         m_type{ LightType::Directional };
+protected:
     DirectX::XMFLOAT3 m_color{ 1.0f, 1.0f, 1.0f };
     float             m_intensity{ 1.0f };
-    float             m_range{ 10.0f };
-    float             m_spotAngle{ 45.0f }; // Degrees
+};
+
+class DirectionalLightComponent final : public LightComponent
+{
+public:
+    void DrawInspector() override;
+    [[nodiscard]] const char* GetTypeName() const noexcept override { return "DirectionalLightComponent"; }
+    [[nodiscard]] LightType GetLightType() const noexcept override { return LightType::Directional; }
+};
+
+class PointLightComponent final : public LightComponent
+{
+public:
+    void DrawInspector() override;
+    [[nodiscard]] const char* GetTypeName() const noexcept override { return "PointLightComponent"; }
+    [[nodiscard]] LightType GetLightType() const noexcept override { return LightType::Point; }
+
+    [[nodiscard]] float GetRange() const noexcept override { return m_range; }
+    void SetRange(float range) noexcept { m_range = range; }
+
+private:
+    float m_range{ 10.0f };
+};
+
+class SpotLightComponent final : public LightComponent
+{
+public:
+    void DrawInspector() override;
+    [[nodiscard]] const char* GetTypeName() const noexcept override { return "SpotLightComponent"; }
+    [[nodiscard]] LightType GetLightType() const noexcept override { return LightType::Spot; }
+
+    [[nodiscard]] float GetRange() const noexcept override { return m_range; }
+    void SetRange(float range) noexcept { m_range = range; }
+
+    [[nodiscard]] float GetSpotAngle() const noexcept override { return m_spotAngle; }
+    void SetSpotAngle(float angle) noexcept { m_spotAngle = angle; }
+
+private:
+    float m_range{ 10.0f };
+    float m_spotAngle{ 45.0f }; // Degrees
 };
