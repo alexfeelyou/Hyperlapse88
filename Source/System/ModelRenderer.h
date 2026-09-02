@@ -49,15 +49,19 @@ private:
 
     struct CbScene
     {
-        DirectX::XMFLOAT4X4		viewProjection;
-        DirectX::XMFLOAT4		lightDirection;
-        DirectX::XMFLOAT4		lightColor;
-        DirectX::XMFLOAT4		cameraPosition;
-        float                   psxEnabled;
-        float                   psxResWidth;
-        float                   psxResHeight;
-        float                   padding;
+        DirectX::XMFLOAT4X4 viewProjection{};       // 64 bytes
+        DirectX::XMFLOAT4   lightDirection{};       // 16 bytes
+        DirectX::XMFLOAT4   lightColor{};           // 16 bytes
+        DirectX::XMFLOAT4   cameraPosition{};       // 16 bytes
+        DirectX::XMFLOAT4   ambientSkyColor{};      // 16 bytes
+        DirectX::XMFLOAT4   ambientGroundColor{};   // 16 bytes
+        DirectX::XMFLOAT4   packedParams{};         // 16 bytes (psxEnabled, psxResW, psxResH, padding)
+        DirectX::XMINT4     lightCounts{};          // 16 bytes (pointCount, spotCount, padding, padding)
+
+        PointLightData      pointLights[8]{};       // 256 bytes
+        SpotLightData       spotLights[8]{};        // 384 bytes
     };
+    static_assert((sizeof(CbScene) % 16) == 0, "CbScene constant buffer must be 16-byte aligned!");
 
     struct CbSkeleton
     {

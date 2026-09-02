@@ -61,7 +61,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>.\Source;.\Source\Engine\Base;.\Source\Engine\Camera;.\Source\Engine\Components;.\Source\Engine\Editor;.\Source\Engine\Graphics;.\Source\Engine\UI;.\Source\Engine\VFX;.\Source\Engine\Windowing;.\Source\Game\Entities;.\Source\Game\States;.\Source\Game\Scenes;.\Source\Engine\Helpers;.\Source\Engine\Legacy;.\External\SDL3-3.4.0\include;.\External\imgui;.\External\ImGuizmo;.\External\cereal\include;.\External\tinygltf;.\External\SphereCast\Include;.\External\DirectXTex;.\External\PhysX\physx\include;.\External\Effekseer170e\include\Effekseer;.\External\json;.\External\Effekseer170e\include\EffekseerRendererDX11;.\External\implot;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\Source;.\Source\Engine\Base;.\Source\Engine\Camera;.\Source\Engine\Components;.\Source\Engine\Editor;.\Source\Engine\Graphics;.\Source\Engine\Light;.\Source\Engine\UI;.\Source\Engine\VFX;.\Source\Engine\Windowing;.\Source\Game\Entities;.\Source\Game\States;.\Source\Game\Scenes;.\Source\Engine\Helpers;.\Source\Engine\Legacy;.\External\SDL3-3.4.0\include;.\External\imgui;.\External\ImGuizmo;.\External\cereal\include;.\External\tinygltf;.\External\SphereCast\Include;.\External\DirectXTex;.\External\PhysX\physx\include;.\External\Effekseer170e\include\Effekseer;.\External\json;.\External\Effekseer170e\include\EffekseerRendererDX11;.\External\implot;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -92,7 +92,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>.\Source;.\Source\Engine\Base;.\Source\Engine\Camera;.\Source\Engine\Components;.\Source\Engine\Editor;.\Source\Engine\Windowing;.\Source\Engine\Graphics;.\Source\Engine\UI;.\Source\Engine\VFX;.\Source\Game\Entities;.\Source\Game\States;.\Source\Game\Scenes;.\Source\Engine\Helpers;.\Source\Engine\Legacy;.\External\SDL3-3.4.0\include;.\External\imgui;.\External\ImGuizmo;.\External\cereal\include;.\External\tinygltf;.\External\SphereCast\Include;.\External\DirectXTex;.\External\PhysX\physx\include;.\External\Effekseer170e\include\Effekseer;.\External\json;.\External\Effekseer170e\include\EffekseerRendererDX11;.\External\implot;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\Source;.\Source\Engine\Base;.\Source\Engine\Camera;.\Source\Engine\Components;.\Source\Engine\Editor;.\Source\Engine\Graphics;.\Source\Engine\Light;.\Source\Engine\UI;.\Source\Engine\VFX;.\Source\Engine\Windowing;.\Source\Game\Entities;.\Source\Game\States;.\Source\Game\Scenes;.\Source\Engine\Helpers;.\Source\Engine\Legacy;.\External\SDL3-3.4.0\include;.\External\imgui;.\External\ImGuizmo;.\External\cereal\include;.\External\tinygltf;.\External\SphereCast\Include;.\External\DirectXTex;.\External\PhysX\physx\include;.\External\Effekseer170e\include\Effekseer;.\External\json;.\External\Effekseer170e\include\EffekseerRendererDX11;.\External\implot;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -143,6 +143,7 @@
     <ClInclude Include="Source\Engine\Camera\CameraController.h" />
     <ClInclude Include="Source\Engine\Camera\FreeCameraController.h" />
     <ClInclude Include="Source\Engine\Components\ComponentRegistry.h" />
+    <ClInclude Include="Source\Engine\Components\LightComponent.h" />
     <ClInclude Include="Source\Engine\Components\MeshComponent.h" />
     <ClInclude Include="Source\Engine\Components\StaticMeshColliderComponent.h" />
     <ClInclude Include="Source\Engine\Editor\EditorManager.h" />
@@ -156,6 +157,7 @@
     <ClInclude Include="Source\Engine\Helpers\CapeSimulator.h" />
     <ClInclude Include="Source\Engine\Helpers\SceneSerializer.h" />
     <ClInclude Include="Source\Engine\Helpers\UIResizedWindow.h" />
+    <ClInclude Include="Source\Engine\Light\Light.h" />
     <ClInclude Include="Source\Engine\UI\UIDialogueBox.h" />
     <ClInclude Include="Source\Engine\UI\UIOption.h" />
     <ClInclude Include="Source\Engine\UI\UIPause.h" />
@@ -197,7 +199,6 @@
     <ClInclude Include="Source\System\Input.h" />
     <ClInclude Include="Source\System\Keyboard.h" />
     <ClInclude Include="Source\System\LambertShader.h" />
-    <ClInclude Include="Source\System\Light.h" />
     <ClInclude Include="Source\System\Logger.h" />
     <ClInclude Include="Source\System\Material.h" />
     <ClInclude Include="Source\System\Misc.h" />
@@ -238,6 +239,7 @@
     <ClCompile Include="Source\Engine\Camera\Camera.cpp" />
     <ClCompile Include="Source\Engine\Camera\CameraController.cpp" />
     <ClCompile Include="Source\Engine\Camera\FreeCameraController.cpp" />
+    <ClCompile Include="Source\Engine\Components\LightComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\MeshComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\StaticMeshColliderComponent.cpp" />
     <ClCompile Include="Source\Engine\Editor\EditorManager.cpp" />
@@ -248,6 +250,7 @@
     <ClCompile Include="Source\Engine\Graphics\Primitive.cpp" />
     <ClCompile Include="Source\Engine\Helpers\CapeSimulator.cpp" />
     <ClCompile Include="Source\Engine\Helpers\SceneSerializer.cpp" />
+    <ClCompile Include="Source\Engine\Light\Light.cpp" />
     <ClCompile Include="Source\Engine\UI\UIDialogueBox.cpp" />
     <ClCompile Include="Source\Engine\UI\UIOption.cpp" />
     <ClCompile Include="Source\Engine\UI\UIPause.cpp" />

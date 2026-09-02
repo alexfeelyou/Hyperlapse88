@@ -615,6 +615,28 @@ void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
                 currentScene->GetRootGameObject()->AddChild(std::make_unique<GameObject>("Empty"));
             }
 
+            if (ImGui::BeginMenu("Light"))
+            {
+                if (ImGui::MenuItem("Directional Light"))
+                {
+                    auto lightObj = std::make_unique<GameObject>("Directional_Light");
+                    lightObj->transform.rotation = { 45.0f, -45.0f, 0.0f };
+                    auto* comp = lightObj->AddComponent<LightComponent>();
+                    comp->setLightType(LightType::Directional);
+                    currentScene->GetRootGameObject()->AddChild(std::move(lightObj));
+                }
+
+                if (ImGui::MenuItem("Point Light"))
+                {
+                    auto lightObj = std::make_unique<GameObject>("Point_Light");
+                    lightObj->transform.position = { 0.0f, 3.0f, 0.0f };
+                    auto* comp = lightObj->AddComponent<LightComponent>();
+                    comp->setLightType(LightType::Point);
+                    currentScene->GetRootGameObject()->AddChild(std::move(lightObj));
+                }
+                ImGui::EndMenu();
+            }
+
             // Only show Gameplay Entities if we are currently editing the Game Scene
             if (auto* gameScene{ dynamic_cast<SceneGame*>(currentScene) })
             {
@@ -712,6 +734,7 @@ void EditorManager::DrawInspector(Scene* currentScene) noexcept
         ImGui::TextDisabled("SCENE PROPERTIES");
         ImGui::Separator();
         
+        Graphics::Instance().GetLightManager().DrawEnvironmentGUI();
         ImGui::Text("Active Scene: %s", currentScene->GetSceneName().data());
         ImGui::TextDisabled("Save Path: %s", currentScene->GetSceneSavePath().data());
         ImGui::TextDisabled("PostProcess: %s", currentScene->GetPostProcessProfilePath().data());

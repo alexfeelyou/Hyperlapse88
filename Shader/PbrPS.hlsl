@@ -28,17 +28,16 @@ Texture2D AOMap : register(t4);
 
 SamplerState LinearSampler : register(s0);
 
+// BRDF Math 
 float DistributionGGX(float3 N, float3 H, float roughness)
 {
     float a = roughness * roughness;
     float a2 = a * a;
     float NdotH = max(dot(N, H), 0.0f);
     float NdotH2 = NdotH * NdotH;
-
     float nom = a2;
     float denom = (NdotH2 * (a2 - 1.0f) + 1.0f);
     denom = PI * denom * denom;
-
     return nom / max(denom, 0.0000001f);
 }
 
@@ -46,10 +45,8 @@ float GeometrySchlickGGX(float NdotV, float roughness)
 {
     float r = (roughness + 1.0f);
     float k = (r * r) / 8.0f;
-
     float nom = NdotV;
     float denom = NdotV * (1.0f - k) + k;
-
     return nom / denom;
 }
 
@@ -59,7 +56,6 @@ float GeometrySmith(float3 N, float3 V, float3 L, float roughness)
     float NdotL = max(dot(N, L), 0.0f);
     float ggx2 = GeometrySchlickGGX(NdotV, roughness);
     float ggx1 = GeometrySchlickGGX(NdotL, roughness);
-
     return ggx1 * ggx2;
 }
 
@@ -71,6 +67,26 @@ float3 FresnelSchlick(float cosTheta, float3 F0)
 float3 FresnelSchlickRoughness(float cosTheta, float3 F0, float roughness)
 {
     return F0 + (max(float3(1.0f - roughness, 1.0f - roughness, 1.0f - roughness), F0) - F0) * pow(clamp(1.0f - cosTheta, 0.0f, 1.0f), 5.0f);
+}
+
+// Reusable Direct Lighting Processor
+float3 CalculateDirectLight(float3 L, float3 V, float3 N, float3 radiance, float3 albedo, float roughness, float metallic, float3 F0)
+{
+    float3 H = normalize(V + L);
+    float NDF = DistributionGGX(N, H, roughness);
+    float G = GeometrySmith(N, V, L, roughness);
+    float3 F = FresnelSchlick(max(dot(H, V), 0.0f), F0);
+        
+    float3 numerator = NDF * G * F;
+    float denominator = 4.0f * max(dot(N, V), 0.0f) * max(dot(N, L), 0.0f) + 0.0001f;
+    float3 specular = numerator / denominator;
+        
+    float3 kS = F;
+    float3 kD = float3(1.0f, 1.0f, 1.0f) - kS;
+    kD *= 1.0f - metallic;
+
+    float NdotL = max(dot(N, L), 0.0f);
+    return (kD * albedo / PI + specular) * radiance * NdotL;
 }
 
 float4 main(VS_OUT pin) : SV_TARGET
@@ -87,7 +103,6 @@ float4 main(VS_OUT pin) : SV_TARGET
         clip(albedo.a - 0.01f);
     }
 
-    // 1. Linearize the combined Albedo (Texture + UI Colors) to fix washed-out grayness
     albedo.rgb = pow(abs(albedo.rgb), 2.2f);
 
     float metallic = matMetallic;
@@ -105,7 +120,7 @@ float4 main(VS_OUT pin) : SV_TARGET
     if (textureFlags & (1 << 1))
     {
         float3 emTex = EmissiveMap.Sample(LinearSampler, pin.texcoord).rgb;
-        emissive *= pow(abs(emTex), 2.2f); // Linearize emissive texture
+        emissive *= pow(abs(emTex), 2.2f);
     }
 
     float ao = 1.0f;
@@ -127,45 +142,62 @@ float4 main(VS_OUT pin) : SV_TARGET
     }
 
     float3 V = normalize(cameraPosition.xyz - pin.position);
-
     float3 F0 = float3(0.04f, 0.04f, 0.04f);
     F0 = lerp(F0, albedo.rgb, metallic);
 
-    // -----------------------------------------------------------------
-    // Direct Light
-    // -----------------------------------------------------------------
-    float3 L = normalize(lightDirection.xyz);
-    float3 H = normalize(V + L);
-    
-    // 2. THE FIX: Multiply LDR light intensity by PI. 
-    // This perfectly cancels out the mathematical `albedo / PI` energy loss below,
-    // matching the exact brightness scale of your Phong shader.
-    float3 radiance = lightColor.rgb * PI;
+    float3 totalDirectLighting = float3(0.0f, 0.0f, 0.0f);
 
-    float NDF = DistributionGGX(N, H, roughness);
-    float G = GeometrySmith(N, V, L, roughness);
-    float3 F = FresnelSchlick(max(dot(H, V), 0.0f), F0);
+    // Directional Light
+    float3 dirL = normalize(lightDirection.xyz);
+    float3 dirRadiance = lightColor.rgb * PI;
+    totalDirectLighting += CalculateDirectLight(dirL, V, N, dirRadiance, albedo.rgb, roughness, metallic, F0);
+
+    // Point Lights
+    for (int i = 0; i < lightCounts.x; ++i)
+    {
+        float3 L = pointLights[i].positionAndRange.xyz - pin.position;
+        float distance = length(L);
+        float range = pointLights[i].positionAndRange.w;
         
-    float3 numerator = NDF * G * F;
-    float denominator = 4.0f * max(dot(N, V), 0.0f) * max(dot(N, L), 0.0f) + 0.0001f;
-    float3 specular = numerator / denominator;
+        if (distance < range)
+        {
+            L /= distance;
+            // Epic Games inverse-square falloff
+            float attenuation = saturate(1.0f - pow(distance / range, 4.0f));
+            attenuation = (attenuation * attenuation) / (distance * distance + 1.0f);
+            
+            float3 radiance = pointLights[i].colorAndIntensity.xyz * pointLights[i].colorAndIntensity.w * attenuation * PI;
+            totalDirectLighting += CalculateDirectLight(L, V, N, radiance, albedo.rgb, roughness, metallic, F0);
+        }
+    }
+
+    // Spot Lights
+    for (int j = 0; j < lightCounts.y; ++j)
+    {
+        float3 L = spotLights[j].positionAndRange.xyz - pin.position;
+        float distance = length(L);
+        float range = spotLights[j].positionAndRange.w;
         
-    float3 kS = F;
-    float3 kD = float3(1.0f, 1.0f, 1.0f) - kS;
-    kD *= 1.0f - metallic;
+        if (distance < range)
+        {
+            L /= distance;
+            float attenuation = saturate(1.0f - pow(distance / range, 4.0f));
+            attenuation = (attenuation * attenuation) / (distance * distance + 1.0f);
+            
+            float cosHalfAngle = spotLights[j].directionAndAngle.w;
+            float currentCosAngle = dot(L, -spotLights[j].directionAndAngle.xyz);
+            
+            // Smooth inner/outer cone interpolation
+            float spotAttenuation = smoothstep(cosHalfAngle, cosHalfAngle + 0.1f, currentCosAngle);
+            
+            float3 radiance = spotLights[j].colorAndIntensity.xyz * spotLights[j].colorAndIntensity.w * attenuation * spotAttenuation * PI;
+            totalDirectLighting += CalculateDirectLight(L, V, N, radiance, albedo.rgb, roughness, metallic, F0);
+        }
+    }
 
-    float NdotL = max(dot(N, L), 0.0f);
-    float3 directLighting = (kD * albedo.rgb / PI + specular) * radiance * NdotL;
-
-    // -----------------------------------------------------------------
-    // Ambient / Environment
-    // -----------------------------------------------------------------
-    // 3. THE FIX: Restored ambient multipliers to 0.5 to exactly match Phong
-    float3 skyColor = float3(0.6f, 0.6f, 0.65f) * 0.5f;
-    float3 groundColor = float3(0.2f, 0.2f, 0.2f) * 0.5f;
-    
+    // Ambient Fallback
     float factor = dot(N, float3(0.0f, 1.0f, 0.0f)) * 0.5f + 0.5f;
-    float3 irradiance = lerp(groundColor, skyColor, factor);
+    float3 irradiance = lerp(ambientGroundColor.rgb, ambientSkyColor.rgb, factor);
     float3 diffuseAmbient = irradiance * albedo.rgb;
     
     float3 F_ambient = FresnelSchlickRoughness(max(dot(N, V), 0.0f), F0, roughness);
@@ -175,19 +207,14 @@ float4 main(VS_OUT pin) : SV_TARGET
     
     float3 reflectionDir = reflect(-V, N);
     float reflFactor = dot(reflectionDir, float3(0.0f, 1.0f, 0.0f)) * 0.5f + 0.5f;
-    float3 prefilteredColor = lerp(groundColor, skyColor, reflFactor);
+    float3 prefilteredColor = lerp(ambientGroundColor.rgb, ambientSkyColor.rgb, reflFactor);
     
     float2 envBRDF = float2(1.0f, 1.0f);
     float3 specularAmbient = prefilteredColor * (F_ambient * envBRDF.x + envBRDF.y);
     
     float3 ambient = (kD_ambient * diffuseAmbient + specularAmbient) * ao;
 
-    // -----------------------------------------------------------------
-    // Final Compositing & Gamma
-    // -----------------------------------------------------------------
-    float3 finalColor = ambient + directLighting + emissive;
-
-    // 4. Gamma Correction (Transforms Linear math back to monitor sRGB color space)
+    float3 finalColor = ambient + totalDirectLighting + emissive;
     finalColor = pow(abs(finalColor), float3(1.0f / 2.2f, 1.0f / 2.2f, 1.0f / 2.2f));
 
     return float4(finalColor, albedo.a);

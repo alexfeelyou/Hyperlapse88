@@ -43,29 +43,52 @@ void ModelRenderer::Render(const RenderContext& rc)
 
     ID3D11DeviceContext* dc = rc.deviceContext;
 
+    // Update LightManager aggregation prior to scene rendering
+    if (rc.lightManager)
+    {
+        const_cast<LightManager*>(rc.lightManager)->Update();
+    }
+
     // シーン用定数バッファ更新
     {
         static LightManager defaultLightManager;
-        const LightManager* lightManager = rc.lightManager ? rc.lightManager : &defaultLightManager;
+        const LightManager* const lightManager{ rc.lightManager ? rc.lightManager : &defaultLightManager };
 
         CbScene cbScene{};
-        DirectX::XMMATRIX V = DirectX::XMLoadFloat4x4(&rc.camera->GetView());
-        DirectX::XMMATRIX P = DirectX::XMLoadFloat4x4(&rc.camera->GetProjection());
+        const DirectX::XMMATRIX V{ DirectX::XMLoadFloat4x4(&rc.camera->GetView()) };
+        const DirectX::XMMATRIX P{ DirectX::XMLoadFloat4x4(&rc.camera->GetProjection()) };
         DirectX::XMStoreFloat4x4(&cbScene.viewProjection, V * P);
-        const DirectionalLight& directionalLight = lightManager->GetDirectionalLight();
-        cbScene.lightDirection.x = directionalLight.direction.x;
-        cbScene.lightDirection.y = directionalLight.direction.y;
-        cbScene.lightDirection.z = directionalLight.direction.z;
-        cbScene.lightColor.x = directionalLight.color.x;
-        cbScene.lightColor.y = directionalLight.color.y;
-        cbScene.lightColor.z = directionalLight.color.z;
-        const DirectX::XMFLOAT3& eye = rc.camera->GetPosition();
-        cbScene.cameraPosition.x = eye.x;
-        cbScene.cameraPosition.y = eye.y;
-        cbScene.cameraPosition.z = eye.z;
-        cbScene.psxEnabled = rc.psxEnabled ? 1.0f : 0.0f;
-        cbScene.psxResWidth = (std::max)(1.0f, rc.psxResWidth);
-        cbScene.psxResHeight = (std::max)(1.0f, rc.psxResHeight);
+
+        const DirectionalLight& dirLight{ lightManager->GetDirectionalLight() };
+        cbScene.lightDirection = { dirLight.direction.x, dirLight.direction.y, dirLight.direction.z, 0.0f };
+        cbScene.lightColor = { dirLight.color.x * dirLight.intensity, dirLight.color.y * dirLight.intensity, dirLight.color.z * dirLight.intensity, 1.0f };
+
+        const DirectX::XMFLOAT3& eye{ rc.camera->GetPosition() };
+        cbScene.cameraPosition = { eye.x, eye.y, eye.z, 1.0f };
+
+        // Pull dynamic environment colors from LightManager
+        cbScene.ambientSkyColor = lightManager->GetEffectiveSkyColor();
+        cbScene.ambientGroundColor = lightManager->GetEffectiveGroundColor();
+
+        cbScene.packedParams = {
+            rc.psxEnabled ? 1.0f : 0.0f,
+            (std::max)(1.0f, rc.psxResWidth),
+            (std::max)(1.0f, rc.psxResHeight),
+            0.0f
+        };
+
+        cbScene.lightCounts = {
+            lightManager->GetPointLightCount(),
+            lightManager->GetSpotLightCount(),
+            0, 0
+        };
+
+        const auto& pLights{ lightManager->GetPointLights() };
+        for (int i{ 0 }; i < 8; ++i) cbScene.pointLights[i] = pLights[i];
+
+        const auto& sLights{ lightManager->GetSpotLights() };
+        for (int i{ 0 }; i < 8; ++i) cbScene.spotLights[i] = sLights[i];
+
         dc->UpdateSubresource(sceneConstantBuffer.Get(), 0, 0, &cbScene, 0, 0);
     }
 

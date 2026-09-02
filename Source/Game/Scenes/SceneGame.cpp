@@ -1121,7 +1121,12 @@ void SceneGame::RenderScene(const float elapsedTime, Camera* camera)
     if (!camera) return;
     auto dc{ Graphics::Instance().GetDeviceContext() };
     auto modelRenderer{ Graphics::Instance().GetModelRenderer() };
-    RenderContext rc{ dc, Graphics::Instance().GetRenderState(), camera, &m_lightManager };
+    RenderContext rc{
+        dc,
+        Graphics::Instance().GetRenderState(),
+        camera,
+        &Graphics::Instance().GetLightManager()
+    };
 
     const auto& psxData = m_postProcess->GetPSX().GetData();
     rc.psxEnabled = (m_postProcess->IsEnabled() && psxData.enabled);
