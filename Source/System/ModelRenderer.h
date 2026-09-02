@@ -11,6 +11,7 @@
 #include "LambertShader.h"
 #include "Misc.h"
 #include "Model.h"
+#include "PbrShader.h"
 #include "PhongShader.h"
 #include "Shader.h"
 
@@ -19,6 +20,7 @@ enum class ShaderId
     Basic,
     Lambert,
     Phong,
+    Pbr,
 
     EnumCount
 };

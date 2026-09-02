@@ -17,6 +17,7 @@ ModelRenderer::ModelRenderer(ID3D11Device* device)
     shaders[static_cast<int>(ShaderId::Basic)] = std::make_unique<BasicShader>(device);
     shaders[static_cast<int>(ShaderId::Lambert)] = std::make_unique<LambertShader>(device);
     shaders[static_cast<int>(ShaderId::Phong)] = std::make_unique<PhongShader>(device);
+    shaders[static_cast<int>(ShaderId::Pbr)] = std::make_unique<PbrShader>(device);
 }
 
 void ModelRenderer::Draw(std::shared_ptr<Model> model, const DirectX::XMFLOAT4& color)
@@ -193,12 +194,20 @@ void ModelRenderer::Render(const RenderContext& rc)
     }
     drawInfos.clear();
 
-    // 3. Render opaque buckets
+    // Render opaque buckets
     for (std::size_t i{ 0 }; i < opaqueBuckets.size(); ++i)
     {
         if (opaqueBuckets[i].empty()) continue;
 
         Shader* const shader{ shaders[i].get() };
+
+        // Fast fail guard: Prevent hard crashes if shader initialization failed
+        if (!shader)
+        {
+            _ASSERT_EXPR_A(false, "Critical Render Error: Shader instance is null!");
+            continue;
+        }
+
         shader->Begin(rc);
 
         for (const MeshDrawCommand& cmd : opaqueBuckets[i])

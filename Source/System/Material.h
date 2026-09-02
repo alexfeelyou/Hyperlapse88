@@ -31,8 +31,8 @@ public:
     std::string name{ "DefaultMaterial" };
 
     // Shading & Pipeline 
-    // Maps to ShaderId (0 = Basic, 1 = Lambert, 2 = Phong)
-    int shaderId{ 2 };
+    // Maps to ShaderId (0 = Basic, 1 = Lambert, 2 = Phong, 3 = PBR)
+    int shaderId{ 3 };
     AlphaMode alphaMode{ AlphaMode::Opaque };
     float alphaCutoff{ 0.5f };
 

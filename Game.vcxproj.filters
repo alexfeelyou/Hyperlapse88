@@ -58,6 +58,12 @@
     <FxCompile Include="Shader\ScanlinePS.hlsl">
       <Filter>Shader</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\PbrVS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\PbrPS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Source\System\BasicShader.cpp">
@@ -295,6 +301,9 @@
       <Filter>System</Filter>
     </ClCompile>
     <ClCompile Include="Source\System\Material.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\System\PbrShader.cpp">
       <Filter>System</Filter>
     </ClCompile>
   </ItemGroup>
@@ -603,6 +612,9 @@
     <ClInclude Include="Source\System\Material.h">
       <Filter>System</Filter>
     </ClInclude>
+    <ClInclude Include="Source\System\PbrShader.h">
+      <Filter>System</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Shader\Basic.hlsli">
@@ -627,6 +639,9 @@
       <Filter>Shader</Filter>
     </None>
     <None Include="Shader\Sprite.hlsli">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Shader\Pbr.hlsli">
       <Filter>Shader</Filter>
     </None>
   </ItemGroup>

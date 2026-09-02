@@ -34,7 +34,7 @@ namespace
 void Material::DrawInspector() noexcept
 {
     // Shader Selection Dropdown
-    static constexpr const char* const s_shaderNames[]{ "Basic", "Lambert", "Phong" };
+    static constexpr const char* const s_shaderNames[]{ "Basic", "Lambert", "Phong", "Pbr" };
     ImGui::Combo("Shader", &shaderId, s_shaderNames, IM_ARRAYSIZE(s_shaderNames));
 
     // Alpha mode
