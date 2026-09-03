@@ -7,6 +7,11 @@
 #include <vector>
 #include <PxPhysicsAPI.h>
 
+#pragma comment(lib, "PhysXCooking_64.lib") 
+#pragma comment(lib, "PhysXCommon_64.lib")
+#pragma comment(lib, "PhysXFoundation_64.lib")
+#pragma comment(lib, "PhysX_64.lib")
+
 class Model;
 
 namespace PhysicsConfig

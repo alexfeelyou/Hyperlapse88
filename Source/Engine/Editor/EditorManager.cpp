@@ -469,22 +469,10 @@ void EditorManager::DrawMenuBar(Scene* currentScene) noexcept
             {
                 if (currentScene)
                 {
-                    // Default to nullptrs for managers
-                    EnemyManager* enemyMgr{ nullptr };
-                    ItemManager* itemMgr{ nullptr };
-
-                    if (auto* gameScene{ dynamic_cast<SceneGame*>(currentScene) })
-                    {
-                        enemyMgr = gameScene->GetEnemyManager();
-                        itemMgr = gameScene->GetItemManager();
-                    }
-
-                    // Save the scene
+                    // Only save the root objects, stripping out all enemy/item manager saves
                     SceneSerializer::Save(
                         currentScene->GetSceneSavePath(),
-                        currentScene->GetRootGameObject(),
-                        enemyMgr,
-                        itemMgr
+                        currentScene->GetRootGameObject()
                     );
                 }
                 else
@@ -616,8 +604,7 @@ void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
                 currentScene->GetRootGameObject()->AddChild(std::make_unique<GameObject>("Empty"));
             }
 
-            // Only show Gameplay Entities if we are currently editing the Game Scene
-           // Only show Gameplay & Light Entities if we are currently editing the Game Scene
+           // Only show Gameplay Entities if we are currently editing the Game Scene
             if (auto* gameScene{ dynamic_cast<SceneGame*>(currentScene) })
             {
                 ImGui::Separator();
@@ -649,52 +636,6 @@ void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
                         lightObj->AddComponent<SpotLightComponent>();
                         currentScene->GetRootGameObject()->AddChild(std::move(lightObj));
                     }
-                    ImGui::EndMenu();
-                }
-
-                ImGui::Separator();
-                ImGui::TextDisabled("Gameplay Entities");
-
-                if (ImGui::BeginMenu("Enemy"))
-                {
-                    // Local lambda for enemies
-                    auto spawnEnemy = [&](EnemyType type, AttackType attack)
-                        {
-                            EnemySpawnConfig config{};
-                            config.Type = type;
-                            config.AttackBehavior = attack;
-                            config.Position = { 0.0f, 1.1f, 5.0f };
-                            config.Scale = { 1.0f, 1.0f, 1.0f };
-
-                            gameScene->GetEnemyManager()->SpawnEnemy(config);
-                        };
-
-                    if (ImGui::MenuItem("Mushroom (Idle)"))     spawnEnemy(EnemyType::MushroomNone, AttackType::None);
-                    if (ImGui::MenuItem("Mushroom (Turret)"))   spawnEnemy(EnemyType::MushroomStatic, AttackType::Static);
-                    ImGui::Separator();
-                    if (ImGui::MenuItem("Paddle"))              spawnEnemy(EnemyType::Paddle, AttackType::None);
-                    if (ImGui::MenuItem("Ball"))                spawnEnemy(EnemyType::Ball, AttackType::None);
-                    if (ImGui::MenuItem("FakeBoss"))            spawnEnemy(EnemyType::FakeBoss, AttackType::None);
-
-                    ImGui::EndMenu();
-                }
-
-                if (ImGui::BeginMenu("Item"))
-                {
-                    // Local lambda for items
-                    auto spawnItem = [&](ItemType type)
-                        {
-                            ItemSpawnData data{};
-                            data.Type = type;
-                            data.Position = { 0.0f, 0.4f, 5.0f };
-                            data.Scale = { 2.0f, 2.0f, 2.0f };
-
-                            gameScene->GetItemManager()->SpawnItem(data);
-                        };
-
-                    if (ImGui::MenuItem("Heal Potion"))     spawnItem(ItemType::Heal);
-                    if (ImGui::MenuItem("Invincibility"))   spawnItem(ItemType::Invincible);
-
                     ImGui::EndMenu();
                 }
             }

@@ -1,7 +1,6 @@
 #include "System/PhysicsManager.h"
 #include "EditorManager.h"
 #include "SceneGame.h" 
-#include "StaticMeshColliderComponent.h"
 
 using namespace DirectX;
 
@@ -119,22 +118,6 @@ SceneGame::SceneGame()
     // Initialize the Global Physics Engine
     PhysicsManager::Instance().Initialize();
 
-    // Setup the Stage 
-    m_stage = std::make_unique<Stage>(Graphics::Instance().GetDevice());
-
-    auto stageNode{ std::make_unique<GameObject>("Stage") };
-
-    // Syncs the GameObject transform with m_stage manually
-    stageNode->AddComponent(std::make_unique<StageComponent>(m_stage.get()));
-
-    // Draws the 3D model
-    stageNode->AddComponent(std::make_unique<MeshComponent>(m_stage->GetModel()));
-
-    // Bakes the PhysX collision
-    stageNode->AddComponent(std::make_unique<StaticMeshColliderComponent>());
-
-    m_sceneRoot->AddChild(std::move(stageNode));
-
     m_player = std::make_unique<Player>();
 
     m_player->SetPosition(m_playerSpawnPos);
@@ -168,24 +151,13 @@ SceneGame::SceneGame()
     m_itemManager->Initialize(Graphics::Instance().GetDevice(), m_sceneRoot.get());
     
     // Reads the JSON file and pushes the saved data into the managers
-    SceneSerializer::Load(GetSceneSavePath(), m_sceneRoot.get(), m_enemyManager.get(), m_itemManager.get());
+    SceneSerializer::Load(GetSceneSavePath(), m_sceneRoot.get());
 
     m_collisionManager = std::make_unique<CollisionManager>();
-    m_collisionManager->Initialize(m_player.get(), m_stage.get(), m_enemyManager.get(), m_itemManager.get());
+    m_collisionManager->Initialize(m_player.get(), m_enemyManager.get(), m_itemManager.get());
     m_collisionManager->SetNavi(m_navi.get());
 
     m_player->SetCollisionManager(m_collisionManager.get());
-    m_collisionManager->SetOnEnableLineReachCallback([this](int lineIndex) {
-        if (lineIndex == 0 && !m_bossCinematicTriggered)
-        {
-            StartBossCinematic(); 
-        }
-        });
-
-    m_collisionManager->SetOnCheckpointReachCallback([this](DirectX::XMFLOAT3 pos) {
-        m_currentCheckpointPos = pos;
-        m_hasCheckpoint = true;
-    });
 
     if (m_lastEditorMode == EditorMode::Play)
     {
@@ -263,7 +235,6 @@ SceneGame::~SceneGame()
     EffectManager::Instance().StopAll();
 
     m_player.reset();
-    m_stage.reset();
     m_enemyManager.reset();
     m_itemManager.reset();
 
@@ -282,7 +253,7 @@ void SceneGame::Update(const float elapsedTime)
         if (currentMode == EditorMode::Play && m_lastEditorMode == EditorMode::Edit)
         {
             // Backup the authored scene layout 
-            SceneSerializer::Save("Data/Scenes/AutoSave_PlayMode.json", m_sceneRoot.get(), m_enemyManager.get(), m_itemManager.get());
+            SceneSerializer::Save("Data/Scenes/AutoSave_PlayMode.json", m_sceneRoot.get());
 
             // Cache editor camera
             if (Camera * activeCam{ CameraController::Instance().GetActiveCamera().get() })
@@ -348,7 +319,7 @@ void SceneGame::Update(const float elapsedTime)
                 m_sceneRoot->Update(0.0f); // Flush dead objects immediately
             }
 
-            SceneSerializer::Load("Data/Scenes/AutoSave_PlayMode.json", m_sceneRoot.get(), m_enemyManager.get(), m_itemManager.get());
+            SceneSerializer::Load("Data/Scenes/AutoSave_PlayMode.json", m_sceneRoot.get());
 
             if (m_player)
             {
@@ -536,7 +507,7 @@ void SceneGame::Update(const float elapsedTime)
                 m_postProcess->GetVignette().GetData().intensity = FX_BLACK_INTENSITY;
                 m_fadeAlpha = 1.0f;
                 m_isNaviDefeatReadyForNextScene = true;
-                m_player.reset(); m_navi.reset(); m_enemyManager.reset(); m_itemManager.reset(); m_stage.reset(); m_collisionManager.reset();
+                m_player.reset(); m_navi.reset(); m_enemyManager.reset(); m_itemManager.reset(); m_collisionManager.reset();
 
                 m_sceneRoot.reset();
 
@@ -1004,7 +975,6 @@ void SceneGame::Render(float elapsedTime, Camera* camera)
         //primRenderer->DrawGrid(50, 1.0f);
 
         if (m_itemManager) m_itemManager->RenderDebug(shapeRenderer);
-        if (m_stage) m_stage->RenderDebug(shapeRenderer, primRenderer);
         if (m_enemyManager) m_enemyManager->RenderDebug(shapeRenderer);
 
         // Player hitbox (green), Enemy hitboxes (red)

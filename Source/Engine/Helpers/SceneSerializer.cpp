@@ -9,7 +9,7 @@
 #include "ItemManager.h"
 #include "SceneSerializer.h"
 
-void SceneSerializer::Save(std::string_view filepath, GameObject* sceneRoot, const EnemyManager* enemyMgr, const ItemManager* itemMgr)
+void SceneSerializer::Save(std::string_view filepath, GameObject* sceneRoot)
 {
     nlohmann::json root{};
 
@@ -64,9 +64,6 @@ void SceneSerializer::Save(std::string_view filepath, GameObject* sceneRoot, con
         root["SceneObjects"] = sceneObjects;
     }
 
-    if (enemyMgr) enemyMgr->Serialize(root);
-    if (itemMgr)  itemMgr->Serialize(root);
-
     // Save Environment Illumination via global LightManager
     nlohmann::json envJson{};
     Graphics::Instance().GetLightManager().Serialize(envJson);
@@ -92,7 +89,7 @@ void SceneSerializer::Save(std::string_view filepath, GameObject* sceneRoot, con
     }
 }
 
-void SceneSerializer::Load(std::string_view filepath, GameObject* sceneRoot, EnemyManager* enemyMgr, ItemManager* itemMgr)
+void SceneSerializer::Load(std::string_view filepath, GameObject* sceneRoot)
 {
     std::ifstream file{ std::string{ filepath } };
     if (!file.is_open())
@@ -179,9 +176,6 @@ void SceneSerializer::Load(std::string_view filepath, GameObject* sceneRoot, Ene
                 }
             }
         }
-
-        if (enemyMgr) enemyMgr->Deserialize(root);
-        if (itemMgr)  itemMgr->Deserialize(root);
 
         // Load Environment Illumination into global LightManager
         if (root.contains("EnvironmentIllumination"))

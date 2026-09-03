@@ -2,32 +2,6 @@
 
 using namespace DirectX;
 
-// Helper function to transform a world position into the local space of a wall
-static XMVECTOR TransformToLocal(const XMFLOAT3& worldPos, const DebugWallData& wall)
-{
-    XMVECTOR vWorldPos = XMLoadFloat3(&worldPos);
-    XMVECTOR vWallPos = XMLoadFloat3(&wall.Position);
-    XMVECTOR vRelative = XMVectorSubtract(vWorldPos, vWallPos);
-    XMMATRIX matRot = XMMatrixRotationRollPitchYaw(
-        XMConvertToRadians(wall.Rotation.x),
-        XMConvertToRadians(wall.Rotation.y),
-        XMConvertToRadians(wall.Rotation.z)
-    );
-    XMMATRIX matInvRot = XMMatrixTranspose(matRot);
-    return XMVector3TransformNormal(vRelative, matInvRot);
-}
-
-// Helper function to transform a local normal vector into world space based on the wall's rotation
-static XMVECTOR TransformNormalToWorld(const XMVECTOR& localNorm, const DebugWallData& wall)
-{
-    XMMATRIX matRot = XMMatrixRotationRollPitchYaw(
-        XMConvertToRadians(wall.Rotation.x),
-        XMConvertToRadians(wall.Rotation.y),
-        XMConvertToRadians(wall.Rotation.z)
-    );
-    return XMVector3TransformNormal(localNorm, matRot);
-}
-
 static XMVECTOR TransformToEnemyLocal(const XMFLOAT3& worldPos, const Enemy* enemy)
 {
     XMVECTOR vWorldPos = XMLoadFloat3(&worldPos);
@@ -37,91 +11,6 @@ static XMVECTOR TransformToEnemyLocal(const XMFLOAT3& worldPos, const Enemy* ene
     XMMATRIX matRot = XMMatrixRotationRollPitchYaw(rot.x, rot.y, rot.z);
     XMMATRIX matInvRot = XMMatrixTranspose(matRot);
     return XMVector3TransformNormal(vRelative, matInvRot);
-}
-
-static XMVECTOR TransformToLocalLine(const XMFLOAT3& worldPos, const DebugLineData& line)
-{
-    XMVECTOR vWorldPos = XMLoadFloat3(&worldPos);
-    XMVECTOR vLinePos = XMLoadFloat3(&line.Position);
-    XMVECTOR vRelPos = XMVectorSubtract(vWorldPos, vLinePos);
-    XMMATRIX matRot = XMMatrixRotationRollPitchYaw(
-        XMConvertToRadians(line.Rotation.x),
-        XMConvertToRadians(line.Rotation.y),
-        XMConvertToRadians(line.Rotation.z)
-    );
-    XMMATRIX matInvRot = XMMatrixTranspose(matRot);
-    return XMVector3TransformNormal(vRelPos, matInvRot);
-}
-
-static float RayCastOBB(XMVECTOR rayOrigin, XMVECTOR rayDir, float rayLength, float radius, const DebugWallData& wall, XMVECTOR& outNormal)
-{
-    XMVECTOR vWallPos = XMLoadFloat3(&wall.Position);
-    XMMATRIX matRot = XMMatrixRotationRollPitchYaw(
-        XMConvertToRadians(wall.Rotation.x),
-        XMConvertToRadians(wall.Rotation.y),
-        XMConvertToRadians(wall.Rotation.z)
-    );
-    XMMATRIX matInvRot = XMMatrixTranspose(matRot);
-
-    XMVECTOR vRelOrigin = XMVectorSubtract(rayOrigin, vWallPos);
-    XMVECTOR vLocalOrigin = XMVector3TransformNormal(vRelOrigin, matInvRot);
-    XMVECTOR vLocalDir = XMVector3TransformNormal(rayDir, matInvRot);
-
-    float r = radius;
-    float minX = -wall.Scale.x - r; float maxX = wall.Scale.x + r;
-    float minZ = -wall.Scale.z - r; float maxZ = wall.Scale.z + r;
-
-    float tMin = 0.0f;
-    float tMax = rayLength;
-
-    XMFLOAT3 start, dir;
-    XMStoreFloat3(&start, vLocalOrigin);
-    XMStoreFloat3(&dir, vLocalDir);
-
-    if (abs(dir.x) < 1e-6f) {
-        if (start.x < minX || start.x > maxX) return -1.0f;
-    }
-    else {
-        float invD = 1.0f / dir.x;
-        float t1 = (minX - start.x) * invD;
-        float t2 = (maxX - start.x) * invD;
-        if (t1 > t2) std::swap(t1, t2);
-        tMin = (std::max)(tMin, t1);
-        tMax = (std::min)(tMax, t2);
-        if (tMin > tMax) return -1.0f;
-    }
-
-    if (abs(dir.z) < 1e-6f) {
-        if (start.z < minZ || start.z > maxZ) return -1.0f;
-    }
-    else {
-        float invD = 1.0f / dir.z;
-        float t1 = (minZ - start.z) * invD;
-        float t2 = (maxZ - start.z) * invD;
-        if (t1 > t2) std::swap(t1, t2);
-        tMin = (std::max)(tMin, t1);
-        tMax = (std::min)(tMax, t2);
-        if (tMin > tMax) return -1.0f;
-    }
-
-    XMFLOAT3 hitPoint;
-    XMStoreFloat3(&hitPoint, vLocalOrigin + vLocalDir * tMin);
-
-    float distMinX = abs(hitPoint.x - minX);
-    float distMaxX = abs(hitPoint.x - maxX);
-    float distMinZ = abs(hitPoint.z - minZ);
-    float distMaxZ = abs(hitPoint.z - maxZ);
-
-    float bestDist = distMinX;
-    XMVECTOR localNormal = XMVectorSet(-1, 0, 0, 0);
-
-    if (distMaxX < bestDist) { bestDist = distMaxX; localNormal = XMVectorSet(1, 0, 0, 0); }
-    if (distMinZ < bestDist) { bestDist = distMinZ; localNormal = XMVectorSet(0, 0, -1, 0); }
-    if (distMaxZ < bestDist) { bestDist = distMaxZ; localNormal = XMVectorSet(0, 0, 1, 0); }
-
-    outNormal = XMVector3TransformNormal(localNormal, matRot);
-
-    return tMin;
 }
 
 static float DistancePointToLineSegment2D(const DirectX::XMFLOAT3& A, const DirectX::XMFLOAT3& B, const DirectX::XMFLOAT3& P)
@@ -167,10 +56,9 @@ static float DistancePointToLineSegment2D(const DirectX::XMFLOAT3& A, const Dire
     };
 }
 
-void CollisionManager::Initialize(Player* p, Stage* s, EnemyManager* em, ItemManager* im)
+void CollisionManager::Initialize(Player* p, EnemyManager* em, ItemManager* im)
 {
     m_player = p;
-    m_stage = s;
     m_enemyManager = em;
     m_itemManager = im;
 }
@@ -182,9 +70,6 @@ void CollisionManager::Update(float elapsedTime)
     CheckPlayerProjectilesVsNavi(elapsedTime);
     CheckNaviAllyProjectilesVsPlayer(elapsedTime);
     CheckPlayerVsEnemies();
-    CheckPlayerVsCheckpointLines();
-    CheckPlayerVsTriggerLines();
-    CheckPlayerVsVoidLines();
 
     if (m_itemManager)
     {
@@ -198,18 +83,14 @@ void CollisionManager::CheckEnemyProjectilesFull(float elapsedTime)
 {
     if (!m_enemyManager) return;
 
-    // Check if the Stage is active before casting rays against its walls
-    const bool isStageActive = m_stage && (!m_stage->GetOwnerNode() || m_stage->GetOwnerNode()->IsActive());
     const bool isPlayerActive = m_player && (!m_player->GetOwnerNode() || m_player->GetOwnerNode()->IsActive());
 
     for (auto& enemy : m_enemyManager->GetEnemies())
     {
-        // Do not process bullets from deactivated enemies
         if (!enemy || !enemy->IsActive()) continue;
         if (enemy->GetOwnerNode() && !enemy->GetOwnerNode()->IsActive()) continue;
 
         auto& projectiles = enemy->GetProjectiles();
-        AttackType type = enemy->GetAttackType();
 
         for (auto it = projectiles.begin(); it != projectiles.end(); )
         {
@@ -221,66 +102,13 @@ void CollisionManager::CheckEnemyProjectilesFull(float elapsedTime)
             XMVECTOR vPos = XMLoadFloat3(&currentPos);
             XMVECTOR vVel = XMLoadFloat3(&currentVel);
             XMVECTOR vNextPos = vPos + (vVel * elapsedTime);
-            XMVECTOR vDir = XMVector3Normalize(vVel);
 
-            float speed = XMVectorGetX(XMVector3Length(vVel));
-            float frameDist = speed * elapsedTime;
             float bulletRadius = bullet->GetRadius();
-
-            bool hitWall = false;
-            float closestT = frameDist;
-            XMVECTOR hitNormal = XMVectorZero();
-
-            if (isStageActive)
-            {
-                for (const auto& wall : m_stage->m_debugWalls)
-                {
-                    float dx = currentPos.x - wall.Position.x;
-                    float dz = currentPos.z - wall.Position.z;
-                    float wallMax = (std::max)(wall.Scale.x, wall.Scale.z);
-                    if ((dx * dx + dz * dz) > pow(wallMax + frameDist + 10.0f, 2)) continue;
-
-                    XMVECTOR tempNormal;
-                    float t = RayCastOBB(vPos, vDir, frameDist, bulletRadius, wall, tempNormal);
-
-                    if (t >= 0.0f && t < closestT)
-                    {
-                        closestT = t;
-                        hitNormal = tempNormal;
-                        hitWall = true;
-                    }
-                }
-            }
-
-            if (hitWall)
-            {
-                if (type == AttackType::Static) {
-                    it = projectiles.erase(it);
-                    continue;
-                }
-
-                float safeDist = (std::max)(0.0f, closestT - 0.01f);
-                XMVECTOR vSafePos = vPos + (vDir * safeDist);
-                XMVECTOR vReflectedVel = XMVector3Reflect(vVel, hitNormal);
-                float remainingDist = frameDist - closestT;
-                vSafePos += (XMVector3Normalize(vReflectedVel) * remainingDist);
-                vSafePos += hitNormal * 0.05f;
-
-                XMFLOAT3 finalPos, finalVel;
-                XMStoreFloat3(&finalPos, vSafePos);
-                XMStoreFloat3(&finalVel, vReflectedVel);
-                finalPos.y = 0.0f; finalVel.y = 0.0f;
-
-                bullet->ApplyMovement(finalPos, finalVel);
-                ++it;
-                continue;
-            }
 
             if (bullet->GetHomingTarget() != nullptr)
             {
                 Enemy* targetEnemy = static_cast<Enemy*>(bullet->GetHomingTarget());
 
-                // Verify the target wasn't deleted from memory by a different attack (like a Slash)
                 bool isTargetAlive = false;
                 for (auto& activeEnemy : m_enemyManager->GetEnemies()) {
                     if (activeEnemy.get() == targetEnemy && activeEnemy->IsActive()) {
@@ -289,7 +117,6 @@ void CollisionManager::CheckEnemyProjectilesFull(float elapsedTime)
                     }
                 }
 
-                // If the target died while the bullet was mid-air, destroy the bullet to prevent a crash
                 if (!isTargetAlive) {
                     it = projectiles.erase(it);
                     continue;
@@ -302,29 +129,22 @@ void CollisionManager::CheckEnemyProjectilesFull(float elapsedTime)
                 float dz = bPos.z - targetPos.z;
                 float distSq = dx * dx + dz * dz;
 
-				// Party Damage Logic: If the bullet is close enough to the target, apply damage and destroy the bullet
                 float enemyScale = targetEnemy->GetScale().x;
                 float hitRadius = 1.0f * enemyScale;
-                
+
                 if (targetEnemy->GetType() == EnemyType::Paddle) hitRadius = 0.8f * enemyScale;
 
                 float combinedHitRadius = hitRadius + bullet->GetRadius();
 
                 if (distSq < (combinedHitRadius * combinedHitRadius))
                 {
-					// Apply damage to the enemy and destroy the bullet
                     constexpr int PARRY_DAMAGE = 30;
                     targetEnemy->TakeDamage(PARRY_DAMAGE);
-
-                    // Destroy the bullet
                     it = projectiles.erase(it);
                     continue;
                 }
             }
 
-            bool hitPlayer = false;
-
-			// Check for collision with the player using Continuous Collision Detection (CCD)
             XMFLOAT3 nextPosFloat;
             XMStoreFloat3(&nextPosFloat, vNextPos);
 
@@ -333,27 +153,23 @@ void CollisionManager::CheckEnemyProjectilesFull(float elapsedTime)
                 DirectX::XMFLOAT3 playerPos = m_player->GetMovement()->GetPosition();
 
                 constexpr int ENEMY_BULLET_DAMAGE = 10;
-                constexpr float PLAYER_HITBOX_RADIUS = 0.3f; 
+                constexpr float PLAYER_HITBOX_RADIUS = 0.3f;
 
                 float combinedRadius = PLAYER_HITBOX_RADIUS + bulletRadius;
-
-                // Mathematical CCD (Prevents Tunneling)
                 float distToPath = DistancePointToLineSegment2D(currentPos, nextPosFloat, playerPos);
 
                 if (distToPath <= combinedRadius)
                 {
-                    bool wasAlive = (m_player->GetHP() > 0);
                     m_player->TakeDamage(ENEMY_BULLET_DAMAGE);
 
                     if (m_player->GetHP() <= 0)
                     {
-                        m_player->scale = { 0.0f, 0.0f, 0.0f }; // Make the 3D model vanish
-                        m_player->SetInputEnabled(false);       // Stop WASD and Spacebar input
-                        m_player->GetMovement()->SetVelocity({ 0,0,0 }); // Stop sliding
+                        m_player->scale = { 0.0f, 0.0f, 0.0f };
+                        m_player->SetInputEnabled(false);
+                        m_player->GetMovement()->SetVelocity({ 0,0,0 });
                         m_player->GetStateMachine()->ChangeState(m_player, std::make_unique<PlayerDead>());
                     }
 
-                    // Destroy the bullet and prevent crashes
                     it = projectiles.erase(it);
                     continue;
                 }
@@ -444,91 +260,6 @@ void CollisionManager::CheckPlayerVsEnemies()
         m_player->SetPosition(playerPos);
         m_player->GetMovement()->SetVelocity(playerVel);
     }
-}
-
-void CollisionManager::CheckPlayerVsCheckpointLines()
-{
-    if (!m_player || !m_stage || m_player->GetHP() <= 0) return;
-
-    // Guard against inactive entities
-    if (m_player->GetOwnerNode() && !m_player->GetOwnerNode()->IsActive()) return;
-    if (m_stage->GetOwnerNode() && !m_stage->GetOwnerNode()->IsActive()) return;
-
-    const float TRIGGER_RANGE_Z = 2.0f;
-
-    for (const auto& line : m_stage->m_linesCheckpoint)
-    {
-        DirectX::XMVECTOR vLocalPos = TransformToLocalLine(m_player->GetMovement()->GetPosition(), line);
-        DirectX::XMFLOAT3 localPos;
-        DirectX::XMStoreFloat3(&localPos, vLocalPos);
-        float lineHalfLength = line.Scale.x * 0.5f;
-
-        // Check if player is between the left/right ends of the line
-        if (localPos.x < -lineHalfLength || localPos.x > lineHalfLength) continue;
-
-        // Check if player crosses the Z-depth of the line
-        if (localPos.z > -TRIGGER_RANGE_Z && localPos.z < TRIGGER_RANGE_Z)
-        {
-            if (m_onCheckpointReachCallback)
-            {
-                // line.Position is the exact center 
-                m_onCheckpointReachCallback(line.Position);
-            }
-        }
-    }
-}
-
-void CollisionManager::CheckPlayerVsTriggerLines()
-{
-    // Guard against missing data or dead player
-    if (!m_player || !m_stage || m_player->GetHP() <= 0) return;
-
-    const float TRIGGER_RANGE_Z = 2.0f;
-
-    for (int i = 0; i < m_stage->m_linesEnable.size(); ++i)
-    {
-        const auto& line = m_stage->m_linesEnable[i];
-
-        // Transform player pos into the line's local space
-        DirectX::XMVECTOR vLocalPos = TransformToLocalLine(m_player->GetMovement()->GetPosition(), line);
-        DirectX::XMFLOAT3 localPos;
-        DirectX::XMStoreFloat3(&localPos, vLocalPos);
-
-        float lineHalfLength = line.Scale.x * 0.5f;
-
-        // Check if player is standing on the line
-        if (localPos.x >= -lineHalfLength && localPos.x <= lineHalfLength &&
-            localPos.z > -TRIGGER_RANGE_Z && localPos.z < TRIGGER_RANGE_Z)
-        {
-            if (m_onEnableLineReachCallback)
-            {
-                m_onEnableLineReachCallback(i);
-            }
-        }
-    }
-}
-
-void CollisionManager::CheckPlayerVsVoidLines()
-{
-    //if (!m_player || !m_stage) return;
-    //if (m_player->IsFalling()) return;
-
-    //const float FALL_THRESHOLD = 0.1f;
-    //const float TRIGGER_RANGE = 2.0f;
-
-    //for (const auto& line : m_stage->m_linesVoid)
-    //{
-    //    XMVECTOR vLocalPos = TransformToLocalLine(m_player->GetMovement()->GetPosition(), line);
-    //    XMFLOAT3 localPos;
-    //    XMStoreFloat3(&localPos, vLocalPos);
-    //    float lineHalfLength = line.Scale.x * 0.5f;
-
-    //    if (localPos.x < -lineHalfLength - 0.5f || localPos.x > lineHalfLength + 0.5f) continue;
-    //    if (localPos.z < -FALL_THRESHOLD && localPos.z > -TRIGGER_RANGE)
-    //    {
-    //        m_player->SetFalling(true);
-    //    }
-    //}
 }
 
 void CollisionManager::CheckPlayerVsItems()

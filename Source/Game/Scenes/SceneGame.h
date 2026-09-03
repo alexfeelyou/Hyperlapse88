@@ -31,8 +31,6 @@
 #include "Player.h"
 #include "PlayerStates.h"
 #include "SceneSerializer.h"
-#include "Stage.h"
-#include "StageComponent.h"
 #include "UIDialogueBox.h"
 #include "UIPause.h"
 
@@ -47,7 +45,6 @@ class NaviAlly;
 class Player;
 class PostProcessManager;
 class Primitive;
-class Stage;
 class UIPause;
 
 enum class EditorMode : std::uint8_t;
@@ -114,7 +111,6 @@ private:
     std::unique_ptr<CollisionManager> m_collisionManager{};
     std::unique_ptr<EnemyManager> m_enemyManager{};
     std::unique_ptr<ItemManager> m_itemManager{};
-    std::unique_ptr<Stage> m_stage{};
     std::shared_ptr<Camera> m_mainCamera{};
     std::unique_ptr<UIDialogueBox> m_dialogueBox{};
     std::unique_ptr<UIPause> m_uiPause{};

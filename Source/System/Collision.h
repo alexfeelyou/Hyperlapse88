@@ -7,37 +7,10 @@
 #include <limits>
 #include <vector>
 #include "Model.h"
-#include "Stage.h"
 
 class Collision
 {
 public:
-    static bool IntersectMovingSphereVsBoxInfiniteY(
-        const DirectX::XMFLOAT3& prevPos,
-        const DirectX::XMFLOAT3& currPos,
-        float radius,
-        const DebugWallData& wall,
-        DirectX::XMFLOAT3& outHitPoint,
-        DirectX::XMFLOAT3& outHitNormal,
-        float& outT 
-    );
-
-    static bool IntersectRayVsOBB(
-        const DirectX::XMFLOAT3& rayOrigin,
-        const DirectX::XMFLOAT3& rayDir,
-        float rayLength,
-        const DebugWallData& wall,
-        float& outDist,
-        DirectX::XMFLOAT3& outNormal
-    );
-
-    static bool ResolveOBB(
-        const DirectX::XMFLOAT3& entityPos,
-        float entityRadius,
-        const DebugWallData& wall,
-        DirectX::XMFLOAT3& outFixPosition
-    );
-
     static bool RayCast(
         const DirectX::XMFLOAT3& start,
         const DirectX::XMFLOAT3& end,
