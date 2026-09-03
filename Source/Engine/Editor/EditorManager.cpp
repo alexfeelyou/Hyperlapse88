@@ -1,4 +1,5 @@
 #include "EditorManager.h"
+#include "LightComponent.h"
 
 namespace
 {

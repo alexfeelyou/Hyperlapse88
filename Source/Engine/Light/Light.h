@@ -4,6 +4,7 @@
 #include <array>
 #include <d3d11.h>
 #include <DirectXMath.h>
+#include <json.hpp>
 #include <vector>
 
 // Forward declaration
@@ -69,6 +70,10 @@ public:
 
     // Renders ImGui controls for ambient sky and ground illumination
     void DrawEnvironmentGUI() noexcept;
+
+	// Serialization 
+    void Serialize(nlohmann::json& outJson) const;
+    void Deserialize(const nlohmann::json& inJson);
 
     // Direct lighting accessors
     [[nodiscard]] const DirectionalLight& GetDirectionalLight() const noexcept { return m_directionalLight; }

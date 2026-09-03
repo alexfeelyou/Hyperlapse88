@@ -11,7 +11,6 @@
 #include "System/Logger.h"
 #include "Framework.h"
 #include "GameObject.h"
-#include "LightComponent.h"
 #include "ProfilerManager.h"
 #include "Scene.h"
 #include "SceneGame.h"

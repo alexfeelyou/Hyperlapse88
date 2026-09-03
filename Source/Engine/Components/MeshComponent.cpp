@@ -10,6 +10,42 @@
 
 namespace
 {
+    // Convert Local Windows Encoding (Shift-JIS) to JSON-safe UTF-8
+    [[nodiscard]] std::string LocalToUTF8(const std::string& localStr) noexcept
+    {
+        if (localStr.empty()) return "";
+
+        // Convert Local (Shift-JIS) to UTF-16 Wide String
+        const int wSize{ MultiByteToWideChar(CP_ACP, 0, localStr.data(), static_cast<int>(localStr.size()), nullptr, 0) };
+        std::wstring wStr(wSize, 0);
+        MultiByteToWideChar(CP_ACP, 0, localStr.data(), static_cast<int>(localStr.size()), wStr.data(), wSize);
+
+        // Convert UTF-16 to UTF-8
+        const int uSize{ WideCharToMultiByte(CP_UTF8, 0, wStr.data(), static_cast<int>(wStr.size()), nullptr, 0, nullptr, nullptr) };
+        std::string utf8Str(uSize, 0);
+        WideCharToMultiByte(CP_UTF8, 0, wStr.data(), static_cast<int>(wStr.size()), utf8Str.data(), uSize, nullptr, nullptr);
+
+        return utf8Str;
+    }
+
+    // Convert JSON UTF-8 back to Local Windows Encoding (Shift-JIS)
+    [[nodiscard]] std::string UTF8ToLocal(const std::string& utf8Str) noexcept
+    {
+        if (utf8Str.empty()) return "";
+
+        // Convert UTF-8 to UTF-16 Wide String
+        const int wSize{ MultiByteToWideChar(CP_UTF8, 0, utf8Str.data(), static_cast<int>(utf8Str.size()), nullptr, 0) };
+        std::wstring wStr(wSize, 0);
+        MultiByteToWideChar(CP_UTF8, 0, utf8Str.data(), static_cast<int>(utf8Str.size()), wStr.data(), wSize);
+
+        // Convert UTF-16 back to Local (Shift-JIS)
+        const int lSize{ WideCharToMultiByte(CP_ACP, 0, wStr.data(), static_cast<int>(wStr.size()), nullptr, 0, nullptr, nullptr) };
+        std::string localStr(lSize, 0);
+        WideCharToMultiByte(CP_ACP, 0, wStr.data(), static_cast<int>(wStr.size()), localStr.data(), lSize, nullptr, nullptr);
+
+        return localStr;
+    }
+
     // Helper to open the native Windows File Explorer dialog
     [[nodiscard]] std::string OpenFileDialog() noexcept
     {
@@ -127,6 +163,57 @@ void MeshComponent::DrawInspector()
         else
         {
             ImGui::TextColored(ImVec4{ 1.0f, 0.2f, 0.2f, 1.0f }, "Warning: No Model Attached!");
+        }
+    }
+}
+
+void MeshComponent::Serialize(nlohmann::json& j) const
+{
+    // Encode the Shift-JIS path into UTF-8 so the JSON library doesn't crash
+    j["ModelPath"] = LocalToUTF8(m_modelPath);
+    j["Color"] = { m_color.x, m_color.y, m_color.z, m_color.w };
+
+    // Save all material overrides
+    if (m_model)
+    {
+        nlohmann::json matArray = nlohmann::json::array();
+        for (const auto& mat : m_model->GetMaterials())
+        {
+            nlohmann::json matJson{};
+            mat.Serialize(matJson);
+            matArray.push_back(matJson);
+        }
+        j["Materials"] = matArray;
+    }
+}
+
+void MeshComponent::Deserialize(const nlohmann::json& j)
+{
+    if (j.contains("Color"))
+    {
+        m_color = { j["Color"][0], j["Color"][1], j["Color"][2], j["Color"][3] };
+    }
+
+    // Decode the JSON UTF-8 string back into Shift-JIS so AssetManager can find the file
+    std::string path = UTF8ToLocal(j.value("ModelPath", ""));
+    if (!path.empty() && path != "None")
+    {
+        auto* device{ Graphics::Instance().GetDevice() };
+        if (auto newModel{ Engine::System::AssetManager::Instance().GetOrLoadModel(device, path) })
+        {
+            SetModel(std::move(newModel), path);
+
+            // Apply loaded material overrides to the model
+            if (j.contains("Materials"))
+            {
+                auto& materials = m_model->GetMaterials();
+                const auto& matJsonArray = j["Materials"];
+
+                for (size_t i = 0; i < materials.size() && i < matJsonArray.size(); ++i)
+                {
+                    materials[i].Deserialize(matJsonArray[i]);
+                }
+            }
         }
     }
 }

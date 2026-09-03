@@ -3,6 +3,7 @@
 #include <cereal/cereal.hpp>
 #include <d3d11.h>
 #include <DirectXMath.h>
+#include <json.hpp>
 #include <string>
 #include <wrl/client.h>
 
@@ -57,7 +58,7 @@ public:
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> occlusionMap{};
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> metalnessRoughnessMap{};
 
-    // Serialization support
+    // Cereal Serialization (Used by the engine's Model Importer/Cache)
     template<class Archive>
     void serialize(Archive& archive)
     {
@@ -77,4 +78,8 @@ public:
             cereal::make_nvp("alphaMode", alphaMode)
         );
     }
+
+    // Serialization support
+    void Serialize(nlohmann::json& outJson) const;
+    void Deserialize(const nlohmann::json& inJson);
 };

@@ -130,7 +130,7 @@ void ModelRenderer::Render(const RenderContext& rc)
                 {
                     const Model::Bone& bone = mesh.bones.at(i);
 
-                    // [FIX] Multiply bone's global model-space transform by the GameObject's world space
+                    // Multiply bone's global model-space transform by the GameObject's world space
                     DirectX::XMMATRIX nodeGlobalMat = DirectX::XMLoadFloat4x4(&bone.node->globalTransform);
                     DirectX::XMMATRIX worldTransform = useManual
                         ? (nodeGlobalMat * manualWorldMat)

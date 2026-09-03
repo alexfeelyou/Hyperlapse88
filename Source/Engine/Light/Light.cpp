@@ -83,3 +83,27 @@ void LightManager::DrawEnvironmentGUI() noexcept
     ImGui::Text("Active Registered Lights: %zu", m_lights.size());
     ImGui::TextDisabled("Points: %d/8 | Spots: %d/8", m_pointLightCount, m_spotLightCount);
 }
+
+void LightManager::Serialize(nlohmann::json& outJson) const
+{
+    outJson["SkyColor"] = { m_skyColor.x, m_skyColor.y, m_skyColor.z };
+    outJson["SkyIntensity"] = m_skyIntensity;
+
+    outJson["GroundColor"] = { m_groundColor.x, m_groundColor.y, m_groundColor.z };
+    outJson["GroundIntensity"] = m_groundIntensity;
+}
+
+void LightManager::Deserialize(const nlohmann::json& inJson)
+{
+    if (inJson.contains("SkyColor"))
+    {
+        m_skyColor = { inJson["SkyColor"][0], inJson["SkyColor"][1], inJson["SkyColor"][2] };
+    }
+    m_skyIntensity = inJson.value("SkyIntensity", 0.5f);
+
+    if (inJson.contains("GroundColor"))
+    {
+        m_groundColor = { inJson["GroundColor"][0], inJson["GroundColor"][1], inJson["GroundColor"][2] };
+    }
+    m_groundIntensity = inJson.value("GroundIntensity", 0.5f);
+}

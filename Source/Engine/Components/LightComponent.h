@@ -45,6 +45,9 @@ class DirectionalLightComponent final : public LightComponent
 {
 public:
     void DrawInspector() override;
+    void Serialize(nlohmann::json& outJson) const override;
+    void Deserialize(const nlohmann::json& inJson) override;
+
     [[nodiscard]] const char* GetTypeName() const noexcept override { return "DirectionalLightComponent"; }
     [[nodiscard]] LightType GetLightType() const noexcept override { return LightType::Directional; }
 };
@@ -53,6 +56,9 @@ class PointLightComponent final : public LightComponent
 {
 public:
     void DrawInspector() override;
+    void Serialize(nlohmann::json& outJson) const override;
+    void Deserialize(const nlohmann::json& inJson) override;
+
     [[nodiscard]] const char* GetTypeName() const noexcept override { return "PointLightComponent"; }
     [[nodiscard]] LightType GetLightType() const noexcept override { return LightType::Point; }
 
@@ -67,6 +73,9 @@ class SpotLightComponent final : public LightComponent
 {
 public:
     void DrawInspector() override;
+    void Serialize(nlohmann::json& outJson) const override;
+    void Deserialize(const nlohmann::json& inJson) override;
+
     [[nodiscard]] const char* GetTypeName() const noexcept override { return "SpotLightComponent"; }
     [[nodiscard]] LightType GetLightType() const noexcept override { return LightType::Spot; }
 

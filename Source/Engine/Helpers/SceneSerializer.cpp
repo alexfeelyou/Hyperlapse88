@@ -1,7 +1,9 @@
 #include <json.hpp>
 #include <filesystem>
 #include <fstream>
+#include "System/Graphics.h"
 #include "System/Logger.h"
+#include "ComponentRegistry.h"
 #include "EnemyManager.h"
 #include "GameObject.h"
 #include "ItemManager.h"
@@ -11,7 +13,6 @@ void SceneSerializer::Save(std::string_view filepath, GameObject* sceneRoot, con
 {
     nlohmann::json root{};
 
-    // Serialize Static Scene Objects (Player, Stage, Empty nodes)
     if (sceneRoot)
     {
         nlohmann::json sceneObjects = nlohmann::json::array();
@@ -19,13 +20,13 @@ void SceneSerializer::Save(std::string_view filepath, GameObject* sceneRoot, con
         {
             const std::string& name = child->GetName();
 
-            // Exclude dynamically spawned enemies and items because their 
-            // respective Managers already handle serializing them to prevent duplicates.
+            // Skip runtime spawned entities managed by specialized systems
             if (name.find("Mushroom") != std::string::npos ||
                 name.find("Item") != std::string::npos ||
                 name.find("Paddle") != std::string::npos ||
                 name.find("Ball") != std::string::npos ||
-                name.find("FakeBoss") != std::string::npos)
+                name.find("FakeBoss") != std::string::npos ||
+                name.find("Player") != std::string::npos) // Let player load from specific logic
             {
                 continue;
             }
@@ -34,6 +35,7 @@ void SceneSerializer::Save(std::string_view filepath, GameObject* sceneRoot, con
             objJson["Name"] = name;
             objJson["IsActive"] = child->IsActive();
 
+            // ALWAYS save the Transform, regardless of what components are attached
             objJson["PosX"] = child->transform.position.x;
             objJson["PosY"] = child->transform.position.y;
             objJson["PosZ"] = child->transform.position.z;
@@ -46,16 +48,30 @@ void SceneSerializer::Save(std::string_view filepath, GameObject* sceneRoot, con
             objJson["ScaleY"] = child->transform.scale.y;
             objJson["ScaleZ"] = child->transform.scale.z;
 
+            // Serialize Attached Components
+            nlohmann::json componentsArray = nlohmann::json::array();
+            for (const auto& comp : child->GetComponents())
+            {
+                nlohmann::json compJson{};
+                compJson["Type"] = comp->GetTypeName();
+                comp->Serialize(compJson);
+                componentsArray.push_back(compJson);
+            }
+            objJson["Components"] = componentsArray;
+
             sceneObjects.push_back(objJson);
         }
         root["SceneObjects"] = sceneObjects;
     }
 
-    // Ask Managers to serialize their live data
     if (enemyMgr) enemyMgr->Serialize(root);
     if (itemMgr)  itemMgr->Serialize(root);
 
-    // Ensure directory exists
+    // Save Environment Illumination via global LightManager
+    nlohmann::json envJson{};
+    Graphics::Instance().GetLightManager().Serialize(envJson);
+    root["EnvironmentIllumination"] = envJson;
+
     const std::filesystem::path pathObj{ filepath };
     const std::filesystem::path directory{ pathObj.parent_path() };
 
@@ -64,12 +80,10 @@ void SceneSerializer::Save(std::string_view filepath, GameObject* sceneRoot, con
         std::filesystem::create_directories(directory);
     }
 
-    // Write to disk
     std::ofstream file{ std::string{ filepath } };
     if (file.is_open())
     {
-        // Dump with an indent of 4 spaces for human readability
-        file << root.dump(4);
+        file << root.dump(4, ' ', false, nlohmann::json::error_handler_t::replace);
         Log::Success("Saved Scene to: " + std::string{ filepath });
     }
     else
@@ -92,14 +106,26 @@ void SceneSerializer::Load(std::string_view filepath, GameObject* sceneRoot, Ene
         nlohmann::json root{};
         file >> root;
 
-        // Deserialize Static Scene Objects
         if (sceneRoot && root.contains("SceneObjects"))
         {
+            // Mark existing dynamic objects for destruction 
+            for (const auto& child : sceneRoot->GetChildren())
+            {
+                const std::string& name = child->GetName();
+                if (name != "Player" && name != "Stage")
+                {
+                    child->Destroy();
+                }
+            }
+
+            // Force the GameObject to process the deletions immediately
+            sceneRoot->Update(0.0f);
+
             for (const auto& objJson : root["SceneObjects"])
             {
-                std::string name = objJson.value("Name", "");
+                std::string name = objJson.value("Name", "GameObject");
 
-                // Find the existing pre-spawned GameObject
+                // Check if the node already exists (e.g., hardcoded "Stage" node)
                 GameObject* targetNode = nullptr;
                 for (const auto& child : sceneRoot->GetChildren())
                 {
@@ -110,58 +136,58 @@ void SceneSerializer::Load(std::string_view filepath, GameObject* sceneRoot, Ene
                     }
                 }
 
-                // If found, update its transform. The Component Bridge will detect this 
-                // change on the very first frame and push the logic down automatically.
-                if (targetNode)
+                // If it doesn't exist, we must instantiate a brand new GameObject dynamically
+                if (!targetNode)
                 {
-                    targetNode->SetActive(objJson.value("IsActive", true));
-
-                    targetNode->transform.position = {
-                        objJson.value("PosX", 0.0f),
-                        objJson.value("PosY", 0.0f),
-                        objJson.value("PosZ", 0.0f)
-                    };
-                    targetNode->transform.rotation = {
-                        objJson.value("RotX", 0.0f),
-                        objJson.value("RotY", 0.0f),
-                        objJson.value("RotZ", 0.0f)
-                    };
-                    targetNode->transform.scale = {
-                        objJson.value("ScaleX", 1.0f),
-                        objJson.value("ScaleY", 1.0f),
-                        objJson.value("ScaleZ", 1.0f)
-                    };
+                    auto newNode = std::make_unique<GameObject>(name);
+                    targetNode = newNode.get(); // Keep a pointer to populate it
+                    sceneRoot->AddChild(std::move(newNode));
                 }
-                else if (name == "Empty")
+
+                // ALWAYS load the Transform for the node
+                targetNode->SetActive(objJson.value("IsActive", true));
+
+                targetNode->transform.position = {
+                    objJson.value("PosX", 0.0f),
+                    objJson.value("PosY", 0.0f),
+                    objJson.value("PosZ", 0.0f)
+                };
+                targetNode->transform.rotation = {
+                    objJson.value("RotX", 0.0f),
+                    objJson.value("RotY", 0.0f),
+                    objJson.value("RotZ", 0.0f)
+                };
+                targetNode->transform.scale = {
+                    objJson.value("ScaleX", 1.0f),
+                    objJson.value("ScaleY", 1.0f),
+                    objJson.value("ScaleZ", 1.0f)
+                };
+
+                // Deserialize Components dynamically via the Registry Factory
+                if (objJson.contains("Components"))
                 {
-                    // Recreate generic empty nodes that the user added manually via the Editor
-                    auto emptyNode = std::make_unique<GameObject>("Empty");
-                    emptyNode->SetActive(objJson.value("IsActive", true));
+                    for (const auto& compJson : objJson["Components"])
+                    {
+                        std::string type = compJson.value("Type", "");
 
-                    emptyNode->transform.position = {
-                        objJson.value("PosX", 0.0f),
-                        objJson.value("PosY", 0.0f),
-                        objJson.value("PosZ", 0.0f)
-                    };
-                    emptyNode->transform.rotation = {
-                        objJson.value("RotX", 0.0f),
-                        objJson.value("RotY", 0.0f),
-                        objJson.value("RotZ", 0.0f)
-                    };
-                    emptyNode->transform.scale = {
-                        objJson.value("ScaleX", 1.0f),
-                        objJson.value("ScaleY", 1.0f),
-                        objJson.value("ScaleZ", 1.0f)
-                    };
-
-                    sceneRoot->AddChild(std::move(emptyNode));
+                        if (auto newComp{ ComponentRegistry::Create(type) })
+                        {
+                            newComp->Deserialize(compJson);
+                            targetNode->AddComponent(std::move(newComp));
+                        }
+                    }
                 }
             }
         }
 
-        // Dispatch JSON to Managers for reconstruction
         if (enemyMgr) enemyMgr->Deserialize(root);
         if (itemMgr)  itemMgr->Deserialize(root);
+
+        // Load Environment Illumination into global LightManager
+        if (root.contains("EnvironmentIllumination"))
+        {
+            Graphics::Instance().GetLightManager().Deserialize(root["EnvironmentIllumination"]);
+        }
 
         Log::Success("Loaded Scene from: " + std::string{ filepath });
     }

@@ -11,7 +11,7 @@
 class GameObject
 {
 public:
-    // Mark explicit to prevent accidental implicit conversions from string literals.
+    // Mark explicit to prevent accidental implicit conversions from string literals
     explicit GameObject(std::string_view name = "GameObject") noexcept;
     ~GameObject() = default;
 
@@ -46,11 +46,23 @@ public:
     void AddComponent(std::unique_ptr<IComponent> component)
     {
         if (!component) return;
+
+        // Prevent duplicate instances of the same component type 
+        for (auto& existing : m_components)
+        {
+            if (std::string_view{ existing->GetTypeName() } == component->GetTypeName())
+            {
+                // If it already exists, discard the new one and use the existing memory space
+                return;
+            }
+        }
+
         component->OnAttach(this);
         m_components.push_back(std::move(component));
     }
 
     [[nodiscard]] const std::vector<std::unique_ptr<GameObject>>& GetChildren() const noexcept { return m_children; }
+    [[nodiscard]] const std::vector<std::unique_ptr<IComponent>>& GetComponents() const noexcept { return m_components; }
     [[nodiscard]] GameObject* GetParent() const noexcept { return m_parent; }
 
     // Component Operations 
