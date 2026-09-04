@@ -14,6 +14,7 @@
 #include "PbrShader.h"
 #include "PhongShader.h"
 #include "Shader.h"
+#include "ToonShader.h"
 
 enum class ShaderId
 {
@@ -21,6 +22,7 @@ enum class ShaderId
     Lambert,
     Phong,
     Pbr,
+    Toon, 
 
     EnumCount
 };

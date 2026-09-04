@@ -18,6 +18,7 @@ ModelRenderer::ModelRenderer(ID3D11Device* device)
     shaders[static_cast<int>(ShaderId::Lambert)] = std::make_unique<LambertShader>(device);
     shaders[static_cast<int>(ShaderId::Phong)] = std::make_unique<PhongShader>(device);
     shaders[static_cast<int>(ShaderId::Pbr)] = std::make_unique<PbrShader>(device);
+    shaders[static_cast<int>(ShaderId::Toon)] = std::make_unique<ToonShader>(device);
 }
 
 void ModelRenderer::Draw(std::shared_ptr<Model> model, const DirectX::XMFLOAT4& color)
