@@ -412,7 +412,7 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
     const bool hasSelection{ m_selectedObject != nullptr };
     const bool isNotRoot{ currentScene && (m_selectedObject != currentScene->GetRootGameObject()) };
 
-    // Only draw the manipulator if all architectural conditions are met
+   // Only draw the manipulator if all architectural conditions are met
     if (activeCamera && hasSelection && isNotRoot && !isPlayMode)
     {
         ImGuizmo::SetDrawlist();
@@ -420,35 +420,35 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
 
         DirectX::XMFLOAT4X4 view{ activeCamera->GetView() };
         DirectX::XMFLOAT4X4 proj{ activeCamera->GetProjection() };
-        DirectX::XMFLOAT4X4 objectMatrix{};
-        {
-            // Build the matrix 
-            const DirectX::XMFLOAT3 pos{ m_selectedObject->transform.position };
-            const DirectX::XMFLOAT3 rot{ m_selectedObject->transform.rotation };
-            const DirectX::XMFLOAT3 scl{ m_selectedObject->transform.scale };
 
-            const DirectX::XMMATRIX S{ DirectX::XMMatrixScaling(scl.x, scl.y, scl.z) };
-            const DirectX::XMMATRIX R{ DirectX::XMMatrixRotationRollPitchYaw(
-                DirectX::XMConvertToRadians(rot.x),
-                DirectX::XMConvertToRadians(rot.y),
-                DirectX::XMConvertToRadians(rot.z))
-            };
-            const DirectX::XMMATRIX T{ DirectX::XMMatrixTranslation(pos.x, pos.y, pos.z) };
+        // Pass the true WORLD Matrix to ImGuizmo, so the Gizmo draws in the correct physical location
+        DirectX::XMFLOAT4X4 objectMatrix{ m_selectedObject->transform.GetWorldMatrix() };
 
-            DirectX::XMStoreFloat4x4(&objectMatrix, S * R * T);
-        }
-
-        // Required to prevent axes from becoming unclickable at steep camera angles
         ImGuizmo::SetOrthographic(false);
         ImGuizmo::Manipulate(&view._11, &proj._11, m_gizmoOperation, m_gizmoMode, &objectMatrix._11);
 
         if (ImGuizmo::IsUsing())
         {
-            // Decompose natively using DirectXMath 
-            DirectX::XMMATRIX mat = DirectX::XMLoadFloat4x4(&objectMatrix);
+            DirectX::XMMATRIX matWorld = DirectX::XMLoadFloat4x4(&objectMatrix);
+            DirectX::XMMATRIX matLocal = matWorld;
+
+            // If the object is a child, convert the modified World Matrix back into Local Space
+            if (m_selectedObject->transform.parent)
+            {
+                DirectX::XMFLOAT4X4 parentWorld = m_selectedObject->transform.parent->GetWorldMatrix();
+                DirectX::XMMATRIX pWorld = DirectX::XMLoadFloat4x4(&parentWorld);
+
+                DirectX::XMVECTOR det;
+                DirectX::XMMATRIX pWorldInv = DirectX::XMMatrixInverse(&det, pWorld);
+
+                // Mathematical conversion: Local_New = World_New * Inverse(ParentWorld)
+                matLocal = DirectX::XMMatrixMultiply(matWorld, pWorldInv);
+            }
+
+            // Decompose the local matrix and save it directly to the Transform struct
             DirectX::XMVECTOR vScale, vRotQuat, vTrans;
 
-            if (DirectX::XMMatrixDecompose(&vScale, &vRotQuat, &vTrans, mat))
+            if (DirectX::XMMatrixDecompose(&vScale, &vRotQuat, &vTrans, matLocal))
             {
                 DirectX::XMFLOAT3 newPos, newScale;
                 DirectX::XMStoreFloat3(&newPos, vTrans);
@@ -459,11 +459,11 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
                 DirectX::XMFLOAT4X4 mRot;
                 DirectX::XMStoreFloat4x4(&mRot, rotMat);
 
-                // Extract Pitch (X), Yaw (Y), and Roll (Z) manually based on DXMath's order
+                // Extract Pitch (X), Yaw (Y), and Roll (Z) manually
                 float pitch = asinf(std::clamp(-mRot._32, -1.0f, 1.0f));
                 float yaw, roll;
 
-                // Gimbal Lock Protection (If Pitch is exactly 90 or -90 degrees)
+                // Gimbal Lock Protection
                 if (cosf(pitch) > 0.0001f)
                 {
                     yaw = atan2f(mRot._31, mRot._33);
@@ -471,12 +471,11 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
                 }
                 else
                 {
-                    // At extreme pitch, Roll and Yaw align. Force Roll to 0 and give all rotation to Yaw.
                     yaw = atan2f(-mRot._13, mRot._11);
                     roll = 0.0f;
                 }
 
-                // Write directly to the Transform struct
+                // Write the updated Local coordinates
                 m_selectedObject->transform.position = newPos;
                 m_selectedObject->transform.rotation = {
                     DirectX::XMConvertToDegrees(pitch),
