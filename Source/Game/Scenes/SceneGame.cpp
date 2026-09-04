@@ -87,7 +87,7 @@ SceneGame::SceneGame()
     m_mainCamera->SetPerspectiveFov(XMConvertToRadians(Config::CAM_FOV), screenW / screenH, Config::CAM_NEAR, Config::CAM_FAR);
 
     XMFLOAT3 startPos{ m_cameraPosition };
-    startPos.x = 0.0f;
+    startPos.x = 0.001f;
     startPos.z = -14.0f;
     startPos.y = Config::CAM_START_HEIGHT;
 

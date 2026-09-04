@@ -132,7 +132,7 @@ private:
 
     // Editor state tracking
     EditorMode m_lastEditorMode{};
-    DirectX::XMFLOAT3 m_cachedEditorCamPos{ 0.0f, 18.0f, -14.0f };
+    DirectX::XMFLOAT3 m_cachedEditorCamPos{ 0.001f, 18.0f, -14.0f };
     DirectX::XMFLOAT3 m_cachedEditorCamRot{ 0.0f, 0.0f, 0.0f };
 
 	// Pause & Exit to Title

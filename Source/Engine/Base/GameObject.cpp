@@ -169,14 +169,17 @@ void GameObject::BroadcastTransformUpdate() noexcept
         {
             if (Character * character{ charComp->GetCharacter() })
             {
-                // Route position and rotation safely through the movement container
-                // using the unified transform struct
                 if (CharacterMovement * move{ character->GetMovement() })
                 {
                     move->SetPosition(transform.position);
-                    move->SetRotation(transform.rotation);
-                }
 
+                    // Convert Inspector Degrees into Game Logic Radians
+                    DirectX::XMFLOAT3 radRot;
+                    radRot.x = DirectX::XMConvertToRadians(transform.rotation.x);
+                    radRot.y = DirectX::XMConvertToRadians(transform.rotation.y);
+                    radRot.z = DirectX::XMConvertToRadians(transform.rotation.z);
+                    move->SetRotation(radRot);
+                }
                 character->scale = transform.scale;
             }
         }

@@ -422,7 +422,7 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
         DirectX::XMFLOAT4X4 proj{ activeCamera->GetProjection() };
         DirectX::XMFLOAT4X4 objectMatrix{};
         {
-            // Read directly from the public Transform struct to sync perfectly with the Inspector
+            // Build the matrix 
             const DirectX::XMFLOAT3 pos{ m_selectedObject->transform.position };
             const DirectX::XMFLOAT3 rot{ m_selectedObject->transform.rotation };
             const DirectX::XMFLOAT3 scl{ m_selectedObject->transform.scale };
@@ -438,21 +438,53 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
             DirectX::XMStoreFloat4x4(&objectMatrix, S * R * T);
         }
 
+        // Required to prevent axes from becoming unclickable at steep camera angles
+        ImGuizmo::SetOrthographic(false);
         ImGuizmo::Manipulate(&view._11, &proj._11, m_gizmoOperation, m_gizmoMode, &objectMatrix._11);
 
         if (ImGuizmo::IsUsing())
         {
-            float translation[3]{ 0.0f };
-            float rotation[3]{ 0.0f };
-            float scale[3]{ 0.0f };
+            // Decompose natively using DirectXMath 
+            DirectX::XMMATRIX mat = DirectX::XMLoadFloat4x4(&objectMatrix);
+            DirectX::XMVECTOR vScale, vRotQuat, vTrans;
 
-            ImGuizmo::DecomposeMatrixToComponents(&objectMatrix._11, translation, rotation, scale);
+            if (DirectX::XMMatrixDecompose(&vScale, &vRotQuat, &vTrans, mat))
+            {
+                DirectX::XMFLOAT3 newPos, newScale;
+                DirectX::XMStoreFloat3(&newPos, vTrans);
+                DirectX::XMStoreFloat3(&newScale, vScale);
 
-            // Write directly to the Transform struct. 
-            // LegacyCharacterComponent automatically detects this change and pushes it to PhysX.
-            m_selectedObject->transform.position = { translation[0], translation[1], translation[2] };
-            m_selectedObject->transform.rotation = { rotation[0], rotation[1], rotation[2] };
-            m_selectedObject->transform.scale = { scale[0], scale[1], scale[2] };
+                // Convert Quaternion to a clean 3x3 Rotation Matrix to eliminate scale bias
+                DirectX::XMMATRIX rotMat = DirectX::XMMatrixRotationQuaternion(vRotQuat);
+                DirectX::XMFLOAT4X4 mRot;
+                DirectX::XMStoreFloat4x4(&mRot, rotMat);
+
+                // Extract Pitch (X), Yaw (Y), and Roll (Z) manually based on DXMath's order
+                float pitch = asinf(std::clamp(-mRot._32, -1.0f, 1.0f));
+                float yaw, roll;
+
+                // Gimbal Lock Protection (If Pitch is exactly 90 or -90 degrees)
+                if (cosf(pitch) > 0.0001f)
+                {
+                    yaw = atan2f(mRot._31, mRot._33);
+                    roll = atan2f(mRot._12, mRot._22);
+                }
+                else
+                {
+                    // At extreme pitch, Roll and Yaw align. Force Roll to 0 and give all rotation to Yaw.
+                    yaw = atan2f(-mRot._13, mRot._11);
+                    roll = 0.0f;
+                }
+
+                // Write directly to the Transform struct
+                m_selectedObject->transform.position = newPos;
+                m_selectedObject->transform.rotation = {
+                    DirectX::XMConvertToDegrees(pitch),
+                    DirectX::XMConvertToDegrees(yaw),
+                    DirectX::XMConvertToDegrees(roll)
+                };
+                m_selectedObject->transform.scale = newScale;
+            }
         }
     }
 

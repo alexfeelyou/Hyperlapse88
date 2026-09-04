@@ -29,7 +29,7 @@ public:
 
 private:
     // Helper function to safely compare floats for Editor manipulation detection
-    [[nodiscard]] static constexpr bool IsFloatEqual(float a, float b, float epsilon = 0.0001f) noexcept;
+    [[nodiscard]] static constexpr bool IsFloatEqual(float a, float b, float epsilon = 0.001f) noexcept;
 
     Character* m_character{ nullptr }; // Non-owning pointer to the actual gameplay entity
 
