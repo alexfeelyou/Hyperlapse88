@@ -51,13 +51,13 @@ void Material::DrawInspector() noexcept
         ImGui::SliderFloat("Alpha Cutoff", &alphaCutoff, 0.0f, 1.0f);
     }
 
+    // ALBEDO / DIFFUSE (Visible on all shaders) 
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::TextDisabled("ALBEDO / DIFFUSE");
 
     const ImVec2 texSize{ 64.0f, 64.0f };
 
-	// Albedo Texture Thumbnail
     if (baseMap)
     {
         ImGui::Image(reinterpret_cast<ImTextureID>(baseMap.Get()), texSize);
@@ -74,9 +74,7 @@ void Material::DrawInspector() noexcept
         if (!newPath.empty())
         {
             auto* device{ Graphics::Instance().GetDevice() };
-
-            // Keep the old texture alive in memory until the frame finishes rendering
-            static Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> s_garbageBin;
+            static Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> s_garbageBin{};
             s_garbageBin = baseMap;
 
             GpuResourceUtils::LoadTexture(device, newPath.c_str(), baseMap.ReleaseAndGetAddressOf());
@@ -85,44 +83,63 @@ void Material::DrawInspector() noexcept
     }
     ImGui::EndGroup();
 
-    ImGui::Spacing();
-    ImGui::Separator();
-    ImGui::TextDisabled("SURFACE PROPERTIES");
-
-	// Normal Map Thumbnail
-    if (normalMap)
+    // SURFACE PROPERTIES (Conditional visibility) 
+    // Hide entirely for Basic/Unlit (shaderId == 0)
+    if (shaderId > 0)
     {
-        ImGui::Image(reinterpret_cast<ImTextureID>(normalMap.Get()), texSize);
-        ImGui::SameLine();
-    }
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::TextDisabled("SURFACE PROPERTIES");
 
-    ImGui::BeginGroup();
-    ImGui::TextColored(normalMap ? ImVec4{ 0.2f, 0.9f, 0.2f, 1.0f } : ImVec4{ 0.9f, 0.2f, 0.2f, 1.0f },
-        normalMap ? "Normal Map: Attached" : "Normal Map: None");
-
-    if (ImGui::Button("Browse Normal..."))
-    {
-        const std::string newPath{ OpenTextureDialog() };
-        if (!newPath.empty())
+        // Normal Map: Visible only for Phong (2) and PBR (3)
+        if (shaderId == 2 || shaderId == 3)
         {
-            auto* device{ Graphics::Instance().GetDevice() };
+            if (normalMap)
+            {
+                ImGui::Image(reinterpret_cast<ImTextureID>(normalMap.Get()), texSize);
+                ImGui::SameLine();
+            }
 
-            // Keep the old SRV alive until the next texture swap
-            static Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> s_normalGarbageBin{};
-            s_normalGarbageBin = normalMap;
+            ImGui::BeginGroup();
+            ImGui::TextColored(normalMap ? ImVec4{ 0.2f, 0.9f, 0.2f, 1.0f } : ImVec4{ 0.9f, 0.2f, 0.2f, 1.0f },
+                normalMap ? "Normal Map: Attached" : "Normal Map: None");
 
-            GpuResourceUtils::LoadTexture(device, newPath.c_str(), normalMap.ReleaseAndGetAddressOf());
-            normalTextureFileName = newPath;
+            if (ImGui::Button("Browse Normal..."))
+            {
+                const std::string newPath{ OpenTextureDialog() };
+                if (!newPath.empty())
+                {
+                    auto* device{ Graphics::Instance().GetDevice() };
+                    static Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> s_normalGarbageBin{};
+                    s_normalGarbageBin = normalMap;
+
+                    GpuResourceUtils::LoadTexture(device, newPath.c_str(), normalMap.ReleaseAndGetAddressOf());
+                    normalTextureFileName = newPath;
+                }
+            }
+            ImGui::EndGroup();
+            ImGui::Spacing();
+        }
+
+        // Emissive: Visible for Lambert (1), Phong (2), PBR (3), Toon (4)
+        ImGui::ColorEdit3("Emissive", &emissiveColor.x);
+
+        // Roughness: Visible for Phong (2), PBR (3), Toon (4)
+        if (shaderId >= 2)
+        {
+            ImGui::SliderFloat("Roughness", &roughness, 0.0f, 1.0f);
+        }
+
+        // Metalness: Visible only for PBR (3)
+        if (shaderId == 3)
+        {
+            ImGui::SliderFloat("Metalness", &metalness, 0.0f, 1.0f);
         }
     }
-    ImGui::EndGroup();
 
-    ImGui::Spacing();
-    ImGui::ColorEdit3("Emissive", &emissiveColor.x);
-    ImGui::SliderFloat("Roughness", &roughness, 0.0f, 1.0f);
-    ImGui::SliderFloat("Metalness", &metalness, 0.0f, 1.0f);
-
-    if (shaderId == 4) // 4 = ShaderId::Toon
+    // TOON OUTLINE (Conditional visibility) 
+    // Visible only for Toon (4)
+    if (shaderId == 4)
     {
         ImGui::Spacing();
         ImGui::Separator();

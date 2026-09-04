@@ -3,10 +3,11 @@
 cbuffer CbMesh : register(b0)
 {
     float4 materialColor;
-    int alphaMode;
+    float3 emissiveColor;
+    float roughness; 
+    int alphaMode; 
     float alphaCutoff;
-    float roughness;
-    float padding;
+    float2 padding; 
 };
 
 cbuffer CbObject : register(b2)
@@ -114,7 +115,7 @@ float4 main(VS_OUT pin) : SV_TARGET
     float celFactor = step(0.0f, factor); // Hard step between sky and ground color
     float3 ambientLight = lerp(ambientGroundColor.rgb, ambientSkyColor.rgb, celFactor);
 
-    float3 finalColor = totalDirectLight + (ambientLight * albedo);
+    float3 finalColor = totalDirectLight + (ambientLight * albedo) + emissiveColor;
     finalColor = pow(abs(finalColor), float3(1.0f / 2.2f, 1.0f / 2.2f, 1.0f / 2.2f));
 
     return float4(finalColor, color.a);

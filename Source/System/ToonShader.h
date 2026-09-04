@@ -27,15 +27,15 @@ public:
     void End(const RenderContext& rc) override;
 
 private:
-    // CbMesh must strictly align to 16-byte boundaries for D3D11 constant buffers
     struct CbMesh
-    {
-        DirectX::XMFLOAT4 materialColor{ 1.0f, 1.0f, 1.0f, 1.0f }; // 16 bytes
-        int               alphaMode{ 0 };                          // 4 bytes
-        float             alphaCutoff{ 0.5f };                     // 4 bytes
-        float             roughness{ 0.5f };                       // 4 bytes (Used for specular sizing)
-        float             padding{ 0.0f };                         // 4 bytes (Pads to 32 bytes total)
-    };
+	{
+		DirectX::XMFLOAT4 materialColor{ 1.0f, 1.0f, 1.0f, 1.0f }; // 16 bytes
+		DirectX::XMFLOAT3 emissiveColor{ 0.0f, 0.0f, 0.0f };       // 12 bytes
+		float             roughness{ 0.5f };                       // 4 bytes
+		int               alphaMode{ 0 };                          // 4 bytes
+		float             alphaCutoff{ 0.5f };                     // 4 bytes
+		DirectX::XMFLOAT2 padding{ 0.0f, 0.0f };                   // 8 bytes
+	};
 
     // Catch padding/alignment logic errors at compile time
     static_assert((sizeof(CbMesh) % 16) == 0, "CbMesh constant buffer must be 16-byte aligned!");

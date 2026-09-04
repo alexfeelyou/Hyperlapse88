@@ -45,13 +45,13 @@ void ToonShader::Update(const RenderContext& rc, const Model::Mesh& mesh)
 
     // Map material properties into the struct 
     const CbMesh cbMesh{
-        mesh.material->baseColor,
-        static_cast<int>(mesh.material->alphaMode),
-        mesh.material->alphaCutoff,
-        mesh.material->roughness,
-        0.0f
+         mesh.material->baseColor,
+         mesh.material->emissiveColor,
+         mesh.material->roughness,
+         static_cast<int>(mesh.material->alphaMode),
+         mesh.material->alphaCutoff,
+         { 0.0f, 0.0f }
     };
-
     dc->UpdateSubresource(m_meshConstantBuffer.Get(), 0, 0, &cbMesh, 0, 0);
 
     // Bind diffuse map
