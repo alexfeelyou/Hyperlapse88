@@ -126,13 +126,15 @@ void Material::DrawInspector() noexcept
     {
         ImGui::Spacing();
         ImGui::Separator();
-        ImGui::TextDisabled("TOON SETTINGS");
+        ImGui::TextDisabled("TOON OUTLINE");
         ImGui::Checkbox("Enable Outline", &enableOutline);
 
         if (enableOutline)
         {
-            ImGui::SliderFloat("Outline Width", &outlineWidth, 0.0f, 0.05f);
-            ImGui::ColorEdit3("Outline Color", &outlineColor.x);
+            ImGui::SliderFloat("Width", &outlineWidth, 0.0f, 0.05f);
+            ImGui::SliderFloat("Fade Start", &outlineFadeStart, 1.0f, 50.0f);
+            ImGui::SliderFloat("Fade End", &outlineFadeEnd, 5.0f, 100.0f);
+            ImGui::ColorEdit3("Color", &outlineColor.x);
         }
     }
 }
@@ -154,6 +156,8 @@ void Material::Serialize(nlohmann::json& j) const
 
     j["EnableOutline"] = enableOutline;
     j["OutlineWidth"] = outlineWidth;
+    j["OutlineFadeStart"] = outlineFadeStart;
+    j["OutlineFadeEnd"] = outlineFadeEnd;
     j["OutlineColor"] = { outlineColor.x, outlineColor.y, outlineColor.z, outlineColor.w };
 }
 
@@ -178,7 +182,10 @@ void Material::Deserialize(const nlohmann::json& j)
 
     enableOutline = j.value("EnableOutline", true);
     outlineWidth = j.value("OutlineWidth", 0.015f);
-    if (j.contains("OutlineColor")) {
+    outlineFadeStart = j.value("OutlineFadeStart", 12.0f);
+    outlineFadeEnd = j.value("OutlineFadeEnd", 28.0f);
+    if (j.contains("OutlineColor"))
+    {
         outlineColor = { j["OutlineColor"][0], j["OutlineColor"][1], j["OutlineColor"][2], j["OutlineColor"][3] };
     }
 }

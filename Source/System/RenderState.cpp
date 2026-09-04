@@ -262,7 +262,7 @@ RenderState::RenderState(ID3D11Device* device)
 		desc.FillMode = D3D11_FILL_SOLID;
 		desc.CullMode = D3D11_CULL_FRONT; 
 		desc.AntialiasedLineEnable = false;
-		HRESULT hr{ device->CreateRasterizerState(&desc,
+		const HRESULT hr{ device->CreateRasterizerState(&desc,
 			rasterizerStates[static_cast<int>(RasterizerState::SolidCullFront)].GetAddressOf()) };
 		_ASSERT_EXPR(SUCCEEDED(hr), HRTrace(hr));
 	}

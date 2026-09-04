@@ -243,22 +243,46 @@ void ModelRenderer::Render(const RenderContext& rc)
 		// Immediate dual-pass outline rendering for Toon shader
         if (static_cast<ShaderId>(i) == ShaderId::Toon)
         {
-            // Flip rasterizer to cull front faces
             dc->RSSetState(rc.renderState->GetRasterizerState(RasterizerState::SolidCullFront));
 
             m_outlineShader->Begin(rc);
+
+            const DirectX::XMVECTOR camPos{ DirectX::XMLoadFloat3(&rc.camera->GetPosition()) };
+
             for (const MeshDrawCommand& cmd : opaqueBuckets[i])
             {
-                // Only execute if this specific material instance requests an outline
-                if (cmd.mesh->material->enableOutline && cmd.mesh->material->outlineWidth > 0.0f)
+                if (!cmd.mesh->material->enableOutline || cmd.mesh->material->outlineWidth <= 0.0f)
                 {
-                    // drawMesh abstracts the shader setup
-                    drawMesh(*cmd.mesh, m_outlineShader.get(), cmd.useManualMatrix, cmd.worldMatrix);
+                    continue; // Feature disabled on this material
                 }
-            }
-            m_outlineShader->End(rc);
 
-            // Restore default culling before the next pass
+                // Skip draw call if mesh origin is past fade end
+                DirectX::XMMATRIX worldMat{};
+                if (cmd.useManualMatrix)
+                {
+                    worldMat = DirectX::XMLoadFloat4x4(&cmd.mesh->node->globalTransform) * DirectX::XMLoadFloat4x4(&cmd.worldMatrix);
+                }
+                else
+                {
+                    worldMat = DirectX::XMLoadFloat4x4(&cmd.mesh->node->worldTransform);
+                }
+
+                // Extract position from matrix row 3 (_41, _42, _43)
+                const DirectX::XMVECTOR objPos{ worldMat.r[3] };
+                const float distanceSq{ DirectX::XMVectorGetX(DirectX::XMVector3LengthSq(DirectX::XMVectorSubtract(objPos, camPos))) };
+                const float fadeEndSq{ cmd.mesh->material->outlineFadeEnd * cmd.mesh->material->outlineFadeEnd };
+
+                // Allow a small radius buffer (e.g. 25 units sq) to prevent large meshes from popping early
+                static constexpr float s_radiusBufferSq{ 25.0f };
+                if (distanceSq > (fadeEndSq + s_radiusBufferSq))
+                {
+                    continue; // Skip draw call entirely
+                }
+
+                drawMesh(*cmd.mesh, m_outlineShader.get(), cmd.useManualMatrix, cmd.worldMatrix);
+            }
+
+            m_outlineShader->End(rc);
             dc->RSSetState(rc.renderState->GetRasterizerState(RasterizerState::SolidCullBack));
         }
     }

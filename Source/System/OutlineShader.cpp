@@ -19,6 +19,7 @@ void OutlineShader::Begin(const RenderContext& rc)
     dc->VSSetShader(m_vertexShader.Get(), nullptr, 0);
     dc->PSSetShader(m_pixelShader.Get(), nullptr, 0);
 
+    // Bind to VS (for fade math) and PS (for color/alpha)
     ID3D11Buffer* const cbs[]{ m_constantBuffer.Get() };
     dc->VSSetConstantBuffers(0, static_cast<UINT>(std::size(cbs)), cbs);
     dc->PSSetConstantBuffers(0, static_cast<UINT>(std::size(cbs)), cbs);
@@ -31,13 +32,15 @@ void OutlineShader::Update(const RenderContext& rc, const Model::Mesh& mesh)
     const CbOutline cbOutline{
         mesh.material->outlineColor,
         mesh.material->outlineWidth,
+        mesh.material->outlineFadeStart,
+        mesh.material->outlineFadeEnd,
         static_cast<int>(mesh.material->alphaMode),
         mesh.material->alphaCutoff,
-        0.0f
+        { 0.0f, 0.0f, 0.0f }
     };
     dc->UpdateSubresource(m_constantBuffer.Get(), 0, 0, &cbOutline, 0, 0);
 
-    // Bind base map to read alpha mask (prevents drawing outlines around invisible quad boundaries)
+    // Bind base texture for alpha cutoff testing
     ID3D11ShaderResourceView* const srvs[]{ mesh.material->baseMap.Get() };
     dc->PSSetShaderResources(0, static_cast<UINT>(std::size(srvs)), srvs);
 }

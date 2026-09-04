@@ -28,9 +28,11 @@ private:
     {
         DirectX::XMFLOAT4 outlineColor{ 0.0f, 0.0f, 0.0f, 1.0f }; // 16 bytes
         float             outlineWidth{ 0.0f };                   // 4 bytes
-        int               alphaMode{ 0 };                         // 4 bytes (Respect cutout transparency)
+        float             outlineFadeStart{ 12.0f };              // 4 bytes
+        float             outlineFadeEnd{ 28.0f };                // 4 bytes
+        int               alphaMode{ 0 };                         // 4 bytes
         float             alphaCutoff{ 0.5f };                    // 4 bytes
-        float             padding{ 0.0f };                        // 4 bytes (Align 32)
+        DirectX::XMFLOAT3 padding{ 0.0f, 0.0f, 0.0f };            // 12 bytes
     };
     static_assert((sizeof(CbOutline) % 16) == 0, "CbOutline must be 16-byte aligned!");
 

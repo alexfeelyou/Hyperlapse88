@@ -1,13 +1,15 @@
-#include "Skinning.hlsli"
 #include "Scene.hlsli"
+#include "Skinning.hlsli"
 
 cbuffer CbOutline : register(b0)
 {
     float4 outlineColor;
     float outlineWidth;
+    float outlineFadeStart;
+    float outlineFadeEnd;
     int alphaMode;
     float alphaCutoff;
-    float padding;
+    float3 padding;
 };
 
 struct VS_OUT
@@ -26,30 +28,32 @@ VS_OUT main(
     VS_OUT vout = (VS_OUT) 0;
     vout.texcoord = texcoord;
 
-    // Calculate World Position and Clip Space Vertex
-    position = SkinningPosition(position, boneWeights, boneIndices);
-    vout.vertex = mul(position, viewProjection);
+    // Calculate World Position to determine exact camera distance
+    float4 worldPos = SkinningPosition(position, boneWeights, boneIndices);
+    float dist = length(cameraPosition.xyz - worldPos.xyz);
+    
+    // Calculate continuous pixel fade factor 
+    // smoothstep returns a smooth 0->1 curve. Subtract from 1 so it shrinks as distance increases.
+    float fadeFactor = 1.0f - smoothstep(outlineFadeStart, outlineFadeEnd, dist);
+    
+    // Transform to clip space
+    vout.vertex = mul(worldPos, viewProjection);
 
-    // Transform the World Normal into Clip Space
+    // Extrude along Clip Space Normal
     float3 worldNormal = SkinningVector(normal, boneWeights, boneIndices);
     float4 clipNormal = mul(float4(worldNormal, 0.0f), viewProjection);
-    
-    // Normalize only the 2D screen-space components
     float2 offset = normalize(clipNormal.xy);
 
-    // Aspect Ratio Correction (using dynamic engine resolution from CbScene)
-    float screenWidth = packedParams.y;
-    float screenHeight = packedParams.z;
-    float aspect = screenWidth / screenHeight;
-    offset.x /= aspect; // Squish X offset so lines aren't distorted on widescreen monitors
+    // Aspect Ratio Fix
+    float aspect = packedParams.y / packedParams.z;
+    offset.x /= aspect;
 
-    // Define the maximum distance the constant-width rule applies
-    float maxDepthScale = 15.0f;
-    
-    // Clamp the depth multiplier so the outline thins out at long ranges
+    // Depth Lock
+    // Clamp the hardware perspective cancellation so the model isn't swallowed far away
+    float maxDepthScale = min(outlineFadeStart, 15.0f);
     float depthMultiplier = min(vout.vertex.w, maxDepthScale);
 
-    vout.vertex.xy += offset * outlineWidth * depthMultiplier;
+    vout.vertex.xy += offset * outlineWidth * depthMultiplier * fadeFactor;
 
     return vout;
 }

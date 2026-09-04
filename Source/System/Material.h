@@ -45,8 +45,10 @@ public:
     float occlusionStrength{ 1.0f };
 
     // Outline Data (Toon Shader Only)
-    bool enableOutline{ true };
-    float outlineWidth{ 0.015f };
+    bool              enableOutline{ true };
+    float             outlineWidth{ 0.015f };
+    float             outlineFadeStart{ 12.0f };
+    float             outlineFadeEnd{ 28.0f };
     DirectX::XMFLOAT4 outlineColor{ 0.05f, 0.05f, 0.05f, 1.0f };
 
     // Texture Paths (For Serialization) 
