@@ -50,6 +50,10 @@ private:
     };
 
     Data m_data{};
+    Data m_currentData{};
+    float m_cachedNearZ{ -1.0f };
+    float m_cachedFarZ{ -1.0f }; 
+
     Microsoft::WRL::ComPtr<ID3D11PixelShader>   m_pixelShader{};
     Microsoft::WRL::ComPtr<ID3D11Buffer>        m_constantBuffer{};
     Microsoft::WRL::ComPtr<ID3D11SamplerState>  m_pointSampler{};

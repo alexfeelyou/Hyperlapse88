@@ -223,8 +223,8 @@ void PostProcessManager::EndCapture(float dt)
     }
 
     // Final Pass: Blit the final processed texture directly into the host's original RTV
-    ID3D11ShaderResourceView* nullSRV[] = { nullptr };
-    dc->PSSetShaderResources(0, 1, nullSRV);
+    ID3D11ShaderResourceView* nullSRVs[2]{ nullptr, nullptr }; // Expand array to 2
+    dc->PSSetShaderResources(0, 2, nullSRVs); // Unbind both t0 and t1
 
     dc->OMSetRenderTargets(1, &m_originalRTV, m_originalDSV);
     dc->RSSetViewports(m_originalViewportCount, &m_originalViewport);
@@ -232,7 +232,7 @@ void PostProcessManager::EndCapture(float dt)
     Blit(dc, currentSourceSRV, m_originalRTV);
 
     // Unbind SRVs to prevent pipeline warnings on the next frame
-    dc->PSSetShaderResources(0, 1, nullSRV);
+    dc->PSSetShaderResources(0, 2, nullSRVs);
 
     if (m_originalRTV) { m_originalRTV->Release(); m_originalRTV = nullptr; }
     if (m_originalDSV) { m_originalDSV->Release(); m_originalDSV = nullptr; }

@@ -28,15 +28,22 @@ void DepthFogEffect::Draw(ID3D11DeviceContext* dc, ID3D11ShaderResourceView* src
         currentFarZ = camera->GetFarZ();
     }
 
-    CbFog cb{};
-    cb.fogColor = m_data.color;
-    cb.fogStart = m_data.startDistance;
-    cb.fogEnd = m_data.endDistance;
-    cb.nearZ = currentNearZ;
-    cb.farZ = currentFarZ;
+    // Compare against the dedicated camera cache variables
+    if (!(m_currentData == m_data) || m_cachedNearZ != currentNearZ || m_cachedFarZ != currentFarZ)
+    {
+        CbFog cb{};
+        cb.fogColor = m_data.color;
+        cb.fogStart = m_data.startDistance;
+        cb.fogEnd = m_data.endDistance;
+        cb.nearZ = currentNearZ;
+        cb.farZ = currentFarZ;
 
-    // Direct constant buffer update ensures zero frame lag when zooming
-    dc->UpdateSubresource(m_constantBuffer.Get(), 0, nullptr, &cb, 0, 0);
+        dc->UpdateSubresource(m_constantBuffer.Get(), 0, nullptr, &cb, 0, 0);
+
+        m_currentData = m_data;       // Cache the inspector state
+        m_cachedNearZ = currentNearZ; // Cache the camera near plane
+        m_cachedFarZ = currentFarZ;   // Cache the camera far plane
+    }
 
     dc->PSSetShader(m_pixelShader.Get(), nullptr, 0);
     dc->PSSetConstantBuffers(0, 1, m_constantBuffer.GetAddressOf());
