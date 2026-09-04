@@ -253,12 +253,13 @@ void PostProcessManager::SaveConfig(std::string_view filepath) const
     std::ofstream file{ std::string{ filepath } };
     if (file.is_open())
     {
-        file << root.dump(4);
-        Log::Success("Saved post-process profile: " + std::string{ filepath });
+        // Force the JSON library to replace invalid Shift-JIS bytes with a safe placeholder ()
+        file << root.dump(4, ' ', false, nlohmann::json::error_handler_t::replace);
+        Log::Success("Saved Scene to: " + std::string{ filepath });
     }
     else
     {
-        Log::Error("Failed to write post-process profile: " + std::string{ filepath });
+        Log::Error("Failed to open file for saving: " + std::string{ filepath });
     }
 }
 

@@ -24,14 +24,19 @@ StaticMeshColliderComponent::~StaticMeshColliderComponent()
 void StaticMeshColliderComponent::OnAttach(GameObject* owner) noexcept
 {
     IComponent::OnAttach(owner);
-    RebuildPhysics();
 }
 
 void StaticMeshColliderComponent::Update(const float dt)
 {
-    if (!m_owner || !m_physxActor)
+    if (!m_owner) return;
+
+    // Check if we need to initialize the physics actor for the first time
+    if (!m_physxActor)
     {
-        return;
+        // Try to rebuild. If it fails (because the mesh isn't loaded yet), 
+        // it will silently return and try again next frame.
+        RebuildPhysics();
+        if (!m_physxActor) return; // Still not ready, wait another frame
     }
 
     const Transform& t{ m_owner->transform };

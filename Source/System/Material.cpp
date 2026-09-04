@@ -34,7 +34,7 @@ namespace
 void Material::DrawInspector() noexcept
 {
     // Shader Selection Dropdown
-    static constexpr const char* const s_shaderNames[]{ "Basic", "Lambert", "Phong" };
+    static constexpr const char* const s_shaderNames[]{ "Basic", "Lambert", "Phong", "Pbr" };
     ImGui::Combo("Shader", &shaderId, s_shaderNames, IM_ARRAYSIZE(s_shaderNames));
 
     // Alpha mode
@@ -121,4 +121,41 @@ void Material::DrawInspector() noexcept
     ImGui::ColorEdit3("Emissive", &emissiveColor.x);
     ImGui::SliderFloat("Roughness", &roughness, 0.0f, 1.0f);
     ImGui::SliderFloat("Metalness", &metalness, 0.0f, 1.0f);
+}
+
+void Material::Serialize(nlohmann::json& j) const
+{
+    j["Name"] = name;
+    j["ShaderId"] = shaderId;
+    j["AlphaMode"] = static_cast<int>(alphaMode);
+    j["AlphaCutoff"] = alphaCutoff;
+
+    j["BaseColor"] = { baseColor.x, baseColor.y, baseColor.z, baseColor.w };
+    j["Emissive"] = { emissiveColor.x, emissiveColor.y, emissiveColor.z };
+    j["Roughness"] = roughness;
+    j["Metalness"] = metalness;
+
+    // Save texture paths so they can be re-loaded
+    j["TexBase"] = baseTextureFileName;
+    j["TexNormal"] = normalTextureFileName;
+}
+
+void Material::Deserialize(const nlohmann::json& j)
+{
+    name = j.value("Name", "DefaultMaterial");
+    shaderId = j.value("ShaderId", 2);
+    alphaMode = static_cast<AlphaMode>(j.value("AlphaMode", 0));
+    alphaCutoff = j.value("AlphaCutoff", 0.5f);
+
+    if (j.contains("BaseColor"))
+    {
+        baseColor = { j["BaseColor"][0], j["BaseColor"][1], j["BaseColor"][2], j["BaseColor"][3] };
+    }
+    if (j.contains("Emissive"))
+    {
+        emissiveColor = { j["Emissive"][0], j["Emissive"][1], j["Emissive"][2] };
+    }
+
+    roughness = j.value("Roughness", 0.5f);
+    metalness = j.value("Metalness", 0.0f);
 }

@@ -60,6 +60,7 @@ void Graphics::Initialize()
     primitiveRenderer = std::make_unique<PrimitiveRenderer>(device.Get());
     shapeRenderer = std::make_unique<ShapeRenderer>(device.Get());
     modelRenderer = std::make_unique<ModelRenderer>(device.Get());
+    lightManager = std::make_unique<LightManager>();
 
     EffectManager::Instance().Initialize(device.Get(), immediateContext.Get());
 }

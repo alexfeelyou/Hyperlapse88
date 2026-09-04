@@ -14,7 +14,6 @@
 #include "System/AudioManager.h"
 #include "System/CollisionManager.h"
 #include "System/Graphics.h"
-#include "System/Light.h"
 #include "System/Sprite.h"
 #include "CameraController.h"
 #include "EffectManager.h"
@@ -24,6 +23,7 @@
 #include "GameObject.h"             
 #include "ItemManager.h"
 #include "LegacyCharacterComponent.h"
+#include "Light.h"
 #include "PostProcessManager.h"
 #include "Primitive.h"
 #include "MeshComponent.h"
@@ -31,8 +31,6 @@
 #include "Player.h"
 #include "PlayerStates.h"
 #include "SceneSerializer.h"
-#include "Stage.h"
-#include "StageComponent.h"
 #include "UIDialogueBox.h"
 #include "UIPause.h"
 
@@ -47,7 +45,6 @@ class NaviAlly;
 class Player;
 class PostProcessManager;
 class Primitive;
-class Stage;
 class UIPause;
 
 enum class EditorMode : std::uint8_t;
@@ -114,14 +111,13 @@ private:
     std::unique_ptr<CollisionManager> m_collisionManager{};
     std::unique_ptr<EnemyManager> m_enemyManager{};
     std::unique_ptr<ItemManager> m_itemManager{};
-    std::unique_ptr<Stage> m_stage{};
     std::shared_ptr<Camera> m_mainCamera{};
     std::unique_ptr<UIDialogueBox> m_dialogueBox{};
     std::unique_ptr<UIPause> m_uiPause{};
 
     DirectX::XMFLOAT3 m_cameraPosition{ 0.0f, 18.0f, 0.0f };
     DirectX::XMFLOAT3 m_cameraTarget{ 0.0f, 0.0f, 0.0f };
-    LightManager m_lightManager{};
+
     std::unique_ptr<PostProcessManager> m_postProcess{};
 
     std::unique_ptr<Sprite> m_fadeSprite{};
@@ -136,7 +132,7 @@ private:
 
     // Editor state tracking
     EditorMode m_lastEditorMode{};
-    DirectX::XMFLOAT3 m_cachedEditorCamPos{ 0.0f, 18.0f, -14.0f };
+    DirectX::XMFLOAT3 m_cachedEditorCamPos{ 0.001f, 18.0f, -14.0f };
     DirectX::XMFLOAT3 m_cachedEditorCamRot{ 0.0f, 0.0f, 0.0f };
 
 	// Pause & Exit to Title

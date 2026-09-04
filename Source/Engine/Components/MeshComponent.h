@@ -27,6 +27,9 @@ public:
     void Render(ModelRenderer* renderer) override;
     void DrawInspector() override;
 
+    void Serialize(nlohmann::json& outJson) const override;
+    void Deserialize(const nlohmann::json& inJson) override;
+
     [[nodiscard]] const char* GetTypeName() const noexcept override { return "MeshComponent"; }
 
     // Mutators

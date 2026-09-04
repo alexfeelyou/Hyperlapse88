@@ -61,19 +61,28 @@ void LegacyCharacterComponent::Update(float dt)
 
     if (wasEditedInGUI)
     {
-        // Push the new Editor Transform down into the Game Logic
+        // Push the new Editor Transform down into Game Logic (Convert Degrees -> Radians)
         m_character->SetPosition(editorTransform.position);
-        m_character->SetRotation(editorTransform.rotation);
-        m_character->scale = editorTransform.scale;
 
-        // Force underlying model's matrices to recalculate instantly
+        DirectX::XMFLOAT3 radRot;
+        radRot.x = DirectX::XMConvertToRadians(editorTransform.rotation.x);
+        radRot.y = DirectX::XMConvertToRadians(editorTransform.rotation.y);
+        radRot.z = DirectX::XMConvertToRadians(editorTransform.rotation.z);
+        m_character->SetRotation(radRot);
+
+        m_character->scale = editorTransform.scale;
         m_character->ForceVisualSync();
     }
     else
     {
-        // Pull the Game Logic Transform up into the Editor (e.g., gravity, walking)
+        // Pull the Game Logic Transform up into the Editor (Convert Radians -> Degrees)
         editorTransform.position = movement->GetPosition();
-        editorTransform.rotation = movement->GetRotation();
+
+        DirectX::XMFLOAT3 radRot = movement->GetRotation();
+        editorTransform.rotation.x = DirectX::XMConvertToDegrees(radRot.x);
+        editorTransform.rotation.y = DirectX::XMConvertToDegrees(radRot.y);
+        editorTransform.rotation.z = DirectX::XMConvertToDegrees(radRot.z);
+
         editorTransform.scale = m_character->scale;
     }
 
@@ -97,7 +106,13 @@ void LegacyCharacterComponent::OnAttach(GameObject* owner) noexcept
         if (m_character->GetMovement() && m_owner)
         {
             m_owner->transform.position = m_character->GetMovement()->GetPosition();
-            m_owner->transform.rotation = m_character->GetMovement()->GetRotation();
+
+            // Convert initial Radians back to Degrees for the Inspector
+            DirectX::XMFLOAT3 radRot = m_character->GetMovement()->GetRotation();
+            m_owner->transform.rotation.x = DirectX::XMConvertToDegrees(radRot.x);
+            m_owner->transform.rotation.y = DirectX::XMConvertToDegrees(radRot.y);
+            m_owner->transform.rotation.z = DirectX::XMConvertToDegrees(radRot.z);
+
             m_owner->transform.scale = m_character->scale;
 
             m_lastFramePos = m_owner->transform.position;

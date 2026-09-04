@@ -58,6 +58,12 @@
     <FxCompile Include="Shader\ScanlinePS.hlsl">
       <Filter>Shader</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\PbrVS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\PbrPS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Source\System\BasicShader.cpp">
@@ -273,12 +279,6 @@
     <ClCompile Include="Source\Game\Entities\LegacyCharacterComponent.cpp">
       <Filter>Source\Game\Entities</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Game\Entities\Stage.cpp">
-      <Filter>Source\Game\Entities</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Game\Entities\StageComponent.cpp">
-      <Filter>Source\Game\Entities</Filter>
-    </ClCompile>
     <ClCompile Include="Source\Engine\Helpers\SceneSerializer.cpp">
       <Filter>Source\Engine\Helpers</Filter>
     </ClCompile>
@@ -296,6 +296,15 @@
     </ClCompile>
     <ClCompile Include="Source\System\Material.cpp">
       <Filter>System</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\System\PbrShader.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Engine\Light\Light.cpp">
+      <Filter>Source\Engine\Light</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Engine\Components\LightComponent.cpp">
+      <Filter>Source\Engine\Components</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -327,9 +336,6 @@
       <Filter>System</Filter>
     </ClInclude>
     <ClInclude Include="Source\System\LambertShader.h">
-      <Filter>System</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\System\Light.h">
       <Filter>System</Filter>
     </ClInclude>
     <ClInclude Include="Source\System\Misc.h">
@@ -576,12 +582,6 @@
     <ClInclude Include="Source\Game\Entities\LegacyCharacterComponent.h">
       <Filter>Source\Game\Entities</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Game\Entities\Stage.h">
-      <Filter>Source\Game\Entities</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Game\Entities\StageComponent.h">
-      <Filter>Source\Game\Entities</Filter>
-    </ClInclude>
     <ClInclude Include="Source\Engine\Helpers\SceneSerializer.h">
       <Filter>Source\Engine\Helpers</Filter>
     </ClInclude>
@@ -602,6 +602,15 @@
     </ClInclude>
     <ClInclude Include="Source\System\Material.h">
       <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\System\PbrShader.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Light\Light.h">
+      <Filter>Source\Engine\Light</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Components\LightComponent.h">
+      <Filter>Source\Engine\Components</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -627,6 +636,9 @@
       <Filter>Shader</Filter>
     </None>
     <None Include="Shader\Sprite.hlsli">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Shader\Pbr.hlsli">
       <Filter>Shader</Filter>
     </None>
   </ItemGroup>
@@ -696,6 +708,9 @@
     </Filter>
     <Filter Include="Source\Engine\Components">
       <UniqueIdentifier>{a66154ad-9210-4b56-9276-8c2bdb6ae63d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Engine\Light">
+      <UniqueIdentifier>{0c966ecb-f50b-4b58-b293-bdb38cef0920}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

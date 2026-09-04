@@ -17,6 +17,7 @@ ModelRenderer::ModelRenderer(ID3D11Device* device)
     shaders[static_cast<int>(ShaderId::Basic)] = std::make_unique<BasicShader>(device);
     shaders[static_cast<int>(ShaderId::Lambert)] = std::make_unique<LambertShader>(device);
     shaders[static_cast<int>(ShaderId::Phong)] = std::make_unique<PhongShader>(device);
+    shaders[static_cast<int>(ShaderId::Pbr)] = std::make_unique<PbrShader>(device);
 }
 
 void ModelRenderer::Draw(std::shared_ptr<Model> model, const DirectX::XMFLOAT4& color)
@@ -42,29 +43,52 @@ void ModelRenderer::Render(const RenderContext& rc)
 
     ID3D11DeviceContext* dc = rc.deviceContext;
 
+    // Update LightManager aggregation prior to scene rendering
+    if (rc.lightManager)
+    {
+        const_cast<LightManager*>(rc.lightManager)->Update();
+    }
+
     // シーン用定数バッファ更新
     {
         static LightManager defaultLightManager;
-        const LightManager* lightManager = rc.lightManager ? rc.lightManager : &defaultLightManager;
+        const LightManager* const lightManager{ rc.lightManager ? rc.lightManager : &defaultLightManager };
 
         CbScene cbScene{};
-        DirectX::XMMATRIX V = DirectX::XMLoadFloat4x4(&rc.camera->GetView());
-        DirectX::XMMATRIX P = DirectX::XMLoadFloat4x4(&rc.camera->GetProjection());
+        const DirectX::XMMATRIX V{ DirectX::XMLoadFloat4x4(&rc.camera->GetView()) };
+        const DirectX::XMMATRIX P{ DirectX::XMLoadFloat4x4(&rc.camera->GetProjection()) };
         DirectX::XMStoreFloat4x4(&cbScene.viewProjection, V * P);
-        const DirectionalLight& directionalLight = lightManager->GetDirectionalLight();
-        cbScene.lightDirection.x = directionalLight.direction.x;
-        cbScene.lightDirection.y = directionalLight.direction.y;
-        cbScene.lightDirection.z = directionalLight.direction.z;
-        cbScene.lightColor.x = directionalLight.color.x;
-        cbScene.lightColor.y = directionalLight.color.y;
-        cbScene.lightColor.z = directionalLight.color.z;
-        const DirectX::XMFLOAT3& eye = rc.camera->GetPosition();
-        cbScene.cameraPosition.x = eye.x;
-        cbScene.cameraPosition.y = eye.y;
-        cbScene.cameraPosition.z = eye.z;
-        cbScene.psxEnabled = rc.psxEnabled ? 1.0f : 0.0f;
-        cbScene.psxResWidth = (std::max)(1.0f, rc.psxResWidth);
-        cbScene.psxResHeight = (std::max)(1.0f, rc.psxResHeight);
+
+        const DirectionalLight& dirLight{ lightManager->GetDirectionalLight() };
+        cbScene.lightDirection = { dirLight.direction.x, dirLight.direction.y, dirLight.direction.z, 0.0f };
+        cbScene.lightColor = { dirLight.color.x * dirLight.intensity, dirLight.color.y * dirLight.intensity, dirLight.color.z * dirLight.intensity, 1.0f };
+
+        const DirectX::XMFLOAT3& eye{ rc.camera->GetPosition() };
+        cbScene.cameraPosition = { eye.x, eye.y, eye.z, 1.0f };
+
+        // Pull dynamic environment colors from LightManager
+        cbScene.ambientSkyColor = lightManager->GetEffectiveSkyColor();
+        cbScene.ambientGroundColor = lightManager->GetEffectiveGroundColor();
+
+        cbScene.packedParams = {
+            rc.psxEnabled ? 1.0f : 0.0f,
+            (std::max)(1.0f, rc.psxResWidth),
+            (std::max)(1.0f, rc.psxResHeight),
+            0.0f
+        };
+
+        cbScene.lightCounts = {
+            lightManager->GetPointLightCount(),
+            lightManager->GetSpotLightCount(),
+            0, 0
+        };
+
+        const auto& pLights{ lightManager->GetPointLights() };
+        for (int i{ 0 }; i < 8; ++i) cbScene.pointLights[i] = pLights[i];
+
+        const auto& sLights{ lightManager->GetSpotLights() };
+        for (int i{ 0 }; i < 8; ++i) cbScene.spotLights[i] = sLights[i];
+
         dc->UpdateSubresource(sceneConstantBuffer.Get(), 0, 0, &cbScene, 0, 0);
     }
 
@@ -106,7 +130,7 @@ void ModelRenderer::Render(const RenderContext& rc)
                 {
                     const Model::Bone& bone = mesh.bones.at(i);
 
-                    // [FIX] Multiply bone's global model-space transform by the GameObject's world space
+                    // Multiply bone's global model-space transform by the GameObject's world space
                     DirectX::XMMATRIX nodeGlobalMat = DirectX::XMLoadFloat4x4(&bone.node->globalTransform);
                     DirectX::XMMATRIX worldTransform = useManual
                         ? (nodeGlobalMat * manualWorldMat)
@@ -193,12 +217,20 @@ void ModelRenderer::Render(const RenderContext& rc)
     }
     drawInfos.clear();
 
-    // 3. Render opaque buckets
+    // Render opaque buckets
     for (std::size_t i{ 0 }; i < opaqueBuckets.size(); ++i)
     {
         if (opaqueBuckets[i].empty()) continue;
 
         Shader* const shader{ shaders[i].get() };
+
+        // Fast fail guard: Prevent hard crashes if shader initialization failed
+        if (!shader)
+        {
+            _ASSERT_EXPR_A(false, "Critical Render Error: Shader instance is null!");
+            continue;
+        }
+
         shader->Begin(rc);
 
         for (const MeshDrawCommand& cmd : opaqueBuckets[i])

@@ -1,4 +1,5 @@
 #include "EditorManager.h"
+#include "LightComponent.h"
 
 namespace
 {
@@ -411,7 +412,7 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
     const bool hasSelection{ m_selectedObject != nullptr };
     const bool isNotRoot{ currentScene && (m_selectedObject != currentScene->GetRootGameObject()) };
 
-    // Only draw the manipulator if all architectural conditions are met
+   // Only draw the manipulator if all architectural conditions are met
     if (activeCamera && hasSelection && isNotRoot && !isPlayMode)
     {
         ImGuizmo::SetDrawlist();
@@ -419,39 +420,70 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
 
         DirectX::XMFLOAT4X4 view{ activeCamera->GetView() };
         DirectX::XMFLOAT4X4 proj{ activeCamera->GetProjection() };
-        DirectX::XMFLOAT4X4 objectMatrix{};
-        {
-            // Read directly from the public Transform struct to sync perfectly with the Inspector
-            const DirectX::XMFLOAT3 pos{ m_selectedObject->transform.position };
-            const DirectX::XMFLOAT3 rot{ m_selectedObject->transform.rotation };
-            const DirectX::XMFLOAT3 scl{ m_selectedObject->transform.scale };
 
-            const DirectX::XMMATRIX S{ DirectX::XMMatrixScaling(scl.x, scl.y, scl.z) };
-            const DirectX::XMMATRIX R{ DirectX::XMMatrixRotationRollPitchYaw(
-                DirectX::XMConvertToRadians(rot.x),
-                DirectX::XMConvertToRadians(rot.y),
-                DirectX::XMConvertToRadians(rot.z))
-            };
-            const DirectX::XMMATRIX T{ DirectX::XMMatrixTranslation(pos.x, pos.y, pos.z) };
+        // Pass the true WORLD Matrix to ImGuizmo, so the Gizmo draws in the correct physical location
+        DirectX::XMFLOAT4X4 objectMatrix{ m_selectedObject->transform.GetWorldMatrix() };
 
-            DirectX::XMStoreFloat4x4(&objectMatrix, S * R * T);
-        }
-
+        ImGuizmo::SetOrthographic(false);
         ImGuizmo::Manipulate(&view._11, &proj._11, m_gizmoOperation, m_gizmoMode, &objectMatrix._11);
 
         if (ImGuizmo::IsUsing())
         {
-            float translation[3]{ 0.0f };
-            float rotation[3]{ 0.0f };
-            float scale[3]{ 0.0f };
+            DirectX::XMMATRIX matWorld = DirectX::XMLoadFloat4x4(&objectMatrix);
+            DirectX::XMMATRIX matLocal = matWorld;
 
-            ImGuizmo::DecomposeMatrixToComponents(&objectMatrix._11, translation, rotation, scale);
+            // If the object is a child, convert the modified World Matrix back into Local Space
+            if (m_selectedObject->transform.parent)
+            {
+                DirectX::XMFLOAT4X4 parentWorld = m_selectedObject->transform.parent->GetWorldMatrix();
+                DirectX::XMMATRIX pWorld = DirectX::XMLoadFloat4x4(&parentWorld);
 
-            // Write directly to the Transform struct. 
-            // LegacyCharacterComponent automatically detects this change and pushes it to PhysX.
-            m_selectedObject->transform.position = { translation[0], translation[1], translation[2] };
-            m_selectedObject->transform.rotation = { rotation[0], rotation[1], rotation[2] };
-            m_selectedObject->transform.scale = { scale[0], scale[1], scale[2] };
+                DirectX::XMVECTOR det;
+                DirectX::XMMATRIX pWorldInv = DirectX::XMMatrixInverse(&det, pWorld);
+
+                // Mathematical conversion: Local_New = World_New * Inverse(ParentWorld)
+                matLocal = DirectX::XMMatrixMultiply(matWorld, pWorldInv);
+            }
+
+            // Decompose the local matrix and save it directly to the Transform struct
+            DirectX::XMVECTOR vScale, vRotQuat, vTrans;
+
+            if (DirectX::XMMatrixDecompose(&vScale, &vRotQuat, &vTrans, matLocal))
+            {
+                DirectX::XMFLOAT3 newPos, newScale;
+                DirectX::XMStoreFloat3(&newPos, vTrans);
+                DirectX::XMStoreFloat3(&newScale, vScale);
+
+                // Convert Quaternion to a clean 3x3 Rotation Matrix to eliminate scale bias
+                DirectX::XMMATRIX rotMat = DirectX::XMMatrixRotationQuaternion(vRotQuat);
+                DirectX::XMFLOAT4X4 mRot;
+                DirectX::XMStoreFloat4x4(&mRot, rotMat);
+
+                // Extract Pitch (X), Yaw (Y), and Roll (Z) manually
+                float pitch = asinf(std::clamp(-mRot._32, -1.0f, 1.0f));
+                float yaw, roll;
+
+                // Gimbal Lock Protection
+                if (cosf(pitch) > 0.0001f)
+                {
+                    yaw = atan2f(mRot._31, mRot._33);
+                    roll = atan2f(mRot._12, mRot._22);
+                }
+                else
+                {
+                    yaw = atan2f(-mRot._13, mRot._11);
+                    roll = 0.0f;
+                }
+
+                // Write the updated Local coordinates
+                m_selectedObject->transform.position = newPos;
+                m_selectedObject->transform.rotation = {
+                    DirectX::XMConvertToDegrees(pitch),
+                    DirectX::XMConvertToDegrees(yaw),
+                    DirectX::XMConvertToDegrees(roll)
+                };
+                m_selectedObject->transform.scale = newScale;
+            }
         }
     }
 
@@ -468,22 +500,10 @@ void EditorManager::DrawMenuBar(Scene* currentScene) noexcept
             {
                 if (currentScene)
                 {
-                    // Default to nullptrs for managers
-                    EnemyManager* enemyMgr{ nullptr };
-                    ItemManager* itemMgr{ nullptr };
-
-                    if (auto* gameScene{ dynamic_cast<SceneGame*>(currentScene) })
-                    {
-                        enemyMgr = gameScene->GetEnemyManager();
-                        itemMgr = gameScene->GetItemManager();
-                    }
-
-                    // Save the scene
+                    // Only save the root objects, stripping out all enemy/item manager saves
                     SceneSerializer::Save(
                         currentScene->GetSceneSavePath(),
-                        currentScene->GetRootGameObject(),
-                        enemyMgr,
-                        itemMgr
+                        currentScene->GetRootGameObject()
                     );
                 }
                 else
@@ -615,52 +635,38 @@ void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
                 currentScene->GetRootGameObject()->AddChild(std::make_unique<GameObject>("Empty"));
             }
 
-            // Only show Gameplay Entities if we are currently editing the Game Scene
+           // Only show Gameplay Entities if we are currently editing the Game Scene
             if (auto* gameScene{ dynamic_cast<SceneGame*>(currentScene) })
             {
                 ImGui::Separator();
-                ImGui::TextDisabled("Gameplay Entities");
+                ImGui::TextDisabled("Lighting");
 
-                if (ImGui::BeginMenu("Enemy"))
+                if (ImGui::BeginMenu("Light"))
                 {
-                    // Local lambda for enemies
-                    auto spawnEnemy = [&](EnemyType type, AttackType attack)
-                        {
-                            EnemySpawnConfig config{};
-                            config.Type = type;
-                            config.AttackBehavior = attack;
-                            config.Position = { 0.0f, 1.1f, 5.0f };
-                            config.Scale = { 1.0f, 1.0f, 1.0f };
+                    if (ImGui::MenuItem("Directional Light"))
+                    {
+                        auto lightObj = std::make_unique<GameObject>("Directional_Light");
+                        lightObj->transform.rotation = { 45.0f, -45.0f, 0.0f };
+                        lightObj->AddComponent<DirectionalLightComponent>();
+                        currentScene->GetRootGameObject()->AddChild(std::move(lightObj));
+                    }
 
-                            gameScene->GetEnemyManager()->SpawnEnemy(config);
-                        };
+                    if (ImGui::MenuItem("Point Light"))
+                    {
+                        auto lightObj = std::make_unique<GameObject>("Point_Light");
+                        lightObj->transform.position = { 0.0f, 3.0f, 0.0f };
+                        lightObj->AddComponent<PointLightComponent>();
+                        currentScene->GetRootGameObject()->AddChild(std::move(lightObj));
+                    }
 
-                    if (ImGui::MenuItem("Mushroom (Idle)"))     spawnEnemy(EnemyType::MushroomNone, AttackType::None);
-                    if (ImGui::MenuItem("Mushroom (Turret)"))   spawnEnemy(EnemyType::MushroomStatic, AttackType::Static);
-                    ImGui::Separator();
-                    if (ImGui::MenuItem("Paddle"))              spawnEnemy(EnemyType::Paddle, AttackType::None);
-                    if (ImGui::MenuItem("Ball"))                spawnEnemy(EnemyType::Ball, AttackType::None);
-                    if (ImGui::MenuItem("FakeBoss"))            spawnEnemy(EnemyType::FakeBoss, AttackType::None);
-
-                    ImGui::EndMenu();
-                }
-
-                if (ImGui::BeginMenu("Item"))
-                {
-                    // Local lambda for items
-                    auto spawnItem = [&](ItemType type)
-                        {
-                            ItemSpawnData data{};
-                            data.Type = type;
-                            data.Position = { 0.0f, 0.4f, 5.0f };
-                            data.Scale = { 2.0f, 2.0f, 2.0f };
-
-                            gameScene->GetItemManager()->SpawnItem(data);
-                        };
-
-                    if (ImGui::MenuItem("Heal Potion"))     spawnItem(ItemType::Heal);
-                    if (ImGui::MenuItem("Invincibility"))   spawnItem(ItemType::Invincible);
-
+                    if (ImGui::MenuItem("Spot Light"))
+                    {
+                        auto lightObj = std::make_unique<GameObject>("Spot_Light");
+                        lightObj->transform.position = { 0.0f, 5.0f, 0.0f };
+                        lightObj->transform.rotation = { 90.0f, 0.0f, 0.0f }; // Aim straight down
+                        lightObj->AddComponent<SpotLightComponent>();
+                        currentScene->GetRootGameObject()->AddChild(std::move(lightObj));
+                    }
                     ImGui::EndMenu();
                 }
             }
@@ -712,6 +718,7 @@ void EditorManager::DrawInspector(Scene* currentScene) noexcept
         ImGui::TextDisabled("SCENE PROPERTIES");
         ImGui::Separator();
         
+        Graphics::Instance().GetLightManager().DrawEnvironmentGUI();
         ImGui::Text("Active Scene: %s", currentScene->GetSceneName().data());
         ImGui::TextDisabled("Save Path: %s", currentScene->GetSceneSavePath().data());
         ImGui::TextDisabled("PostProcess: %s", currentScene->GetPostProcessProfilePath().data());

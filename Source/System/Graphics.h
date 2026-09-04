@@ -6,10 +6,11 @@
 #include <dcomp.h>     
 #include <wrl.h>
 #include <memory>
-#include "RenderState.h"
-#include "PrimitiveRenderer.h"
-#include "ShapeRenderer.h"
+#include "Light.h"
 #include "ModelRenderer.h"
+#include "PrimitiveRenderer.h"
+#include "RenderState.h"
+#include "ShapeRenderer.h"
 
 #pragma comment(lib, "dxgi.lib")
 
@@ -42,6 +43,7 @@ public:
     PrimitiveRenderer* GetPrimitiveRenderer() const { return primitiveRenderer.get(); }
     ShapeRenderer* GetShapeRenderer()     const { return shapeRenderer.get(); }
     ModelRenderer* GetModelRenderer()     const { return modelRenderer.get(); }
+    LightManager& GetLightManager() const { return *lightManager; }
     ID3D11BlendState* GetAlphaBlendState();
 
 	// True if the system supports tearing (variable refresh rate), false otherwise
@@ -58,6 +60,7 @@ private:
     std::unique_ptr<PrimitiveRenderer> primitiveRenderer;
     std::unique_ptr<ShapeRenderer>     shapeRenderer;
     std::unique_ptr<ModelRenderer>     modelRenderer;
+    std::unique_ptr<LightManager>      lightManager;
 
     float clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
     bool  m_tearingSupported = false;

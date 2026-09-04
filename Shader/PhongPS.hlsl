@@ -17,24 +17,21 @@ Texture2D DiffuseMap : register(t0);
 Texture2D NormalMap : register(t1);
 SamplerState LinearSampler : register(s0);
 
-float3 CalcLambert(float3 N, float3 L, float3 C, float3 K)
+// Calculates Diffuse + Blinn-Phong Specular
+float3 CalculatePhongLight(float3 L, float3 V, float3 N, float3 radiance, float3 albedo, float shininess)
 {
-    float power = saturate(dot(N, -L));
-    return C * power * K;
-}
-    
-float3 CalcPhongSpecular(float3 N, float3 L, float3 E, float3 C, float3 K)
-{
-    float3 R = reflect(L, N);
-    float power = max(dot(-E, R), 0);
-    power = pow(power, 128);
-    return C * power * K;
-}
+    float NdotL = max(dot(N, L), 0.0f);
+    float3 diffuse = albedo * radiance * NdotL;
 
-float3 CalcHemiSphereLight(float3 normal, float3 up, float3 sky_color, float3 ground_color, float4 hemisphere_weight)
-{
-    float factor = dot(normal, up) * 0.5f + 0.5f;
-    return lerp(ground_color, sky_color, factor) * hemisphere_weight.x;
+    // Blinn-Phong Specular (Half-Vector)
+    float3 H = normalize(V + L);
+    float NdotH = max(dot(N, H), 0.0f);
+    
+    // Only apply specular if the surface is actually facing the light
+    float specIntensity = (NdotL > 0.0f) ? pow(NdotH, shininess) : 0.0f;
+    float3 specular = radiance * specIntensity;
+
+    return diffuse + specular;
 }
 
 float4 main(VS_OUT pin) : SV_TARGET
@@ -42,65 +39,91 @@ float4 main(VS_OUT pin) : SV_TARGET
     float4 texColor = DiffuseMap.Sample(LinearSampler, pin.texcoord);
     float4 color = texColor * materialColor * objectColor;
 
-    // Alpha masking
     if (alphaMode == 1)
     {
-        // Mask mode
         clip(color.a - alphaCutoff);
     }
     else if (alphaMode == 2)
     {
-        // Blend mode
         clip(color.a - 0.01f);
     }
 
-    // Normal
-    float normalLenSq = dot(pin.normal, pin.normal);
-    float3 N = (normalLenSq > 0.0001f) ? normalize(pin.normal) : float3(0.0f, 1.0f, 0.0f);
-
-    // Uniform bracnch
+    // Linearize texture
+    float3 albedo = pow(abs(color.rgb), 2.2f);
+    
+    // Normal Mapping
+    float3 N = normalize(pin.normal);
     float tangentLenSq = dot(pin.tangent.xyz, pin.tangent.xyz);
     if (tangentLenSq > 0.0001f)
     {
-        // Unconditionally sample the texture 
-        float4 sampled = NormalMap.Sample(LinearSampler, pin.texcoord);
+        float3 T = normalize(pin.tangent.xyz - N * dot(N, pin.tangent.xyz));
+        float3 B = normalize(cross(N, T) * pin.tangent.w);
+        float3x3 TBN = float3x3(T, B, N);
         
-        float3 T = pin.tangent.xyz; // Raw tangent
-        float3 orthoT = T - N * dot(N, T);
-        float orthoLenSq = dot(orthoT, orthoT);
-
-        // Branchless Fallback
-        float3 safeT = (orthoLenSq > 0.0001f) ? normalize(orthoT) : normalize(T);
-        float3 B = normalize(cross(N, safeT) * pin.tangent.w);
-        
-        float3 localNormal = sampled.xyz * 2.0f - 1.0f;
-        float3 newNormal = localNormal.x * safeT + localNormal.y * B + localNormal.z * N;
-        
-        // Conditionally apply the normal map without a pipeline-stalling 'if' statement
-        N = (orthoLenSq > 0.0001f) ? normalize(newNormal) : N;
+        float3 localNormal = NormalMap.Sample(LinearSampler, pin.texcoord).xyz * 2.0f - 1.0f;
+        N = normalize(mul(localNormal, TBN));
     }
 
-    // Standard Lighting Math
-    float3 L = normalize(lightDirection.xyz);
-    float3 LC = lightColor.rgb;
+    float3 V = normalize(cameraPosition.xyz - pin.position);
+    float shininess = 128.0f; 
 
-    float3 directDiffuse = CalcLambert(N, L, LC, 1.0f);
+    float3 totalDirectLight = float3(0.0f, 0.0f, 0.0f);
 
-    float3 upDir = float3(0.0f, 1.0f, 0.0f);
-    float3 skyColor = float3(0.6f, 0.6f, 0.65f);
-    float3 groundColor = float3(0.2f, 0.2f, 0.2f);
-    float ambient = 0.5f;
-    
-    float3 ambientLight = CalcHemiSphereLight(N, upDir, skyColor, groundColor, ambient);
-    float3 finalLight = directDiffuse + ambientLight;
+    // Directional Light
+    float3 dirL = normalize(-lightDirection.xyz);
+    totalDirectLight += CalculatePhongLight(dirL, V, N, lightColor.rgb, albedo, shininess);
 
-    color.rgb *= finalLight;
+    // Point Lights
+    for (int i = 0; i < lightCounts.x; ++i)
+    {
+        float3 L = pointLights[i].positionAndRange.xyz - pin.position;
+        float distance = length(L);
+        float range = pointLights[i].positionAndRange.w;
+        
+        if (distance < range)
+        {
+            L /= distance;
+            float attenuation = saturate(1.0f - pow(distance / range, 4.0f));
+            attenuation = (attenuation * attenuation) / (distance * distance + 1.0f);
+            
+            float3 radiance = pointLights[i].colorAndIntensity.xyz * pointLights[i].colorAndIntensity.w * attenuation;
+            totalDirectLight += CalculatePhongLight(L, V, N, radiance, albedo, shininess);
+        }
+    }
 
-    // Final Error Trap
-    if (any(isnan(color)) || any(isinf(color)))
+    // Spot Lights
+    for (int j = 0; j < lightCounts.y; ++j)
+    {
+        float3 L = spotLights[j].positionAndRange.xyz - pin.position;
+        float distance = length(L);
+        float range = spotLights[j].positionAndRange.w;
+        
+        if (distance < range)
+        {
+            L /= distance;
+            float attenuation = saturate(1.0f - pow(distance / range, 4.0f));
+            attenuation = (attenuation * attenuation) / (distance * distance + 1.0f);
+            
+            float cosHalfAngle = spotLights[j].directionAndAngle.w;
+            float currentCosAngle = dot(L, -spotLights[j].directionAndAngle.xyz);
+            float spotAttenuation = smoothstep(cosHalfAngle, cosHalfAngle + 0.1f, currentCosAngle);
+            
+            float3 radiance = spotLights[j].colorAndIntensity.xyz * spotLights[j].colorAndIntensity.w * attenuation * spotAttenuation;
+            totalDirectLight += CalculatePhongLight(L, V, N, radiance, albedo, shininess);
+        }
+    }
+
+    // Ambient Hemisphere
+    float factor = dot(N, float3(0.0f, 1.0f, 0.0f)) * 0.5f + 0.5f;
+    float3 ambientLight = lerp(ambientGroundColor.rgb, ambientSkyColor.rgb, factor);
+
+    float3 finalColor = totalDirectLight + (ambientLight * albedo);
+    finalColor = pow(abs(finalColor), float3(1.0f / 2.2f, 1.0f / 2.2f, 1.0f / 2.2f));
+
+    if (any(isnan(finalColor)) || any(isinf(finalColor)))
     {
         return float4(1.0f, 0.0f, 1.0f, 1.0f);
     }
-    
-    return color;
+
+    return float4(finalColor, color.a);
 }
