@@ -14,8 +14,8 @@ public:
     ~SceneSerializer() = delete;
 
     // Serializes the current state of the managers to a JSON file on disk
-    static void Save(std::string_view filepath, GameObject* sceneRoot);
+    static void Save(std::string_view filepath, GameObject* sceneRoot, bool notifyUser = true);
 
     // Deserializes a JSON file from disk and pushes the data into the managers
-    static void Load(std::string_view filepath, GameObject* sceneRoot);
+    static void Load(std::string_view filepath, GameObject* sceneRoot, bool notifyUser = true);
 };

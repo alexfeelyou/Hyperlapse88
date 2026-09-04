@@ -310,7 +310,7 @@ void PostProcessManager::LoadConfig(std::string_view filepath)
                 effect->Deserialize(root[key]);
             }
         }
-        Log::Info("Loaded post-process profile: " + std::string{ filepath });
+        Log::Success("Loaded post-process profile: " + std::string{ filepath });
     }
     catch (const std::exception& e)
     {

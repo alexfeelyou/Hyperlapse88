@@ -110,7 +110,7 @@ namespace
             {
                 const std::string type{ compJson.value("Type", "") };
 
-                // SEARCH for existing component first to prevent data loss
+                // Search for existing component first to prevent data loss
                 bool componentExists = false;
                 for (const auto& existingComp : targetNode->GetComponents())
                 {
@@ -145,7 +145,7 @@ namespace
     }
 }
 
-void SceneSerializer::Save(std::string_view filepath, GameObject* sceneRoot)
+void SceneSerializer::Save(std::string_view filepath, GameObject* sceneRoot, bool notifyUser)
 {
     nlohmann::json root{};
 
@@ -180,7 +180,11 @@ void SceneSerializer::Save(std::string_view filepath, GameObject* sceneRoot)
     if (file.is_open())
     {
         file << root.dump(4, ' ', false, nlohmann::json::error_handler_t::replace);
-        Log::Success("Saved Scene to: " + std::string{ filepath });
+
+        if (notifyUser)
+        {
+            Log::Success("Saved Scene to: " + std::string{ filepath });
+        }
     }
     else
     {
@@ -188,12 +192,15 @@ void SceneSerializer::Save(std::string_view filepath, GameObject* sceneRoot)
     }
 }
 
-void SceneSerializer::Load(std::string_view filepath, GameObject* sceneRoot)
+void SceneSerializer::Load(std::string_view filepath, GameObject* sceneRoot, bool notifyUser)
 {
     std::ifstream file{ std::string{ filepath } };
     if (!file.is_open())
     {
-        Log::Warn("Scene file not found (Starting empty): " + std::string{ filepath });
+        if (notifyUser)
+        {
+            Log::Warn("Scene file not found (Starting empty): " + std::string{ filepath });
+        }
         return;
     }
 
@@ -241,7 +248,10 @@ void SceneSerializer::Load(std::string_view filepath, GameObject* sceneRoot)
             Graphics::Instance().GetLightManager().Deserialize(root["EnvironmentIllumination"]);
         }
 
-        Log::Success("Loaded Scene from: " + std::string{ filepath });
+        if (notifyUser)
+        {
+            Log::Success("Loaded Scene from: " + std::string{ filepath });
+        }
     }
     catch (const std::exception& e)
     {

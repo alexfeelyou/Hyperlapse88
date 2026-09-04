@@ -253,7 +253,7 @@ void SceneGame::Update(const float elapsedTime)
         if (currentMode == EditorMode::Play && m_lastEditorMode == EditorMode::Edit)
         {
             // Backup the authored scene layout 
-            SceneSerializer::Save("Data/Scenes/AutoSave_PlayMode.json", m_sceneRoot.get());
+            SceneSerializer::Save("Data/Scenes/AutoSave_PlayMode.json", m_sceneRoot.get(), false);
 
             // Cache editor camera
             if (Camera * activeCam{ CameraController::Instance().GetActiveCamera().get() })
@@ -319,7 +319,7 @@ void SceneGame::Update(const float elapsedTime)
                 m_sceneRoot->Update(0.0f); // Flush dead objects immediately
             }
 
-            SceneSerializer::Load("Data/Scenes/AutoSave_PlayMode.json", m_sceneRoot.get());
+            SceneSerializer::Load("Data/Scenes/AutoSave_PlayMode.json", m_sceneRoot.get(), false);
 
             if (m_player)
             {
