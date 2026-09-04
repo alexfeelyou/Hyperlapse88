@@ -31,6 +31,8 @@ public:
     const DirectX::XMFLOAT3& GetRotation() const { return rotation; }
     const DirectX::XMFLOAT4X4& GetView() const { return view; }
     const DirectX::XMFLOAT4X4& GetProjection() const { return projection; }
+    [[nodiscard]] float GetNearZ() const noexcept { return nearZ; }
+    [[nodiscard]] float GetFarZ() const noexcept { return farZ; }
 
     // Helpers 
     DirectX::XMFLOAT3 GetFocus() const;
