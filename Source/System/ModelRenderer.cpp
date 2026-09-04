@@ -18,6 +18,9 @@ ModelRenderer::ModelRenderer(ID3D11Device* device)
     shaders[static_cast<int>(ShaderId::Lambert)] = std::make_unique<LambertShader>(device);
     shaders[static_cast<int>(ShaderId::Phong)] = std::make_unique<PhongShader>(device);
     shaders[static_cast<int>(ShaderId::Pbr)] = std::make_unique<PbrShader>(device);
+    shaders[static_cast<int>(ShaderId::Toon)] = std::make_unique<ToonShader>(device);
+
+    m_outlineShader = std::make_unique<OutlineShader>(device);
 }
 
 void ModelRenderer::Draw(std::shared_ptr<Model> model, const DirectX::XMFLOAT4& color)
@@ -223,16 +226,10 @@ void ModelRenderer::Render(const RenderContext& rc)
         if (opaqueBuckets[i].empty()) continue;
 
         Shader* const shader{ shaders[i].get() };
+        if (!shader) continue;
 
-        // Fast fail guard: Prevent hard crashes if shader initialization failed
-        if (!shader)
-        {
-            _ASSERT_EXPR_A(false, "Critical Render Error: Shader instance is null!");
-            continue;
-        }
-
+        // Primary forward pass
         shader->Begin(rc);
-
         for (const MeshDrawCommand& cmd : opaqueBuckets[i])
         {
             CbObject cbObject{};
@@ -241,8 +238,53 @@ void ModelRenderer::Render(const RenderContext& rc)
 
             drawMesh(*cmd.mesh, shader, cmd.useManualMatrix, cmd.worldMatrix);
         }
-
         shader->End(rc);
+
+		// Immediate dual-pass outline rendering for Toon shader
+        if (static_cast<ShaderId>(i) == ShaderId::Toon)
+        {
+            dc->RSSetState(rc.renderState->GetRasterizerState(RasterizerState::SolidCullFront));
+
+            m_outlineShader->Begin(rc);
+
+            const DirectX::XMVECTOR camPos{ DirectX::XMLoadFloat3(&rc.camera->GetPosition()) };
+
+            for (const MeshDrawCommand& cmd : opaqueBuckets[i])
+            {
+                if (!cmd.mesh->material->enableOutline || cmd.mesh->material->outlineWidth <= 0.0f)
+                {
+                    continue; // Feature disabled on this material
+                }
+
+                // Skip draw call if mesh origin is past fade end
+                DirectX::XMMATRIX worldMat{};
+                if (cmd.useManualMatrix)
+                {
+                    worldMat = DirectX::XMLoadFloat4x4(&cmd.mesh->node->globalTransform) * DirectX::XMLoadFloat4x4(&cmd.worldMatrix);
+                }
+                else
+                {
+                    worldMat = DirectX::XMLoadFloat4x4(&cmd.mesh->node->worldTransform);
+                }
+
+                // Extract position from matrix row 3 (_41, _42, _43)
+                const DirectX::XMVECTOR objPos{ worldMat.r[3] };
+                const float distanceSq{ DirectX::XMVectorGetX(DirectX::XMVector3LengthSq(DirectX::XMVectorSubtract(objPos, camPos))) };
+                const float fadeEndSq{ cmd.mesh->material->outlineFadeEnd * cmd.mesh->material->outlineFadeEnd };
+
+                // Allow a small radius buffer (e.g. 25 units sq) to prevent large meshes from popping early
+                static constexpr float s_radiusBufferSq{ 25.0f };
+                if (distanceSq > (fadeEndSq + s_radiusBufferSq))
+                {
+                    continue; // Skip draw call entirely
+                }
+
+                drawMesh(*cmd.mesh, m_outlineShader.get(), cmd.useManualMatrix, cmd.worldMatrix);
+            }
+
+            m_outlineShader->End(rc);
+            dc->RSSetState(rc.renderState->GetRasterizerState(RasterizerState::SolidCullBack));
+        }
     }
     drawInfos.clear();
 

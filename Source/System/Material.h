@@ -32,7 +32,7 @@ public:
     std::string name{ "DefaultMaterial" };
 
     // Shading & Pipeline 
-    // Maps to ShaderId (0 = Basic, 1 = Lambert, 2 = Phong, 3 = PBR)
+    // Maps to ShaderId (0 = Basic, 1 = Lambert, 2 = Phong, 3 = PBR, 4 = Toon)
     int shaderId{ 2 };
     AlphaMode alphaMode{ AlphaMode::Opaque };
     float alphaCutoff{ 0.5f };
@@ -43,6 +43,13 @@ public:
     float metalness{ 0.0f };
     float roughness{ 0.5f };
     float occlusionStrength{ 1.0f };
+
+    // Outline Data (Toon Shader Only)
+    bool              enableOutline{ true };
+    float             outlineWidth{ 0.015f };
+    float             outlineFadeStart{ 12.0f };
+    float             outlineFadeEnd{ 28.0f };
+    DirectX::XMFLOAT4 outlineColor{ 0.05f, 0.05f, 0.05f, 1.0f };
 
     // Texture Paths (For Serialization) 
     std::string baseTextureFileName{};
@@ -75,7 +82,10 @@ public:
             cereal::make_nvp("roughness", roughness),
             cereal::make_nvp("occlusionStrength", occlusionStrength),
             cereal::make_nvp("alphaCutoff", alphaCutoff),
-            cereal::make_nvp("alphaMode", alphaMode)
+            cereal::make_nvp("alphaMode", alphaMode),
+            cereal::make_nvp("enableOutline", enableOutline),
+            cereal::make_nvp("outlineWidth", outlineWidth),
+            cereal::make_nvp("outlineColor", outlineColor)
         );
     }
 

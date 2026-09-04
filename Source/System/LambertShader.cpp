@@ -52,9 +52,10 @@ void LambertShader::Update(const RenderContext& rc, const Model::Mesh& mesh)
 	// メッシュ用定数バッファ更新
 	const CbMesh cbMesh{
 		mesh.material->baseColor,
+		mesh.material->emissiveColor,
 		static_cast<int>(mesh.material->alphaMode),
 		mesh.material->alphaCutoff,
-		{ 0.0f, 0.0f }
+		{ 0.0f, 0.0f, 0.0f }
 	};
 
 	dc->UpdateSubresource(meshConstantBuffer.Get(), 0, 0, &cbMesh, 0, 0);

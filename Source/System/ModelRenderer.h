@@ -13,7 +13,9 @@
 #include "Model.h"
 #include "PbrShader.h"
 #include "PhongShader.h"
+#include "OutlineShader.h"
 #include "Shader.h"
+#include "ToonShader.h"
 
 enum class ShaderId
 {
@@ -21,6 +23,7 @@ enum class ShaderId
     Lambert,
     Phong,
     Pbr,
+    Toon, 
 
     EnumCount
 };
@@ -93,6 +96,7 @@ private:
     };
 
     std::unique_ptr<Shader>					shaders[static_cast<int>(ShaderId::EnumCount)];
+    std::unique_ptr<OutlineShader>          m_outlineShader;
     std::vector<DrawInfo>					drawInfos;
     std::vector<TransparencyDrawInfo>		transparencyDrawInfos;
 

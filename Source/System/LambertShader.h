@@ -20,10 +20,11 @@ public:
 private:
 	struct CbMesh
 	{
-		DirectX::XMFLOAT4 materialColor{ 1.0f, 1.0f, 1.0f, 1.0f };
-		int               alphaMode{ 0 };
-		float             alphaCutoff{ 0.5f };
-		DirectX::XMFLOAT2 padding{ 0.0f, 0.0f };
+		DirectX::XMFLOAT4 materialColor{ 1.0f, 1.0f, 1.0f, 1.0f }; // 16 bytes
+		DirectX::XMFLOAT3 emissiveColor{ 0.0f, 0.0f, 0.0f };       // 12 bytes
+		int               alphaMode{ 0 };                          // 4 bytes
+		float             alphaCutoff{ 0.5f };                     // 4 bytes
+		DirectX::XMFLOAT3 padding{ 0.0f, 0.0f, 0.0f };             // 12 bytes
 	};
 
 	Microsoft::WRL::ComPtr<ID3D11VertexShader>		vertexShader;

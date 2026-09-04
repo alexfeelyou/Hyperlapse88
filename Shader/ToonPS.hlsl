@@ -1,13 +1,13 @@
-#include "Phong.hlsli"
+#include "Toon.hlsli"
 
 cbuffer CbMesh : register(b0)
 {
     float4 materialColor;
     float3 emissiveColor;
-    float roughness;
-    int alphaMode;
+    float roughness; 
+    int alphaMode; 
     float alphaCutoff;
-    float2 meshPadding;
+    float2 padding; 
 };
 
 cbuffer CbObject : register(b2)
@@ -16,24 +16,34 @@ cbuffer CbObject : register(b2)
 };
 
 Texture2D DiffuseMap : register(t0);
-Texture2D NormalMap : register(t1);
 SamplerState LinearSampler : register(s0);
 
-// Calculates Diffuse + Blinn-Phong Specular
-float3 CalculatePhongLight(float3 L, float3 V, float3 N, float3 radiance, float3 albedo, float shininess)
+// Calculates pure Toon light scattering using quantized Half-Lambert and stepped Specular
+float3 CalculateToonLight(float3 L, float3 N, float3 V, float3 radiance, float3 albedo)
 {
-    float NdotL = max(dot(N, L), 0.0f);
-    float3 diffuse = albedo * radiance * NdotL;
+    // Half-Lambert Remapping: Prevents pitch-black shadows on the unlit side of the mesh
+    float NdotL = dot(N, L);
+    float halfLambert = NdotL * 0.5f + 0.5f;
 
-    // Blinn-Phong Specular (Half-Vector)
-    float3 H = normalize(V + L);
+    // Quantized Cel-Banding: Creates a 3-tone shaded look with slight anti-aliasing on the edges
+    float celDiffuse = smoothstep(0.48f, 0.52f, halfLambert) * 0.6f +
+                       smoothstep(0.78f, 0.82f, halfLambert) * 0.4f;
+    
+    float3 diffuseColor = albedo * radiance * celDiffuse;
+
+    // Hard-Stepped Blinn-Phong Specular
+    float3 H = normalize(L + V);
     float NdotH = max(dot(N, H), 0.0f);
     
-    // Only apply specular if the surface is actually facing the light
-    float specIntensity = (NdotL > 0.0f) ? pow(NdotH, shininess) : 0.0f;
-    float3 specular = radiance * specIntensity;
+    // Map intuitive 0-1 roughness to a traditional glossiness exponent
+    float glossiness = exp2(10.0f * (1.0f - roughness));
+    float specRaw = pow(NdotH, glossiness);
+    
+    // A hard step creates a solid, sharp geometric glint instead of a soft realistic glare
+    float celSpec = step(0.5f, specRaw);
+    float3 specularColor = radiance * celSpec * 0.5f; 
 
-    return diffuse + specular;
+    return diffuseColor + specularColor;
 }
 
 float4 main(VS_OUT pin) : SV_TARGET
@@ -50,30 +60,15 @@ float4 main(VS_OUT pin) : SV_TARGET
         clip(color.a - 0.01f);
     }
 
-    // Linearize texture
     float3 albedo = pow(abs(color.rgb), 2.2f);
-    
-    // Normal Mapping
     float3 N = normalize(pin.normal);
-    float tangentLenSq = dot(pin.tangent.xyz, pin.tangent.xyz);
-    if (tangentLenSq > 0.0001f)
-    {
-        float3 T = normalize(pin.tangent.xyz - N * dot(N, pin.tangent.xyz));
-        float3 B = normalize(cross(N, T) * pin.tangent.w);
-        float3x3 TBN = float3x3(T, B, N);
-        
-        float3 localNormal = NormalMap.Sample(LinearSampler, pin.texcoord).xyz * 2.0f - 1.0f;
-        N = normalize(mul(localNormal, TBN));
-    }
-
-    float3 V = normalize(cameraPosition.xyz - pin.position);
-    float shininess = exp2(10.0f * (1.0f - roughness));
+    float3 V = normalize(cameraPosition.xyz - pin.position); // View vector for specular
 
     float3 totalDirectLight = float3(0.0f, 0.0f, 0.0f);
 
     // Directional Light
     float3 dirL = normalize(-lightDirection.xyz);
-    totalDirectLight += CalculatePhongLight(dirL, V, N, lightColor.rgb, albedo, shininess);
+    totalDirectLight += CalculateToonLight(dirL, N, V, lightColor.rgb, albedo);
 
     // Point Lights
     for (int i = 0; i < lightCounts.x; ++i)
@@ -87,9 +82,9 @@ float4 main(VS_OUT pin) : SV_TARGET
             L /= distance;
             float attenuation = saturate(1.0f - pow(distance / range, 4.0f));
             attenuation = (attenuation * attenuation) / (distance * distance + 1.0f);
-            
             float3 radiance = pointLights[i].colorAndIntensity.xyz * pointLights[i].colorAndIntensity.w * attenuation;
-            totalDirectLight += CalculatePhongLight(L, V, N, radiance, albedo, shininess);
+            
+            totalDirectLight += CalculateToonLight(L, N, V, radiance, albedo);
         }
     }
 
@@ -109,23 +104,19 @@ float4 main(VS_OUT pin) : SV_TARGET
             float cosHalfAngle = spotLights[j].directionAndAngle.w;
             float currentCosAngle = dot(L, -spotLights[j].directionAndAngle.xyz);
             float spotAttenuation = smoothstep(cosHalfAngle, cosHalfAngle + 0.1f, currentCosAngle);
-            
             float3 radiance = spotLights[j].colorAndIntensity.xyz * spotLights[j].colorAndIntensity.w * attenuation * spotAttenuation;
-            totalDirectLight += CalculatePhongLight(L, V, N, radiance, albedo, shininess);
+            
+            totalDirectLight += CalculateToonLight(L, N, V, radiance, albedo);
         }
     }
 
-    // Ambient Hemisphere
-    float factor = dot(N, float3(0.0f, 1.0f, 0.0f)) * 0.5f + 0.5f;
-    float3 ambientLight = lerp(ambientGroundColor.rgb, ambientSkyColor.rgb, factor);
+    // Ambient Hemisphere Blending (Hard-stepped for Toon Style)
+    float factor = dot(N, float3(0.0f, 1.0f, 0.0f));
+    float celFactor = step(0.0f, factor); // Hard step between sky and ground color
+    float3 ambientLight = lerp(ambientGroundColor.rgb, ambientSkyColor.rgb, celFactor);
 
     float3 finalColor = totalDirectLight + (ambientLight * albedo) + emissiveColor;
     finalColor = pow(abs(finalColor), float3(1.0f / 2.2f, 1.0f / 2.2f, 1.0f / 2.2f));
-
-    if (any(isnan(finalColor)) || any(isinf(finalColor)))
-    {
-        return float4(1.0f, 0.0f, 1.0f, 1.0f);
-    }
 
     return float4(finalColor, color.a);
 }

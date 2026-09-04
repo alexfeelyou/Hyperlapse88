@@ -64,6 +64,18 @@
     <FxCompile Include="Shader\PbrPS.hlsl">
       <Filter>Shader</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\ToonVS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\ToonPS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\OutlineVS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\OutlinePS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Source\System\BasicShader.cpp">
@@ -305,6 +317,12 @@
     </ClCompile>
     <ClCompile Include="Source\Engine\Components\LightComponent.cpp">
       <Filter>Source\Engine\Components</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\System\ToonShader.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\System\OutlineShader.cpp">
+      <Filter>System</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -612,6 +630,12 @@
     <ClInclude Include="Source\Engine\Components\LightComponent.h">
       <Filter>Source\Engine\Components</Filter>
     </ClInclude>
+    <ClInclude Include="Source\System\ToonShader.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\System\OutlineShader.h">
+      <Filter>System</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Shader\Basic.hlsli">
@@ -639,6 +663,9 @@
       <Filter>Shader</Filter>
     </None>
     <None Include="Shader\Pbr.hlsli">
+      <Filter>Shader</Filter>
+    </None>
+    <None Include="Shader\Toon.hlsli">
       <Filter>Shader</Filter>
     </None>
   </ItemGroup>

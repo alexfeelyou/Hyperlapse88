@@ -50,13 +50,14 @@ void PhongShader::Update(const RenderContext& rc, const Model::Mesh& mesh)
 	ID3D11DeviceContext* dc = rc.deviceContext;
 
 	// メッシュ用定数バッファ更新
-	CbMesh cbMesh{};
-	cbMesh.materialColor = mesh.material->baseColor;
-
-	// Pass Alpha Masking data to the GPU
-	cbMesh.alphaMode = static_cast<int>(mesh.material->alphaMode);
-	cbMesh.alphaCutoff = mesh.material->alphaCutoff;
-
+	const CbMesh cbMesh{
+		mesh.material->baseColor,
+		mesh.material->emissiveColor,
+		mesh.material->roughness,
+		static_cast<int>(mesh.material->alphaMode),
+		mesh.material->alphaCutoff,
+		{ 0.0f, 0.0f }
+	};
 	dc->UpdateSubresource(meshConstantBuffer.Get(), 0, 0, &cbMesh, 0, 0);
 
 	// シェーダーリソースビュー設定
