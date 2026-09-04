@@ -203,6 +203,7 @@
     <ClInclude Include="Source\System\Model.h" />
     <ClInclude Include="Source\System\ModelRenderer.h" />
     <ClInclude Include="Source\System\Mouse.h" />
+    <ClInclude Include="Source\System\OutlineShader.h" />
     <ClInclude Include="Source\System\PbrShader.h" />
     <ClInclude Include="Source\System\PhongShader.h" />
     <ClInclude Include="Source\System\PhysicsManager.h" />
@@ -288,6 +289,7 @@
     <ClCompile Include="Source\System\Model.cpp" />
     <ClCompile Include="Source\System\ModelRenderer.cpp" />
     <ClCompile Include="Source\System\Mouse.cpp" />
+    <ClCompile Include="Source\System\OutlineShader.cpp" />
     <ClCompile Include="Source\System\PbrShader.cpp" />
     <ClCompile Include="Source\System\PhongShader.cpp" />
     <ClCompile Include="Source\System\PhysicsManager.cpp" />
@@ -330,6 +332,14 @@
     <FxCompile Include="Shader\LensDistortionPS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+    </FxCompile>
+    <FxCompile Include="Shader\OutlinePS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+    </FxCompile>
+    <FxCompile Include="Shader\OutlineVS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
     </FxCompile>
     <FxCompile Include="Shader\PassthroughPS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>

@@ -121,6 +121,20 @@ void Material::DrawInspector() noexcept
     ImGui::ColorEdit3("Emissive", &emissiveColor.x);
     ImGui::SliderFloat("Roughness", &roughness, 0.0f, 1.0f);
     ImGui::SliderFloat("Metalness", &metalness, 0.0f, 1.0f);
+
+    if (shaderId == 4) // 4 = ShaderId::Toon
+    {
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::TextDisabled("TOON SETTINGS");
+        ImGui::Checkbox("Enable Outline", &enableOutline);
+
+        if (enableOutline)
+        {
+            ImGui::SliderFloat("Outline Width", &outlineWidth, 0.0f, 0.05f);
+            ImGui::ColorEdit3("Outline Color", &outlineColor.x);
+        }
+    }
 }
 
 void Material::Serialize(nlohmann::json& j) const
@@ -135,9 +149,12 @@ void Material::Serialize(nlohmann::json& j) const
     j["Roughness"] = roughness;
     j["Metalness"] = metalness;
 
-    // Save texture paths so they can be re-loaded
     j["TexBase"] = baseTextureFileName;
     j["TexNormal"] = normalTextureFileName;
+
+    j["EnableOutline"] = enableOutline;
+    j["OutlineWidth"] = outlineWidth;
+    j["OutlineColor"] = { outlineColor.x, outlineColor.y, outlineColor.z, outlineColor.w };
 }
 
 void Material::Deserialize(const nlohmann::json& j)
@@ -158,4 +175,10 @@ void Material::Deserialize(const nlohmann::json& j)
 
     roughness = j.value("Roughness", 0.5f);
     metalness = j.value("Metalness", 0.0f);
+
+    enableOutline = j.value("EnableOutline", true);
+    outlineWidth = j.value("OutlineWidth", 0.015f);
+    if (j.contains("OutlineColor")) {
+        outlineColor = { j["OutlineColor"][0], j["OutlineColor"][1], j["OutlineColor"][2], j["OutlineColor"][3] };
+    }
 }

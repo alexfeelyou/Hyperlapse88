@@ -19,6 +19,8 @@ ModelRenderer::ModelRenderer(ID3D11Device* device)
     shaders[static_cast<int>(ShaderId::Phong)] = std::make_unique<PhongShader>(device);
     shaders[static_cast<int>(ShaderId::Pbr)] = std::make_unique<PbrShader>(device);
     shaders[static_cast<int>(ShaderId::Toon)] = std::make_unique<ToonShader>(device);
+
+    m_outlineShader = std::make_unique<OutlineShader>(device);
 }
 
 void ModelRenderer::Draw(std::shared_ptr<Model> model, const DirectX::XMFLOAT4& color)
@@ -224,16 +226,10 @@ void ModelRenderer::Render(const RenderContext& rc)
         if (opaqueBuckets[i].empty()) continue;
 
         Shader* const shader{ shaders[i].get() };
+        if (!shader) continue;
 
-        // Fast fail guard: Prevent hard crashes if shader initialization failed
-        if (!shader)
-        {
-            _ASSERT_EXPR_A(false, "Critical Render Error: Shader instance is null!");
-            continue;
-        }
-
+        // Primary forward pass
         shader->Begin(rc);
-
         for (const MeshDrawCommand& cmd : opaqueBuckets[i])
         {
             CbObject cbObject{};
@@ -242,8 +238,29 @@ void ModelRenderer::Render(const RenderContext& rc)
 
             drawMesh(*cmd.mesh, shader, cmd.useManualMatrix, cmd.worldMatrix);
         }
-
         shader->End(rc);
+
+		// Immediate dual-pass outline rendering for Toon shader
+        if (static_cast<ShaderId>(i) == ShaderId::Toon)
+        {
+            // Flip rasterizer to cull front faces
+            dc->RSSetState(rc.renderState->GetRasterizerState(RasterizerState::SolidCullFront));
+
+            m_outlineShader->Begin(rc);
+            for (const MeshDrawCommand& cmd : opaqueBuckets[i])
+            {
+                // Only execute if this specific material instance requests an outline
+                if (cmd.mesh->material->enableOutline && cmd.mesh->material->outlineWidth > 0.0f)
+                {
+                    // drawMesh abstracts the shader setup
+                    drawMesh(*cmd.mesh, m_outlineShader.get(), cmd.useManualMatrix, cmd.worldMatrix);
+                }
+            }
+            m_outlineShader->End(rc);
+
+            // Restore default culling before the next pass
+            dc->RSSetState(rc.renderState->GetRasterizerState(RasterizerState::SolidCullBack));
+        }
     }
     drawInfos.clear();
 
