@@ -71,7 +71,7 @@ public:
     void Update() noexcept;
 
 	// Loads a skybox texture 
-    void LoadSkybox(ID3D11Device* device, std::string_view filepath) noexcept;
+    void LoadSkybox(ID3D11Device* device, const std::array<std::string, 6>& filepaths) noexcept;
     void ClearSkybox() noexcept;
 
     // Renders ImGui controls for ambient sky and ground illumination
@@ -118,6 +118,6 @@ private:
     DirectX::XMFLOAT3 m_groundColor{ 0.2f, 0.2f, 0.2f };
     float             m_groundIntensity{ 0.5f };
 
-    std::string m_skyboxPath{};
+    std::array<std::string, 6> m_skyboxPaths{};
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_skyboxSRV{};
 };

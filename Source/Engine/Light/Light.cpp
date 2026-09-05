@@ -70,27 +70,25 @@ void LightManager::Update() noexcept
     }
 }
 
-void LightManager::LoadSkybox(ID3D11Device* device, std::string_view filepath) noexcept
+void LightManager::LoadSkybox(ID3D11Device* device, const std::array<std::string, 6>& filepaths) noexcept
 {
-    if (filepath.empty())
+    m_skyboxPaths = filepaths;
+
+    if (filepaths[0].empty())
     {
         ClearSkybox();
         return;
     }
 
-    m_skyboxPath = filepath;
-
-    // Load the panorama using your engine's utility
-    if (FAILED(GpuResourceUtils::LoadTexture(device, m_skyboxPath.c_str(), m_skyboxSRV.ReleaseAndGetAddressOf(), nullptr)))
+    if (FAILED(GpuResourceUtils::LoadCubemap(device, m_skyboxPaths, m_skyboxSRV.ReleaseAndGetAddressOf())))
     {
         ClearSkybox();
     }
 }
 
-void LightManager::ClearSkybox() noexcept
-{
+void LightManager::ClearSkybox() noexcept {
     m_skyboxSRV.Reset();
-    m_skyboxPath.clear();
+    m_skyboxPaths = {};
 }
 
 void LightManager::DrawEnvironmentGUI() noexcept
@@ -117,7 +115,7 @@ void LightManager::Serialize(nlohmann::json& outJson) const
     outJson["GroundColor"] = { m_groundColor.x, m_groundColor.y, m_groundColor.z };
     outJson["GroundIntensity"] = m_groundIntensity;
 
-    outJson["SkyboxPath"] = m_skyboxPath;
+    outJson["SkyboxPaths"] = m_skyboxPaths;
 }
 
 void LightManager::Deserialize(const nlohmann::json& inJson)
@@ -134,6 +132,9 @@ void LightManager::Deserialize(const nlohmann::json& inJson)
     }
     m_groundIntensity = inJson.value("GroundIntensity", 0.5f);
 
-    std::string loadedPath = inJson.value("SkyboxPath", "");
-    LoadSkybox(Graphics::Instance().GetDevice(), loadedPath);
+    if (inJson.contains("SkyboxPaths"))
+    {
+        m_skyboxPaths = inJson["SkyboxPaths"].get<std::array<std::string, 6>>();
+        LoadSkybox(Graphics::Instance().GetDevice(), m_skyboxPaths);
+    }
 }

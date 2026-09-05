@@ -277,3 +277,52 @@ HRESULT GpuResourceUtils::CreateConstantBuffer(
 
 	return hr;
 }
+
+// キューブマップ読み込み
+HRESULT GpuResourceUtils::LoadCubemap(ID3D11Device* device, const std::array<std::string, 6>& filenames, ID3D11ShaderResourceView** shaderResourceView)
+{
+	DirectX::ScratchImage images[6];
+	D3D11_SUBRESOURCE_DATA subData[6]{};
+
+	// Decode all 6 images using DirectXTex
+	for (int i = 0; i < 6; ++i)
+	{
+		std::filesystem::path filepath(filenames[i]);
+		std::wstring wfilename = filepath.wstring();
+
+		HRESULT hr = DirectX::LoadFromWICFile(wfilename.c_str(), DirectX::WIC_FLAGS_NONE, nullptr, images[i]);
+		if (FAILED(hr)) return hr;
+
+		const DirectX::Image* img = images[i].GetImage(0, 0, 0);
+		subData[i].pSysMem = img->pixels;                     
+		subData[i].SysMemPitch = (UINT)img->rowPitch;         // Width * Bytes per pixel
+		subData[i].SysMemSlicePitch = (UINT)img->slicePitch;
+	}
+
+	// Use the dimensions from the first image to define the texture
+	const DirectX::Image* baseImg = images[0].GetImage(0, 0, 0);
+
+	D3D11_TEXTURE2D_DESC texDesc{};
+	texDesc.Width = (UINT)baseImg->width;
+	texDesc.Height = (UINT)baseImg->height;
+	texDesc.MipLevels = 1;
+	texDesc.ArraySize = 6;
+	texDesc.Format = baseImg->format;
+	texDesc.SampleDesc.Count = 1;
+	texDesc.Usage = D3D11_USAGE_DEFAULT;
+	texDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+	texDesc.MiscFlags = D3D11_RESOURCE_MISC_TEXTURECUBE;
+
+	Microsoft::WRL::ComPtr<ID3D11Texture2D> cubemapTex;
+	HRESULT hr = device->CreateTexture2D(&texDesc, subData, cubemapTex.GetAddressOf());
+	if (FAILED(hr)) return hr;
+
+	// Create the Shader Resource View
+	D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+	srvDesc.Format = texDesc.Format;
+	srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
+	srvDesc.TextureCube.MipLevels = 1;
+	srvDesc.TextureCube.MostDetailedMip = 0;
+
+	return device->CreateShaderResourceView(cubemapTex.Get(), &srvDesc, shaderResourceView);
+}

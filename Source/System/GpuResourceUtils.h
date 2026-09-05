@@ -1,6 +1,8 @@
 #pragma once
 
+#include <array>   
 #include <d3d11.h>
+#include <string>  
 
 // GPUリソースユーティリティ
 class GpuResourceUtils
@@ -49,4 +51,9 @@ public:
 		UINT bufferSize,
 		ID3D11Buffer** constantBuffer);
 
+	// キューブマップ読み込み
+	static HRESULT LoadCubemap(
+		ID3D11Device* device,
+		const std::array<std::string, 6>& filenames,
+		ID3D11ShaderResourceView** shaderResourceView);
 };
