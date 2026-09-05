@@ -1,5 +1,7 @@
 #include <cmath>
 #include <imgui.h>
+#include "System/GpuResourceUtils.h"
+#include "System/Graphics.h"
 #include "GameObject.h"
 #include "Light.h"
 #include "LightComponent.h"
@@ -68,6 +70,29 @@ void LightManager::Update() noexcept
     }
 }
 
+void LightManager::LoadSkybox(ID3D11Device* device, std::string_view filepath) noexcept
+{
+    if (filepath.empty())
+    {
+        ClearSkybox();
+        return;
+    }
+
+    m_skyboxPath = filepath;
+
+    // Load the panorama using your engine's utility
+    if (FAILED(GpuResourceUtils::LoadTexture(device, m_skyboxPath.c_str(), m_skyboxSRV.ReleaseAndGetAddressOf(), nullptr)))
+    {
+        ClearSkybox();
+    }
+}
+
+void LightManager::ClearSkybox() noexcept
+{
+    m_skyboxSRV.Reset();
+    m_skyboxPath.clear();
+}
+
 void LightManager::DrawEnvironmentGUI() noexcept
 {
     ImGui::TextDisabled("ENVIRONMENT ILLUMINATION");
@@ -91,6 +116,8 @@ void LightManager::Serialize(nlohmann::json& outJson) const
 
     outJson["GroundColor"] = { m_groundColor.x, m_groundColor.y, m_groundColor.z };
     outJson["GroundIntensity"] = m_groundIntensity;
+
+    outJson["SkyboxPath"] = m_skyboxPath;
 }
 
 void LightManager::Deserialize(const nlohmann::json& inJson)
@@ -106,4 +133,7 @@ void LightManager::Deserialize(const nlohmann::json& inJson)
         m_groundColor = { inJson["GroundColor"][0], inJson["GroundColor"][1], inJson["GroundColor"][2] };
     }
     m_groundIntensity = inJson.value("GroundIntensity", 0.5f);
+
+    std::string loadedPath = inJson.value("SkyboxPath", "");
+    LoadSkybox(Graphics::Instance().GetDevice(), loadedPath);
 }

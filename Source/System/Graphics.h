@@ -11,6 +11,7 @@
 #include "PrimitiveRenderer.h"
 #include "RenderState.h"
 #include "ShapeRenderer.h"
+#include "SkyboxRenderer.h"
 
 #pragma comment(lib, "dxgi.lib")
 
@@ -49,6 +50,8 @@ public:
 	// True if the system supports tearing (variable refresh rate), false otherwise
     bool IsTearingSupported() const { return m_tearingSupported; }
 
+    [[nodiscard]] SkyboxRenderer* GetSkyboxRenderer() const noexcept { return skyboxRenderer.get(); }
+
 private:
     Microsoft::WRL::ComPtr<ID3D11Device>        device;
     Microsoft::WRL::ComPtr<ID3D11DeviceContext> immediateContext;
@@ -56,11 +59,12 @@ private:
     Microsoft::WRL::ComPtr<IDXGIDevice1>        dxgiDevice;   
     Microsoft::WRL::ComPtr<ID3D11BlendState>    alphaBlendState;
 
-    std::unique_ptr<RenderState>       renderState;
-    std::unique_ptr<PrimitiveRenderer> primitiveRenderer;
-    std::unique_ptr<ShapeRenderer>     shapeRenderer;
-    std::unique_ptr<ModelRenderer>     modelRenderer;
-    std::unique_ptr<LightManager>      lightManager;
+    std::unique_ptr<RenderState>        renderState;
+    std::unique_ptr<PrimitiveRenderer>  primitiveRenderer;
+    std::unique_ptr<ShapeRenderer>      shapeRenderer;
+    std::unique_ptr<ModelRenderer>      modelRenderer;
+    std::unique_ptr<LightManager>       lightManager;
+    std::unique_ptr<SkyboxRenderer>     skyboxRenderer{};
 
     float clearColor[4] = { 0.0f, 0.0f, 0.0f, 1.0f };
     bool  m_tearingSupported = false;

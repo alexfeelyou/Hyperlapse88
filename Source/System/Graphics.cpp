@@ -1,6 +1,7 @@
 ﻿#include "Graphics.h"
 #include "Misc.h"
 #include "EffectManager.h"
+#include "SkyboxRenderer.h"
 
 void Graphics::Initialize()
 {
@@ -61,8 +62,10 @@ void Graphics::Initialize()
     shapeRenderer = std::make_unique<ShapeRenderer>(device.Get());
     modelRenderer = std::make_unique<ModelRenderer>(device.Get());
     lightManager = std::make_unique<LightManager>();
+    skyboxRenderer = std::make_unique<SkyboxRenderer>();
 
     EffectManager::Instance().Initialize(device.Get(), immediateContext.Get());
+    skyboxRenderer->Initialize(device.Get());
 }
 
 void Graphics::CreateSwapChainForHwnd(HWND hWnd, int width, int height, IDXGISwapChain1** outSwapChain)

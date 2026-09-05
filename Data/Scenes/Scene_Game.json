@@ -1,0 +1,38 @@
+{
+    "EnvironmentIllumination": {
+        "GroundColor": [
+            0.20000000298023224,
+            0.20000000298023224,
+            0.20000000298023224
+        ],
+        "GroundIntensity": 0.5,
+        "SkyColor": [
+            0.6000000238418579,
+            0.6000000238418579,
+            0.6499999761581421
+        ],
+        "SkyIntensity": 0.5,
+        "SkyboxPath": "Data/Skybox/Skybox.png"
+    },
+    "SceneObjects": [
+        {
+            "Children": [],
+            "Components": [
+                {
+                    "Type": "LegacyCharacterComponent"
+                }
+            ],
+            "IsActive": true,
+            "Name": "Player",
+            "PosX": 0.0,
+            "PosY": 0.0,
+            "PosZ": 0.0,
+            "RotX": 0.0,
+            "RotY": 180.0,
+            "RotZ": 0.0,
+            "ScaleX": 1.0,
+            "ScaleY": 1.0,
+            "ScaleZ": 1.0
+        }
+    ]
+}

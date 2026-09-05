@@ -5,7 +5,9 @@
 #include <d3d11.h>
 #include <DirectXMath.h>
 #include <json.hpp>
+#include <string>
 #include <vector>
+#include <wrl/client.h>
 
 // Forward declaration
 class LightComponent;
@@ -68,6 +70,10 @@ public:
     // Aggregates active light components and updates lighting states
     void Update() noexcept;
 
+	// Loads a skybox texture 
+    void LoadSkybox(ID3D11Device* device, std::string_view filepath) noexcept;
+    void ClearSkybox() noexcept;
+
     // Renders ImGui controls for ambient sky and ground illumination
     void DrawEnvironmentGUI() noexcept;
 
@@ -93,6 +99,9 @@ public:
         return { m_groundColor.x * m_groundIntensity, m_groundColor.y * m_groundIntensity, m_groundColor.z * m_groundIntensity, 1.0f };
     }
 
+    [[nodiscard]] ID3D11ShaderResourceView* GetSkyboxSRV() const noexcept { return m_skyboxSRV.Get(); }
+    [[nodiscard]] bool HasSkybox() const noexcept { return m_skyboxSRV != nullptr; }
+
 private:
     std::vector<LightComponent*>  m_lights{};
 
@@ -108,4 +117,7 @@ private:
 
     DirectX::XMFLOAT3 m_groundColor{ 0.2f, 0.2f, 0.2f };
     float             m_groundIntensity{ 0.5f };
+
+    std::string m_skyboxPath{};
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_skyboxSRV{};
 };
