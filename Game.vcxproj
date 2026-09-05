@@ -61,7 +61,7 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>.\Source;.\Source\Engine\Base;.\Source\Engine\Camera;.\Source\Engine\Components;.\Source\Engine\Editor;.\Source\Engine\Graphics;.\Source\Engine\Light;.\Source\Engine\UI;.\Source\Engine\VFX;.\Source\Engine\Windowing;.\Source\Game\Entities;.\Source\Game\States;.\Source\Game\Scenes;.\Source\Engine\Helpers;.\Source\Engine\Legacy;.\External\SDL3-3.4.0\include;.\External\imgui;.\External\ImGuizmo;.\External\cereal\include;.\External\tinygltf;.\External\SphereCast\Include;.\External\DirectXTex;.\External\PhysX\physx\include;.\External\Effekseer170e\include\Effekseer;.\External\json;.\External\Effekseer170e\include\EffekseerRendererDX11;.\External\implot;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\Source;.\Source\Engine\Base;.\Source\Engine\Camera;.\Source\Engine\Components;.\Source\Engine\Editor;.\Source\Engine\Graphics;.\Source\Engine\Light;.\Source\Engine\Skybox;.\Source\Engine\UI;.\Source\Engine\VFX;.\Source\Engine\Windowing;.\Source\Game\Entities;.\Source\Game\States;.\Source\Game\Scenes;.\Source\Engine\Helpers;.\Source\Engine\Legacy;.\External\SDL3-3.4.0\include;.\External\imgui;.\External\ImGuizmo;.\External\cereal\include;.\External\tinygltf;.\External\SphereCast\Include;.\External\DirectXTex;.\External\PhysX\physx\include;.\External\Effekseer170e\include\Effekseer;.\External\json;.\External\Effekseer170e\include\EffekseerRendererDX11;.\External\implot;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -92,7 +92,7 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>.\Source;.\Source\Engine\Base;.\Source\Engine\Camera;.\Source\Engine\Components;.\Source\Engine\Editor;.\Source\Engine\Graphics;.\Source\Engine\Light;.\Source\Engine\UI;.\Source\Engine\VFX;.\Source\Engine\Windowing;.\Source\Game\Entities;.\Source\Game\States;.\Source\Game\Scenes;.\Source\Engine\Helpers;.\Source\Engine\Legacy;.\External\SDL3-3.4.0\include;.\External\imgui;.\External\ImGuizmo;.\External\cereal\include;.\External\tinygltf;.\External\SphereCast\Include;.\External\DirectXTex;.\External\PhysX\physx\include;.\External\Effekseer170e\include\Effekseer;.\External\json;.\External\Effekseer170e\include\EffekseerRendererDX11;.\External\implot;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\Source;.\Source\Engine\Base;.\Source\Engine\Camera;.\Source\Engine\Components;.\Source\Engine\Editor;.\Source\Engine\Graphics;.\Source\Engine\Light;.\Source\Engine\Skybox;.\Source\Engine\UI;.\Source\Engine\VFX;.\Source\Engine\Windowing;.\Source\Game\Entities;.\Source\Game\States;.\Source\Game\Scenes;.\Source\Engine\Helpers;.\Source\Engine\Legacy;.\External\SDL3-3.4.0\include;.\External\imgui;.\External\ImGuizmo;.\External\cereal\include;.\External\tinygltf;.\External\SphereCast\Include;.\External\DirectXTex;.\External\PhysX\physx\include;.\External\Effekseer170e\include\Effekseer;.\External\json;.\External\Effekseer170e\include\EffekseerRendererDX11;.\External\implot;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <LanguageStandard>stdcpp17</LanguageStandard>
@@ -159,6 +159,7 @@
     <ClInclude Include="Source\Engine\Helpers\SceneSerializer.h" />
     <ClInclude Include="Source\Engine\Helpers\UIResizedWindow.h" />
     <ClInclude Include="Source\Engine\Light\Light.h" />
+    <ClInclude Include="Source\Engine\Skybox\SkyboxRenderer.h" />
     <ClInclude Include="Source\Engine\UI\UIDialogueBox.h" />
     <ClInclude Include="Source\Engine\UI\UIOption.h" />
     <ClInclude Include="Source\Engine\UI\UIPause.h" />
@@ -253,6 +254,7 @@
     <ClCompile Include="Source\Engine\Helpers\CapeSimulator.cpp" />
     <ClCompile Include="Source\Engine\Helpers\SceneSerializer.cpp" />
     <ClCompile Include="Source\Engine\Light\Light.cpp" />
+    <ClCompile Include="Source\Engine\Skybox\SkyboxRenderer.cpp" />
     <ClCompile Include="Source\Engine\UI\UIDialogueBox.cpp" />
     <ClCompile Include="Source\Engine\UI\UIOption.cpp" />
     <ClCompile Include="Source\Engine\UI\UIPause.cpp" />
@@ -396,6 +398,14 @@
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
     </FxCompile>
     <FxCompile Include="Shader\PrimitiveRendererVS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
+    </FxCompile>
+    <FxCompile Include="Shader\Skybox_PS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+    </FxCompile>
+    <FxCompile Include="Shader\Skybox_VS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
     </FxCompile>

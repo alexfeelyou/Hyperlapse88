@@ -1105,6 +1105,14 @@ void SceneGame::RenderScene(const float elapsedTime, Camera* camera)
 {
     if (!camera) return;
     auto dc{ Graphics::Instance().GetDeviceContext() };
+    if (Graphics::Instance().GetLightManager().HasSkybox())
+    {
+        Graphics::Instance().GetSkyboxRenderer()->Render(
+            dc,
+            *camera,
+            Graphics::Instance().GetLightManager().GetSkyboxSRV()
+        );
+    }
     auto modelRenderer{ Graphics::Instance().GetModelRenderer() };
     RenderContext rc{
         dc,

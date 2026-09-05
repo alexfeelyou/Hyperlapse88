@@ -79,6 +79,12 @@
     <FxCompile Include="Shader\DepthFogPS.hlsl">
       <Filter>Shader</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\Skybox_VS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\Skybox_PS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Source\System\BasicShader.cpp">
@@ -329,6 +335,9 @@
     </ClCompile>
     <ClCompile Include="Source\Engine\Graphics\DepthFogEffect.cpp">
       <Filter>Source\Engine\Graphics</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Engine\Skybox\SkyboxRenderer.cpp">
+      <Filter>Source\Engine\Skybox</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -645,6 +654,9 @@
     <ClInclude Include="Source\Engine\Graphics\DepthFogEffect.h">
       <Filter>Source\Engine\Graphics</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Engine\Skybox\SkyboxRenderer.h">
+      <Filter>Source\Engine\Skybox</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Shader\Basic.hlsli">
@@ -747,6 +759,9 @@
     </Filter>
     <Filter Include="Source\Engine\Light">
       <UniqueIdentifier>{0c966ecb-f50b-4b58-b293-bdb38cef0920}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Engine\Skybox">
+      <UniqueIdentifier>{8de82fc2-2dea-496a-a242-1795e4480595}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
