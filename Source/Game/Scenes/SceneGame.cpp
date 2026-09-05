@@ -1,3 +1,4 @@
+#include <filesystem>
 #include "System/PhysicsManager.h"
 #include "EditorManager.h"
 #include "SceneGame.h" 
@@ -252,6 +253,10 @@ SceneGame::~SceneGame()
     m_sceneRoot.reset();
 
     PhysicsManager::Instance().Shutdown();
+
+    // Clean up the temporary Play Mode auto-save file
+    std::error_code ec;
+    std::filesystem::remove("Data/Scenes/AutoSave_PlayMode.json", ec);
 }
 
 void SceneGame::Update(const float elapsedTime)
