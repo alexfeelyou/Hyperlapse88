@@ -1,3 +1,4 @@
+#include <filesystem>
 #include "System/PhysicsManager.h"
 #include "EditorManager.h"
 #include "SceneGame.h" 
@@ -103,6 +104,12 @@ SceneGame::SceneGame()
     if (m_lastEditorMode == EditorMode::Edit)
     {
         camCtrl.SetControlMode(CameraControlMode::Free);
+
+        // Load the persistent camera position right when the scene boots
+        EditorManager::Instance().LoadUserPreferences(this, m_mainCamera.get());
+
+        // Sync the controller's internal state
+        camCtrl.SyncFromActiveCamera();
 
         // Remove the black screen boot fade
         m_bootTimer = 0.0f;
@@ -231,6 +238,11 @@ SceneGame::SceneGame()
 
 SceneGame::~SceneGame()
 {
+    if (EditorManager::Instance().GetEditorMode() == EditorMode::Edit)
+    {
+        EditorManager::Instance().SaveUserPreferences(this, m_mainCamera.get());
+    }
+
     AudioManager::Instance().StopMusic();
     EffectManager::Instance().StopAll();
 
@@ -241,6 +253,10 @@ SceneGame::~SceneGame()
     m_sceneRoot.reset();
 
     PhysicsManager::Instance().Shutdown();
+
+    // Clean up the temporary Play Mode auto-save file
+    std::error_code ec;
+    std::filesystem::remove("Data/Scenes/AutoSave_PlayMode.json", ec);
 }
 
 void SceneGame::Update(const float elapsedTime)
@@ -252,17 +268,22 @@ void SceneGame::Update(const float elapsedTime)
     {
         if (currentMode == EditorMode::Play && m_lastEditorMode == EditorMode::Edit)
         {
-            // Backup the authored scene layout 
-            SceneSerializer::Save("Data/Scenes/AutoSave_PlayMode.json", m_sceneRoot.get());
+            // Permanently save the developer's camera position
+            EditorManager::Instance().SaveUserPreferences(this, CameraController::Instance().GetActiveCamera().get());
 
-            // Cache editor camera
-            if (Camera * activeCam{ CameraController::Instance().GetActiveCamera().get() })
-            {
-                m_cachedEditorCamPos = activeCam->GetPosition();
-                m_cachedEditorCamRot = activeCam->GetRotation();
-            }
+            // Temporarily backup the authored scene layout for runtime reversion
+            SceneSerializer::Save("Data/Scenes/AutoSave_PlayMode.json", m_sceneRoot.get(), false);
 
             CameraController::Instance().SetControlMode(CameraControlMode::FixedFollow);
+
+            // Snap the camera to the player before pre-warming physics
+            // This ensures the player's logic uses the correct gameplay camera angle,
+            // preventing the Editor's free-cam angle from bleeding into game logic
+            if (m_player)
+            {
+                CameraController::Instance().SetTarget(m_player->GetPosition());
+                CameraController::Instance().SnapToTarget();
+            }
 
             // Dynamic Physics Settling (Pre-Warming)
             for (int i{ 0 }; i < 300; ++i)
@@ -272,19 +293,16 @@ void SceneGame::Update(const float elapsedTime)
                 if (m_player) m_player->Update(0.01666f, CameraController::Instance().GetActiveCamera().get());
                 if (m_navi)   m_navi->Update(0.01666f, CameraController::Instance().GetActiveCamera().get());
 
-                // Break instantly once the PhysX capsule registers a floor collision
                 if (m_player && m_player->IsGrounded())
                 {
                     break;
                 }
             }
 
-            // Camera Cut & Spawn Sync
+            // Snap one final time after physics settle perfectly on the ground
             if (m_player)
             {
-                // Capture the newly grounded coordinate so the camera doesn't swoop down
                 m_playerSpawnPos = m_player->GetPosition();
-
                 CameraController::Instance().SetTarget(m_playerSpawnPos);
                 CameraController::Instance().SnapToTarget();
             }
@@ -319,7 +337,7 @@ void SceneGame::Update(const float elapsedTime)
                 m_sceneRoot->Update(0.0f); // Flush dead objects immediately
             }
 
-            SceneSerializer::Load("Data/Scenes/AutoSave_PlayMode.json", m_sceneRoot.get());
+            SceneSerializer::Load("Data/Scenes/AutoSave_PlayMode.json", m_sceneRoot.get(), false);
 
             if (m_player)
             {
@@ -340,12 +358,9 @@ void SceneGame::Update(const float elapsedTime)
                 m_navi->ForceVisualSync();
             }
 
-            if (Camera * activeCam{ CameraController::Instance().GetActiveCamera().get() })
-            {
-                activeCam->SetPosition(m_cachedEditorCamPos);
-                activeCam->SetRotation(m_cachedEditorCamRot);
-            }
+            EditorManager::Instance().LoadUserPreferences(this, CameraController::Instance().GetActiveCamera().get());
             CameraController::Instance().SetControlMode(CameraControlMode::Free);
+            CameraController::Instance().SyncFromActiveCamera();
 
             Camera* activeCam{ CameraController::Instance().GetActiveCamera().get() };
             if (m_enemyManager) m_enemyManager->Update(0.0f, activeCam, m_cameraTarget, true);

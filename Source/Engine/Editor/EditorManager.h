@@ -55,7 +55,13 @@ public:
     [[nodiscard]] EditorMode GetEditorMode() const noexcept { return m_editorMode; }
     void SetEditorMode(EditorMode mode) noexcept { m_editorMode = mode; }
 
+    // User Workspace Preferences (Ignored by Git)
+    void SaveUserPreferences(Scene* currentScene, Camera* activeCamera) const noexcept;
+    void LoadUserPreferences(Scene* currentScene, Camera* activeCamera) const noexcept;
+
 private:
+    static constexpr std::string_view s_editorPrefsPath{ "UserSettings/EditorPreferences.json" };
+
     EditorManager() = default;
     ~EditorManager() = default;
 

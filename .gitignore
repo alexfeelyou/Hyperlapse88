@@ -66,6 +66,7 @@ External/**/.vs/
 # =================================
 # File setting window ImGui (beda tiap komputer, bikin conflict kalau dicommit)
 imgui.ini
+UserSettings/
 
 # =================================
 # Library Files (.lib / .dll)

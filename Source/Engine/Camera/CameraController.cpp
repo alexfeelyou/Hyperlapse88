@@ -496,6 +496,17 @@ void CameraController::SnapToTarget()
     }
 }
 
+void CameraController::SyncFromActiveCamera()
+{
+    if (std::shared_ptr<Camera> camera = m_activeCamera.lock())
+    {
+        // Pull the live, loaded coordinates directly from the camera
+        // to overwrite the controller's stale baseline
+        m_eyePos = camera->GetPosition();
+        m_currentAngle = camera->GetRotation();
+    }
+}
+
 void CameraController::SetControlMode(CameraControlMode mode)
 {
     if (m_controlMode != CameraControlMode::Mouse && mode == CameraControlMode::Mouse)

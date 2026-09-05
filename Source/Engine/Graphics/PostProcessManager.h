@@ -12,6 +12,7 @@
 #include <wrl/client.h>
 #include "System/Graphics.h"
 #include "System/Logger.h"
+#include "DepthFogEffect.h"
 #include "PostProcessEffects.h"
 
 class PostProcessManager
@@ -76,8 +77,9 @@ private:
 
     // Primary 3D Scene Capture Target
     RenderTargetResource m_sceneTarget{};
-    Microsoft::WRL::ComPtr<ID3D11Texture2D>        m_depthStencilTexture{};
-    Microsoft::WRL::ComPtr<ID3D11DepthStencilView> m_depthStencilView{};
+    Microsoft::WRL::ComPtr<ID3D11Texture2D>             m_depthStencilTexture{};
+    Microsoft::WRL::ComPtr<ID3D11DepthStencilView>      m_depthStencilView{};
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>    m_depthSRV{};
 
     // Dual Ping-Pong Offscreen Targets
     std::array<RenderTargetResource, 2> m_pingPong{};
@@ -107,4 +109,5 @@ private:
     RadialBlurEffect* m_radialBlurEffect{ nullptr };
     VignetteEffect* m_vignetteEffect{ nullptr };
     ScanlineEffect* m_scanlineEffect{ nullptr };
+    DepthFogEffect* m_depthFogEffect{ nullptr };
 };

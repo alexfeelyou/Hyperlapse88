@@ -148,6 +148,7 @@
     <ClInclude Include="Source\Engine\Components\StaticMeshColliderComponent.h" />
     <ClInclude Include="Source\Engine\Editor\EditorManager.h" />
     <ClInclude Include="Source\Engine\Editor\ProfilerManager.h" />
+    <ClInclude Include="Source\Engine\Graphics\DepthFogEffect.h" />
     <ClInclude Include="Source\Engine\Graphics\FontTTF.h" />
     <ClInclude Include="Source\Engine\Graphics\PostProcessEffect.h" />
     <ClInclude Include="Source\Engine\Graphics\PostProcessEffects.h" />
@@ -244,6 +245,7 @@
     <ClCompile Include="Source\Engine\Components\StaticMeshColliderComponent.cpp" />
     <ClCompile Include="Source\Engine\Editor\EditorManager.cpp" />
     <ClCompile Include="Source\Engine\Editor\ProfilerManager.cpp" />
+    <ClCompile Include="Source\Engine\Graphics\DepthFogEffect.cpp" />
     <ClCompile Include="Source\Engine\Graphics\FontTTF.cpp" />
     <ClCompile Include="Source\Engine\Graphics\PostProcessEffects.cpp" />
     <ClCompile Include="Source\Engine\Graphics\PostProcessManager.cpp" />
@@ -320,6 +322,10 @@
     <FxCompile Include="Shader\BasicVS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
+    </FxCompile>
+    <FxCompile Include="Shader\DepthFogPS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
     </FxCompile>
     <FxCompile Include="Shader\LambertPS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>

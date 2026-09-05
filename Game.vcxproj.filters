@@ -76,6 +76,9 @@
     <FxCompile Include="Shader\OutlinePS.hlsl">
       <Filter>Shader</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\DepthFogPS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Source\System\BasicShader.cpp">
@@ -323,6 +326,9 @@
     </ClCompile>
     <ClCompile Include="Source\System\OutlineShader.cpp">
       <Filter>System</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Engine\Graphics\DepthFogEffect.cpp">
+      <Filter>Source\Engine\Graphics</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -635,6 +641,9 @@
     </ClInclude>
     <ClInclude Include="Source\System\OutlineShader.h">
       <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Graphics\DepthFogEffect.h">
+      <Filter>Source\Engine\Graphics</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

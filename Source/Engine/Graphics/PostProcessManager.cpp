@@ -23,6 +23,10 @@ PostProcessManager::PostProcessManager()
     m_psxEffect = psx.get();
     m_effects.emplace_back(std::move(psx));
 
+    auto fog = std::make_unique<DepthFogEffect>(device);
+    m_depthFogEffect = fog.get();
+    m_effects.emplace_back(std::move(fog));
+
     auto lens = std::make_unique<LensDistortionEffect>(device);
     m_lensDistortionEffect = lens.get();
     m_effects.emplace_back(std::move(lens));
@@ -65,6 +69,7 @@ void PostProcessManager::CreateBuffers(int width, int height)
     m_sceneTarget.Reset();
     m_depthStencilTexture.Reset();
     m_depthStencilView.Reset();
+    m_depthSRV.Reset();
     for (auto& pp : m_pingPong)
     {
         pp.Reset();
@@ -100,16 +105,26 @@ void PostProcessManager::CreateBuffers(int width, int height)
         allocateRT(pp);
     }
 
-    // Allocate 3D Depth Buffer
+    // Allocate 3D Depth Buffer (Typeless for Shader Resource sharing)
     D3D11_TEXTURE2D_DESC depthDesc = texDesc;
-    depthDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
-    depthDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+    depthDesc.Format = DXGI_FORMAT_R24G8_TYPELESS;
+    depthDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE;
 
     HRESULT hr = device->CreateTexture2D(&depthDesc, nullptr, m_depthStencilTexture.GetAddressOf());
-    assert(SUCCEEDED(hr) && "Failed to create PostProcess Depth Texture2D");
+    assert(SUCCEEDED(hr) && "Failed to create Typeless Depth Texture2D");
 
-    hr = device->CreateDepthStencilView(m_depthStencilTexture.Get(), nullptr, m_depthStencilView.GetAddressOf());
-    assert(SUCCEEDED(hr) && "Failed to create PostProcess DSV");
+    D3D11_DEPTH_STENCIL_VIEW_DESC dsvDesc{};
+    dsvDesc.Format = DXGI_FORMAT_D24_UNORM_S8_UINT;
+    dsvDesc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+    hr = device->CreateDepthStencilView(m_depthStencilTexture.Get(), &dsvDesc, m_depthStencilView.GetAddressOf());
+    assert(SUCCEEDED(hr) && "Failed to create DSV");
+
+    D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+    srvDesc.Format = DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+    srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Texture2D.MipLevels = 1;
+    hr = device->CreateShaderResourceView(m_depthStencilTexture.Get(), &srvDesc, m_depthSRV.GetAddressOf());
+    assert(SUCCEEDED(hr) && "Failed to create Depth SRV");
 }
 
 void PostProcessManager::BeginCapture()
@@ -169,6 +184,14 @@ void PostProcessManager::EndCapture(float dt)
     constexpr UINT zeroOffset{ 0 };
     dc->IASetVertexBuffers(0, 1, &nullBuffer, &zeroStride, &zeroOffset);
 
+    // Unbind DSV from the Output Merger to prevent Read/Write Hazards
+    ID3D11RenderTargetView* initialRTV{ m_sceneTarget.rtv.Get() };
+    dc->OMSetRenderTargets(1, &initialRTV, nullptr);
+
+    // Bind the Depth SRV to register(t1) globally for all post-process effects
+    ID3D11ShaderResourceView* depthSRV{ m_depthSRV.Get() };
+    dc->PSSetShaderResources(1, 1, &depthSRV);
+
     // Multi-Pass Ping-Pong Loop
     ID3D11ShaderResourceView* currentSourceSRV = m_sceneTarget.srv.Get();
     int pingPongIndex{ 0 };
@@ -200,8 +223,8 @@ void PostProcessManager::EndCapture(float dt)
     }
 
     // Final Pass: Blit the final processed texture directly into the host's original RTV
-    ID3D11ShaderResourceView* nullSRV[] = { nullptr };
-    dc->PSSetShaderResources(0, 1, nullSRV);
+    ID3D11ShaderResourceView* nullSRVs[2]{ nullptr, nullptr }; // Expand array to 2
+    dc->PSSetShaderResources(0, 2, nullSRVs); // Unbind both t0 and t1
 
     dc->OMSetRenderTargets(1, &m_originalRTV, m_originalDSV);
     dc->RSSetViewports(m_originalViewportCount, &m_originalViewport);
@@ -209,7 +232,7 @@ void PostProcessManager::EndCapture(float dt)
     Blit(dc, currentSourceSRV, m_originalRTV);
 
     // Unbind SRVs to prevent pipeline warnings on the next frame
-    dc->PSSetShaderResources(0, 1, nullSRV);
+    dc->PSSetShaderResources(0, 2, nullSRVs);
 
     if (m_originalRTV) { m_originalRTV->Release(); m_originalRTV = nullptr; }
     if (m_originalDSV) { m_originalDSV->Release(); m_originalDSV = nullptr; }
@@ -287,7 +310,7 @@ void PostProcessManager::LoadConfig(std::string_view filepath)
                 effect->Deserialize(root[key]);
             }
         }
-        Log::Info("Loaded post-process profile: " + std::string{ filepath });
+        Log::Success("Loaded post-process profile: " + std::string{ filepath });
     }
     catch (const std::exception& e)
     {

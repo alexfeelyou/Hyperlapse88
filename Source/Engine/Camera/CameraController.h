@@ -83,6 +83,10 @@ public:
     // the camera from violently swooping from the Editor position to the Player
     void SnapToTarget();
 
+    // Synchronizes internal controller states (Euler angles) with the live camera object.
+    // Prevents snapping when the camera is moved externally (e.g., loaded from disk)
+    void SyncFromActiveCamera();
+
     // Spline Settings
     void SetSplineTension(float tension) { m_splineTension = tension; }
     float GetSplineTension() const { return m_splineTension; }
