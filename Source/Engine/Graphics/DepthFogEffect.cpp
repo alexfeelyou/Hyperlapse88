@@ -37,6 +37,7 @@ void DepthFogEffect::Draw(ID3D11DeviceContext* dc, ID3D11ShaderResourceView* src
         cb.fogEnd = m_data.endDistance;
         cb.nearZ = currentNearZ;
         cb.farZ = currentFarZ;
+        cb.excludeSkybox = m_data.excludeSkybox ? 1 : 0;
 
         dc->UpdateSubresource(m_constantBuffer.Get(), 0, nullptr, &cb, 0, 0);
 
@@ -57,6 +58,7 @@ void DepthFogEffect::DrawGUI() noexcept
     ImGui::Checkbox("Enable Depth Fog", &m_data.enabled);
     if (!m_data.enabled) return;
 
+    ImGui::Checkbox("Exclude Skybox", &m_data.excludeSkybox);
     ImGui::ColorEdit4("Fog Color", &m_data.color.x);
     ImGui::SliderFloat("Start Distance", &m_data.startDistance, 0.0f, 100.0f);
     ImGui::SliderFloat("End Distance", &m_data.endDistance, 10.0f, 500.0f);
@@ -65,6 +67,7 @@ void DepthFogEffect::DrawGUI() noexcept
 void DepthFogEffect::Serialize(nlohmann::json& out) const
 {
     out["enabled"] = m_data.enabled;
+    out["excludeSkybox"] = m_data.excludeSkybox;
     out["color"] = { m_data.color.x, m_data.color.y, m_data.color.z, m_data.color.w };
     out["startDistance"] = m_data.startDistance;
     out["endDistance"] = m_data.endDistance;
@@ -73,6 +76,7 @@ void DepthFogEffect::Serialize(nlohmann::json& out) const
 void DepthFogEffect::Deserialize(const nlohmann::json& in)
 {
     m_data.enabled = in.value("enabled", false);
+    m_data.excludeSkybox = in.value("excludeSkybox", true);
     if (in.contains("color") && in["color"].is_array() && in["color"].size() == 4) {
         m_data.color.x = in["color"][0];
         m_data.color.y = in["color"][1];

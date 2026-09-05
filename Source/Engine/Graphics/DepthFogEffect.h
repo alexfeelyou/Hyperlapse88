@@ -9,7 +9,8 @@ public:
     struct Data
     {
         bool              enabled{ false };
-        DirectX::XMFLOAT4 color{ 0.15f, 0.02f, 0.25f, 1.0f }; 
+        bool              excludeSkybox{ true }; 
+        DirectX::XMFLOAT4 color{ 0.15f, 0.02f, 0.25f, 1.0f };
         float             startDistance{ 10.0f };
         float             endDistance{ 80.0f };
 
@@ -17,6 +18,7 @@ public:
         {
             auto isEqual = [](float a, float b) noexcept { return std::abs(a - b) < 0.0001f; };
             return enabled == other.enabled &&
+                excludeSkybox == other.excludeSkybox && // NEW
                 isEqual(color.x, other.color.x) && isEqual(color.y, other.color.y) &&
                 isEqual(color.z, other.color.z) && isEqual(color.w, other.color.w) &&
                 isEqual(startDistance, other.startDistance) &&
@@ -47,6 +49,8 @@ private:
         float fogEnd{ 80.0f };
         float nearZ{ 0.1f };
         float farZ{ 1000.0f };
+        int   excludeSkybox{ 1 };
+        float padding[3]{ 0.0f, 0.0f, 0.0f };
     };
 
     Data m_data{};
