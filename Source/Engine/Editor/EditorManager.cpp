@@ -1,3 +1,7 @@
+#include <filesystem>
+#include <fstream>
+#include <json.hpp>
+#include "Camera.h"
 #include "EditorManager.h"
 #include "LightComponent.h"
 
@@ -500,11 +504,14 @@ void EditorManager::DrawMenuBar(Scene* currentScene) noexcept
             {
                 if (currentScene)
                 {
-                    // Only save the root objects, stripping out all enemy/item manager saves
+                    // Save the Scene Objects
                     SceneSerializer::Save(
                         currentScene->GetSceneSavePath(),
                         currentScene->GetRootGameObject()
                     );
+
+                    // Save the Developer's Camera Position
+                    SaveUserPreferences(currentScene, CameraController::Instance().GetActiveCamera().get());
                 }
                 else
                 {
@@ -929,4 +936,88 @@ void EditorManager::DrawPostProcess(Scene* currentScene) noexcept
         }
     }
     ImGui::End();
+}
+
+void EditorManager::SaveUserPreferences(Scene* currentScene, Camera* activeCamera) const noexcept
+{
+    if (!currentScene || !activeCamera) return;
+
+    nlohmann::json root{};
+
+    // Read existing file first to preserve camera positions for other scenes
+    if (std::filesystem::exists(s_editorPrefsPath))
+    {
+        std::ifstream inFile{ std::string{ s_editorPrefsPath } };
+        if (inFile.is_open())
+        {
+            try { inFile >> root; }
+            catch (...) { root = nlohmann::json::object(); }
+        }
+    }
+
+    // 2. Overwrite only the current scene's camera node
+    const std::string sceneKey{ currentScene->GetSceneName() };
+    const DirectX::XMFLOAT3 pos{ activeCamera->GetPosition() };
+    const DirectX::XMFLOAT3 rot{ activeCamera->GetRotation() };
+
+    root[sceneKey]["CamPosX"] = pos.x;
+    root[sceneKey]["CamPosY"] = pos.y;
+    root[sceneKey]["CamPosZ"] = pos.z;
+
+    root[sceneKey]["CamRotX"] = rot.x;
+    root[sceneKey]["CamRotY"] = rot.y;
+    root[sceneKey]["CamRotZ"] = rot.z;
+
+    // Ensure the UserSettings directory exists locally
+    const std::filesystem::path pathObj{ s_editorPrefsPath };
+    if (!std::filesystem::exists(pathObj.parent_path()))
+    {
+        std::filesystem::create_directories(pathObj.parent_path());
+    }
+
+    // Write back to disk silently
+    std::ofstream outFile{ std::string{ s_editorPrefsPath } };
+    if (outFile.is_open())
+    {
+        outFile << root.dump(4);
+    }
+}
+
+void EditorManager::LoadUserPreferences(Scene* currentScene, Camera* activeCamera) const noexcept
+{
+    if (!currentScene || !activeCamera || !std::filesystem::exists(s_editorPrefsPath)) return;
+
+    std::ifstream inFile{ std::string{ s_editorPrefsPath } };
+    if (!inFile.is_open()) return;
+
+    try
+    {
+        nlohmann::json root{};
+        inFile >> root;
+
+        const std::string sceneKey{ currentScene->GetSceneName() };
+        if (root.contains(sceneKey))
+        {
+            const auto& data = root[sceneKey];
+
+            const DirectX::XMFLOAT3 pos{
+                data.value("CamPosX", 0.001f),
+                data.value("CamPosY", 18.0f),
+                data.value("CamPosZ", -14.0f)
+            };
+
+            const DirectX::XMFLOAT3 rot{
+                data.value("CamRotX", 0.0f),
+                data.value("CamRotY", 0.0f),
+                data.value("CamRotZ", 0.0f)
+            };
+
+            activeCamera->SetPosition(pos);
+            activeCamera->SetRotation(rot);
+        }
+    }
+    catch (...)
+    {
+        // Safe fallback: If JSON is corrupted, engine retains default code positions
+    }
 }
