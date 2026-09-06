@@ -1,6 +1,59 @@
 #include "ProfilerManager.h"
 #include "ModelRenderer.h"
 
+namespace
+{
+    struct CascadeFrustumPlanes
+    {
+        DirectX::XMFLOAT4 planes[5]; // Left, Right, Bottom, Top, Far
+    };
+
+    [[nodiscard]] CascadeFrustumPlanes ExtractCascadePlanes(const DirectX::XMFLOAT4X4& M) noexcept
+    {
+        CascadeFrustumPlanes cp{};
+        // Gribb-Hartmann extraction for DirectX LHS [0, 1] projection
+        // Left plane
+        cp.planes[0] = { M._14 + M._11, M._24 + M._21, M._34 + M._31, M._44 + M._41 };
+        // Right plane
+        cp.planes[1] = { M._14 - M._11, M._24 - M._21, M._34 - M._31, M._44 - M._41 };
+        // Bottom plane
+        cp.planes[2] = { M._14 + M._12, M._24 + M._22, M._34 + M._32, M._44 + M._42 };
+        // Top plane
+        cp.planes[3] = { M._14 - M._12, M._24 - M._22, M._34 - M._32, M._44 - M._42 };
+        // Far plane
+        cp.planes[4] = { M._14 - M._13, M._24 - M._23, M._34 - M._33, M._44 - M._43 };
+
+        // Normalize plane equation coefficients
+        for (auto& p : cp.planes)
+        {
+            const float len = std::sqrt(p.x * p.x + p.y * p.y + p.z * p.z);
+            if (len > 0.00001f)
+            {
+                const float invLen = 1.0f / len;
+                p.x *= invLen;
+                p.y *= invLen;
+                p.z *= invLen;
+                p.w *= invLen;
+            }
+        }
+        return cp;
+    }
+
+    [[nodiscard]] bool IsSphereInCascade(const CascadeFrustumPlanes& cp, const DirectX::XMFLOAT3& center, float radius) noexcept
+    {
+        // If the sphere is outside any of the 5 planes, its shadow cannot intersect this cascade
+        for (const auto& p : cp.planes)
+        {
+            const float dist = p.x * center.x + p.y * center.y + p.z * center.z + p.w;
+            if (dist < -radius)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+}
+
 // コンストラクタ
 ModelRenderer::ModelRenderer(ID3D11Device* device)
 {
@@ -24,21 +77,23 @@ ModelRenderer::ModelRenderer(ID3D11Device* device)
     m_shadowCasterShader = std::make_unique<ShadowCasterShader>(device);
 }
 
-void ModelRenderer::Draw(std::shared_ptr<Model> model, const DirectX::XMFLOAT4& color)
+void ModelRenderer::Draw(std::shared_ptr<Model> model, const DirectX::XMFLOAT4& color, bool castShadows)
 {
     DrawInfo& drawInfo{ drawInfos.emplace_back() };
     drawInfo.model = std::move(model);
     drawInfo.color = color;
     drawInfo.useManualMatrix = false;
+    drawInfo.castShadows = castShadows;
 }
 
-void ModelRenderer::Draw(std::shared_ptr<Model> model, DirectX::XMFLOAT4 color, const DirectX::XMFLOAT4X4& worldMatrix)
+void ModelRenderer::Draw(std::shared_ptr<Model> model, DirectX::XMFLOAT4 color, const DirectX::XMFLOAT4X4& worldMatrix, bool castShadows)
 {
     DrawInfo& drawInfo{ drawInfos.emplace_back() };
     drawInfo.model = std::move(model);
     drawInfo.color = color;
     drawInfo.useManualMatrix = true;
     drawInfo.worldMatrix = worldMatrix;
+    drawInfo.castShadows = castShadows;
 }
 
 void ModelRenderer::Render(const RenderContext& rc)
@@ -143,13 +198,48 @@ void ModelRenderer::Render(const RenderContext& rc)
             dc->OMSetRenderTargets(0, nullptr, cascadeDSV);
             dc->RSSetViewports(1, &shadowViewport);
 
-            m_shadowCasterShader->SetCascadeMatrix(dc, rc.lightManager->GetCascadeMatrices()[i]);
+            const auto& cascadeMatrix = rc.lightManager->GetCascadeMatrices()[i];
+            m_shadowCasterShader->SetCascadeMatrix(dc, cascadeMatrix);
+
+            // Extract 5 light-space planes for this cascade
+            const CascadeFrustumPlanes cascadePlanes = ExtractCascadePlanes(cascadeMatrix);
 
             for (const DrawInfo& drawInfo : drawInfos)
             {
+                // Skip objects marked to not cast shadows or missing model data
+                if (!drawInfo.castShadows || !drawInfo.model) continue;
+
+                // Compute the model's world-space center and radius
+                DirectX::XMMATRIX mWorld{};
+                if (drawInfo.useManualMatrix)
+                {
+                    mWorld = DirectX::XMLoadFloat4x4(&drawInfo.worldMatrix);
+                }
+                else
+                {
+                    const Model::Node* root = drawInfo.model->GetRootNode();
+                    mWorld = root ? DirectX::XMLoadFloat4x4(&root->worldTransform) : DirectX::XMMatrixIdentity();
+                }
+
+                const DirectX::XMVECTOR vCenter = DirectX::XMLoadFloat3(&drawInfo.model->GetBoundsCenter());
+                DirectX::XMFLOAT3 worldCenter{};
+                DirectX::XMStoreFloat3(&worldCenter, DirectX::XMVector3TransformCoord(vCenter, mWorld));
+
+                const float scaleX = DirectX::XMVectorGetX(DirectX::XMVector3Length(mWorld.r[0]));
+                const float scaleY = DirectX::XMVectorGetX(DirectX::XMVector3Length(mWorld.r[1]));
+                const float scaleZ = DirectX::XMVectorGetX(DirectX::XMVector3Length(mWorld.r[2]));
+                const float maxScale = (std::max)(scaleX, (std::max)(scaleY, scaleZ));
+                const float worldRadius = drawInfo.model->GetBoundsRadius() * (maxScale > 0.0001f ? maxScale : 1.0f);
+
+                // If the model does not overlap this cascade, skip all its submeshes completely
+                if (!IsSphereInCascade(cascadePlanes, worldCenter, worldRadius))
+                {
+                    continue;
+                }
+
                 for (const Model::Mesh& mesh : drawInfo.model->GetMeshes())
                 {
-                    // Strict Performance Optimization: Do not cast shadows from transparent or glass materials
+                    // Do not cast shadows from transparent or glass materials
                     if (mesh.material->alphaMode == AlphaMode::Blend) continue;
 
                     drawMesh(mesh, m_shadowCasterShader.get(), drawInfo.useManualMatrix, drawInfo.worldMatrix);
