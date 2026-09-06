@@ -17,6 +17,7 @@ cbuffer CbScene : register(b7)
     float4 lightDirection;
     float4 lightColor;
     float4 cameraPosition;
+    float4 cameraDirection;
     float4 ambientSkyColor;
     float4 ambientGroundColor;
     float4 packedParams;
@@ -42,37 +43,50 @@ float CalculateCascadeShadow(float3 worldPos, float3 normal, float3 dirToLight)
     if (shadowSettings.x < 0.5f)
         return 1.0f;
 
-    // Calculate slope scale: 0.0 when light hits dead-on, 1.0 when grazing
+    // Calculate View-Space Depth (Distance along camera plane)
+    float3 toPixel = worldPos - cameraPosition.xyz;
+    float viewZ = dot(toPixel, cameraDirection.xyz);
+
+    // Cascade Selection (Eliminates Matrix Loop ALU Waste)
+    int cascadeIndex = 0;
+    if (viewZ > cascadeSplits.w)
+        return 1.0f; // Beyond Far Plane
+    else if (viewZ > cascadeSplits.z)
+        cascadeIndex = 3;
+    else if (viewZ > cascadeSplits.y)
+        cascadeIndex = 2;
+    else if (viewZ > cascadeSplits.x)
+        cascadeIndex = 1;
+
+    // Slope-Scaled Normal Bias
     float NdotL = saturate(dot(normal, dirToLight));
     float slopeScale = 1.0f - NdotL;
+    float normalOffset = slopeScale * 0.1f;
+    float3 biasedPos = worldPos + (normal * normalOffset);
 
-    [unroll]
-    for (int i = 0; i < 4; ++i)
+    // Project into Light Space
+    float4 wvpPos = mul(float4(biasedPos, 1.0f), cascadeMatrices[cascadeIndex]);
+    wvpPos.xyz /= wvpPos.w;
+
+    float2 uv = wvpPos.xy * float2(0.5f, -0.5f) + 0.5f;
+
+    // Hardware PCF shadow sampling
+    if (uv.x >= 0.0f && uv.x <= 1.0f && uv.y >= 0.0f && uv.y <= 1.0f && wvpPos.z <= 1.0f)
     {
-        // NORMAL BIAS: Scale Normal Bias. 
-        // Pushes the sample point out along the normal by a few centimeters on sloped walls to prevent acne,
-        // but applies almost 0 push on flat floors to keep feet perfectly grounded.
-        float normalOffset = slopeScale * 0.1f; // 10cm max push
-        float3 biasedPos = worldPos + (normal * normalOffset);
+        float testDepth = wvpPos.z - cascadeBias[cascadeIndex];
+        float litFactor = 1.0f;
 
-        // Project the biased world position into Light NDC space
-        float4 wvpPos = mul(float4(biasedPos, 1.0f), cascadeMatrices[i]);
-        wvpPos.xyz /= wvpPos.w;
+        // Static unrolled branch to index Texture2D arrays across all D3D11 feature levels
+        if (cascadeIndex == 0)
+            litFactor = CascadeShadowMaps[0].SampleCmpLevelZero(ShadowSampler, uv, testDepth);
+        else if (cascadeIndex == 1)
+            litFactor = CascadeShadowMaps[1].SampleCmpLevelZero(ShadowSampler, uv, testDepth);
+        else if (cascadeIndex == 2)
+            litFactor = CascadeShadowMaps[2].SampleCmpLevelZero(ShadowSampler, uv, testDepth);
+        else if (cascadeIndex == 3)
+            litFactor = CascadeShadowMaps[3].SampleCmpLevelZero(ShadowSampler, uv, testDepth);
 
-        // Convert NDC [-1, 1] to Texture UV [0, 1]
-        float2 uv = wvpPos.xy * float2(0.5f, -0.5f) + 0.5f;
-
-        // If the pixel falls within this cascade's bounds, calculate the shadow
-        if (uv.x >= 0.0f && uv.x <= 1.0f &&
-            uv.y >= 0.0f && uv.y <= 1.0f &&
-            wvpPos.z >= 0.0f && wvpPos.z <= 1.0f)
-        {
-            // Apply the microscopic flat depth bias from the Inspector
-            float testDepth = wvpPos.z - cascadeBias[i];
-
-            float litFactor = CascadeShadowMaps[i].SampleCmpLevelZero(ShadowSampler, uv, testDepth);
-            return lerp(shadowSettings.y, 1.0f, litFactor);
-        }
+        return lerp(shadowSettings.y, 1.0f, litFactor);
     }
 
     return 1.0f; // Unshadowed if out of all bounds

@@ -190,6 +190,9 @@ void ModelRenderer::Render(const RenderContext& rc)
         const DirectX::XMFLOAT3& eye{ rc.camera->GetPosition() };
         cbScene.cameraPosition = { eye.x, eye.y, eye.z, 1.0f };
 
+        const DirectX::XMFLOAT3& front{ rc.camera->GetFront() };
+        cbScene.cameraDirection = { front.x, front.y, front.z, 0.0f };
+
         // Pull dynamic environment colors from LightManager
         cbScene.ambientSkyColor = lightManager->GetEffectiveSkyColor();
         cbScene.ambientGroundColor = lightManager->GetEffectiveGroundColor();
