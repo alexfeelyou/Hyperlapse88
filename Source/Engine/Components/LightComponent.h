@@ -61,7 +61,7 @@ public:
 private:
     bool  m_castShadows{ true };
     float m_shadowAttenuation{ 0.5f };
-    std::array<float, 4> m_shadowBias{ 0.001f, 0.002f, 0.003f, 0.004f };
+    std::array<float, 4> m_shadowBias{ 0.00005f, 0.0001f, 0.0005f, 0.001f };
     std::array<float, 5> m_splitDistances{ 0.1f, 25.0f, 100.0f, 250.0f, 500.0f };
 };
 

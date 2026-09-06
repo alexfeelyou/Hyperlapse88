@@ -126,8 +126,7 @@ void ModelRenderer::Render(const RenderContext& rc)
         // Explicitly enforce depth writing for the shadow pass
         dc->OMSetDepthStencilState(rc.renderState->GetDepthStencilState(DepthState::TestAndWrite), 0);
 
-        // Use Front-Face Culling for shadows to prevent shadow acne from self-occlusion
-        dc->RSSetState(rc.renderState->GetRasterizerState(RasterizerState::SolidCullFront));
+        dc->RSSetState(rc.renderState->GetRasterizerState(RasterizerState::SolidCullBack));
 
         m_shadowCasterShader->Begin(rc);
 

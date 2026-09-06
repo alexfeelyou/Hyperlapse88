@@ -36,17 +36,27 @@ Texture2D CascadeShadowMaps[4] : register(t10);
 SamplerComparisonState ShadowSampler : register(s10);
 
 // Single reusable function for all lit pixel shaders
-float CalculateCascadeShadow(float3 worldPos)
+float CalculateCascadeShadow(float3 worldPos, float3 normal, float3 dirToLight)
 {
     // shadowSettings.x represents the Cast Shadows toggle (0.0 = off, 1.0 = on)
     if (shadowSettings.x < 0.5f)
         return 1.0f;
 
+    // Calculate slope scale: 0.0 when light hits dead-on, 1.0 when grazing
+    float NdotL = saturate(dot(normal, dirToLight));
+    float slopeScale = 1.0f - NdotL;
+
     [unroll]
     for (int i = 0; i < 4; ++i)
     {
-        // Project world position into the current cascade's Light NDC space
-        float4 wvpPos = mul(float4(worldPos, 1.0f), cascadeMatrices[i]);
+        // NORMAL BIAS: Scale Normal Bias. 
+        // Pushes the sample point out along the normal by a few centimeters on sloped walls to prevent acne,
+        // but applies almost 0 push on flat floors to keep feet perfectly grounded.
+        float normalOffset = slopeScale * 0.1f; // 10cm max push
+        float3 biasedPos = worldPos + (normal * normalOffset);
+
+        // Project the biased world position into Light NDC space
+        float4 wvpPos = mul(float4(biasedPos, 1.0f), cascadeMatrices[i]);
         wvpPos.xyz /= wvpPos.w;
 
         // Convert NDC [-1, 1] to Texture UV [0, 1]
@@ -57,13 +67,10 @@ float CalculateCascadeShadow(float3 worldPos)
             uv.y >= 0.0f && uv.y <= 1.0f &&
             wvpPos.z >= 0.0f && wvpPos.z <= 1.0f)
         {
-            // Subtract depth bias to prevent shadow acne
+            // Apply the microscopic flat depth bias from the Inspector
             float testDepth = wvpPos.z - cascadeBias[i];
 
-            // Hardware-accelerated PCF comparison (returns 0.0 for shadow, 1.0 for lit)
             float litFactor = CascadeShadowMaps[i].SampleCmpLevelZero(ShadowSampler, uv, testDepth);
-
-            // Blend between the dark shadow attenuation value and 1.0 (fully lit)
             return lerp(shadowSettings.y, 1.0f, litFactor);
         }
     }
