@@ -57,6 +57,7 @@ private:
         DirectX::XMFLOAT4   lightDirection{};       // 16 bytes
         DirectX::XMFLOAT4   lightColor{};           // 16 bytes
         DirectX::XMFLOAT4   cameraPosition{};       // 16 bytes
+		DirectX::XMFLOAT4   cameraDirection{};      // 16 bytes
         DirectX::XMFLOAT4   ambientSkyColor{};      // 16 bytes
         DirectX::XMFLOAT4   ambientGroundColor{};   // 16 bytes
         DirectX::XMFLOAT4   packedParams{};         // 16 bytes (psxEnabled, psxResW, psxResH, padding)

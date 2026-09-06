@@ -186,8 +186,14 @@ void LightManager::UpdateCascades(const Camera& camera) noexcept
         // Build 2D scale/translate Crop Matrix
         const float xScale = 2.0f / (vMax.x - vMin.x);
         const float yScale = 2.0f / (vMax.y - vMin.y);
-        const float xOff = -0.5f * (vMax.x + vMin.x) * xScale;
-        const float yOff = -0.5f * (vMax.y + vMin.y) * yScale;
+        float xOff = -0.5f * (vMax.x + vMin.x) * xScale;
+        float yOff = -0.5f * (vMax.y + vMin.y) * yScale;
+
+        // TEXEL SNAPPING: Stabilizes sub-pixel crawling when the camera moves.
+        // Round the Light NDC translation vector to the nearest texel grid unit.
+        const float halfMapSize = static_cast<float>(SHADOW_MAP_SIZE) * 0.5f;
+        xOff = std::round(xOff * halfMapSize) / halfMapSize;
+        yOff = std::round(yOff * halfMapSize) / halfMapSize;
 
         DirectX::XMFLOAT4X4 cropMat;
         DirectX::XMStoreFloat4x4(&cropMat, DirectX::XMMatrixIdentity());
