@@ -144,6 +144,7 @@ public:
 
 	// ルートノード取得
 	Node* GetRootNode() { return nodes.data(); }
+	const Node* GetRootNode() const { return nodes.data(); }
 
 	// バウンディング情報取得
 	[[nodiscard]] const DirectX::XMFLOAT3& GetBoundsCenter() const noexcept { return m_boundsCenter; }

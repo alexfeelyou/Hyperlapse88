@@ -8,6 +8,17 @@ namespace
         DirectX::XMFLOAT4 planes[5]; // Left, Right, Bottom, Top, Far
     };
 
+    struct CameraFrustumPlanes
+    {
+        DirectX::XMFLOAT4 planes[6]; // Left, Right, Bottom, Top, Near, Far
+    };
+
+    struct BoundingSphere
+    {
+        DirectX::XMFLOAT3 center{ 0.0f, 0.0f, 0.0f };
+        float radius{ 0.0f };
+    };
+
     [[nodiscard]] CascadeFrustumPlanes ExtractCascadePlanes(const DirectX::XMFLOAT4X4& M) noexcept
     {
         CascadeFrustumPlanes cp{};
@@ -30,10 +41,29 @@ namespace
             if (len > 0.00001f)
             {
                 const float invLen = 1.0f / len;
-                p.x *= invLen;
-                p.y *= invLen;
-                p.z *= invLen;
-                p.w *= invLen;
+                p.x *= invLen; p.y *= invLen; p.z *= invLen; p.w *= invLen;
+            }
+        }
+        return cp;
+    }
+
+    [[nodiscard]] CameraFrustumPlanes ExtractCameraFrustumPlanes(const DirectX::XMFLOAT4X4& M) noexcept
+    {
+        CameraFrustumPlanes cp{};
+        cp.planes[0] = { M._14 + M._11, M._24 + M._21, M._34 + M._31, M._44 + M._41 }; // Left
+        cp.planes[1] = { M._14 - M._11, M._24 - M._21, M._34 - M._31, M._44 - M._41 }; // Right
+        cp.planes[2] = { M._14 + M._12, M._24 + M._22, M._34 + M._32, M._44 + M._42 }; // Bottom
+        cp.planes[3] = { M._14 - M._12, M._24 - M._22, M._34 - M._32, M._44 - M._42 }; // Top
+        cp.planes[4] = { M._13,         M._23,         M._33,         M._43 };         // Near
+        cp.planes[5] = { M._14 - M._13, M._24 - M._23, M._34 - M._33, M._44 - M._43 }; // Far
+
+        for (auto& p : cp.planes)
+        {
+            const float len = std::sqrt(p.x * p.x + p.y * p.y + p.z * p.z);
+            if (len > 0.00001f)
+            {
+                const float invLen = 1.0f / len;
+                p.x *= invLen; p.y *= invLen; p.z *= invLen; p.w *= invLen;
             }
         }
         return cp;
@@ -41,16 +71,60 @@ namespace
 
     [[nodiscard]] bool IsSphereInCascade(const CascadeFrustumPlanes& cp, const DirectX::XMFLOAT3& center, float radius) noexcept
     {
-        // If the sphere is outside any of the 5 planes, its shadow cannot intersect this cascade
         for (const auto& p : cp.planes)
         {
-            const float dist = p.x * center.x + p.y * center.y + p.z * center.z + p.w;
-            if (dist < -radius)
+            if ((p.x * center.x + p.y * center.y + p.z * center.z + p.w) < -radius)
             {
                 return false;
             }
         }
         return true;
+    }
+
+    [[nodiscard]] bool IsSphereInFrustum(const CameraFrustumPlanes& cp, const DirectX::XMFLOAT3& center, float radius) noexcept
+    {
+        for (const auto& p : cp.planes)
+        {
+            if ((p.x * center.x + p.y * center.y + p.z * center.z + p.w) < -radius)
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    [[nodiscard]] BoundingSphere CalculateMeshBoundingSphere(
+        const Model::Mesh& mesh,
+        bool useManualMatrix,
+        const DirectX::XMFLOAT4X4& manualMatrix) noexcept
+    {
+        // Calculate true world transform for specific submesh
+        DirectX::XMMATRIX mWorld{};
+        if (useManualMatrix)
+        {
+            DirectX::XMMATRIX nodeGlobalMat = DirectX::XMLoadFloat4x4(&mesh.node->globalTransform);
+            DirectX::XMMATRIX manualWorldMat = DirectX::XMLoadFloat4x4(&manualMatrix);
+            mWorld = nodeGlobalMat * manualWorldMat;
+        }
+        else
+        {
+            mWorld = DirectX::XMLoadFloat4x4(&mesh.node->worldTransform);
+        }
+
+        // Transform the mesh's local bounding sphere to world space
+        const DirectX::XMVECTOR vCenter = DirectX::XMLoadFloat3(&mesh.boundsCenter);
+        DirectX::XMFLOAT3 worldCenter{};
+        DirectX::XMStoreFloat3(&worldCenter, DirectX::XMVector3TransformCoord(vCenter, mWorld));
+
+        // Extract accurate scaling
+        const float scaleX = DirectX::XMVectorGetX(DirectX::XMVector3Length(mWorld.r[0]));
+        const float scaleY = DirectX::XMVectorGetX(DirectX::XMVector3Length(mWorld.r[1]));
+        const float scaleZ = DirectX::XMVectorGetX(DirectX::XMVector3Length(mWorld.r[2]));
+        const float maxScale = (std::max)({ scaleX, scaleY, scaleZ });
+
+        const float worldRadius = mesh.boundsRadius * (maxScale > 0.0001f ? maxScale : 1.0f);
+
+        return { worldCenter, worldRadius };
     }
 }
 
@@ -206,41 +280,20 @@ void ModelRenderer::Render(const RenderContext& rc)
 
             for (const DrawInfo& drawInfo : drawInfos)
             {
-                // Skip objects marked to not cast shadows or missing model data
                 if (!drawInfo.castShadows || !drawInfo.model) continue;
-
-                // Compute the model's world-space center and radius
-                DirectX::XMMATRIX mWorld{};
-                if (drawInfo.useManualMatrix)
-                {
-                    mWorld = DirectX::XMLoadFloat4x4(&drawInfo.worldMatrix);
-                }
-                else
-                {
-                    const Model::Node* root = drawInfo.model->GetRootNode();
-                    mWorld = root ? DirectX::XMLoadFloat4x4(&root->worldTransform) : DirectX::XMMatrixIdentity();
-                }
-
-                const DirectX::XMVECTOR vCenter = DirectX::XMLoadFloat3(&drawInfo.model->GetBoundsCenter());
-                DirectX::XMFLOAT3 worldCenter{};
-                DirectX::XMStoreFloat3(&worldCenter, DirectX::XMVector3TransformCoord(vCenter, mWorld));
-
-                const float scaleX = DirectX::XMVectorGetX(DirectX::XMVector3Length(mWorld.r[0]));
-                const float scaleY = DirectX::XMVectorGetX(DirectX::XMVector3Length(mWorld.r[1]));
-                const float scaleZ = DirectX::XMVectorGetX(DirectX::XMVector3Length(mWorld.r[2]));
-                const float maxScale = (std::max)(scaleX, (std::max)(scaleY, scaleZ));
-                const float worldRadius = drawInfo.model->GetBoundsRadius() * (maxScale > 0.0001f ? maxScale : 1.0f);
-
-                // If the model does not overlap this cascade, skip all its submeshes completely
-                if (!IsSphereInCascade(cascadePlanes, worldCenter, worldRadius))
-                {
-                    continue;
-                }
 
                 for (const Model::Mesh& mesh : drawInfo.model->GetMeshes())
                 {
                     // Do not cast shadows from transparent or glass materials
                     if (mesh.material->alphaMode == AlphaMode::Blend) continue;
+
+                    // PER-MESH CULLING: Safely skips chunks of the stage outside the shadow zone
+                    const BoundingSphere sphere = CalculateMeshBoundingSphere(mesh, drawInfo.useManualMatrix, drawInfo.worldMatrix);
+
+                    if (!IsSphereInCascade(cascadePlanes, sphere.center, sphere.radius))
+                    {
+                        continue;
+                    }
 
                     drawMesh(mesh, m_shadowCasterShader.get(), drawInfo.useManualMatrix, drawInfo.worldMatrix);
                 }
@@ -352,17 +405,35 @@ void ModelRenderer::Render(const RenderContext& rc)
     // Setup buckets using std::array to group meshes by their requested shader
     std::array<std::vector<MeshDrawCommand>, static_cast<std::size_t>(ShaderId::EnumCount)> opaqueBuckets{};
 
+    // Extract camera frustum planes ONCE per frame (O(1) overhead)
+    DirectX::XMFLOAT4X4 matViewProj{};
+    {
+        const DirectX::XMMATRIX V = DirectX::XMLoadFloat4x4(&rc.camera->GetView());
+        const DirectX::XMMATRIX P = DirectX::XMLoadFloat4x4(&rc.camera->GetProjection());
+        DirectX::XMStoreFloat4x4(&matViewProj, V * P);
+    }
+    const CameraFrustumPlanes cameraPlanes = ExtractCameraFrustumPlanes(matViewProj);
+
     // Distribute meshes into transparent queue or their specific opaque shader bucket
     for (const DrawInfo& drawInfo : drawInfos)
     {
+        if (!drawInfo.model) continue;
+
         for (const Model::Mesh& mesh : drawInfo.model->GetMeshes())
         {
+            // PER-MESH CULLING: Tests individual parts of the character and stage
+            const BoundingSphere sphere = CalculateMeshBoundingSphere(mesh, drawInfo.useManualMatrix, drawInfo.worldMatrix);
+
+            if (!IsSphereInFrustum(cameraPlanes, sphere.center, sphere.radius))
+            {
+                continue; // Cull this specific submesh
+            }
+
             if (mesh.material->alphaMode == AlphaMode::Blend ||
                 (mesh.material->baseColor.w > 0.01f && mesh.material->baseColor.w < 0.99f))
             {
                 TransparencyDrawInfo& transparencyDrawInfo{ transparencyDrawInfos.emplace_back() };
                 transparencyDrawInfo.mesh = &mesh;
-                // Pull the shaderId directly from the individual material
                 transparencyDrawInfo.shaderId = static_cast<ShaderId>(mesh.material->shaderId);
                 transparencyDrawInfo.color = drawInfo.color;
                 transparencyDrawInfo.useManualMatrix = drawInfo.useManualMatrix;
@@ -390,7 +461,7 @@ void ModelRenderer::Render(const RenderContext& rc)
             const std::size_t shaderIndex{ static_cast<std::size_t>(mesh.material->shaderId) };
             opaqueBuckets[shaderIndex].emplace_back(MeshDrawCommand{
                 &mesh, drawInfo.color, drawInfo.useManualMatrix, drawInfo.worldMatrix
-            });
+                });
         }
     }
     drawInfos.clear();
