@@ -50,6 +50,19 @@ public:
 
     [[nodiscard]] const char* GetTypeName() const noexcept override { return "DirectionalLightComponent"; }
     [[nodiscard]] LightType GetLightType() const noexcept override { return LightType::Directional; }
+
+	// Shadow mapping properties
+    [[nodiscard]] bool CastsShadows() const noexcept { return m_castShadows; }
+    void SetCastShadows(bool cast) noexcept { m_castShadows = cast; }
+    [[nodiscard]] float GetShadowAttenuation() const noexcept { return m_shadowAttenuation; }
+    [[nodiscard]] const std::array<float, 4>& GetShadowBias() const noexcept { return m_shadowBias; }
+    [[nodiscard]] const std::array<float, 5>& GetSplitDistances() const noexcept { return m_splitDistances; }
+
+private:
+    bool  m_castShadows{ true };
+    float m_shadowAttenuation{ 0.5f };
+    std::array<float, 4> m_shadowBias{ 0.001f, 0.002f, 0.003f, 0.004f };
+    std::array<float, 5> m_splitDistances{ 0.1f, 25.0f, 100.0f, 250.0f, 500.0f };
 };
 
 class PointLightComponent final : public LightComponent

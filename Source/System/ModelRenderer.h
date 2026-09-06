@@ -15,6 +15,7 @@
 #include "PhongShader.h"
 #include "OutlineShader.h"
 #include "Shader.h"
+#include "ShadowCasterShader.h"
 #include "ToonShader.h"
 
 enum class ShaderId
@@ -61,6 +62,11 @@ private:
         DirectX::XMFLOAT4   packedParams{};         // 16 bytes (psxEnabled, psxResW, psxResH, padding)
         DirectX::XMINT4     lightCounts{};          // 16 bytes (pointCount, spotCount, padding, padding)
 
+        DirectX::XMFLOAT4X4 cascadeMatrices[4]{};
+        DirectX::XMFLOAT4   cascadeSplits{};        // x: Split 1, y: Split 2, z: Split 3, w: Split 4
+        DirectX::XMFLOAT4   cascadeBias{};          // x, y, z, w map to cascades 0, 1, 2, 3
+        DirectX::XMFLOAT4   shadowSettings{};       // x: CastShadows(1/0), y: Attenuation, z: padding, w: padding
+
         PointLightData      pointLights[8]{};       // 256 bytes
         SpotLightData       spotLights[8]{};        // 384 bytes
     };
@@ -97,6 +103,7 @@ private:
 
     std::unique_ptr<Shader>					shaders[static_cast<int>(ShaderId::EnumCount)];
     std::unique_ptr<OutlineShader>          m_outlineShader;
+    std::unique_ptr<ShadowCasterShader>     m_shadowCasterShader{};
     std::vector<DrawInfo>					drawInfos;
     std::vector<TransparencyDrawInfo>		transparencyDrawInfos;
 

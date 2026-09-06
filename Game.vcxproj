@@ -213,6 +213,7 @@
     <ClInclude Include="Source\System\RenderContext.h" />
     <ClInclude Include="Source\System\RenderState.h" />
     <ClInclude Include="Source\System\Shader.h" />
+    <ClInclude Include="Source\System\ShadowCasterShader.h" />
     <ClInclude Include="Source\System\ShapeRenderer.h" />
     <ClInclude Include="Source\System\Sprite.h" />
     <ClInclude Include="Source\System\ToonShader.h" />
@@ -299,6 +300,7 @@
     <ClCompile Include="Source\System\PhysicsManager.cpp" />
     <ClCompile Include="Source\System\PrimitiveRenderer.cpp" />
     <ClCompile Include="Source\System\RenderState.cpp" />
+    <ClCompile Include="Source\System\ShadowCasterShader.cpp" />
     <ClCompile Include="Source\System\ShapeRenderer.cpp" />
     <ClCompile Include="Source\System\Sprite.cpp" />
     <ClCompile Include="Source\System\ToonShader.cpp" />
@@ -384,6 +386,10 @@
     <FxCompile Include="Shader\ScanlinePS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
+    </FxCompile>
+    <FxCompile Include="Shader\ShadowCasterVS.hlsl">
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Vertex</ShaderType>
+      <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Vertex</ShaderType>
     </FxCompile>
     <FxCompile Include="Shader\ShapeRendererPS.hlsl">
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>

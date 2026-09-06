@@ -65,6 +65,7 @@ void Graphics::Initialize()
     skyboxRenderer = std::make_unique<SkyboxRenderer>();
 
     EffectManager::Instance().Initialize(device.Get(), immediateContext.Get());
+    lightManager->Initialize(device.Get());
     skyboxRenderer->Initialize(device.Get());
 }
 

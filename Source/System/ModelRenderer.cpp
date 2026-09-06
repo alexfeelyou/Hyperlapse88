@@ -21,6 +21,7 @@ ModelRenderer::ModelRenderer(ID3D11Device* device)
     shaders[static_cast<int>(ShaderId::Toon)] = std::make_unique<ToonShader>(device);
 
     m_outlineShader = std::make_unique<OutlineShader>(device);
+    m_shadowCasterShader = std::make_unique<ShadowCasterShader>(device);
 }
 
 void ModelRenderer::Draw(std::shared_ptr<Model> model, const DirectX::XMFLOAT4& color)
@@ -45,74 +46,6 @@ void ModelRenderer::Render(const RenderContext& rc)
     if (drawInfos.empty()) return;
 
     ID3D11DeviceContext* dc = rc.deviceContext;
-
-    // Update LightManager aggregation prior to scene rendering
-    if (rc.lightManager)
-    {
-        const_cast<LightManager*>(rc.lightManager)->Update();
-    }
-
-    // シーン用定数バッファ更新
-    {
-        static LightManager defaultLightManager;
-        const LightManager* const lightManager{ rc.lightManager ? rc.lightManager : &defaultLightManager };
-
-        CbScene cbScene{};
-        const DirectX::XMMATRIX V{ DirectX::XMLoadFloat4x4(&rc.camera->GetView()) };
-        const DirectX::XMMATRIX P{ DirectX::XMLoadFloat4x4(&rc.camera->GetProjection()) };
-        DirectX::XMStoreFloat4x4(&cbScene.viewProjection, V * P);
-
-        const DirectionalLight& dirLight{ lightManager->GetDirectionalLight() };
-        cbScene.lightDirection = { dirLight.direction.x, dirLight.direction.y, dirLight.direction.z, 0.0f };
-        cbScene.lightColor = { dirLight.color.x * dirLight.intensity, dirLight.color.y * dirLight.intensity, dirLight.color.z * dirLight.intensity, 1.0f };
-
-        const DirectX::XMFLOAT3& eye{ rc.camera->GetPosition() };
-        cbScene.cameraPosition = { eye.x, eye.y, eye.z, 1.0f };
-
-        // Pull dynamic environment colors from LightManager
-        cbScene.ambientSkyColor = lightManager->GetEffectiveSkyColor();
-        cbScene.ambientGroundColor = lightManager->GetEffectiveGroundColor();
-
-        cbScene.packedParams = {
-            rc.psxEnabled ? 1.0f : 0.0f,
-            (std::max)(1.0f, rc.psxResWidth),
-            (std::max)(1.0f, rc.psxResHeight),
-            0.0f
-        };
-
-        cbScene.lightCounts = {
-            lightManager->GetPointLightCount(),
-            lightManager->GetSpotLightCount(),
-            0, 0
-        };
-
-        const auto& pLights{ lightManager->GetPointLights() };
-        for (int i{ 0 }; i < 8; ++i) cbScene.pointLights[i] = pLights[i];
-
-        const auto& sLights{ lightManager->GetSpotLights() };
-        for (int i{ 0 }; i < 8; ++i) cbScene.spotLights[i] = sLights[i];
-
-        dc->UpdateSubresource(sceneConstantBuffer.Get(), 0, 0, &cbScene, 0, 0);
-    }
-
-    ID3D11Buffer* vsConstantBuffers[] = {
-        skeletonConstantBuffer.Get(),
-        sceneConstantBuffer.Get(),
-    };
-    ID3D11Buffer* psConstantBuffers[] = {
-        sceneConstantBuffer.Get(),
-    };
-    dc->VSSetConstantBuffers(6, _countof(vsConstantBuffers), vsConstantBuffers);
-    dc->PSSetConstantBuffers(7, _countof(psConstantBuffers), psConstantBuffers);
-    dc->PSSetConstantBuffers(2, 1, objectConstantBuffer.GetAddressOf());
-
-    ID3D11SamplerState* samplerStates[] = {
-        rc.renderState->GetSamplerState(SamplerState::LinearWrap)
-    };
-    dc->PSSetSamplers(0, _countof(samplerStates), samplerStates);
-
-    dc->OMSetDepthStencilState(rc.renderState->GetDepthStencilState(DepthState::TestAndWrite), 0);
-    dc->RSSetState(rc.renderState->GetRasterizerState(RasterizerState::SolidCullBack));
 
     auto drawMesh = [&](const Model::Mesh& mesh, Shader* shader, bool useManual, const DirectX::XMFLOAT4X4& manualMatrix)
         {
@@ -168,6 +101,156 @@ void ModelRenderer::Render(const RenderContext& rc)
             PROFILE_TRIANGLES(mesh.indices.size() / 3);   // インデックスバッファは三角形リストなので3で割る
     };
 
+    if (rc.lightManager && rc.lightManager->GetDirectionalLight().castShadows)
+    {
+        // Compute matrix maths mathematically
+        rc.lightManager->UpdateCascades(*rc.camera);
+
+        // Store active Viewport & RTV to restore later
+        ID3D11RenderTargetView* originalRTV{ nullptr };
+        ID3D11DepthStencilView* originalDSV{ nullptr };
+        dc->OMGetRenderTargets(1, &originalRTV, &originalDSV);
+
+        UINT numViewports{ 1 };
+        D3D11_VIEWPORT originalViewport{};
+        dc->RSGetViewports(&numViewports, &originalViewport);
+
+        // Configure strict rendering state for Shadows
+        D3D11_VIEWPORT shadowViewport{};
+        shadowViewport.Width = static_cast<float>(SHADOW_MAP_SIZE);
+        shadowViewport.Height = static_cast<float>(SHADOW_MAP_SIZE);
+        shadowViewport.MaxDepth = 1.0f;
+
+        dc->OMSetBlendState(rc.renderState->GetBlendState(BlendState::Opaque), nullptr, 0xFFFFFFFF);
+        
+        // Explicitly enforce depth writing for the shadow pass
+        dc->OMSetDepthStencilState(rc.renderState->GetDepthStencilState(DepthState::TestAndWrite), 0);
+
+        // Use Front-Face Culling for shadows to prevent shadow acne from self-occlusion
+        dc->RSSetState(rc.renderState->GetRasterizerState(RasterizerState::SolidCullFront));
+
+        m_shadowCasterShader->Begin(rc);
+
+        // Re-bind skeleton matrices explicitly for the Shadow pass
+        ID3D11Buffer* const vsShadowCbs[]{ skeletonConstantBuffer.Get() };
+        dc->VSSetConstantBuffers(6, 1, vsShadowCbs);
+
+        for (int i = 0; i < SHADOW_CASCADE_COUNT; ++i)
+        {
+            ID3D11DepthStencilView* cascadeDSV = rc.lightManager->GetCascadeDSV(i);
+
+            // Only bind DSV (null RTV writes 4x faster)
+            dc->ClearDepthStencilView(cascadeDSV, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+            dc->OMSetRenderTargets(0, nullptr, cascadeDSV);
+            dc->RSSetViewports(1, &shadowViewport);
+
+            m_shadowCasterShader->SetCascadeMatrix(dc, rc.lightManager->GetCascadeMatrices()[i]);
+
+            for (const DrawInfo& drawInfo : drawInfos)
+            {
+                for (const Model::Mesh& mesh : drawInfo.model->GetMeshes())
+                {
+                    // Strict Performance Optimization: Do not cast shadows from transparent or glass materials
+                    if (mesh.material->alphaMode == AlphaMode::Blend) continue;
+
+                    drawMesh(mesh, m_shadowCasterShader.get(), drawInfo.useManualMatrix, drawInfo.worldMatrix);
+                }
+            }
+        }
+
+        m_shadowCasterShader->End(rc);
+
+        // Restore Scene state
+        dc->OMSetRenderTargets(1, &originalRTV, originalDSV);
+        dc->RSSetViewports(1, &originalViewport);
+
+        if (originalRTV) originalRTV->Release();
+        if (originalDSV) originalDSV->Release();
+    }
+
+    // Update LightManager aggregation prior to scene rendering
+    if (rc.lightManager)
+    {
+        const_cast<LightManager*>(rc.lightManager)->Update();
+    }
+
+    // シーン用定数バッファ更新
+    {
+        static LightManager defaultLightManager;
+        const LightManager* const lightManager{ rc.lightManager ? rc.lightManager : &defaultLightManager };
+
+        CbScene cbScene{};
+        const DirectX::XMMATRIX V{ DirectX::XMLoadFloat4x4(&rc.camera->GetView()) };
+        const DirectX::XMMATRIX P{ DirectX::XMLoadFloat4x4(&rc.camera->GetProjection()) };
+        DirectX::XMStoreFloat4x4(&cbScene.viewProjection, V * P);
+
+        const DirectionalLight& dirLight{ lightManager->GetDirectionalLight() };
+        cbScene.lightDirection = { dirLight.direction.x, dirLight.direction.y, dirLight.direction.z, 0.0f };
+        cbScene.lightColor = { dirLight.color.x * dirLight.intensity, dirLight.color.y * dirLight.intensity, dirLight.color.z * dirLight.intensity, 1.0f };
+
+        const DirectX::XMFLOAT3& eye{ rc.camera->GetPosition() };
+        cbScene.cameraPosition = { eye.x, eye.y, eye.z, 1.0f };
+
+        // Pull dynamic environment colors from LightManager
+        cbScene.ambientSkyColor = lightManager->GetEffectiveSkyColor();
+        cbScene.ambientGroundColor = lightManager->GetEffectiveGroundColor();
+
+        cbScene.packedParams = {
+            rc.psxEnabled ? 1.0f : 0.0f,
+            (std::max)(1.0f, rc.psxResWidth),
+            (std::max)(1.0f, rc.psxResHeight),
+            0.0f
+        };
+
+        cbScene.lightCounts = {
+            lightManager->GetPointLightCount(),
+            lightManager->GetSpotLightCount(),
+            0, 0
+        };
+
+        const auto& pLights{ lightManager->GetPointLights() };
+        for (int i{ 0 }; i < 8; ++i) cbScene.pointLights[i] = pLights[i];
+
+        const auto& sLights{ lightManager->GetSpotLights() };
+        for (int i{ 0 }; i < 8; ++i) cbScene.spotLights[i] = sLights[i];
+
+		// Cascaded Shadow Map Parameters
+        if (dirLight.castShadows)
+        {
+            const auto& matrices = lightManager->GetCascadeMatrices();
+            for (int i = 0; i < 4; ++i) cbScene.cascadeMatrices[i] = matrices[i];
+
+            cbScene.cascadeSplits = { dirLight.splitDistances[1], dirLight.splitDistances[2], dirLight.splitDistances[3], dirLight.splitDistances[4] };
+            cbScene.cascadeBias = { dirLight.shadowBias[0], dirLight.shadowBias[1], dirLight.shadowBias[2], dirLight.shadowBias[3] };
+            cbScene.shadowSettings = { 1.0f, dirLight.shadowAttenuation, 0.0f, 0.0f };
+        }
+        else
+        {
+            cbScene.shadowSettings = { 0.0f, 1.0f, 0.0f, 0.0f };
+        }
+
+        dc->UpdateSubresource(sceneConstantBuffer.Get(), 0, 0, &cbScene, 0, 0);
+    }
+
+    ID3D11Buffer* vsConstantBuffers[] = {
+        skeletonConstantBuffer.Get(),
+        sceneConstantBuffer.Get(),
+    };
+    ID3D11Buffer* psConstantBuffers[] = {
+        sceneConstantBuffer.Get(),
+    };
+    dc->VSSetConstantBuffers(6, _countof(vsConstantBuffers), vsConstantBuffers);
+    dc->PSSetConstantBuffers(7, _countof(psConstantBuffers), psConstantBuffers);
+    dc->PSSetConstantBuffers(2, 1, objectConstantBuffer.GetAddressOf());
+
+    ID3D11SamplerState* samplerStates[] = {
+        rc.renderState->GetSamplerState(SamplerState::LinearWrap)
+    };
+    dc->PSSetSamplers(0, _countof(samplerStates), samplerStates);
+
+    dc->OMSetDepthStencilState(rc.renderState->GetDepthStencilState(DepthState::TestAndWrite), 0);
+    dc->RSSetState(rc.renderState->GetRasterizerState(RasterizerState::SolidCullBack));
+
     DirectX::XMVECTOR CameraPosition = DirectX::XMLoadFloat3(&rc.camera->GetPosition());
     DirectX::XMVECTOR CameraFront = DirectX::XMLoadFloat3(&rc.camera->GetFront());
 
@@ -219,6 +302,17 @@ void ModelRenderer::Render(const RenderContext& rc)
         }
     }
     drawInfos.clear();
+    
+    // Bind Shadow Sampler to slot s10
+    ID3D11SamplerState* shadowSampler = rc.renderState->GetSamplerState(SamplerState::ShadowMap);
+    dc->PSSetSamplers(10, 1, &shadowSampler);
+    
+    // Bind all 4 Cascade Depth Maps to slots t10-t13
+    if (rc.lightManager && rc.lightManager->GetDirectionalLight().castShadows)
+    {
+        ID3D11ShaderResourceView* const* cascadeSRVs = rc.lightManager->GetCascadeSRVs();
+        dc->PSSetShaderResources(10, 4, cascadeSRVs);
+    }
 
     // Render opaque buckets
     for (std::size_t i{ 0 }; i < opaqueBuckets.size(); ++i)
@@ -285,6 +379,7 @@ void ModelRenderer::Render(const RenderContext& rc)
             m_outlineShader->End(rc);
             dc->RSSetState(rc.renderState->GetRasterizerState(RasterizerState::SolidCullBack));
         }
+
     }
     drawInfos.clear();
 
@@ -327,4 +422,8 @@ void ModelRenderer::Render(const RenderContext& rc)
 
     for (ID3D11SamplerState*& samplerState : samplerStates) { samplerState = nullptr; }
     dc->PSSetSamplers(0, _countof(samplerStates), samplerStates);
+
+    // Clean up Shadow Map Bindings
+    ID3D11ShaderResourceView* const nullShadowSRVs[]{ nullptr, nullptr, nullptr, nullptr };
+    dc->PSSetShaderResources(10, 4, nullShadowSRVs);
 }
