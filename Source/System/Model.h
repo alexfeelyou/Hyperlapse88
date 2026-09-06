@@ -68,6 +68,9 @@ public:
 		Microsoft::WRL::ComPtr<ID3D11Buffer>	vertexBuffer;
 		Microsoft::WRL::ComPtr<ID3D11Buffer>	indexBuffer;
 
+		DirectX::XMFLOAT3 boundsCenter{ 0.0f, 0.0f, 0.0f };
+		float boundsRadius{ 0.0f };
+
 		template<class Archive>
 		void serialize(Archive& archive);
 	};
@@ -141,6 +144,11 @@ public:
 
 	// ルートノード取得
 	Node* GetRootNode() { return nodes.data(); }
+	const Node* GetRootNode() const { return nodes.data(); }
+
+	// バウンディング情報取得
+	[[nodiscard]] const DirectX::XMFLOAT3& GetBoundsCenter() const noexcept { return m_boundsCenter; }
+	[[nodiscard]] float GetBoundsRadius() const noexcept { return m_boundsRadius; }
 
 	// ノードインデックス取得
 	int GetNodeIndex(const char* name) const;
@@ -159,6 +167,9 @@ public:
 	void GetNodePoses(std::vector<NodePose>& nodePoses) const;
 
 private:
+	// バウンディング情報
+	void ComputeBounds() noexcept;
+
 	// シリアライズ
 	void Serialize(const char* filename);
 
@@ -166,9 +177,12 @@ private:
 	void Deserialize(const char* filename);
 
 private:
-
 	std::vector<Material>	materials;
 	std::vector<Mesh>		meshes;
 	std::vector<Node>		nodes;
 	std::vector<Animation>	animations;
+
+private:
+	DirectX::XMFLOAT3 m_boundsCenter{ 0.0f, 0.0f, 0.0f };
+	float             m_boundsRadius{ 1.0f };
 };

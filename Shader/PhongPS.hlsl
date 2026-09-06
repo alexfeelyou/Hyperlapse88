@@ -73,7 +73,9 @@ float4 main(VS_OUT pin) : SV_TARGET
 
     // Directional Light
     float3 dirL = normalize(-lightDirection.xyz);
-    totalDirectLight += CalculatePhongLight(dirL, V, N, lightColor.rgb, albedo, shininess);
+    float shadowAtten = CalculateCascadeShadow(pin.position, N, dirL); // Evaluate shadow
+    
+    totalDirectLight += CalculatePhongLight(dirL, V, N, lightColor.rgb, albedo, shininess) * shadowAtten;
 
     // Point Lights
     for (int i = 0; i < lightCounts.x; ++i)

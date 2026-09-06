@@ -20,12 +20,22 @@ enum class LightType : std::uint8_t
     Spot
 };
 
+// Defines the number of cascades for shadow mapping and the resolution of shadow maps
+inline constexpr int SHADOW_CASCADE_COUNT{ 4 };
+inline constexpr int SHADOW_MAP_SIZE{ 2048 };
+
 // Represents direct sun/moon illumination
 struct DirectionalLight
 {
     DirectX::XMFLOAT3 direction{ 0.0f, -0.707f, -0.707f };
     DirectX::XMFLOAT3 color{ 1.0f, 1.0f, 1.0f };
     float             intensity{ 1.0f };
+
+    // Cascaded Shadow Map Parameters
+    bool  castShadows{ true };
+    float shadowAttenuation{ 0.5f };
+    std::array<float, SHADOW_CASCADE_COUNT> shadowBias{ 0.001f, 0.002f, 0.003f, 0.004f };
+    std::array<float, SHADOW_CASCADE_COUNT + 1> splitDistances{ 0.1f, 25.0f, 100.0f, 250.0f, 500.0f };
 };
 
 struct PointLightData
@@ -53,6 +63,18 @@ public:
     LightManager(LightManager&&) noexcept = default;
     LightManager& operator=(LightManager&&) noexcept = default;
 
+    void Initialize(ID3D11Device* device) noexcept;
+
+    // Aggregates active light components and updates lighting states
+    void Update() noexcept;
+
+	// Updates shadow cascade parameters based on the camera's view frustum
+    void UpdateCascades(const class Camera& camera) noexcept;
+
+	// Loads a skybox texture 
+    void LoadSkybox(ID3D11Device* device, const std::array<std::string, 6>& filepaths) noexcept;
+    void ClearSkybox() noexcept;
+
     // Registers a light component into the tracking pool
     void RegisterLight(LightComponent* const light) noexcept
     {
@@ -66,13 +88,6 @@ public:
         const auto it = std::remove(m_lights.begin(), m_lights.end(), light);
         m_lights.erase(it, m_lights.end());
     }
-
-    // Aggregates active light components and updates lighting states
-    void Update() noexcept;
-
-	// Loads a skybox texture 
-    void LoadSkybox(ID3D11Device* device, const std::array<std::string, 6>& filepaths) noexcept;
-    void ClearSkybox() noexcept;
 
     // Renders ImGui controls for ambient sky and ground illumination
     void DrawEnvironmentGUI() noexcept;
@@ -102,6 +117,11 @@ public:
     [[nodiscard]] ID3D11ShaderResourceView* GetSkyboxSRV() const noexcept { return m_skyboxSRV.Get(); }
     [[nodiscard]] bool HasSkybox() const noexcept { return m_skyboxSRV != nullptr; }
 
+	// Shadow cascade accessors
+    [[nodiscard]] ID3D11ShaderResourceView* const* GetCascadeSRVs() const noexcept { return m_cascadeSRVptrs.data(); }
+    [[nodiscard]] ID3D11DepthStencilView* GetCascadeDSV(int index) const noexcept { return m_cascadeDSVs[index].Get(); }
+    [[nodiscard]] const std::array<DirectX::XMFLOAT4X4, SHADOW_CASCADE_COUNT>& GetCascadeMatrices() const noexcept { return m_cascadeMatrices; }
+
 private:
     std::vector<LightComponent*>  m_lights{};
 
@@ -120,4 +140,9 @@ private:
 
     std::array<std::string, 6> m_skyboxPaths{};
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_skyboxSRV{};
+
+    std::array<DirectX::XMFLOAT4X4, SHADOW_CASCADE_COUNT> m_cascadeMatrices{};
+    std::array<Microsoft::WRL::ComPtr<ID3D11DepthStencilView>, SHADOW_CASCADE_COUNT> m_cascadeDSVs{};
+    std::array<Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>, SHADOW_CASCADE_COUNT> m_cascadeSRVs{};
+    std::array<ID3D11ShaderResourceView*, SHADOW_CASCADE_COUNT> m_cascadeSRVptrs{};
 };

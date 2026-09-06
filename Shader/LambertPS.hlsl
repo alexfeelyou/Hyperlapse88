@@ -44,9 +44,11 @@ float4 main(VS_OUT pin) : SV_TARGET
 
     float3 totalDirectLight = float3(0.0f, 0.0f, 0.0f);
 
-    // Directional Light (Invert direction to point to the light source)
+    // Directional Light
     float3 dirL = normalize(-lightDirection.xyz);
-    totalDirectLight += CalculateLambertLight(dirL, N, lightColor.rgb, albedo);
+    float shadowAtten = CalculateCascadeShadow(pin.position, N, dirL);
+    
+    totalDirectLight += CalculateLambertLight(dirL, N, lightColor.rgb, albedo) * shadowAtten;
 
     // Point Lights
     for (int i = 0; i < lightCounts.x; ++i)

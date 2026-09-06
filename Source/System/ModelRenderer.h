@@ -15,6 +15,7 @@
 #include "PhongShader.h"
 #include "OutlineShader.h"
 #include "Shader.h"
+#include "ShadowCasterShader.h"
 #include "ToonShader.h"
 
 enum class ShaderId
@@ -34,9 +35,9 @@ public:
     ModelRenderer(ID3D11Device* device);
     ~ModelRenderer() {}
 
-    void Draw(std::shared_ptr<Model> model, const DirectX::XMFLOAT4& color = { 1.0f, 1.0f, 1.0f, 1.0f });
+    void Draw(std::shared_ptr<Model> model, const DirectX::XMFLOAT4& color = { 1.0f, 1.0f, 1.0f, 1.0f }, bool castShadows = true);
 
-    void Draw(std::shared_ptr<Model> model, DirectX::XMFLOAT4 color, const DirectX::XMFLOAT4X4& worldMatrix);
+    void Draw(std::shared_ptr<Model> model, DirectX::XMFLOAT4 color, const DirectX::XMFLOAT4X4& worldMatrix, bool castShadows = true);
 
     // ï`âÊé¿çs
     void Render(const RenderContext& rc);
@@ -56,10 +57,16 @@ private:
         DirectX::XMFLOAT4   lightDirection{};       // 16 bytes
         DirectX::XMFLOAT4   lightColor{};           // 16 bytes
         DirectX::XMFLOAT4   cameraPosition{};       // 16 bytes
+		DirectX::XMFLOAT4   cameraDirection{};      // 16 bytes
         DirectX::XMFLOAT4   ambientSkyColor{};      // 16 bytes
         DirectX::XMFLOAT4   ambientGroundColor{};   // 16 bytes
         DirectX::XMFLOAT4   packedParams{};         // 16 bytes (psxEnabled, psxResW, psxResH, padding)
         DirectX::XMINT4     lightCounts{};          // 16 bytes (pointCount, spotCount, padding, padding)
+
+        DirectX::XMFLOAT4X4 cascadeMatrices[4]{};
+        DirectX::XMFLOAT4   cascadeSplits{};        // x: Split 1, y: Split 2, z: Split 3, w: Split 4
+        DirectX::XMFLOAT4   cascadeBias{};          // x, y, z, w map to cascades 0, 1, 2, 3
+        DirectX::XMFLOAT4   shadowSettings{};       // x: CastShadows(1/0), y: Attenuation, z: padding, w: padding
 
         PointLightData      pointLights[8]{};       // 256 bytes
         SpotLightData       spotLights[8]{};        // 384 bytes
@@ -82,6 +89,7 @@ private:
         DirectX::XMFLOAT4       color{};
         bool                    useManualMatrix{ false };
         DirectX::XMFLOAT4X4     worldMatrix{};
+        bool                    castShadows{ true };
     };
 
     struct TransparencyDrawInfo
@@ -97,6 +105,7 @@ private:
 
     std::unique_ptr<Shader>					shaders[static_cast<int>(ShaderId::EnumCount)];
     std::unique_ptr<OutlineShader>          m_outlineShader;
+    std::unique_ptr<ShadowCasterShader>     m_shadowCasterShader{};
     std::vector<DrawInfo>					drawInfos;
     std::vector<TransparencyDrawInfo>		transparencyDrawInfos;
 

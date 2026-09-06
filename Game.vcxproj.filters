@@ -85,6 +85,9 @@
     <FxCompile Include="Shader\Skybox_PS.hlsl">
       <Filter>Shader</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\ShadowCasterVS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Source\System\BasicShader.cpp">
@@ -338,6 +341,9 @@
     </ClCompile>
     <ClCompile Include="Source\Engine\Skybox\SkyboxRenderer.cpp">
       <Filter>Source\Engine\Skybox</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\System\ShadowCasterShader.cpp">
+      <Filter>System</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -656,6 +662,9 @@
     </ClInclude>
     <ClInclude Include="Source\Engine\Skybox\SkyboxRenderer.h">
       <Filter>Source\Engine\Skybox</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\System\ShadowCasterShader.h">
+      <Filter>System</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

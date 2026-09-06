@@ -33,6 +33,8 @@ public:
     const DirectX::XMFLOAT4X4& GetProjection() const { return projection; }
     [[nodiscard]] float GetNearZ() const noexcept { return nearZ; }
     [[nodiscard]] float GetFarZ() const noexcept { return farZ; }
+    [[nodiscard]] float GetFovY() const noexcept { return fovY; }
+    [[nodiscard]] float GetAspectRatio() const noexcept { return projection._22 / projection._11; }
 
     // Helpers 
     DirectX::XMFLOAT3 GetFocus() const;

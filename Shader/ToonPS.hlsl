@@ -68,7 +68,10 @@ float4 main(VS_OUT pin) : SV_TARGET
 
     // Directional Light
     float3 dirL = normalize(-lightDirection.xyz);
-    totalDirectLight += CalculateToonLight(dirL, N, V, lightColor.rgb, albedo);
+    float shadowAtten = CalculateCascadeShadow(pin.position, N, dirL); // Evaluate shadow
+    
+    // Multiply the light color by shadow attenuation before calculating toon banding
+    totalDirectLight += CalculateToonLight(dirL, N, V, lightColor.rgb * shadowAtten, albedo);
 
     // Point Lights
     for (int i = 0; i < lightCounts.x; ++i)

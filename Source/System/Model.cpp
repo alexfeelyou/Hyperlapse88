@@ -323,6 +323,7 @@ Model::Model(ID3D11Device* device, const char* filename, float sampleRate)
 	DirectX::XMFLOAT4X4 worldTransform;
 	DirectX::XMStoreFloat4x4(&worldTransform, DirectX::XMMatrixIdentity());
 	UpdateTransform(worldTransform);
+	ComputeBounds();
 }
 
 // アニメーション追加読み込み
@@ -370,6 +371,82 @@ int Model::GetNodeIndex(const char* name) const
 		}
 	}
 	return -1;
+}
+
+// バウンディング情報計算
+void Model::ComputeBounds() noexcept
+{
+	DirectX::XMFLOAT3 minModel{ FLT_MAX, FLT_MAX, FLT_MAX };
+	DirectX::XMFLOAT3 maxModel{ -FLT_MAX, -FLT_MAX, -FLT_MAX };
+
+	for (Mesh& mesh : meshes)
+	{
+		if (mesh.vertices.empty()) continue;
+
+		DirectX::XMFLOAT3 minMesh{ FLT_MAX, FLT_MAX, FLT_MAX };
+		DirectX::XMFLOAT3 maxMesh{ -FLT_MAX, -FLT_MAX, -FLT_MAX };
+
+		for (const auto& v : mesh.vertices)
+		{
+			minMesh.x = (std::min)(minMesh.x, v.position.x);
+			minMesh.y = (std::min)(minMesh.y, v.position.y);
+			minMesh.z = (std::min)(minMesh.z, v.position.z);
+
+			maxMesh.x = (std::max)(maxMesh.x, v.position.x);
+			maxMesh.y = (std::max)(maxMesh.y, v.position.y);
+			maxMesh.z = (std::max)(maxMesh.z, v.position.z);
+		}
+
+		mesh.boundsCenter = {
+			(minMesh.x + maxMesh.x) * 0.5f,
+			(minMesh.y + maxMesh.y) * 0.5f,
+			(minMesh.z + maxMesh.z) * 0.5f
+		};
+
+		float maxDistSq = 0.0f;
+		for (const auto& v : mesh.vertices)
+		{
+			const float dx = v.position.x - mesh.boundsCenter.x;
+			const float dy = v.position.y - mesh.boundsCenter.y;
+			const float dz = v.position.z - mesh.boundsCenter.z;
+			maxDistSq = (std::max)(maxDistSq, dx * dx + dy * dy + dz * dz);
+		}
+		mesh.boundsRadius = std::sqrt(maxDistSq);
+
+		// Skinned mesh animation safety margin (prevents limbs from clipping outside bounds)
+		if (!mesh.bones.empty())
+		{
+			mesh.boundsRadius *= 1.4f;
+		}
+
+		minModel.x = (std::min)(minModel.x, minMesh.x);
+		minModel.y = (std::min)(minModel.y, minMesh.y);
+		minModel.z = (std::min)(minModel.z, minMesh.z);
+
+		maxModel.x = (std::max)(maxModel.x, maxMesh.x);
+		maxModel.y = (std::max)(maxModel.y, maxMesh.y);
+		maxModel.z = (std::max)(maxModel.z, maxMesh.z);
+	}
+
+	m_boundsCenter = {
+		(minModel.x + maxModel.x) * 0.5f,
+		(minModel.y + maxModel.y) * 0.5f,
+		(minModel.z + maxModel.z) * 0.5f
+	};
+
+	float maxModelDistSq = 0.0f;
+	for (const Mesh& mesh : meshes)
+	{
+		for (const auto& v : mesh.vertices)
+		{
+			const float dx = v.position.x - m_boundsCenter.x;
+			const float dy = v.position.y - m_boundsCenter.y;
+			const float dz = v.position.z - m_boundsCenter.z;
+			maxModelDistSq = (std::max)(maxModelDistSq, dx * dx + dy * dy + dz * dz);
+		}
+	}
+	m_boundsRadius = std::sqrt(maxModelDistSq);
+	if (m_boundsRadius <= 0.0f) m_boundsRadius = 1.0f;
 }
 
 // トランスフォーム更新処理
@@ -556,6 +633,7 @@ void Model::Deserialize(const char* filename)
 				CEREAL_NVP(meshes),
 				CEREAL_NVP(animations)
 			);
+			ComputeBounds();
 		}
 		catch (...)
 		{
