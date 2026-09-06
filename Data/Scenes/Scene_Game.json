@@ -1,0 +1,240 @@
+{
+    "EnvironmentIllumination": {
+        "GroundColor": [
+            0.20000000298023224,
+            0.20000000298023224,
+            0.20000000298023224
+        ],
+        "GroundIntensity": 0.5,
+        "SkyColor": [
+            0.6000000238418579,
+            0.6000000238418579,
+            0.6499999761581421
+        ],
+        "SkyIntensity": 0.5,
+        "SkyboxPaths": [
+            "",
+            "",
+            "",
+            "",
+            "",
+            ""
+        ]
+    },
+    "SceneObjects": [
+        {
+            "Children": [],
+            "Components": [
+                {
+                    "Type": "LegacyCharacterComponent"
+                }
+            ],
+            "IsActive": true,
+            "Name": "Player",
+            "PosX": 0.0,
+            "PosY": 0.0,
+            "PosZ": 0.0,
+            "RotX": 0.0,
+            "RotY": 180.0,
+            "RotZ": 0.0,
+            "ScaleX": 1.0,
+            "ScaleY": 1.0,
+            "ScaleZ": 1.0
+        },
+        {
+            "Children": [],
+            "Components": [
+                {
+                    "Color": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Materials": [
+                        {
+                            "AlphaCutoff": 0.5,
+                            "AlphaMode": 0,
+                            "BaseColor": [
+                                0.48627451062202454,
+                                0.6825383901596069,
+                                0.7843137383460999,
+                                1.0
+                            ],
+                            "Emissive": [
+                                0.0,
+                                0.0,
+                                0.0
+                            ],
+                            "EnableOutline": true,
+                            "Metalness": 0.20000000298023224,
+                            "Name": "Blue_Mat",
+                            "OutlineColor": [
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                1.0
+                            ],
+                            "OutlineFadeEnd": 28.0,
+                            "OutlineFadeStart": 12.0,
+                            "OutlineWidth": 0.014999999664723873,
+                            "Roughness": 0.10000000149011612,
+                            "ShaderId": 2,
+                            "TexBase": "",
+                            "TexNormal": ""
+                        },
+                        {
+                            "AlphaCutoff": 0.5,
+                            "AlphaMode": 0,
+                            "BaseColor": [
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0
+                            ],
+                            "Emissive": [
+                                0.0,
+                                0.0,
+                                0.0
+                            ],
+                            "EnableOutline": true,
+                            "Metalness": 0.20000000298023224,
+                            "Name": "GridWhite_01_Mat",
+                            "OutlineColor": [
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                1.0
+                            ],
+                            "OutlineFadeEnd": 28.0,
+                            "OutlineFadeStart": 12.0,
+                            "OutlineWidth": 0.014999999664723873,
+                            "Roughness": 0.10000000149011612,
+                            "ShaderId": 2,
+                            "TexBase": "",
+                            "TexNormal": ""
+                        },
+                        {
+                            "AlphaCutoff": 0.5,
+                            "AlphaMode": 0,
+                            "BaseColor": [
+                                0.30000001192092896,
+                                0.6000000238418579,
+                                0.8999999761581421,
+                                1.0
+                            ],
+                            "Emissive": [
+                                0.0,
+                                0.0,
+                                0.0
+                            ],
+                            "EnableOutline": true,
+                            "Metalness": 0.20000000298023224,
+                            "Name": "GridBlue_01_Mat",
+                            "OutlineColor": [
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                1.0
+                            ],
+                            "OutlineFadeEnd": 28.0,
+                            "OutlineFadeStart": 12.0,
+                            "OutlineWidth": 0.014999999664723873,
+                            "Roughness": 0.10000000149011612,
+                            "ShaderId": 2,
+                            "TexBase": "",
+                            "TexNormal": ""
+                        },
+                        {
+                            "AlphaCutoff": 0.5,
+                            "AlphaMode": 0,
+                            "BaseColor": [
+                                1.0,
+                                0.6000000238418579,
+                                0.0,
+                                1.0
+                            ],
+                            "Emissive": [
+                                0.0,
+                                0.0,
+                                0.0
+                            ],
+                            "EnableOutline": true,
+                            "Metalness": 0.20000000298023224,
+                            "Name": "GridOrange_01_Mat",
+                            "OutlineColor": [
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                1.0
+                            ],
+                            "OutlineFadeEnd": 28.0,
+                            "OutlineFadeStart": 12.0,
+                            "OutlineWidth": 0.014999999664723873,
+                            "Roughness": 0.800000011920929,
+                            "ShaderId": 2,
+                            "TexBase": "",
+                            "TexNormal": ""
+                        }
+                    ],
+                    "ModelPath": "C:\\Users\\2240823\\Documents\\School\\GameDev\\Hyperlapse 88\\Data\\Model\\Stage\\Greybox.glb",
+                    "Type": "MeshComponent"
+                },
+                {
+                    "Type": "StaticMeshColliderComponent"
+                }
+            ],
+            "IsActive": true,
+            "Name": "Stage",
+            "PosX": 0.0,
+            "PosY": 0.0,
+            "PosZ": 0.0,
+            "RotX": 0.0,
+            "RotY": 0.0,
+            "RotZ": 0.0,
+            "ScaleX": 0.8199999928474426,
+            "ScaleY": 0.8199999928474426,
+            "ScaleZ": 0.8199999928474426
+        },
+        {
+            "Children": [],
+            "Components": [
+                {
+                    "CastShadows": true,
+                    "Color": [
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Intensity": 1.0,
+                    "ShadowAttenuation": 0.5,
+                    "ShadowBias": [
+                        4.999999873689376e-05,
+                        9.999999747378752e-05,
+                        0.0005000000237487257,
+                        0.0010000000474974513
+                    ],
+                    "SplitDistances": [
+                        0.10000000149011612,
+                        25.0,
+                        100.0,
+                        250.0,
+                        500.0
+                    ],
+                    "Type": "DirectionalLightComponent"
+                }
+            ],
+            "IsActive": true,
+            "Name": "Directional_Light",
+            "PosX": 0.0,
+            "PosY": 0.0,
+            "PosZ": 0.0,
+            "RotX": 20.0,
+            "RotY": -45.0,
+            "RotZ": 0.0,
+            "ScaleX": 1.0,
+            "ScaleY": 1.0,
+            "ScaleZ": 1.0
+        }
+    ]
+}
