@@ -3,6 +3,7 @@
 #include "System/Graphics.h"
 #include "ComponentRegistry.h"
 #include "MeshComponent.h"
+#include "StaticMeshColliderComponent.h"
 
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -112,11 +113,16 @@ void MeshComponent::DrawInspector()
         const std::string newPath{ OpenFileDialog() };
         if (!newPath.empty())
         {
-            // Use the AssetManager to load (or fetch cached) model
             auto* device{ Graphics::Instance().GetDevice() };
             if (auto newModel{ Engine::System::AssetManager::Instance().GetOrLoadModel(device, newPath) })
             {
                 SetModel(std::move(newModel), newPath);
+                
+                // AUTOMATION: Tell the collider to shape itself to the new model
+                if (auto* smc = m_owner->GetComponent<StaticMeshColliderComponent>())
+                {
+                    smc->AutoFitToMesh();
+                }
             }
         }
     }

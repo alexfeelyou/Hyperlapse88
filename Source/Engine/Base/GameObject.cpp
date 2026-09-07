@@ -67,8 +67,22 @@ void GameObject::Render(ModelRenderer* renderer)
 
 void GameObject::DrawInspector()
 {
+    // Capture the previous active state before ImGui modifies it
+    const bool prevActive = m_isActive;
+
     // Unity-style Header: [X] Checkbox  [ Name Input ]
     ImGui::Checkbox("##Active", &m_isActive);
+
+    // Dispatch lifecycle events the exact frame the box is clicked
+    if (prevActive != m_isActive)
+    {
+        for (const auto& comp : m_components)
+        {
+            if (m_isActive) comp->OnEnable();
+            else comp->OnDisable();
+        }
+    }
+
     ImGui::SameLine();
 
     static char s_nameBuffer[128];
@@ -112,7 +126,7 @@ void GameObject::DrawInspector()
     const float availWidth{ ImGui::GetContentRegionAvail().x };
     ImGui::SetCursorPosX((availWidth * 0.5f) - (buttonWidth * 0.5f));
 
-    if (ImGui::Button("+ Add Component", ImVec2{ buttonWidth, 26.0f }))
+    if (ImGui::Button("+ Add Component", ImVec2{ buttonWidth, 30.0f }))
     {
         ImGui::OpenPopup("AddComponentPopup");
     }

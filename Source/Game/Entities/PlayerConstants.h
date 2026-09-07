@@ -16,10 +16,10 @@ namespace PlayerConst
     inline constexpr float Gravity = -9.81f; // Applied per-frame via PhysX
 
     // --- Capsule (PhysX controller descriptor) ---
-    inline constexpr float CapsuleHeight = 2.0f;
+    inline constexpr float CapsuleHeight = 0.7f;
     inline constexpr float CapsuleRadius = 0.5f;
-    inline constexpr float CapsuleStep = 0.5f;
-    inline constexpr float CapsuleHalfHeight = 1.5f;  // Subtracted from PxPos.y to get feet pos
+    inline constexpr float CapsuleStep = 0.3f;
+    inline constexpr float CapsuleHalfHeight = 1.0f;  // Subtracted from PxPos.y to get feet pos
     inline constexpr float PhysXMinDist = 0.001f; // move() minDist parameter
 
     // --- Dash ---

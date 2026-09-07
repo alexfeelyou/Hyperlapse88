@@ -39,6 +39,11 @@ public:
 		float length,
 		const DirectX::XMFLOAT4& color);
 
+	// ê¸ï`âÊ
+	void DrawLine(const DirectX::XMFLOAT3& start, 
+		const DirectX::XMFLOAT3& end, 
+		const DirectX::XMFLOAT4& color);
+
 	// ï`âÊé¿çs
 	void Render(
 		ID3D11DeviceContext* dc,

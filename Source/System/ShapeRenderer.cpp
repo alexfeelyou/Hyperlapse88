@@ -80,48 +80,56 @@ void ShapeRenderer::DrawSphere(
 }
 
 // ÉJÉvÉZÉãï`âÊ
-void ShapeRenderer::DrawCapsule(
-	const DirectX::XMFLOAT4X4& transform,
-	float radius,
-	float height,
-	const DirectX::XMFLOAT4& color)
+void ShapeRenderer::DrawCapsule(const DirectX::XMFLOAT4X4& transform, float radius, float height, const DirectX::XMFLOAT4& color)
 {
 	DirectX::XMMATRIX Transform = DirectX::XMLoadFloat4x4(&transform);
 
-	// è„îºãÖ
+	// Extract pure Rotation and Scale to prevent shearing
+	DirectX::XMMATRIX RotScale = Transform;
+	RotScale.r[3] = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
+
+	// Top Hemisphere
 	{
 		Instance& instance = instances.emplace_back();
 		instance.mesh = &halfSphereMesh;
-		DirectX::XMVECTOR Position = DirectX::XMVector3Transform(DirectX::XMVectorSet(0, height * 0.5f, 0, 0), Transform);
-		DirectX::XMMATRIX World = DirectX::XMMatrixScaling(radius, radius, radius);
+
+		DirectX::XMVECTOR Offset = DirectX::XMVectorSet(0.0f, height * 0.5f, 0.0f, 0.0f);
+		DirectX::XMVECTOR Position = DirectX::XMVectorAdd(Transform.r[3], DirectX::XMVector3TransformNormal(Offset, RotScale));
+
+		DirectX::XMMATRIX LocalScale = DirectX::XMMatrixScaling(radius, radius, radius);
+		DirectX::XMMATRIX World = LocalScale * RotScale;
 		World.r[3] = DirectX::XMVectorSetW(Position, 1.0f);
+
 		DirectX::XMStoreFloat4x4(&instance.worldTransform, World);
 		instance.color = color;
 	}
-	// â~íå
+
+	// Cylinder Body
 	{
 		Instance& instance = instances.emplace_back();
 		instance.mesh = &cylinderMesh;
-		DirectX::XMMATRIX World;
-		World.r[0] = DirectX::XMVectorScale(Transform.r[0], radius);
-		World.r[1] = DirectX::XMVectorScale(Transform.r[1], height);
-		World.r[2] = DirectX::XMVectorScale(Transform.r[2], radius);
+
+		DirectX::XMMATRIX LocalScale = DirectX::XMMatrixScaling(radius, height, radius);
+		DirectX::XMMATRIX World = LocalScale * RotScale;
 		World.r[3] = Transform.r[3];
+
 		DirectX::XMStoreFloat4x4(&instance.worldTransform, World);
 		instance.color = color;
 	}
-	// â∫îºãÖ
+
+	// Bottom Hemisphere
 	{
 		Instance& instance = instances.emplace_back();
 		instance.mesh = &halfSphereMesh;
-		DirectX::XMMATRIX World = DirectX::XMMatrixRotationX(DirectX::XM_PI);
-		DirectX::XMVECTOR Position = DirectX::XMVector3Transform(DirectX::XMVectorSet(0, -height * 0.5f, 0, 0), Transform);
-		Transform.r[3] = DirectX::XMVectorSet(0, 0, 0, 1);
-		World = DirectX::XMMatrixMultiply(World, Transform);
-		World.r[0] = DirectX::XMVectorScale(World.r[0], radius);
-		World.r[1] = DirectX::XMVectorScale(World.r[1], radius);
-		World.r[2] = DirectX::XMVectorScale(World.r[2], radius);
+
+		DirectX::XMVECTOR Offset = DirectX::XMVectorSet(0.0f, -height * 0.5f, 0.0f, 0.0f);
+		DirectX::XMVECTOR Position = DirectX::XMVectorAdd(Transform.r[3], DirectX::XMVector3TransformNormal(Offset, RotScale));
+
+		DirectX::XMMATRIX LocalRot = DirectX::XMMatrixRotationX(DirectX::XM_PI);
+		DirectX::XMMATRIX LocalScale = DirectX::XMMatrixScaling(radius, radius, radius);
+		DirectX::XMMATRIX World = LocalRot * LocalScale * RotScale;
 		World.r[3] = DirectX::XMVectorSetW(Position, 1.0f);
+
 		DirectX::XMStoreFloat4x4(&instance.worldTransform, World);
 		instance.color = color;
 	}
@@ -422,6 +430,33 @@ void ShapeRenderer::CreateBoneMesh(ID3D11Device* device, float length)
 
 	// ÉÅÉbÉVÉÖê∂ê¨
 	CreateMesh(device, vertices, boneMesh);
+}
+
+// ê¸ï`âÊ
+void ShapeRenderer::DrawLine(const DirectX::XMFLOAT3& start, const DirectX::XMFLOAT3& end, const DirectX::XMFLOAT4& color)
+{
+	// Draws a 3D line using a stretched box primitive.
+	DirectX::XMVECTOR vStart{ DirectX::XMLoadFloat3(&start) };
+	DirectX::XMVECTOR vEnd{ DirectX::XMLoadFloat3(&end) };
+	DirectX::XMVECTOR vDir{ DirectX::XMVectorSubtract(vEnd, vStart) };
+	DirectX::XMVECTOR vLen{ DirectX::XMVector3Length(vDir) };
+
+	const float length{ DirectX::XMVectorGetX(vLen) };
+	if (length < 0.0001f) return; // Prevent division by zero
+
+	vDir = DirectX::XMVectorScale(vDir, 1.0f / length);
+	DirectX::XMFLOAT3 dir{};
+	DirectX::XMStoreFloat3(&dir, vDir);
+
+	// Decompose direction into pitch and yaw
+	const float pitch{ asinf(-dir.y) };
+	const float yaw{ atan2f(dir.x, dir.z) };
+
+	DirectX::XMFLOAT3 mid{};
+	DirectX::XMStoreFloat3(&mid, DirectX::XMVectorScale(DirectX::XMVectorAdd(vStart, vEnd), 0.5f));
+
+	// Draw a box that is 0.01 units thick, scaled to exactly the distance between A and B
+	DrawBox(mid, { pitch, yaw, 0.0f }, { 0.01f, 0.01f, length * 0.5f }, color);
 }
 
 // ï`âÊé¿çs

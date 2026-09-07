@@ -18,6 +18,10 @@ public:
         m_owner = owner;
     }
 
+    // Lifecycle hooks for the Active Checkbox
+    virtual void OnEnable() noexcept {}
+    virtual void OnDisable() noexcept {}
+
     // Standard frame update. Left empty by default so derived classes 
     // only override it if they actually need to tick.
     virtual void Update(float dt) {}

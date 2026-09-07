@@ -4,6 +4,7 @@
 #include "Camera.h"
 #include "EditorManager.h"
 #include "LightComponent.h"
+#include "StaticMeshColliderComponent.h"
 
 namespace
 {
@@ -425,68 +426,121 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
         DirectX::XMFLOAT4X4 view{ activeCamera->GetView() };
         DirectX::XMFLOAT4X4 proj{ activeCamera->GetProjection() };
 
-        // Pass the true WORLD Matrix to ImGuizmo, so the Gizmo draws in the correct physical location
-        DirectX::XMFLOAT4X4 objectMatrix{ m_selectedObject->transform.GetWorldMatrix() };
+        DirectX::XMFLOAT4X4 targetMatrix{ m_selectedObject->transform.GetWorldMatrix() };
+
+        // Setup Phase: If editing a Component, offset the Gizmo to the Component's local space
+        auto* staticCollider{ dynamic_cast<StaticMeshColliderComponent*>(m_selectedComponent) };
+        if (staticCollider && m_selectedObject == staticCollider->GetOwner())
+        {
+            const auto& config{ staticCollider->GetConfig() };
+            const DirectX::XMMATRIX objWorld{ DirectX::XMLoadFloat4x4(&targetMatrix) };
+
+            const DirectX::XMMATRIX locRot{ DirectX::XMMatrixRotationRollPitchYaw(
+                DirectX::XMConvertToRadians(config.localRotation.x),
+                DirectX::XMConvertToRadians(config.localRotation.y),
+                DirectX::XMConvertToRadians(config.localRotation.z))
+            };
+            const DirectX::XMMATRIX locTrans{ DirectX::XMMatrixTranslation(config.localOffset.x, config.localOffset.y, config.localOffset.z) };
+
+            DirectX::XMStoreFloat4x4(&targetMatrix, locRot * locTrans * objWorld);
+        }
 
         ImGuizmo::SetOrthographic(false);
-        ImGuizmo::Manipulate(&view._11, &proj._11, m_gizmoOperation, m_gizmoMode, &objectMatrix._11);
+        ImGuizmo::Manipulate(&view._11, &proj._11, m_gizmoOperation, m_gizmoMode, &targetMatrix._11);
 
+        // Feedback Phase: If user dragged the Gizmo, save the mathematical delta
         if (ImGuizmo::IsUsing())
         {
-            DirectX::XMMATRIX matWorld = DirectX::XMLoadFloat4x4(&objectMatrix);
-            DirectX::XMMATRIX matLocal = matWorld;
+            DirectX::XMMATRIX matNewWorld{ DirectX::XMLoadFloat4x4(&targetMatrix) };
 
-            // If the object is a child, convert the modified World Matrix back into Local Space
-            if (m_selectedObject->transform.parent)
+            if (staticCollider && m_selectedObject == staticCollider->GetOwner())
             {
-                DirectX::XMFLOAT4X4 parentWorld = m_selectedObject->transform.parent->GetWorldMatrix();
-                DirectX::XMMATRIX pWorld = DirectX::XMLoadFloat4x4(&parentWorld);
+                // Extract new Component offset relative to the stationary GameObject
+                DirectX::XMFLOAT4X4 objFloat4x4{ m_selectedObject->transform.GetWorldMatrix() };
+                DirectX::XMMATRIX objWorld{ DirectX::XMLoadFloat4x4(&objFloat4x4) };
 
                 DirectX::XMVECTOR det;
-                DirectX::XMMATRIX pWorldInv = DirectX::XMMatrixInverse(&det, pWorld);
+                DirectX::XMMATRIX matLocalNew{ DirectX::XMMatrixMultiply(matNewWorld, DirectX::XMMatrixInverse(&det, objWorld)) };
 
-                // Mathematical conversion: Local_New = World_New * Inverse(ParentWorld)
-                matLocal = DirectX::XMMatrixMultiply(matWorld, pWorldInv);
+                DirectX::XMVECTOR vScale, vRotQuat, vTrans;
+                if (DirectX::XMMatrixDecompose(&vScale, &vRotQuat, &vTrans, matLocalNew))
+                {
+                    DirectX::XMStoreFloat3(&staticCollider->GetConfig().localOffset, vTrans);
+
+                    // Extract the Gizmo's scale delta and bake it directly into the Proxy Extents
+                    DirectX::XMFLOAT3 scaleDelta;
+                    DirectX::XMStoreFloat3(&scaleDelta, vScale);
+                    staticCollider->GetConfig().proxyExtents.x *= scaleDelta.x;
+                    staticCollider->GetConfig().proxyExtents.y *= scaleDelta.y;
+                    staticCollider->GetConfig().proxyExtents.z *= scaleDelta.z;
+
+                    const DirectX::XMFLOAT4X4 mRot{ [&]() {
+                        DirectX::XMFLOAT4X4 temp;
+                        DirectX::XMStoreFloat4x4(&temp, DirectX::XMMatrixRotationQuaternion(vRotQuat));
+                        return temp;
+                    }() };
+
+                    float pitch{ asinf(std::clamp(-mRot._32, -1.0f, 1.0f)) };
+                    float yaw, roll;
+                    if (cosf(pitch) > 0.0001f) {
+                        yaw = atan2f(mRot._31, mRot._33);
+                        roll = atan2f(mRot._12, mRot._22);
+                    }
+                    else {
+                        yaw = atan2f(-mRot._13, mRot._11);
+                        roll = 0.0f;
+                    }
+
+                    staticCollider->GetConfig().localRotation = {
+                        DirectX::XMConvertToDegrees(pitch),
+                        DirectX::XMConvertToDegrees(yaw),
+                        DirectX::XMConvertToDegrees(roll)
+                    };
+
+                    staticCollider->MarkDirty();
+                }
             }
-
-            // Decompose the local matrix and save it directly to the Transform struct
-            DirectX::XMVECTOR vScale, vRotQuat, vTrans;
-
-            if (DirectX::XMMatrixDecompose(&vScale, &vRotQuat, &vTrans, matLocal))
+            else
             {
-                DirectX::XMFLOAT3 newPos, newScale;
-                DirectX::XMStoreFloat3(&newPos, vTrans);
-                DirectX::XMStoreFloat3(&newScale, vScale);
-
-                // Convert Quaternion to a clean 3x3 Rotation Matrix to eliminate scale bias
-                DirectX::XMMATRIX rotMat = DirectX::XMMatrixRotationQuaternion(vRotQuat);
-                DirectX::XMFLOAT4X4 mRot;
-                DirectX::XMStoreFloat4x4(&mRot, rotMat);
-
-                // Extract Pitch (X), Yaw (Y), and Roll (Z) manually
-                float pitch = asinf(std::clamp(-mRot._32, -1.0f, 1.0f));
-                float yaw, roll;
-
-                // Gimbal Lock Protection
-                if (cosf(pitch) > 0.0001f)
+                // GameObject Transform Math
+                DirectX::XMMATRIX matLocal{ matNewWorld };
+                if (m_selectedObject->transform.parent)
                 {
-                    yaw = atan2f(mRot._31, mRot._33);
-                    roll = atan2f(mRot._12, mRot._22);
-                }
-                else
-                {
-                    yaw = atan2f(-mRot._13, mRot._11);
-                    roll = 0.0f;
+                    DirectX::XMFLOAT4X4 parentWorld{ m_selectedObject->transform.parent->GetWorldMatrix() };
+                    DirectX::XMMATRIX pWorld{ DirectX::XMLoadFloat4x4(&parentWorld) };
+                    DirectX::XMVECTOR det;
+                    matLocal = DirectX::XMMatrixMultiply(matNewWorld, DirectX::XMMatrixInverse(&det, pWorld));
                 }
 
-                // Write the updated Local coordinates
-                m_selectedObject->transform.position = newPos;
-                m_selectedObject->transform.rotation = {
-                    DirectX::XMConvertToDegrees(pitch),
-                    DirectX::XMConvertToDegrees(yaw),
-                    DirectX::XMConvertToDegrees(roll)
-                };
-                m_selectedObject->transform.scale = newScale;
+                DirectX::XMVECTOR vScale, vRotQuat, vTrans;
+                if (DirectX::XMMatrixDecompose(&vScale, &vRotQuat, &vTrans, matLocal))
+                {
+                    DirectX::XMStoreFloat3(&m_selectedObject->transform.position, vTrans);
+                    DirectX::XMStoreFloat3(&m_selectedObject->transform.scale, vScale);
+
+                    const DirectX::XMFLOAT4X4 mRot{ [&]() {
+                        DirectX::XMFLOAT4X4 temp;
+                        DirectX::XMStoreFloat4x4(&temp, DirectX::XMMatrixRotationQuaternion(vRotQuat));
+                        return temp;
+                    }() };
+
+                    float pitch{ asinf(std::clamp(-mRot._32, -1.0f, 1.0f)) };
+                    float yaw, roll;
+                    if (cosf(pitch) > 0.0001f) {
+                        yaw = atan2f(mRot._31, mRot._33);
+                        roll = atan2f(mRot._12, mRot._22);
+                    }
+                    else {
+                        yaw = atan2f(-mRot._13, mRot._11);
+                        roll = 0.0f;
+                    }
+
+                    m_selectedObject->transform.rotation = {
+                        DirectX::XMConvertToDegrees(pitch),
+                        DirectX::XMConvertToDegrees(yaw),
+                        DirectX::XMConvertToDegrees(roll)
+                    };
+                }
             }
         }
     }
@@ -575,6 +629,7 @@ void EditorManager::DrawHierarchyNode(GameObject* node) noexcept
     if (ImGui::IsItemClicked(ImGuiMouseButton_Left) && !ImGui::IsItemToggledOpen())
     {
         m_selectedObject = node;
+        m_selectedComponent = nullptr; 
     }
 
     // Right-Click Context Menu: Unity-style child creation and deletion
