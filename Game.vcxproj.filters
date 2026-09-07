@@ -666,6 +666,9 @@
     <ClInclude Include="Source\System\ShadowCasterShader.h">
       <Filter>System</Filter>
     </ClInclude>
+    <ClInclude Include="Source\System\CollisionLayer.h">
+      <Filter>System</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Shader\Basic.hlsli">

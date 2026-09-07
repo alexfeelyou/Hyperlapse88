@@ -188,6 +188,7 @@
     <ClInclude Include="Source\System\AssetManager.h" />
     <ClInclude Include="Source\System\AudioManager.h" />
     <ClInclude Include="Source\System\Collision.h" />
+    <ClInclude Include="Source\System\CollisionLayer.h" />
     <ClInclude Include="Source\System\CollisionManager.h" />
     <ClInclude Include="Source\System\BasicShader.h" />
     <ClInclude Include="Source\System\GamePad.h" />

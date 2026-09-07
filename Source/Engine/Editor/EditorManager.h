@@ -49,7 +49,15 @@ public:
     void EndSceneRender(ID3D11DeviceContext* context) noexcept;
 
     // Safely clears the active inspector target to prevent dangling pointers
-    void ClearSelection() noexcept { m_selectedObject = nullptr; }
+    void ClearSelection() noexcept {
+        m_selectedObject = nullptr;
+        m_selectedComponent = nullptr;
+    }
+
+	// Accessors for the currently selected GameObject and Component
+	[[nodiscard]] GameObject* GetSelectedObject() const noexcept { return m_selectedObject; }
+    [[nodiscard]] IComponent* GetSelectedComponent() const noexcept { return m_selectedComponent; }
+    void SetSelectedComponent(IComponent* comp) noexcept { m_selectedComponent = comp; }
 
     // State accessors for the Game loop to query
     [[nodiscard]] EditorMode GetEditorMode() const noexcept { return m_editorMode; }
@@ -72,6 +80,7 @@ private:
     void DrawMenuBar(Scene* currentScene) noexcept;
     void DrawHierarchyNode(GameObject* node) noexcept;
     GameObject* m_selectedObject{ nullptr }; // Tracks what the user clicked on
+	IComponent* m_selectedComponent{ nullptr }; // Tracks what the user clicked on
     void DrawHierarchy(Scene* currentScene) noexcept;
     void DrawInspector(Scene* currentScene) noexcept;
     void DrawConsole() const noexcept;
