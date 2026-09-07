@@ -84,6 +84,23 @@ RenderState::RenderState(ID3D11Device* device)
 			samplerStates[static_cast<int>(SamplerState::LinearClamp)].GetAddressOf());
 		_ASSERT_EXPR(SUCCEEDED(hr), HRTrace(hr));
 	}
+	// 異方性サンプリング＆テクスチャ繰り返しあり
+	{
+		D3D11_SAMPLER_DESC desc{};
+		desc.Filter = D3D11_FILTER_ANISOTROPIC;
+		desc.MaxAnisotropy = 16;
+		desc.MipLODBias = -0.5f; 
+		desc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+		desc.MinLOD = -D3D11_FLOAT32_MAX;
+		desc.MaxLOD = D3D11_FLOAT32_MAX;
+		desc.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+		desc.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+		desc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
+
+		const HRESULT hr{ device->CreateSamplerState(&desc,
+			samplerStates[static_cast<int>(SamplerState::AnisotropicWrap)].GetAddressOf()) };
+		_ASSERT_EXPR(SUCCEEDED(hr), HRTrace(hr));
+	}
 	// シャドウマップ用サンプラステート
 	{
 		D3D11_SAMPLER_DESC desc{};

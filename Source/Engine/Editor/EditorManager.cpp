@@ -326,53 +326,40 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
     constexpr ImVec2 buttonSize{ 34.0f, 22.0f };
     const float totalToolbarWidth{ (buttonSize.x * 3.0f) + (ImGui::GetStyle().ItemSpacing.x * 2.0f) };
 
-    // Center the buttons horizontally based on the Scene View's current width
     const float availWidth{ ImGui::GetContentRegionAvail().x };
     ImGui::SetCursorPosX((availWidth * 0.5f) - (totalToolbarWidth * 0.5f));
 
-    // Play Button
     if (DrawToolbarIconButton("##PlayBtn", ToolbarIcon::Play, m_editorMode == EditorMode::Play, ImVec4{ 0.2f, 0.7f, 0.2f, 1.0f }, buttonSize))
-    {
         SetEditorMode(EditorMode::Play);
-    }
-
     ImGui::SameLine();
-
-    // Pause Button
     if (DrawToolbarIconButton("##PauseBtn", ToolbarIcon::Pause, m_editorMode == EditorMode::Pause, ImVec4{ 0.7f, 0.7f, 0.2f, 1.0f }, buttonSize))
-    {
         SetEditorMode(EditorMode::Pause);
-    }
-
     ImGui::SameLine();
-
-    // Stop Button
     if (DrawToolbarIconButton("##StopBtn", ToolbarIcon::Stop, m_editorMode == EditorMode::Edit, ImVec4{ 0.7f, 0.2f, 0.2f, 1.0f }, buttonSize))
-    {
         SetEditorMode(EditorMode::Edit);
-    }
 
-	// Scene texture rendering 
     const auto* mainWindow{ WindowManager::Instance().GetWindowByIndex(0) };
     const float gameWidth{ mainWindow ? static_cast<float>(mainWindow->GetWidth()) : 1920.0f };
     const float gameHeight{ mainWindow ? static_cast<float>(mainWindow->GetHeight()) : 1080.0f };
 
-    if (m_sceneWidth != gameWidth || m_sceneHeight != gameHeight)
-    {
-        m_sceneWidth = gameWidth;
-        m_sceneHeight = gameHeight;
-        EnsureSceneRenderTarget(static_cast<UINT>(gameWidth), static_cast<UINT>(gameHeight));
-    }
-
     const ImVec2 availSize{ ImGui::GetContentRegionAvail() };
-
     if (availSize.x <= 0.0f || availSize.y <= 0.0f)
     {
         ImGui::End();
         return;
     }
 
-    const float targetAspect{ m_sceneWidth / m_sceneHeight };
+    // Lock the internal DirectX Render Target to the native game resolution (e.g. 1920x1080)
+    // This stops the UI and Camera projection from shrinking
+    if (m_sceneWidth != gameWidth || m_sceneHeight != gameHeight)
+    {
+        m_sceneWidth = gameWidth;
+        m_sceneHeight = gameHeight;
+        EnsureSceneRenderTarget(static_cast<UINT>(m_sceneWidth), static_cast<UINT>(m_sceneHeight));
+    }
+
+    // Calculate maximum letterboxed dimensions to fill the ImGui panel
+    const float targetAspect{ gameWidth / gameHeight };
     const float windowAspect{ availSize.x / availSize.y };
 
     ImVec2 renderSize{ availSize };
@@ -389,50 +376,50 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
         cursorOffset.y = (availSize.y - renderSize.y) * 0.5f;
     }
 
-    // Cache the exact screen coordinates before we shift the cursor to draw the image
-    ImVec2 screenCursorPos{ ImGui::GetCursorScreenPos() };
-    screenCursorPos.x += cursorOffset.x;
-    screenCursorPos.y += cursorOffset.y;
+    // Floor the dimensions to exact integers
+    renderSize.x = (std::max)(1.0f, std::floor(renderSize.x));
+    renderSize.y = (std::max)(1.0f, std::floor(renderSize.y));
+
+    // Shift cursor to draw the centered image
+    const ImVec2 screenCursorPos{ ImGui::GetCursorScreenPos() };
+    const ImVec2 centeredScreenPos{ screenCursorPos.x + cursorOffset.x, screenCursorPos.y + cursorOffset.y };
 
     const ImVec2 originalCursorPos{ ImGui::GetCursorPos() };
     ImGui::SetCursorPos(ImVec2{ originalCursorPos.x + cursorOffset.x, originalCursorPos.y + cursorOffset.y });
 
     if (m_sceneSRV)
     {
+        // Draw the native 1080p SRV scaled cleanly into the letterboxed dimensions
         ImGui::Image(reinterpret_cast<ImTextureID>(m_sceneSRV.Get()), renderSize);
     }
 
-
-	// Gizmo hotkeys (W, E, R) only work when the Scene View is focused or hovered
+    // Gizmo hotkeys
     if ((ImGui::IsWindowFocused() || ImGui::IsWindowHovered()) && !ImGui::IsMouseDown(ImGuiMouseButton_Right))
     {
-        // Standard Maya/Unity hotkeys
         if (ImGui::IsKeyPressed(ImGuiKey_W)) m_gizmoOperation = ImGuizmo::TRANSLATE;
         if (ImGui::IsKeyPressed(ImGuiKey_E)) m_gizmoOperation = ImGuizmo::ROTATE;
         if (ImGui::IsKeyPressed(ImGuiKey_R)) m_gizmoOperation = ImGuizmo::SCALE;
     }
 
-    // Gizmo Gating Pipeline
     const bool isPlayMode{ m_editorMode == EditorMode::Play };
     const bool hasSelection{ m_selectedObject != nullptr };
     const bool isNotRoot{ currentScene && (m_selectedObject != currentScene->GetRootGameObject()) };
 
-   // Only draw the manipulator if all architectural conditions are met
     if (activeCamera && hasSelection && isNotRoot && !isPlayMode)
     {
         ImGuizmo::SetDrawlist();
-        ImGuizmo::SetRect(screenCursorPos.x, screenCursorPos.y, renderSize.x, renderSize.y);
+        // Bind Gizmo rendering to the exact letterboxed coordinates so it aligns with your mouse perfectly
+        ImGuizmo::SetRect(centeredScreenPos.x, centeredScreenPos.y, renderSize.x, renderSize.y);
 
         DirectX::XMFLOAT4X4 view{ activeCamera->GetView() };
         DirectX::XMFLOAT4X4 proj{ activeCamera->GetProjection() };
-
         DirectX::XMFLOAT4X4 targetMatrix{ m_selectedObject->transform.GetWorldMatrix() };
 
-        // Setup Phase: If editing a Component, offset the Gizmo to the Component's local space
         auto* staticCollider{ dynamic_cast<StaticMeshColliderComponent*>(m_selectedComponent) };
+
         if (staticCollider && m_selectedObject == staticCollider->GetOwner())
         {
-            const auto& config{ staticCollider->GetConfig() };
+            auto& config{ staticCollider->GetConfig() };
             const DirectX::XMMATRIX objWorld{ DirectX::XMLoadFloat4x4(&targetMatrix) };
 
             const DirectX::XMMATRIX locRot{ DirectX::XMMatrixRotationRollPitchYaw(
@@ -448,14 +435,14 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
         ImGuizmo::SetOrthographic(false);
         ImGuizmo::Manipulate(&view._11, &proj._11, m_gizmoOperation, m_gizmoMode, &targetMatrix._11);
 
-        // Feedback Phase: If user dragged the Gizmo, save the mathematical delta
         if (ImGuizmo::IsUsing())
         {
             DirectX::XMMATRIX matNewWorld{ DirectX::XMLoadFloat4x4(&targetMatrix) };
 
             if (staticCollider && m_selectedObject == staticCollider->GetOwner())
             {
-                // Extract new Component offset relative to the stationary GameObject
+                auto& config{ staticCollider->GetConfig() };
+
                 DirectX::XMFLOAT4X4 objFloat4x4{ m_selectedObject->transform.GetWorldMatrix() };
                 DirectX::XMMATRIX objWorld{ DirectX::XMLoadFloat4x4(&objFloat4x4) };
 
@@ -465,14 +452,13 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
                 DirectX::XMVECTOR vScale, vRotQuat, vTrans;
                 if (DirectX::XMMatrixDecompose(&vScale, &vRotQuat, &vTrans, matLocalNew))
                 {
-                    DirectX::XMStoreFloat3(&staticCollider->GetConfig().localOffset, vTrans);
+                    DirectX::XMStoreFloat3(&config.localOffset, vTrans);
 
-                    // Extract the Gizmo's scale delta and bake it directly into the Proxy Extents
                     DirectX::XMFLOAT3 scaleDelta;
                     DirectX::XMStoreFloat3(&scaleDelta, vScale);
-                    staticCollider->GetConfig().proxyExtents.x *= scaleDelta.x;
-                    staticCollider->GetConfig().proxyExtents.y *= scaleDelta.y;
-                    staticCollider->GetConfig().proxyExtents.z *= scaleDelta.z;
+                    config.proxyExtents.x *= scaleDelta.x;
+                    config.proxyExtents.y *= scaleDelta.y;
+                    config.proxyExtents.z *= scaleDelta.z;
 
                     const DirectX::XMFLOAT4X4 mRot{ [&]() {
                         DirectX::XMFLOAT4X4 temp;
@@ -491,7 +477,7 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
                         roll = 0.0f;
                     }
 
-                    staticCollider->GetConfig().localRotation = {
+                    config.localRotation = {
                         DirectX::XMConvertToDegrees(pitch),
                         DirectX::XMConvertToDegrees(yaw),
                         DirectX::XMConvertToDegrees(roll)
@@ -502,7 +488,6 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
             }
             else
             {
-                // GameObject Transform Math
                 DirectX::XMMATRIX matLocal{ matNewWorld };
                 if (m_selectedObject->transform.parent)
                 {
