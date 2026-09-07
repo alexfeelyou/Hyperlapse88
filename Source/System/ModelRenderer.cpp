@@ -389,7 +389,7 @@ void ModelRenderer::Render(const RenderContext& rc)
     dc->PSSetConstantBuffers(2, 1, objectConstantBuffer.GetAddressOf());
 
     ID3D11SamplerState* samplerStates[] = {
-        rc.renderState->GetSamplerState(SamplerState::LinearWrap)
+        rc.renderState->GetSamplerState(SamplerState::AnisotropicWrap)
     };
     dc->PSSetSamplers(0, _countof(samplerStates), samplerStates);
 

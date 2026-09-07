@@ -1,72 +1,53 @@
 #include <filesystem>
+#include <fstream>
+#include <vector>
 #include <wrl.h>
 #include <DirectXTex.h>
 #include "Misc.h"
 #include "GpuResourceUtils.h"
 
+namespace
+{
+	// Centralized, safe file reading leveraging RAII
+	[[nodiscard]] std::vector<uint8_t> ReadFileToBuffer(std::string_view filename)
+	{
+		std::ifstream file{ filename.data(), std::ios::binary | std::ios::ate };
+		_ASSERT_EXPR_A(file.is_open(), "Shader File not found");
+
+		const std::streamsize size{ file.tellg() };
+		file.seekg(0, std::ios::beg);
+
+		std::vector<uint8_t> buffer(static_cast<std::size_t>(size));
+		file.read(reinterpret_cast<char*>(buffer.data()), size);
+		return buffer;
+	}
+}
+
 // 頂点シェーダー読み込み
 HRESULT GpuResourceUtils::LoadVertexShader(
-	ID3D11Device* device,
-	const char* filename,
-	const D3D11_INPUT_ELEMENT_DESC inputElementDescs[],
-	UINT inputElementCount,
-	ID3D11InputLayout** inputLayout,
-	ID3D11VertexShader** vertexShader)
+	ID3D11Device* device, const char* filename,
+	const D3D11_INPUT_ELEMENT_DESC inputElementDescs[], UINT inputElementCount,
+	ID3D11InputLayout** inputLayout, ID3D11VertexShader** vertexShader)
 {
-	// ファイルを開く
-	FILE* fp = nullptr;
-	fopen_s(&fp, filename, "rb");
-	_ASSERT_EXPR_A(fp, "Vertex Shader File not found");
+	const std::vector<uint8_t> data{ ReadFileToBuffer(filename) };
 
-	// ファイルのサイズを求める
-	fseek(fp, 0, SEEK_END);
-	long size = ftell(fp);
-	fseek(fp, 0, SEEK_SET);
-
-	// メモリ上に頂点シェーダーデータを格納する領域を用意する
-	std::unique_ptr<u_char[]> data = std::make_unique<u_char[]>(size);
-	fread(data.get(), size, 1, fp);
-	fclose(fp);
-
-	// 頂点シェーダー生成
-	HRESULT hr = device->CreateVertexShader(data.get(), size, nullptr, vertexShader);
+	HRESULT hr{ device->CreateVertexShader(data.data(), data.size(), nullptr, vertexShader) };
 	_ASSERT_EXPR(SUCCEEDED(hr), HRTrace(hr));
 
-	// 入力レイアウト
-	if (inputLayout != nullptr)
+	if (inputLayout)
 	{
-		hr = device->CreateInputLayout(inputElementDescs, inputElementCount, data.get(), size, inputLayout);
+		hr = device->CreateInputLayout(inputElementDescs, inputElementCount, data.data(), data.size(), inputLayout);
 		_ASSERT_EXPR(SUCCEEDED(hr), HRTrace(hr));
 	}
-
 	return hr;
 }
 
 // ピクセルシェーダー読み込み
-HRESULT GpuResourceUtils::LoadPixelShader(
-	ID3D11Device* device,
-	const char* filename,
-	ID3D11PixelShader** pixelShader)
+HRESULT GpuResourceUtils::LoadPixelShader(ID3D11Device* device, const char* filename, ID3D11PixelShader** pixelShader)
 {
-	// ファイルを開く
-	FILE* fp = nullptr;
-	fopen_s(&fp, filename, "rb");
-	_ASSERT_EXPR_A(fp, "Pixel Shader File not found");
-
-	// ファイルのサイズを求める
-	fseek(fp, 0, SEEK_END);
-	long size = ftell(fp);
-	fseek(fp, 0, SEEK_SET);
-
-	// メモリ上に頂点シェーダーデータを格納する領域を用意する
-	std::unique_ptr<u_char[]> data = std::make_unique<u_char[]>(size);
-	fread(data.get(), size, 1, fp);
-	fclose(fp);
-
-	// ピクセルシェーダー生成
-	HRESULT hr = device->CreatePixelShader(data.get(), size, nullptr, pixelShader);
+	const std::vector<uint8_t> data{ ReadFileToBuffer(filename) };
+	const HRESULT hr{ device->CreatePixelShader(data.data(), data.size(), nullptr, pixelShader) };
 	_ASSERT_EXPR(SUCCEEDED(hr), HRTrace(hr));
-
 	return hr;
 }
 
@@ -120,6 +101,19 @@ HRESULT GpuResourceUtils::LoadTexture(
 
 		hr = DirectX::LoadFromWICFile(wfilename.c_str(), DirectX::WIC_FLAGS_NONE, &metadata, scratch_image);
 		_ASSERT_EXPR(SUCCEEDED(hr), HRTrace(hr));
+	}
+
+	if (metadata.mipLevels == 1)
+	{
+		DirectX::ScratchImage mipChain;
+		// Generate a full mipmap chain using box filtering
+		hr = DirectX::GenerateMipMaps(scratch_image.GetImages(), scratch_image.GetImageCount(),
+			scratch_image.GetMetadata(), DirectX::TEX_FILTER_DEFAULT, 0, mipChain);
+		if (SUCCEEDED(hr))
+		{
+			scratch_image = std::move(mipChain);
+			metadata = scratch_image.GetMetadata();
+		}
 	}
 
 	// シェーダーリソースビュー作成
@@ -191,6 +185,19 @@ HRESULT GpuResourceUtils::LoadTexture(
 	if (FAILED(hr))
 	{
 		return hr;
+	}
+
+	if (metadata.mipLevels == 1)
+	{
+		DirectX::ScratchImage mipChain;
+		// Generate a full mipmap chain using box filtering
+		hr = DirectX::GenerateMipMaps(scratch_image.GetImages(), scratch_image.GetImageCount(),
+			scratch_image.GetMetadata(), DirectX::TEX_FILTER_DEFAULT, 0, mipChain);
+		if (SUCCEEDED(hr))
+		{
+			scratch_image = std::move(mipChain);
+			metadata = scratch_image.GetMetadata();
+		}
 	}
 
 	// シェーダーリソースビュー作成

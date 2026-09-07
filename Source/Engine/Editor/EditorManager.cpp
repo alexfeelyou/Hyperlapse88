@@ -22,6 +22,11 @@ namespace
     inline constexpr const char* s_windowConsole{ "Console" };
     inline constexpr const char* s_windowProfiler{ "Profiler" };
     inline constexpr const char* s_windowPostProcess{ "Post-Processing" };
+
+    // Tracks the fullscreen and docking restoration state of the Scene View tab
+    static bool s_isSceneMaximized{ false };
+    static ImGuiID s_previousDockId{ 0 };
+    static bool s_restoreDock{ false };
 }
 
 namespace
@@ -30,7 +35,8 @@ namespace
     {
         Play = 0,
         Pause,
-        Stop
+        Stop,
+        Maximize
     };
 
     [[nodiscard]] bool DrawToolbarIconButton(
@@ -85,19 +91,15 @@ namespace
             constexpr float barGap{ 1.5f };
             constexpr float rounding{ 0.5f };
 
-            // Left bar
             drawList->AddRectFilled(
                 ImVec2{ center.x - barGap - barWidth, center.y - barHalfHeight },
                 ImVec2{ center.x - barGap,            center.y + barHalfHeight },
-                iconColor,
-                rounding
+                iconColor, rounding
             );
-            // Right bar
             drawList->AddRectFilled(
                 ImVec2{ center.x + barGap,            center.y - barHalfHeight },
                 ImVec2{ center.x + barGap + barWidth, center.y + barHalfHeight },
-                iconColor,
-                rounding
+                iconColor, rounding
             );
             break;
         }
@@ -108,9 +110,29 @@ namespace
             drawList->AddRectFilled(
                 ImVec2{ center.x - halfSize, center.y - halfSize },
                 ImVec2{ center.x + halfSize, center.y + halfSize },
-                iconColor,
-                rounding
+                iconColor, rounding
             );
+            break;
+        }
+        case ToolbarIcon::Maximize:
+        {
+            constexpr float halfSize{ 4.5f };
+            constexpr float rounding{ 0.5f };
+            // Draw outer frame outline
+            drawList->AddRect(
+                ImVec2{ center.x - halfSize, center.y - halfSize },
+                ImVec2{ center.x + halfSize, center.y + halfSize },
+                iconColor, rounding, 0, 1.5f
+            );
+            // Draw inner square when in "Restore" state
+            if (isActive)
+            {
+                drawList->AddRectFilled(
+                    ImVec2{ center.x - 2.0f, center.y - 2.0f },
+                    ImVec2{ center.x + 2.0f, center.y + 2.0f },
+                    iconColor, rounding
+                );
+            }
             break;
         }
         }
@@ -127,16 +149,15 @@ EditorManager& EditorManager::Instance() noexcept
 
 void EditorManager::Initialize() noexcept
 {
-    // EARLY OUT: The compiler optimizes this entire function away in Release mode
     if constexpr (!s_isDebugMode) return;
 
     ImGuiIO& io{ ImGui::GetIO() };
     io.ConfigFlags |= ImGuiConfigFlags_DockingEnable;
 
-    ApplyStyle(); // Apply the custom theme
+    ApplyStyle();
 }
 
-void EditorManager::Draw(Scene* currentScene, Camera* activeCamera) noexcept 
+void EditorManager::Draw(Scene* currentScene, Camera* activeCamera) noexcept
 {
     if constexpr (!s_isDebugMode) return;
 
@@ -154,52 +175,37 @@ void EditorManager::Draw(Scene* currentScene, Camera* activeCamera) noexcept
 
 void EditorManager::ApplyStyle() const noexcept
 {
-    // Retrieve the global ImGui style instance and its color array
     ImGuiStyle& style{ ImGui::GetStyle() };
     ImVec4* colors{ style.Colors };
 
-    // Establish a baseline dark theme
     ImGui::StyleColorsDark();
 
-    // Define the core color palette
-    const ImVec4 deepNavyBg{ 0.0f, 0.043f, 0.118f, 1.00f };         // Base editor background
-    const ImVec4 activeTabBg{ 0.929f, 0.094f, 0.541f, 1.00f };      // Active contexts
-    const ImVec4 hoverTabBg{ 0.309f, 0.043f, 0.117f, 1.00f };       // Highlight
-    const ImVec4 darkTitleBg{ 0.04f, 0.05f, 0.08f, 1.00f };         // Unfocused/header areas
+    const ImVec4 deepNavyBg{ 0.0f, 0.043f, 0.118f, 1.00f };
+    const ImVec4 activeTabBg{ 0.929f, 0.094f, 0.541f, 1.00f };
+    const ImVec4 hoverTabBg{ 0.309f, 0.043f, 0.117f, 1.00f };
+    const ImVec4 darkTitleBg{ 0.04f, 0.05f, 0.08f, 1.00f };
 
-    // Customize Window and Child backgrounds
-    colors[ImGuiCol_WindowBg]   = deepNavyBg;
-    colors[ImGuiCol_ChildBg]    = deepNavyBg;
-
-    // Customize Tabs (Normal, Hovered, Active, and Unfocused)
-    colors[ImGuiCol_Tab]                = hoverTabBg;
-    colors[ImGuiCol_TabHovered]         = activeTabBg;
-    colors[ImGuiCol_TabActive]          = activeTabBg;
-    colors[ImGuiCol_TabUnfocused]       = darkTitleBg;
+    colors[ImGuiCol_WindowBg] = deepNavyBg;
+    colors[ImGuiCol_ChildBg] = deepNavyBg;
+    colors[ImGuiCol_Tab] = hoverTabBg;
+    colors[ImGuiCol_TabHovered] = activeTabBg;
+    colors[ImGuiCol_TabActive] = activeTabBg;
+    colors[ImGuiCol_TabUnfocused] = darkTitleBg;
     colors[ImGuiCol_TabUnfocusedActive] = hoverTabBg;
-    colors[ImGuiCol_TabSelectedOverline]= activeTabBg;
+    colors[ImGuiCol_TabSelectedOverline] = activeTabBg;
+    colors[ImGuiCol_TitleBg] = deepNavyBg;
+    colors[ImGuiCol_TitleBgActive] = deepNavyBg;
+    colors[ImGuiCol_TitleBgCollapsed] = darkTitleBg;
+    colors[ImGuiCol_MenuBarBg] = darkTitleBg;
+    colors[ImGuiCol_Header] = hoverTabBg;
+    colors[ImGuiCol_HeaderHovered] = hoverTabBg;
+    colors[ImGuiCol_HeaderActive] = hoverTabBg;
+    colors[ImGuiCol_Border] = hoverTabBg;
+    colors[ImGuiCol_ResizeGripHovered] = activeTabBg;
+    colors[ImGuiCol_ResizeGripActive] = activeTabBg;
+    colors[ImGuiCol_DockingPreview] = ImVec4{ activeTabBg.x, activeTabBg.y, activeTabBg.z, 0.40f };
+    colors[ImGuiCol_DockingEmptyBg] = deepNavyBg;
 
-    // Customize Title Bars
-    colors[ImGuiCol_TitleBg]            = deepNavyBg;
-    colors[ImGuiCol_TitleBgActive]      = deepNavyBg;
-    colors[ImGuiCol_TitleBgCollapsed]   = darkTitleBg;
-
-    // Customize Menu Bar and Menu Item Header colors
-    colors[ImGuiCol_MenuBarBg]          = darkTitleBg;
-    colors[ImGuiCol_Header]             = hoverTabBg;
-    colors[ImGuiCol_HeaderHovered]      = hoverTabBg;
-    colors[ImGuiCol_HeaderActive]       = hoverTabBg;
-
-    // Customize Dock splitters and window resize separators
-    colors[ImGuiCol_Border]             = hoverTabBg;
-    colors[ImGuiCol_ResizeGripHovered]  = activeTabBg;
-    colors[ImGuiCol_ResizeGripActive]   = activeTabBg;
-
-    // Docking Overlays
-    colors[ImGuiCol_DockingPreview]     = ImVec4{ activeTabBg.x, activeTabBg.y, activeTabBg.z, 0.40f };
-    colors[ImGuiCol_DockingEmptyBg]     = deepNavyBg;
-
-    // Adjust rounding settings
     style.WindowRounding = 4.0f;
     style.FrameRounding = 4.0f;
     style.TabRounding = 2.0f;
@@ -223,7 +229,6 @@ void EditorManager::DrawDockSpace(Scene* currentScene) noexcept
     ImGui::Begin("EditorDockSpace", nullptr, windowFlags);
     ImGui::PopStyleVar(3);
 
-    // Pass the scene into the Menu Bar
     DrawMenuBar(currentScene);
 
     const ImGuiID dockspaceId{ ImGui::GetID("MainDockSpace") };
@@ -232,18 +237,15 @@ void EditorManager::DrawDockSpace(Scene* currentScene) noexcept
     if (s_firstTime)
     {
         s_firstTime = false;
-
         ImGui::DockBuilderRemoveNode(dockspaceId);
         ImGui::DockBuilderAddNode(dockspaceId, ImGuiDockNodeFlags_DockSpace | ImGuiDockNodeFlags_PassthruCentralNode);
         ImGui::DockBuilderSetNodeSize(dockspaceId, viewport->WorkSize);
 
-        // Split the nodes based on screen percentages
         ImGuiID dockMain{ dockspaceId };
         const ImGuiID dockLeft{ ImGui::DockBuilderSplitNode(dockMain, ImGuiDir_Left, 0.20f, nullptr, &dockMain) };
         const ImGuiID dockRight{ ImGui::DockBuilderSplitNode(dockMain, ImGuiDir_Right, 0.25f, nullptr, &dockMain) };
         const ImGuiID dockBottom{ ImGui::DockBuilderSplitNode(dockMain, ImGuiDir_Down, 0.29f, nullptr, &dockMain) };
 
-        // Snap the permanent windows to their assigned docks
         ImGui::DockBuilderDockWindow(s_windowSceneView, dockMain);
         ImGui::DockBuilderDockWindow(s_windowHierarchy, dockLeft);
         ImGui::DockBuilderDockWindow(s_windowInspector, dockRight);
@@ -267,7 +269,6 @@ void EditorManager::EnsureSceneRenderTarget(UINT width, UINT height) noexcept
 
     auto device = Graphics::Instance().GetDevice();
 
-    // Release before recreating so DX frees the old memory first
     m_sceneRTV.Reset(); m_sceneSRV.Reset(); m_sceneTexture.Reset();
     m_sceneDSV.Reset(); m_depthTexture.Reset();
 
@@ -313,66 +314,75 @@ void EditorManager::EndSceneRender(ID3D11DeviceContext* context) noexcept
 
 void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noexcept
 {
-    constexpr ImGuiWindowFlags windowFlags{
-        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse
-    };
+    // Apply previously cached Docking ID to elegantly snap the window back to its place
+    if (s_restoreDock)
+    {
+        ImGui::SetNextWindowDockID(s_previousDockId, ImGuiCond_Always);
+        s_restoreDock = false;
+    }
+
+    // NoNavInputs blocks arrow keys from triggering ImGui focus highlighting while playing
+    ImGuiWindowFlags windowFlags{ ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoNavInputs };
+
+    if (s_isSceneMaximized)
+    {
+        const ImGuiViewport* viewport{ ImGui::GetMainViewport() };
+        ImGui::SetNextWindowPos(viewport->WorkPos);
+        ImGui::SetNextWindowSize(viewport->WorkSize);
+        ImGui::SetNextWindowViewport(viewport->ID);
+
+        windowFlags |= ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoDocking;
+
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+        ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ 0.0f, 0.0f });
+    }
 
     ImGui::Begin(s_windowSceneView, nullptr, windowFlags);
 
-    // Tell the camera if the mouse is currently inside this specific Scene View window
+    if (s_isSceneMaximized)
+    {
+        ImGui::PopStyleVar(3);
+    }
+
     CameraController::Instance().SetViewportHovered(ImGui::IsWindowHovered());
 
-    // Embedded scene toolbar
     constexpr ImVec2 buttonSize{ 34.0f, 22.0f };
     const float totalToolbarWidth{ (buttonSize.x * 3.0f) + (ImGui::GetStyle().ItemSpacing.x * 2.0f) };
 
-    // Center the buttons horizontally based on the Scene View's current width
+    if (s_isSceneMaximized) ImGui::SetCursorPosY(8.0f);
+
     const float availWidth{ ImGui::GetContentRegionAvail().x };
     ImGui::SetCursorPosX((availWidth * 0.5f) - (totalToolbarWidth * 0.5f));
 
-    // Play Button
     if (DrawToolbarIconButton("##PlayBtn", ToolbarIcon::Play, m_editorMode == EditorMode::Play, ImVec4{ 0.2f, 0.7f, 0.2f, 1.0f }, buttonSize))
-    {
         SetEditorMode(EditorMode::Play);
-    }
-
     ImGui::SameLine();
-
-    // Pause Button
     if (DrawToolbarIconButton("##PauseBtn", ToolbarIcon::Pause, m_editorMode == EditorMode::Pause, ImVec4{ 0.7f, 0.7f, 0.2f, 1.0f }, buttonSize))
-    {
         SetEditorMode(EditorMode::Pause);
-    }
-
     ImGui::SameLine();
-
-    // Stop Button
     if (DrawToolbarIconButton("##StopBtn", ToolbarIcon::Stop, m_editorMode == EditorMode::Edit, ImVec4{ 0.7f, 0.2f, 0.2f, 1.0f }, buttonSize))
-    {
         SetEditorMode(EditorMode::Edit);
-    }
 
-	// Scene texture rendering 
     const auto* mainWindow{ WindowManager::Instance().GetWindowByIndex(0) };
     const float gameWidth{ mainWindow ? static_cast<float>(mainWindow->GetWidth()) : 1920.0f };
     const float gameHeight{ mainWindow ? static_cast<float>(mainWindow->GetHeight()) : 1080.0f };
 
-    if (m_sceneWidth != gameWidth || m_sceneHeight != gameHeight)
-    {
-        m_sceneWidth = gameWidth;
-        m_sceneHeight = gameHeight;
-        EnsureSceneRenderTarget(static_cast<UINT>(gameWidth), static_cast<UINT>(gameHeight));
-    }
-
     const ImVec2 availSize{ ImGui::GetContentRegionAvail() };
-
     if (availSize.x <= 0.0f || availSize.y <= 0.0f)
     {
         ImGui::End();
         return;
     }
 
-    const float targetAspect{ m_sceneWidth / m_sceneHeight };
+    if (m_sceneWidth != gameWidth || m_sceneHeight != gameHeight)
+    {
+        m_sceneWidth = gameWidth;
+        m_sceneHeight = gameHeight;
+        EnsureSceneRenderTarget(static_cast<UINT>(m_sceneWidth), static_cast<UINT>(m_sceneHeight));
+    }
+
+    const float targetAspect{ gameWidth / gameHeight };
     const float windowAspect{ availSize.x / availSize.y };
 
     ImVec2 renderSize{ availSize };
@@ -389,10 +399,11 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
         cursorOffset.y = (availSize.y - renderSize.y) * 0.5f;
     }
 
-    // Cache the exact screen coordinates before we shift the cursor to draw the image
-    ImVec2 screenCursorPos{ ImGui::GetCursorScreenPos() };
-    screenCursorPos.x += cursorOffset.x;
-    screenCursorPos.y += cursorOffset.y;
+    renderSize.x = (std::max)(1.0f, std::floor(renderSize.x));
+    renderSize.y = (std::max)(1.0f, std::floor(renderSize.y));
+
+    const ImVec2 screenCursorPos{ ImGui::GetCursorScreenPos() };
+    const ImVec2 centeredScreenPos{ screenCursorPos.x + cursorOffset.x, screenCursorPos.y + cursorOffset.y };
 
     const ImVec2 originalCursorPos{ ImGui::GetCursorPos() };
     ImGui::SetCursorPos(ImVec2{ originalCursorPos.x + cursorOffset.x, originalCursorPos.y + cursorOffset.y });
@@ -402,37 +413,31 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
         ImGui::Image(reinterpret_cast<ImTextureID>(m_sceneSRV.Get()), renderSize);
     }
 
-
-	// Gizmo hotkeys (W, E, R) only work when the Scene View is focused or hovered
     if ((ImGui::IsWindowFocused() || ImGui::IsWindowHovered()) && !ImGui::IsMouseDown(ImGuiMouseButton_Right))
     {
-        // Standard Maya/Unity hotkeys
         if (ImGui::IsKeyPressed(ImGuiKey_W)) m_gizmoOperation = ImGuizmo::TRANSLATE;
         if (ImGui::IsKeyPressed(ImGuiKey_E)) m_gizmoOperation = ImGuizmo::ROTATE;
         if (ImGui::IsKeyPressed(ImGuiKey_R)) m_gizmoOperation = ImGuizmo::SCALE;
     }
 
-    // Gizmo Gating Pipeline
     const bool isPlayMode{ m_editorMode == EditorMode::Play };
     const bool hasSelection{ m_selectedObject != nullptr };
     const bool isNotRoot{ currentScene && (m_selectedObject != currentScene->GetRootGameObject()) };
 
-   // Only draw the manipulator if all architectural conditions are met
     if (activeCamera && hasSelection && isNotRoot && !isPlayMode)
     {
         ImGuizmo::SetDrawlist();
-        ImGuizmo::SetRect(screenCursorPos.x, screenCursorPos.y, renderSize.x, renderSize.y);
+        ImGuizmo::SetRect(centeredScreenPos.x, centeredScreenPos.y, renderSize.x, renderSize.y);
 
         DirectX::XMFLOAT4X4 view{ activeCamera->GetView() };
         DirectX::XMFLOAT4X4 proj{ activeCamera->GetProjection() };
-
         DirectX::XMFLOAT4X4 targetMatrix{ m_selectedObject->transform.GetWorldMatrix() };
 
-        // Setup Phase: If editing a Component, offset the Gizmo to the Component's local space
         auto* staticCollider{ dynamic_cast<StaticMeshColliderComponent*>(m_selectedComponent) };
+
         if (staticCollider && m_selectedObject == staticCollider->GetOwner())
         {
-            const auto& config{ staticCollider->GetConfig() };
+            auto& config{ staticCollider->GetConfig() };
             const DirectX::XMMATRIX objWorld{ DirectX::XMLoadFloat4x4(&targetMatrix) };
 
             const DirectX::XMMATRIX locRot{ DirectX::XMMatrixRotationRollPitchYaw(
@@ -448,14 +453,14 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
         ImGuizmo::SetOrthographic(false);
         ImGuizmo::Manipulate(&view._11, &proj._11, m_gizmoOperation, m_gizmoMode, &targetMatrix._11);
 
-        // Feedback Phase: If user dragged the Gizmo, save the mathematical delta
         if (ImGuizmo::IsUsing())
         {
             DirectX::XMMATRIX matNewWorld{ DirectX::XMLoadFloat4x4(&targetMatrix) };
 
             if (staticCollider && m_selectedObject == staticCollider->GetOwner())
             {
-                // Extract new Component offset relative to the stationary GameObject
+                auto& config{ staticCollider->GetConfig() };
+
                 DirectX::XMFLOAT4X4 objFloat4x4{ m_selectedObject->transform.GetWorldMatrix() };
                 DirectX::XMMATRIX objWorld{ DirectX::XMLoadFloat4x4(&objFloat4x4) };
 
@@ -465,14 +470,13 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
                 DirectX::XMVECTOR vScale, vRotQuat, vTrans;
                 if (DirectX::XMMatrixDecompose(&vScale, &vRotQuat, &vTrans, matLocalNew))
                 {
-                    DirectX::XMStoreFloat3(&staticCollider->GetConfig().localOffset, vTrans);
+                    DirectX::XMStoreFloat3(&config.localOffset, vTrans);
 
-                    // Extract the Gizmo's scale delta and bake it directly into the Proxy Extents
                     DirectX::XMFLOAT3 scaleDelta;
                     DirectX::XMStoreFloat3(&scaleDelta, vScale);
-                    staticCollider->GetConfig().proxyExtents.x *= scaleDelta.x;
-                    staticCollider->GetConfig().proxyExtents.y *= scaleDelta.y;
-                    staticCollider->GetConfig().proxyExtents.z *= scaleDelta.z;
+                    config.proxyExtents.x *= scaleDelta.x;
+                    config.proxyExtents.y *= scaleDelta.y;
+                    config.proxyExtents.z *= scaleDelta.z;
 
                     const DirectX::XMFLOAT4X4 mRot{ [&]() {
                         DirectX::XMFLOAT4X4 temp;
@@ -491,7 +495,7 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
                         roll = 0.0f;
                     }
 
-                    staticCollider->GetConfig().localRotation = {
+                    config.localRotation = {
                         DirectX::XMConvertToDegrees(pitch),
                         DirectX::XMConvertToDegrees(yaw),
                         DirectX::XMConvertToDegrees(roll)
@@ -502,7 +506,6 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
             }
             else
             {
-                // GameObject Transform Math
                 DirectX::XMMATRIX matLocal{ matNewWorld };
                 if (m_selectedObject->transform.parent)
                 {
@@ -545,6 +548,24 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
         }
     }
 
+    const ImVec2 windowSize{ ImGui::GetWindowSize() };
+    ImGui::SetCursorPos(ImVec2{ windowSize.x - buttonSize.x - 8.0f, windowSize.y - buttonSize.y - 8.0f });
+
+    if (DrawToolbarIconButton("##MaximizeBtn", ToolbarIcon::Maximize, s_isSceneMaximized, ImVec4{ 0.4f, 0.4f, 0.4f, 1.0f }, buttonSize))
+    {
+        s_isSceneMaximized = !s_isSceneMaximized;
+        if (s_isSceneMaximized)
+        {
+            // Cache the active dock node ID right before we detach
+            s_previousDockId = ImGui::GetWindowDockID();
+        }
+        else
+        {
+            // Flag to snap back into the cached dock node next frame
+            s_restoreDock = true;
+        }
+    }
+
     ImGui::End();
 }
 
@@ -558,13 +579,10 @@ void EditorManager::DrawMenuBar(Scene* currentScene) noexcept
             {
                 if (currentScene)
                 {
-                    // Save the Scene Objects
                     SceneSerializer::Save(
                         currentScene->GetSceneSavePath(),
                         currentScene->GetRootGameObject()
                     );
-
-                    // Save the Developer's Camera Position
                     SaveUserPreferences(currentScene, CameraController::Instance().GetActiveCamera().get());
                 }
                 else
@@ -585,13 +603,12 @@ void EditorManager::DrawMenuBar(Scene* currentScene) noexcept
             {
                 Framework::Instance()->ChangeScene([]() { return std::make_unique<SceneGame>(); });
             }
-
             ImGui::EndMenu();
         }
-        if (ImGui::BeginMenu("Debug")) 
+        if (ImGui::BeginMenu("Debug"))
         {
             ImGui::MenuItem("Profiler", nullptr, &m_showProfiler);
-            ImGui::EndMenu(); 
+            ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Graphics"))
         {
@@ -609,59 +626,49 @@ void EditorManager::DrawHierarchyNode(GameObject* node) noexcept
 {
     if (!node) return;
 
-    // Configure ImGui visual flags
     ImGuiTreeNodeFlags flags{ ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_SpanAvailWidth };
 
     if (m_selectedObject == node)
     {
         flags |= ImGuiTreeNodeFlags_Selected;
     }
-
     if (node->GetChildren().empty())
     {
         flags |= ImGuiTreeNodeFlags_Leaf;
     }
 
-    // Draw the node
     const bool isOpen{ ImGui::TreeNodeEx(static_cast<void*>(node), flags, "%s", node->GetName().c_str()) };
 
-    // Left-Click: Select entity for the Inspector
     if (ImGui::IsItemClicked(ImGuiMouseButton_Left) && !ImGui::IsItemToggledOpen())
     {
         m_selectedObject = node;
-        m_selectedComponent = nullptr; 
+        m_selectedComponent = nullptr;
     }
 
-    // Right-Click Context Menu: Unity-style child creation and deletion
     if (ImGui::BeginPopupContextItem())
     {
-        m_selectedObject = node; // Auto-select on right click
+        m_selectedObject = node;
 
         if (ImGui::MenuItem("Create Empty Child"))
         {
             node->AddChild(std::make_unique<GameObject>("New_Child"));
         }
-
         if (ImGui::MenuItem("Create Socket Anchor"))
         {
             node->AddChild(std::make_unique<GameObject>("Socket_Anchor"));
         }
-
         ImGui::Separator();
-
         if (ImGui::MenuItem("Delete GameObject"))
         {
-            node->Destroy(); // Triggers deferred deletion on next frame
+            node->Destroy();
             if (m_selectedObject == node)
             {
                 m_selectedObject = nullptr;
             }
         }
-
         ImGui::EndPopup();
     }
 
-    // If expanded, recurse through children
     if (isOpen)
     {
         for (const auto& child : node->GetChildren())
@@ -674,7 +681,6 @@ void EditorManager::DrawHierarchyNode(GameObject* node) noexcept
 
 void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
 {
-    // If the object selected in the Inspector was destroyed this frame, clear it immediately
     if (m_selectedObject && m_selectedObject->IsDestroyed())
     {
         m_selectedObject = nullptr;
@@ -684,7 +690,6 @@ void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
 
     if (currentScene && currentScene->GetRootGameObject())
     {
-        // "+ CREATE" Drop Down Menu
         if (ImGui::Button("+ Create"))
         {
             ImGui::OpenPopup("CreateMenuPopup");
@@ -697,7 +702,6 @@ void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
                 currentScene->GetRootGameObject()->AddChild(std::make_unique<GameObject>("Empty"));
             }
 
-           // Only show Gameplay Entities if we are currently editing the Game Scene
             if (auto* gameScene{ dynamic_cast<SceneGame*>(currentScene) })
             {
                 ImGui::Separator();
@@ -712,7 +716,6 @@ void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
                         lightObj->AddComponent<DirectionalLightComponent>();
                         currentScene->GetRootGameObject()->AddChild(std::move(lightObj));
                     }
-
                     if (ImGui::MenuItem("Point Light"))
                     {
                         auto lightObj = std::make_unique<GameObject>("Point_Light");
@@ -720,12 +723,11 @@ void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
                         lightObj->AddComponent<PointLightComponent>();
                         currentScene->GetRootGameObject()->AddChild(std::move(lightObj));
                     }
-
                     if (ImGui::MenuItem("Spot Light"))
                     {
                         auto lightObj = std::make_unique<GameObject>("Spot_Light");
                         lightObj->transform.position = { 0.0f, 5.0f, 0.0f };
-                        lightObj->transform.rotation = { 90.0f, 0.0f, 0.0f }; // Aim straight down
+                        lightObj->transform.rotation = { 90.0f, 0.0f, 0.0f };
                         lightObj->AddComponent<SpotLightComponent>();
                         currentScene->GetRootGameObject()->AddChild(std::move(lightObj));
                     }
@@ -737,14 +739,12 @@ void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
         }
 
         ImGui::Separator();
-
         ImGui::PushStyleColor(ImGuiCol_Header, ImVec4{ 0.15f, 0.15f, 0.15f, 1.0f });
         const bool isSceneNodeOpen{ ImGui::CollapsingHeader(currentScene->GetSceneName().data(), ImGuiTreeNodeFlags_DefaultOpen) };
         ImGui::PopStyleColor();
 
         if (isSceneNodeOpen)
         {
-            // Iterate directly over top-level children, bypassing the SceneRoot node entirely
             for (const auto& child : currentScene->GetRootGameObject()->GetChildren())
             {
                 DrawHierarchyNode(child.get());
@@ -756,7 +756,6 @@ void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
         ImGui::TextDisabled("No Scene Loaded");
     }
 
-    // Deselect if clicking on empty space in the hierarchy window
     if (ImGui::IsWindowHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsAnyItemHovered())
     {
         m_selectedObject = nullptr;
@@ -769,26 +768,23 @@ void EditorManager::DrawInspector(Scene* currentScene) noexcept
 {
     ImGui::Begin(s_windowInspector);
 
-    // If an object is selected in the Hierarchy, draw its GameObject Inspector
     if (m_selectedObject)
     {
         m_selectedObject->DrawInspector();
     }
-    // Fallback: Deselected State (Scene Metadata & Level Settings View)
     else if (currentScene)
     {
         ImGui::TextDisabled("SCENE PROPERTIES");
         ImGui::Separator();
-        
+
         Graphics::Instance().GetLightManager().DrawEnvironmentGUI();
         ImGui::Text("Active Scene: %s", currentScene->GetSceneName().data());
         ImGui::TextDisabled("Save Path: %s", currentScene->GetSceneSavePath().data());
         ImGui::TextDisabled("PostProcess: %s", currentScene->GetPostProcessProfilePath().data());
-        
+
         ImGui::Spacing();
         ImGui::Separator();
-        
-        // Render custom per-scene debug settings without file operation buttons
+
         currentScene->DrawGUI();
     }
 
@@ -809,13 +805,13 @@ void EditorManager::DrawConsole() const noexcept
 
         for (const auto& entry : Logger::Instance().GetEntries())
         {
-            ImVec4 color{ 1.0f, 1.0f, 1.0f, 1.0f }; // Info = White
+            ImVec4 color{ 1.0f, 1.0f, 1.0f, 1.0f };
 
             switch (entry.level)
             {
-            case LogLevel::Success: color = ImVec4{ 0.2f, 0.9f, 0.2f, 1.0f }; break; // Green
-            case LogLevel::Warning: color = ImVec4{ 1.0f, 0.8f, 0.0f, 1.0f }; break; // Yellow
-            case LogLevel::Error:   color = ImVec4{ 1.0f, 0.2f, 0.2f, 1.0f }; break; // Red
+            case LogLevel::Success: color = ImVec4{ 0.2f, 0.9f, 0.2f, 1.0f }; break;
+            case LogLevel::Warning: color = ImVec4{ 1.0f, 0.8f, 0.0f, 1.0f }; break;
+            case LogLevel::Error:   color = ImVec4{ 1.0f, 0.2f, 0.2f, 1.0f }; break;
             default: break;
             }
 
@@ -836,15 +832,13 @@ void EditorManager::DrawConsole() const noexcept
 
 void EditorManager::DrawProfiler() const noexcept
 {
-    // Early-out if the user closed the window via the menu or the 'X' button
     if (!m_showProfiler) return;
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2{ 0.0f, 0.0f });
 
-    // Passing &m_showProfiler adds the 'X' close button to the tab
     if (ImGui::Begin(s_windowProfiler, const_cast<bool*>(&m_showProfiler)))
     {
-        ImGui::PopStyleVar(); // Pop immediately so internal elements pad normally
+        ImGui::PopStyleVar();
 
         const auto& cpuData{ ProfilerManager::Instance().GetCpuData() };
         const auto& metrics{ ProfilerManager::Instance().GetMetrics() };
@@ -853,15 +847,11 @@ void EditorManager::DrawProfiler() const noexcept
         const int maxFrames{ static_cast<int>(MAX_PROFILE_FRAMES) };
         const int offset{ static_cast<int>(currentIndex) };
 
-        // TOP PANEL: Frame Time Graph
-        // Chosen over per-scope CPU timings as the headline visual: it answers
-        // "does this run well?" at a glance for any viewer, technical or not
         if (ImPlot::BeginPlot("##FrameTime", ImVec2{ -1.0f, -90.0f }))
         {
             ImPlot::SetupAxes(nullptr, "Frame Time (ms)", ImPlotAxisFlags_NoTickLabels, ImPlotAxisFlags_AutoFit);
             ImPlot::SetupAxisLimits(ImAxis_X1, 0.0, static_cast<double>(maxFrames), ImPlotCond_Always);
 
-            // The 16.6ms line marks the 60fps budget — any spike above it is a dropped frame
             static double targetFrameTimeMs{ 16.666 };
             ImPlot::DragLineY(0, &targetFrameTimeMs, ImVec4{ 0.9f, 0.1f, 0.1f, 0.8f }, 1.0f, ImPlotDragToolFlags_NoInputs);
 
@@ -875,45 +865,33 @@ void EditorManager::DrawProfiler() const noexcept
             ImPlot::EndPlot();
         }
 
-        // BOTTOM PANEL: Metrics Dashboard
         ImGui::Separator();
-
-        // Add subtle padding around the table
         ImGui::SetCursorPosX(ImGui::GetCursorPosX() + 8.0f);
         ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 4.0f);
 
-        // A 4-column table for organizing readouts
         if (ImGui::BeginTable("MetricsDashboard", 4, ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingStretchProp))
         {
             ImGui::TableNextRow();
 
-            // Column 1: Core Performance
             ImGui::TableSetColumnIndex(0);
             ImGui::TextDisabled("PERFORMANCE");
             ImGui::Text("FPS: %.1f", metrics.fps);
             ImGui::Text("Frame: %.2f ms", (1000.0f / (std::max)(metrics.fps, 1.0f)));
 
-            // Column 2: Memory
             ImGui::TableSetColumnIndex(1);
             ImGui::TextDisabled("MEMORY");
             ImGui::Text("Sys RAM: %.1f MB", metrics.ramUsageMB);
             ImGui::Text("GPU VRAM: %.1f MB", metrics.vramUsageMB);
 
-            // Column 3: CPU Scopes
             ImGui::TableSetColumnIndex(2);
             ImGui::TextDisabled("CPU TIMINGS");
 
             for (const auto& [name, data] : cpuData)
             {
-                // Draw Calls lives in its own dedicated column below, not mixed into
-                // the CPU-scope ms readouts
                 if (name == std::string_view{ "Draw Calls (3D)" }) continue;
-
                 ImGui::Text("%s: %.2f ms", name, data.lastFrameTime);
             }
 
-            // Column 4: Draw Call and Triangle counts, read straight from the dedicated
-            // accessors rather than pulled out of the generic CPU-timer map
             ImGui::TableSetColumnIndex(3);
             ImGui::TextDisabled("DRAW CALLS (3D)");
             ImGui::Text("Calls: %zu", ProfilerManager::Instance().GetLastFrameDrawCallCount());
@@ -924,24 +902,21 @@ void EditorManager::DrawProfiler() const noexcept
     }
     else
     {
-        ImGui::PopStyleVar(); // Safety pop if window is collapsed
+        ImGui::PopStyleVar();
     }
     ImGui::End();
 }
 
 void EditorManager::DrawPostProcess(Scene* currentScene) noexcept
 {
-    // Avoid processing ImGui logic if the user hasn't toggled the window open
     if (!m_showPostProcess) return;
 
-    // Pass the boolean pointer so ImGui renders an 'X' close button in the title bar
     if (ImGui::Begin(s_windowPostProcess, &m_showPostProcess))
     {
         if (currentScene && currentScene->GetPostProcessManager())
         {
             auto* ppm = currentScene->GetPostProcessManager();
 
-            // TOOLBAR: Save / Undo / Reset
             const std::string_view configPath{ currentScene->GetPostProcessProfilePath() };
 
             if (ImGui::Button("Save"))
@@ -949,13 +924,11 @@ void EditorManager::DrawPostProcess(Scene* currentScene) noexcept
                 ppm->SaveConfig(configPath);
             }
             ImGui::SameLine();
-
             if (ImGui::Button("Undo"))
             {
                 ppm->LoadConfig(configPath);
             }
             ImGui::SameLine();
-
             if (ImGui::Button("Reset Defaults"))
             {
                 ppm->ResetToDefaults();
@@ -963,7 +936,6 @@ void EditorManager::DrawPostProcess(Scene* currentScene) noexcept
 
             ImGui::Separator();
 
-			// Master toggle for the entire post-processing graph
             bool masterEnabled = ppm->IsEnabled();
             if (ImGui::Checkbox("Master Post-Process Enabled", &masterEnabled))
             {
@@ -971,7 +943,6 @@ void EditorManager::DrawPostProcess(Scene* currentScene) noexcept
             }
             ImGui::Separator();
 
-            // Automatically renders ImGui controls for every discrete effect pass
             ImGui::BeginDisabled(!masterEnabled);
             for (const auto& effect : ppm->GetEffects())
             {
@@ -999,7 +970,6 @@ void EditorManager::SaveUserPreferences(Scene* currentScene, Camera* activeCamer
 
     nlohmann::json root{};
 
-    // Read existing file first to preserve camera positions for other scenes
     if (std::filesystem::exists(s_editorPrefsPath))
     {
         std::ifstream inFile{ std::string{ s_editorPrefsPath } };
@@ -1010,7 +980,6 @@ void EditorManager::SaveUserPreferences(Scene* currentScene, Camera* activeCamer
         }
     }
 
-    // 2. Overwrite only the current scene's camera node
     const std::string sceneKey{ currentScene->GetSceneName() };
     const DirectX::XMFLOAT3 pos{ activeCamera->GetPosition() };
     const DirectX::XMFLOAT3 rot{ activeCamera->GetRotation() };
@@ -1023,14 +992,12 @@ void EditorManager::SaveUserPreferences(Scene* currentScene, Camera* activeCamer
     root[sceneKey]["CamRotY"] = rot.y;
     root[sceneKey]["CamRotZ"] = rot.z;
 
-    // Ensure the UserSettings directory exists locally
     const std::filesystem::path pathObj{ s_editorPrefsPath };
     if (!std::filesystem::exists(pathObj.parent_path()))
     {
         std::filesystem::create_directories(pathObj.parent_path());
     }
 
-    // Write back to disk silently
     std::ofstream outFile{ std::string{ s_editorPrefsPath } };
     if (outFile.is_open())
     {
@@ -1073,6 +1040,5 @@ void EditorManager::LoadUserPreferences(Scene* currentScene, Camera* activeCamer
     }
     catch (...)
     {
-        // Safe fallback: If JSON is corrupted, engine retains default code positions
     }
 }
