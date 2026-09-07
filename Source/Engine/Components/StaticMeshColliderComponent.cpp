@@ -465,7 +465,7 @@ void StaticMeshColliderComponent::Deserialize(const nlohmann::json& json)
 
 void StaticMeshColliderComponent::DrawInspector()
 {
-    ImGui::TextDisabled("Optimized Static Physics Proxy");
+    ImGui::TextDisabled("Static Physics Proxy");
     ImGui::Separator();
 
     IComponent* selectedComp = EditorManager::Instance().GetSelectedComponent();
