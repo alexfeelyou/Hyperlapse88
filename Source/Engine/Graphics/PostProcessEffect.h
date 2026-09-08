@@ -36,4 +36,6 @@ public:
 
     // Instantly reverts the active state to the hardcoded C++ defaults
     virtual void ResetToDefault() noexcept = 0;
+
+    virtual void OnResize(ID3D11Device* device, int width, int height) noexcept {}
 };

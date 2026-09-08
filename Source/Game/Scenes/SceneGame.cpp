@@ -945,6 +945,7 @@ void SceneGame::Render(float elapsedTime, Camera* camera)
 {
     const float renderTime = m_isPaused ? 0.0f : elapsedTime;
     Camera* targetCam{ camera ? camera : m_mainCamera.get() };
+
     auto dc{ Graphics::Instance().GetDeviceContext() };
     auto rs{ Graphics::Instance().GetRenderState() };
 
@@ -956,6 +957,11 @@ void SceneGame::Render(float elapsedTime, Camera* camera)
         screenW = static_cast<float>(window->GetWidth());
         screenH = static_cast<float>(window->GetHeight());
     }
+
+    static std::uint32_t s_taaFrameIndex{ 0 };
+    targetCam->SetJitterEnabled(m_postProcess->IsEnabled() && m_postProcess->GetTemporalAA().IsEnabled());
+    targetCam->AdvanceJitter(++s_taaFrameIndex, screenW, screenH);
+
 
     if (m_postProcess->IsEnabled())
     {
@@ -1098,6 +1104,8 @@ void SceneGame::Render(float elapsedTime, Camera* camera)
             m_uiPause->Render(dc, screenW, screenH, uiAlpha);
         }
     }
+
+    targetCam->CachePreviousViewProjection();
 }
 
 
@@ -1120,6 +1128,15 @@ void SceneGame::RenderScene(const float elapsedTime, Camera* camera)
         camera,
         &Graphics::Instance().GetLightManager()
     };
+
+    if (m_postProcess->IsEnabled() && m_postProcess->GetTemporalAA().IsEnabled())
+    {
+        rc.velocityRenderTargetView = m_postProcess->GetVelocityRTV();
+    }
+    else
+    {
+        rc.velocityRenderTargetView = nullptr;
+    }
 
     const auto& psxData = m_postProcess->GetPSX().GetData();
     rc.psxEnabled = (m_postProcess->IsEnabled() && psxData.enabled);

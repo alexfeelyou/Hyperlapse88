@@ -18,6 +18,8 @@ PostProcessManager::PostProcessManager()
     samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
     device->CreateSamplerState(&samplerDesc, m_pointSampler.GetAddressOf());
 
+    m_temporalAAEffect = std::make_unique<TemporalAAEffect>(device);
+
     // Instantiate discrete passes in optimal visual execution order
     auto psx = std::make_unique<PSXEffect>(device);
     m_psxEffect = psx.get();
@@ -85,25 +87,29 @@ void PostProcessManager::CreateBuffers(int width, int height)
     texDesc.Usage = D3D11_USAGE_DEFAULT;
     texDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
 
-    auto allocateRT = [&](RenderTargetResource& res) {
-        HRESULT hr = device->CreateTexture2D(&texDesc, nullptr, res.texture.GetAddressOf());
-        assert(SUCCEEDED(hr) && "Failed to create PostProcess Texture2D");
+    auto allocateRT = [&](RenderTargetResource& res, DXGI_FORMAT format) {
+        D3D11_TEXTURE2D_DESC desc{ texDesc };
+        desc.Format = format;
 
+        HRESULT hr = device->CreateTexture2D(&desc, nullptr, res.texture.GetAddressOf());
+        assert(SUCCEEDED(hr) && "Failed to create PostProcess Texture2D");
         hr = device->CreateRenderTargetView(res.texture.Get(), nullptr, res.rtv.GetAddressOf());
         assert(SUCCEEDED(hr) && "Failed to create PostProcess RTV");
-
         hr = device->CreateShaderResourceView(res.texture.Get(), nullptr, res.srv.GetAddressOf());
         assert(SUCCEEDED(hr) && "Failed to create PostProcess SRV");
         };
 
-    // Allocate Scene Capture Buffer
-    allocateRT(m_sceneTarget);
+	// Allocate Primary Scene Capture Target
+    allocateRT(m_sceneTarget, DXGI_FORMAT_R8G8B8A8_UNORM);
 
-    // Allocate Ping-Pong Offscreen Buffers A & B
+	// Allocate Ping-Pong Targets for Multi-Pass Post-Processing
     for (auto& pp : m_pingPong)
     {
-        allocateRT(pp);
+        allocateRT(pp, DXGI_FORMAT_R8G8B8A8_UNORM);
     }
+
+	// Allocate Velocity Target for Temporal AA
+    allocateRT(m_velocityTarget, DXGI_FORMAT_R16G16_FLOAT);
 
     // Allocate 3D Depth Buffer (Typeless for Shader Resource sharing)
     D3D11_TEXTURE2D_DESC depthDesc = texDesc;
@@ -125,6 +131,8 @@ void PostProcessManager::CreateBuffers(int width, int height)
     srvDesc.Texture2D.MipLevels = 1;
     hr = device->CreateShaderResourceView(m_depthStencilTexture.Get(), &srvDesc, m_depthSRV.GetAddressOf());
     assert(SUCCEEDED(hr) && "Failed to create Depth SRV");
+
+    m_temporalAAEffect->OnResize(device, width, height);
 }
 
 void PostProcessManager::BeginCapture()
@@ -156,6 +164,10 @@ void PostProcessManager::BeginCapture()
     constexpr float clearColor[4]{ 0.0f, 0.0f, 0.0f, 1.0f };
     dc->ClearRenderTargetView(rtv, clearColor);
     dc->ClearDepthStencilView(dsv, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+
+    ID3D11RenderTargetView* velRTV{ m_velocityTarget.rtv.Get() };
+    constexpr float clearVelocity[4]{ 0.0f, 0.0f, 0.0f, 0.0f };
+    dc->ClearRenderTargetView(velRTV, clearVelocity);
 }
 
 void PostProcessManager::EndCapture(float dt)
@@ -192,34 +204,25 @@ void PostProcessManager::EndCapture(float dt)
     ID3D11ShaderResourceView* depthSRV{ m_depthSRV.Get() };
     dc->PSSetShaderResources(1, 1, &depthSRV);
 
+    ID3D11ShaderResourceView* velocitySRV{ m_velocityTarget.srv.Get() };
+    dc->PSSetShaderResources(2, 1, &velocitySRV);
+
     // Multi-Pass Ping-Pong Loop
     ID3D11ShaderResourceView* currentSourceSRV = m_sceneTarget.srv.Get();
     int pingPongIndex{ 0 };
 
-    if (m_isEnabled)
+    if (m_temporalAAEffect->IsEnabled())
     {
-        for (const auto& effect : m_effects)
-        {
-            // Disabled effects issue zero GPU draw calls
-            if (!effect->IsEnabled()) continue;
+        ID3D11ShaderResourceView* const nullSRV[]{ nullptr };
+        dc->PSSetShaderResources(3, 1, nullSRV); // unbind history SRV before binding its buffer as RTV
 
-            auto& destTarget = m_pingPong[pingPongIndex];
+        ID3D11RenderTargetView* resolveRTV{ m_temporalAAEffect->GetWriteRTV() };
+        dc->OMSetRenderTargets(1, &resolveRTV, nullptr);
 
-            // CRITICAL D3D11 HAZARD PREVENTION: Unbind SRVs before binding as RTV
-            ID3D11ShaderResourceView* nullSRV[] = { nullptr };
-            dc->PSSetShaderResources(0, 1, nullSRV);
+        m_temporalAAEffect->Draw(dc, currentSourceSRV);
 
-            // Bind current ping-pong destination target
-            ID3D11RenderTargetView* rtv = destTarget.rtv.Get();
-            dc->OMSetRenderTargets(1, &rtv, nullptr);
-
-            // Execute isolated effect pass
-            effect->Draw(dc, currentSourceSRV);
-
-            // Swap roles for next iteration
-            currentSourceSRV = destTarget.srv.Get();
-            pingPongIndex = 1 - pingPongIndex;
-        }
+        currentSourceSRV = m_temporalAAEffect->GetWriteSRV();
+        m_temporalAAEffect->SwapHistoryBuffers();
     }
 
     // Final Pass: Blit the final processed texture directly into the host's original RTV
@@ -261,6 +264,10 @@ void PostProcessManager::SaveConfig(std::string_view filepath) const
 
         root[key] = effectJson;
     }
+
+    nlohmann::json taaJson{};
+    m_temporalAAEffect->Serialize(taaJson);
+    root["Temporal_AA"] = taaJson;
 
     // Extract the folder path from the full filepath and ensure it exists
     // std::ofstream will silently fail if the target directory doesn't exist
@@ -310,6 +317,12 @@ void PostProcessManager::LoadConfig(std::string_view filepath)
                 effect->Deserialize(root[key]);
             }
         }
+
+        if (root.contains("Temporal_AA"))
+        {
+            m_temporalAAEffect->Deserialize(root["Temporal_AA"]);
+        }
+
         Log::Success("Loaded post-process profile: " + std::string{ filepath });
     }
     catch (const std::exception& e)
@@ -324,4 +337,5 @@ void PostProcessManager::ResetToDefaults() noexcept
     {
         effect->ResetToDefault();
     }
+    m_temporalAAEffect->ResetToDefault();
 }

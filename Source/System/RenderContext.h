@@ -11,7 +11,8 @@ struct RenderContext
     const Camera* camera;
     LightManager* lightManager = nullptr;
 
-    // Passing psx data
+    ID3D11RenderTargetView* velocityRenderTargetView{ nullptr }; 
+
     bool psxEnabled = false;
     float psxResWidth = 320.0f;
     float psxResHeight = 240.0f;

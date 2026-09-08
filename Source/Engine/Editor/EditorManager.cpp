@@ -944,6 +944,13 @@ void EditorManager::DrawPostProcess(Scene* currentScene) noexcept
             ImGui::Separator();
 
             ImGui::BeginDisabled(!masterEnabled);
+            
+            if (ImGui::CollapsingHeader("Temporal AA"))
+            {
+                ppm->GetTemporalAA().DrawGUI();
+            }
+            ImGui::Spacing();
+
             for (const auto& effect : ppm->GetEffects())
             {
                 ImGui::PushID(effect.get());

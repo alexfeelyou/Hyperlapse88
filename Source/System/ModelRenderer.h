@@ -17,6 +17,7 @@
 #include "Shader.h"
 #include "ShadowCasterShader.h"
 #include "ToonShader.h"
+#include "VelocityShader.h"
 
 enum class ShaderId
 {
@@ -36,19 +37,26 @@ public:
     ~ModelRenderer() {}
 
     void Draw(std::shared_ptr<Model> model, const DirectX::XMFLOAT4& color = { 1.0f, 1.0f, 1.0f, 1.0f }, bool castShadows = true);
-
     void Draw(std::shared_ptr<Model> model, DirectX::XMFLOAT4 color, const DirectX::XMFLOAT4X4& worldMatrix, bool castShadows = true);
+    void Draw(std::shared_ptr<Model> model, DirectX::XMFLOAT4 color,
+        const DirectX::XMFLOAT4X4& worldMatrix, const DirectX::XMFLOAT4X4& previousWorldMatrix,
+        bool castShadows = true);
 
     // ï`âÊé¿çs
     void Render(const RenderContext& rc);
 
 private:
+    void DrawMeshVelocity(
+        ID3D11DeviceContext* dc, const Model::Mesh& mesh, bool useManual,
+        const DirectX::XMFLOAT4X4& worldMatrix, const DirectX::XMFLOAT4X4& previousWorldMatrix);
+
     struct MeshDrawCommand
     {
         const Model::Mesh* mesh{};
         DirectX::XMFLOAT4   color{};
         bool                useManualMatrix{ false };
         DirectX::XMFLOAT4X4 worldMatrix{};
+        DirectX::XMFLOAT4X4 previousWorldMatrix{}; 
     };
 
     struct CbScene
@@ -89,6 +97,7 @@ private:
         DirectX::XMFLOAT4       color{};
         bool                    useManualMatrix{ false };
         DirectX::XMFLOAT4X4     worldMatrix{};
+        DirectX::XMFLOAT4X4     previousWorldMatrix{};
         bool                    castShadows{ true };
     };
 
@@ -106,10 +115,12 @@ private:
     std::unique_ptr<Shader>					shaders[static_cast<int>(ShaderId::EnumCount)];
     std::unique_ptr<OutlineShader>          m_outlineShader;
     std::unique_ptr<ShadowCasterShader>     m_shadowCasterShader{};
+    std::unique_ptr<VelocityShader>         m_velocityShader{};
     std::vector<DrawInfo>					drawInfos;
     std::vector<TransparencyDrawInfo>		transparencyDrawInfos;
 
     Microsoft::WRL::ComPtr<ID3D11Buffer>	sceneConstantBuffer;
     Microsoft::WRL::ComPtr<ID3D11Buffer>	skeletonConstantBuffer;
     Microsoft::WRL::ComPtr<ID3D11Buffer>	objectConstantBuffer;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>    previousSkeletonConstantBuffer;
 };

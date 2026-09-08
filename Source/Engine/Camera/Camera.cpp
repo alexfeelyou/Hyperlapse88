@@ -3,6 +3,24 @@
 
 using namespace DirectX;
 
+namespace
+{
+    // Halton low-discrepancy sequence — distributes jitter samples evenly over time instead of randomly,
+    // which is what keeps TAA from flickering. index is 1-based.
+    [[nodiscard]] constexpr float HaltonSequence(std::uint32_t index, std::uint32_t base) noexcept
+    {
+        float result{ 0.0f };
+        float f{ 1.0f };
+        while (index > 0)
+        {
+            f /= static_cast<float>(base);
+            result += f * static_cast<float>(index % base);
+            index /= base;
+        }
+        return result;
+    }
+}
+
 Camera::Camera() :
     position({ 0, 0, -10 }),
     rotation({ 0, 0, 0 }),
@@ -99,6 +117,7 @@ void Camera::SetPerspectiveFov(float fovY, float aspect, float nearZ, float farZ
 
     XMMATRIX matProj = XMMatrixPerspectiveFovLH(fovY, aspect, nearZ, farZ);
     XMStoreFloat4x4(&projection, matProj);
+    m_unjitteredProjection = projection; 
 }
 
 void Camera::SetAspectRatio(float aspect)
@@ -121,6 +140,38 @@ void Camera::SetOrthographic(float viewWidth, float viewHeight, float nearZ, flo
 
     XMMATRIX matProj = XMMatrixOrthographicLH(viewWidth, viewHeight, nearZ, farZ);
     XMStoreFloat4x4(&projection, matProj);
+}
+
+void Camera::AdvanceJitter(std::uint32_t frameIndex, float screenWidth, float screenHeight) noexcept
+{
+    if (!m_jitterEnabled || screenWidth <= 0.0f || screenHeight <= 0.0f)
+    {
+        m_currentJitterOffsetUV = { 0.0f, 0.0f };
+        projection = m_unjitteredProjection;
+        return;
+    }
+
+    // 8-sample Halton(2,3) sequence — the standard TAA jitter pattern
+    constexpr std::uint32_t s_sequenceLength{ 8 };
+    const std::uint32_t sampleIndex{ (frameIndex % s_sequenceLength) + 1 };
+
+    const float haltonX{ HaltonSequence(sampleIndex, 2) - 0.5f };
+    const float haltonY{ HaltonSequence(sampleIndex, 3) - 0.5f };
+
+    m_currentJitterOffsetUV = { haltonX / screenWidth, haltonY / screenHeight };
+
+    // Bake the offset into the projection's translation terms (row-major LH convention).
+    XMFLOAT4X4 jittered{ m_unjitteredProjection };
+    jittered._31 += (haltonX * 2.0f) / screenWidth;
+    jittered._32 += (haltonY * 2.0f) / screenHeight;
+    projection = jittered;
+}
+
+void Camera::CachePreviousViewProjection() noexcept
+{
+    const XMMATRIX v{ XMLoadFloat4x4(&view) };
+    const XMMATRIX p{ XMLoadFloat4x4(&projection) };
+    XMStoreFloat4x4(&m_previousViewProjection, XMMatrixMultiply(v, p));
 }
 
 // Helpers & Internals 

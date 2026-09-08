@@ -1,4 +1,4 @@
-#include "ProfilerManager.h"
+ï»¿#include "ProfilerManager.h"
 #include "ModelRenderer.h"
 
 namespace
@@ -128,7 +128,7 @@ namespace
     }
 }
 
-// ƒRƒ“ƒXƒgƒ‰ƒNƒ^
+// ã‚³ãƒ³ã‚¹ãƒˆãƒ©ã‚¯ã‚¿
 ModelRenderer::ModelRenderer(ID3D11Device* device)
 {
     GpuResourceUtils::CreateConstantBuffer(
@@ -137,6 +137,8 @@ ModelRenderer::ModelRenderer(ID3D11Device* device)
         device, sizeof(CbSkeleton), skeletonConstantBuffer.GetAddressOf());
     GpuResourceUtils::CreateConstantBuffer(
         device, sizeof(CbObject), objectConstantBuffer.GetAddressOf());
+    GpuResourceUtils::CreateConstantBuffer(
+        device, sizeof(CbSkeleton), previousSkeletonConstantBuffer.GetAddressOf());
 
     drawInfos.reserve(2000);
     transparencyDrawInfos.reserve(2000);
@@ -149,6 +151,7 @@ ModelRenderer::ModelRenderer(ID3D11Device* device)
 
     m_outlineShader = std::make_unique<OutlineShader>(device);
     m_shadowCasterShader = std::make_unique<ShadowCasterShader>(device);
+    m_velocityShader = std::make_unique<VelocityShader>(device);
 }
 
 void ModelRenderer::Draw(std::shared_ptr<Model> model, const DirectX::XMFLOAT4& color, bool castShadows)
@@ -168,6 +171,79 @@ void ModelRenderer::Draw(std::shared_ptr<Model> model, DirectX::XMFLOAT4 color, 
     drawInfo.useManualMatrix = true;
     drawInfo.worldMatrix = worldMatrix;
     drawInfo.castShadows = castShadows;
+}
+
+void ModelRenderer::Draw(std::shared_ptr<Model> model, DirectX::XMFLOAT4 color,
+    const DirectX::XMFLOAT4X4& worldMatrix, const DirectX::XMFLOAT4X4& previousWorldMatrix, bool castShadows)
+{
+    drawInfos.push_back(DrawInfo{ model, color, true, worldMatrix, previousWorldMatrix, castShadows });
+}
+
+void ModelRenderer::DrawMeshVelocity(
+    ID3D11DeviceContext* dc, const Model::Mesh& mesh, bool useManual,
+    const DirectX::XMFLOAT4X4& worldMatrix, const DirectX::XMFLOAT4X4& previousWorldMatrix)
+{
+    UINT stride{ sizeof(Model::Vertex) };
+    UINT offset{ 0 };
+    dc->IASetVertexBuffers(0, 1, mesh.vertexBuffer.GetAddressOf(), &stride, &offset);
+    dc->IASetIndexBuffer(mesh.indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
+    dc->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+    const DirectX::XMMATRIX manualWorldMat{ DirectX::XMLoadFloat4x4(&worldMatrix) };
+    const DirectX::XMMATRIX previousManualWorldMat{ DirectX::XMLoadFloat4x4(&previousWorldMatrix) };
+
+    CbSkeleton cbSkeleton{};
+    CbSkeleton cbSkeletonPrev{};
+
+    if (mesh.bones.size() > 0)
+    {
+        for (std::size_t i{ 0 }; i < mesh.bones.size(); ++i)
+        {
+            const Model::Bone& bone{ mesh.bones.at(i) };
+            const DirectX::XMMATRIX nodeGlobalMat{ DirectX::XMLoadFloat4x4(&bone.node->globalTransform) };
+            const DirectX::XMMATRIX offsetTransform{ DirectX::XMLoadFloat4x4(&bone.offsetTransform) };
+
+            const DirectX::XMMATRIX worldTransform{ useManual
+                ? (nodeGlobalMat * manualWorldMat)
+                : DirectX::XMLoadFloat4x4(&bone.node->worldTransform) };
+            DirectX::XMStoreFloat4x4(&cbSkeleton.boneTransforms[i], offsetTransform * worldTransform);
+
+            // Same-frame node pose reused for "previous" too â€” only the object-level manual matrix
+            // actually differs frame to frame in this engine, since bone.node transforms aren't
+            // independently double-buffered. Good enough: eliminates false velocity on the moving
+            // object without needing a second full animation evaluation per frame.
+            const DirectX::XMMATRIX previousWorldTransform{ useManual
+                ? (nodeGlobalMat * previousManualWorldMat)
+                : DirectX::XMLoadFloat4x4(&bone.node->worldTransform) };
+            DirectX::XMStoreFloat4x4(&cbSkeletonPrev.boneTransforms[i], offsetTransform * previousWorldTransform);
+        }
+    }
+    else
+    {
+        if (useManual)
+        {
+            const DirectX::XMMATRIX nodeGlobalMat{ DirectX::XMLoadFloat4x4(&mesh.node->globalTransform) };
+            DirectX::XMStoreFloat4x4(&cbSkeleton.boneTransforms[0], nodeGlobalMat * manualWorldMat);
+            DirectX::XMStoreFloat4x4(&cbSkeletonPrev.boneTransforms[0], nodeGlobalMat * previousManualWorldMat);
+        }
+        else
+        {
+            cbSkeleton.boneTransforms[0] = mesh.node->worldTransform;
+            cbSkeletonPrev.boneTransforms[0] = mesh.node->worldTransform; // static mesh: no motion
+        }
+    }
+
+    dc->UpdateSubresource(skeletonConstantBuffer.Get(), 0, 0, &cbSkeleton, 0, 0);
+    dc->UpdateSubresource(previousSkeletonConstantBuffer.Get(), 0, 0, &cbSkeletonPrev, 0, 0);
+
+    ID3D11Buffer* const vsCbs[]{ skeletonConstantBuffer.Get(), previousSkeletonConstantBuffer.Get() };
+    dc->VSSetConstantBuffers(6, 1, &vsCbs[0]); // b6, matches Skinning.hlsli's CbSkeleton
+    dc->VSSetConstantBuffers(9, 1, &vsCbs[1]); // b9, matches Skinning.hlsli's CbSkeletonPrev
+
+    dc->DrawIndexed(static_cast<UINT>(mesh.indices.size()), 0, 0);
+
+    PROFILE_DRAW_CALL();
+    PROFILE_TRIANGLES(mesh.indices.size() / 3);
 }
 
 void ModelRenderer::Render(const RenderContext& rc)
@@ -224,10 +300,10 @@ void ModelRenderer::Render(const RenderContext& rc)
             shader->Update(rc, mesh);
             dc->DrawIndexed(static_cast<UINT>(mesh.indices.size()), 0, 0);
 
-            // ‚±‚Ìƒ‰ƒ€ƒ_‚Í•s“§–¾E”¼“§–¾‚Ç‚¿‚ç‚ÌƒpƒX‚©‚ç‚àŒÄ‚Î‚ê‚é‚Ì‚ÅA
-            // ‚±‚±‚ª—Bˆê‚Ì DrawIndexed ŒÄ‚Ño‚µ‰ÓŠ‚É‚È‚é
+            // ã“ã®ãƒ©ãƒ ãƒ€ã¯ä¸é€æ˜ãƒ»åŠé€æ˜ã©ã¡ã‚‰ã®ãƒ‘ã‚¹ã‹ã‚‰ã‚‚å‘¼ã°ã‚Œã‚‹ã®ã§ã€
+            // ã“ã“ãŒå”¯ä¸€ã® DrawIndexed å‘¼ã³å‡ºã—ç®‡æ‰€ã«ãªã‚‹
             PROFILE_DRAW_CALL();
-            PROFILE_TRIANGLES(mesh.indices.size() / 3);   // ƒCƒ“ƒfƒbƒNƒXƒoƒbƒtƒ@‚ÍOŠpŒ`ƒŠƒXƒg‚È‚Ì‚Å3‚ÅŠ„‚é
+            PROFILE_TRIANGLES(mesh.indices.size() / 3);   // ã‚¤ãƒ³ãƒ‡ãƒƒã‚¯ã‚¹ãƒãƒƒãƒ•ã‚¡ã¯ä¸‰è§’å½¢ãƒªã‚¹ãƒˆãªã®ã§3ã§å‰²ã‚‹
     };
 
     if (rc.lightManager && rc.lightManager->GetDirectionalLight().castShadows)
@@ -316,7 +392,7 @@ void ModelRenderer::Render(const RenderContext& rc)
         const_cast<LightManager*>(rc.lightManager)->Update();
     }
 
-    // ƒV[ƒ“—p’è”ƒoƒbƒtƒ@XV
+    // ã‚·ãƒ¼ãƒ³ç”¨å®šæ•°ãƒãƒƒãƒ•ã‚¡æ›´æ–°
     {
         static LightManager defaultLightManager;
         const LightManager* const lightManager{ rc.lightManager ? rc.lightManager : &defaultLightManager };
@@ -460,7 +536,7 @@ void ModelRenderer::Render(const RenderContext& rc)
             // Route to correct opaque bucket using the Material's assigned shader
             const std::size_t shaderIndex{ static_cast<std::size_t>(mesh.material->shaderId) };
             opaqueBuckets[shaderIndex].emplace_back(MeshDrawCommand{
-                &mesh, drawInfo.color, drawInfo.useManualMatrix, drawInfo.worldMatrix
+    &mesh, drawInfo.color, drawInfo.useManualMatrix, drawInfo.worldMatrix, drawInfo.previousWorldMatrix
                 });
         }
     }
@@ -546,18 +622,55 @@ void ModelRenderer::Render(const RenderContext& rc)
     }
     drawInfos.clear();
 
+    if (rc.velocityRenderTargetView)
+    {
+        ID3D11RenderTargetView* originalRTV{ nullptr };
+        ID3D11DepthStencilView* originalDSV{ nullptr };
+        dc->OMGetRenderTargets(1, &originalRTV, &originalDSV);
+
+        ID3D11RenderTargetView* const velocityRTV{ rc.velocityRenderTargetView };
+        dc->OMSetRenderTargets(1, &velocityRTV, originalDSV);
+        dc->OMSetDepthStencilState(rc.renderState->GetDepthStencilState(DepthState::TestOnly), 0);
+        dc->OMSetBlendState(rc.renderState->GetBlendState(BlendState::Opaque), nullptr, 0xFFFFFFFF);
+
+        m_velocityShader->Begin(rc);
+
+        // VP is per-frame, not per-mesh â€” set once, not inside the loop.
+        DirectX::XMFLOAT4X4 currentViewProjection{};
+        DirectX::XMStoreFloat4x4(&currentViewProjection,
+            DirectX::XMLoadFloat4x4(&rc.camera->GetView()) * DirectX::XMLoadFloat4x4(&rc.camera->GetProjection()));
+        m_velocityShader->SetViewProjections(dc, currentViewProjection, rc.camera->GetPreviousViewProjection());
+
+        for (const auto& bucket : opaqueBuckets)
+        {
+            for (const MeshDrawCommand& cmd : bucket)
+            {
+                // Mirrors the drawMesh lambda's skeleton computation, but also fills the previous-frame
+                // skeleton buffer using cmd.previousWorldMatrix, so skinned meshes get correct motion
+                // instead of freezing mid-animation.
+                DrawMeshVelocity(dc, *cmd.mesh, cmd.useManualMatrix, cmd.worldMatrix, cmd.previousWorldMatrix);
+            }
+        }
+
+        m_velocityShader->End(rc);
+
+        dc->OMSetRenderTargets(1, &originalRTV, originalDSV);
+        if (originalRTV) originalRTV->Release();
+        if (originalDSV) originalDSV->Release();
+    }
+
     // Set Transparency blend state and disable depth writes unconditionally
     dc->OMSetBlendState(rc.renderState->GetBlendState(BlendState::Transparency), nullptr, 0xFFFFFFFF);
     dc->OMSetDepthStencilState(rc.renderState->GetDepthStencilState(DepthState::TestOnly), 0);
 
-    // ƒJƒƒ‰‚©‚ç‰“‚¢‡‚Éƒ\[ƒg
+    // ã‚«ãƒ¡ãƒ©ã‹ã‚‰é ã„é †ã«ã‚½ãƒ¼ãƒˆ
     std::sort(transparencyDrawInfos.begin(), transparencyDrawInfos.end(),
         [](const TransparencyDrawInfo& lhs, const TransparencyDrawInfo& rhs)
         {
             return lhs.distance > rhs.distance;
         });
 
-    // ”¼“§–¾•`‰æˆ—
+    // åŠé€æ˜æç”»å‡¦ç†
     for (const TransparencyDrawInfo& transparencyDrawInfo : transparencyDrawInfos)
     {
         Shader* shader = shaders[static_cast<int>(transparencyDrawInfo.shaderId)].get();
@@ -574,7 +687,7 @@ void ModelRenderer::Render(const RenderContext& rc)
     }
     transparencyDrawInfos.clear();
 
-    // ’è”ƒoƒbƒtƒ@İ’è‰ğœ
+    // å®šæ•°ãƒãƒƒãƒ•ã‚¡è¨­å®šè§£é™¤
     for (ID3D11Buffer*& vsConstantBuffer : vsConstantBuffers) { vsConstantBuffer = nullptr; }
     for (ID3D11Buffer*& psConstantBuffer : psConstantBuffers) { psConstantBuffer = nullptr; }
     dc->VSSetConstantBuffers(6, _countof(vsConstantBuffers), vsConstantBuffers);
