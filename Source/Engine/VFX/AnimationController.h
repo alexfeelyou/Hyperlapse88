@@ -23,6 +23,13 @@ public:
     void PlayUpper(const std::string& name, bool loop = false);
 
     bool IsUpperPlaying() const { return upperAnimIndex != -1; }
+
+    [[nodiscard]] const std::vector<DirectX::XMFLOAT4X4>& GetCurrentNodeGlobals() const noexcept { return m_currentNodeGlobals; }
+    [[nodiscard]] const std::vector<DirectX::XMFLOAT4X4>& GetPreviousNodeGlobals() const noexcept { return m_hasPreviousGlobals ? m_previousNodeGlobals : m_currentNodeGlobals; }
+
+    void InvalidateHistory() noexcept { m_hasPreviousGlobals = false; }
+    void SnapshotBones() noexcept;
+
     bool upperIsLooping = false;
 
 private:
@@ -47,4 +54,8 @@ private:
 
     std::vector<Model::NodePose> upperNodePoses;
     std::vector<bool> upperBodyMask;
+
+    std::vector<DirectX::XMFLOAT4X4> m_currentNodeGlobals{};
+    std::vector<DirectX::XMFLOAT4X4> m_previousNodeGlobals{};
+    bool m_hasPreviousGlobals{ false };
 };

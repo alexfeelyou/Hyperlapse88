@@ -40,6 +40,8 @@ public:
     void Draw(std::shared_ptr<Model> model, DirectX::XMFLOAT4 color, const DirectX::XMFLOAT4X4& worldMatrix, bool castShadows = true);
     void Draw(std::shared_ptr<Model> model, DirectX::XMFLOAT4 color,
         const DirectX::XMFLOAT4X4& worldMatrix, const DirectX::XMFLOAT4X4& previousWorldMatrix,
+        const std::vector<DirectX::XMFLOAT4X4>* currentNodeGlobals = nullptr,
+        const std::vector<DirectX::XMFLOAT4X4>* previousNodeGlobals = nullptr,
         bool castShadows = true);
 
     // ï`âÊé¿çs
@@ -48,15 +50,19 @@ public:
 private:
     void DrawMeshVelocity(
         ID3D11DeviceContext* dc, const Model::Mesh& mesh, bool useManual,
-        const DirectX::XMFLOAT4X4& worldMatrix, const DirectX::XMFLOAT4X4& previousWorldMatrix);
+        const DirectX::XMFLOAT4X4& worldMatrix, const DirectX::XMFLOAT4X4& previousWorldMatrix,
+        const std::vector<DirectX::XMFLOAT4X4>* currentNodeGlobals,
+        const std::vector<DirectX::XMFLOAT4X4>* previousNodeGlobals);
 
     struct MeshDrawCommand
     {
         const Model::Mesh* mesh{};
+        const std::vector<DirectX::XMFLOAT4X4>* currentNodeGlobals{ nullptr };
+        const std::vector<DirectX::XMFLOAT4X4>* previousNodeGlobals{ nullptr };
         DirectX::XMFLOAT4   color{};
         bool                useManualMatrix{ false };
         DirectX::XMFLOAT4X4 worldMatrix{};
-        DirectX::XMFLOAT4X4 previousWorldMatrix{}; 
+        DirectX::XMFLOAT4X4 previousWorldMatrix{};
     };
 
     struct CbScene
@@ -93,7 +99,9 @@ private:
 
     struct DrawInfo
     {
-        std::shared_ptr<Model>	model{};
+        std::shared_ptr<Model>  model{};
+        const std::vector<DirectX::XMFLOAT4X4>* currentNodeGlobals{ nullptr };
+        const std::vector<DirectX::XMFLOAT4X4>* previousNodeGlobals{ nullptr };
         DirectX::XMFLOAT4       color{};
         bool                    useManualMatrix{ false };
         DirectX::XMFLOAT4X4     worldMatrix{};
@@ -103,13 +111,13 @@ private:
 
     struct TransparencyDrawInfo
     {
-        ShaderId				shaderId;
+        ShaderId                shaderId;
         const Model::Mesh* mesh;
-        float					distance;
-        DirectX::XMFLOAT4       color; 
-
-        bool                    useManualMatrix = false;
+        float                   distance;
+        DirectX::XMFLOAT4       color;
+        bool                    useManualMatrix{ false };
         DirectX::XMFLOAT4X4     worldMatrix;
+        const std::vector<DirectX::XMFLOAT4X4>* currentNodeGlobals{ nullptr };
     };
 
     std::unique_ptr<Shader>					shaders[static_cast<int>(ShaderId::EnumCount)];
