@@ -10,6 +10,9 @@ void AnimationController::Initialize(std::shared_ptr<Model> model)
 
     nodePoses.resize(nodeCount);
     prevNodePoses.resize(nodeCount);
+
+    m_currentNodeGlobals.resize(nodeCount);
+    m_previousNodeGlobals.resize(nodeCount);
 }
 
 void AnimationController::Play(const std::string& name, bool loop, float blendTime)
@@ -170,4 +173,28 @@ void AnimationController::PlayUpper(const std::string& name, bool loop)
     upperAnimIndex = ownerModel->GetAnimationIndex(name.c_str());
     upperTimer = 0.0f;
     upperIsLooping = loop; 
+}
+
+void AnimationController::SnapshotBones() noexcept
+{
+    if (!ownerModel) return;
+
+    if (m_hasPreviousGlobals)
+    {
+        m_previousNodeGlobals = m_currentNodeGlobals;
+    }
+
+    const auto& nodes = ownerModel->GetNodes();
+    const size_t count = (std::min)(nodes.size(), m_currentNodeGlobals.size());
+
+    for (size_t i = 0; i < count; ++i)
+    {
+        m_currentNodeGlobals[i] = nodes[i].globalTransform;
+    }
+
+    if (!m_hasPreviousGlobals)
+    {
+        m_previousNodeGlobals = m_currentNodeGlobals;
+        m_hasPreviousGlobals = true;
+    }
 }

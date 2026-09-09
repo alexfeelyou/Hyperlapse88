@@ -23,11 +23,10 @@ int main(int argc, char* argv[])
 
         bool running = true;
         Uint64 lastTime = SDL_GetPerformanceCounter();
-        Uint64 frequency = SDL_GetPerformanceFrequency();
+        const Uint64 frequency = SDL_GetPerformanceFrequency();
 
-        const double targetFPS = 60.0; 
-        const Uint64 targetTicksPerFrame = frequency / targetFPS;
-        const Uint64 yieldThreshold = frequency / 500; 
+        // 0.0 disables the cap entirely for uncapped testing
+        constexpr double targetFPS = 120.0;
 
         while (running)
         {
@@ -50,7 +49,7 @@ int main(int argc, char* argv[])
                         // Tell DirectX to rebuild the swap chain buffers
                         WindowManager::Instance().HandleResize(resizedWin, event.window.data1, event.window.data2);
 
-                        // 2Tell the game logic to update Camera FOV and post-processing resolutions
+                        // Tell the game logic to update Camera FOV and post-processing resolutions
                         if (framework) {
                             framework->OnResize(event.window.data1, event.window.data2);
                         }
@@ -77,17 +76,31 @@ int main(int argc, char* argv[])
                 running = false;
             }
 
-            while (true)
+            // High-Precision Hybrid Frame Limiter
+            if (targetFPS > 0.0)
             {
-                Uint64 now = SDL_GetPerformanceCounter();
-                Uint64 ticksPassed = now - frameStart;
-                if (ticksPassed >= targetTicksPerFrame) break;
+                const Uint64 targetTicksPerFrame{ static_cast<Uint64>(frequency / targetFPS) };
 
-                Uint64 remaining = targetTicksPerFrame - ticksPassed;
-                if (remaining > yieldThreshold) {
-                    // sleep for most of the remaining time, leave a margin for the OS scheduler's granularity
-                    double remainingMs = (double)(remaining - yieldThreshold) * 1000.0 / frequency;
-                    std::this_thread::sleep_for(std::chrono::duration<double, std::milli>(remainingMs));
+                while (true)
+                {
+                    const Uint64 now{ SDL_GetPerformanceCounter() };
+                    const Uint64 ticksPassed{ now - frameStart };
+
+                    if (ticksPassed >= targetTicksPerFrame)
+                    {
+                        break;
+                    }
+
+                    const Uint64 remaining{ targetTicksPerFrame - ticksPassed };
+
+                    const Uint64 sleepThreshold{ (frequency * 2) / 1000 };
+
+                    if (remaining > sleepThreshold)
+                    {
+                        const double remainingMs{ static_cast<double>(remaining - sleepThreshold) * 1000.0 / static_cast<double>(frequency) };
+                        std::this_thread::sleep_for(std::chrono::duration<double, std::milli>(remainingMs));
+                    }
+                    // For the final <2ms, the loop spinlocks (busy-waits) for pinpoint microsecond accuracy
                 }
             }
         }

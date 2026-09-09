@@ -26,3 +26,20 @@ float3 SkinningVector(float3 vec, float4 boneWeights, uint4 boneIndices)
 	}
 	return v;
 }
+
+cbuffer CbSkeletonPrev : register(b9)
+{
+    row_major float4x4 previousBoneTransforms[256];
+}
+
+float4 SkinningPositionPrevious(float4 position, float4 boneWeights, uint4 boneIndices)
+{
+    float4 p = float4(0, 0, 0, 0);
+
+	[unroll]
+    for (int i = 0; i < 4; i++)
+    {
+        p += (boneWeights[i] * mul(position, previousBoneTransforms[boneIndices[i]]));
+    }
+    return p;
+}

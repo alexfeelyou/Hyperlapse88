@@ -587,6 +587,8 @@ void Player::ApplyWorldMatrix(float smoothedYaw, bool shouldAim, float relativeA
 
     if (model) model->UpdateTransform(worldMatrix);
 
+    if (animator) animator->SnapshotBones();
+
     DirectX::XMFLOAT4X4 attachMatrix = worldMatrix; // Fallback to feet if hand is missing
     if (m_rightHandBoneIndex != -1 && model->GetNodes().size() > m_rightHandBoneIndex)
     {

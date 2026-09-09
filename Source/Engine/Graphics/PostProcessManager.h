@@ -14,6 +14,7 @@
 #include "System/Logger.h"
 #include "DepthFogEffect.h"
 #include "PostProcessEffects.h"
+#include "TemporalAAEffect.h"
 
 class PostProcessManager
 {
@@ -39,7 +40,8 @@ public:
     [[nodiscard]] bool IsEnabled() const noexcept { return m_isEnabled; }
     void SetEnabled(bool enable) noexcept { m_isEnabled = enable; }
 
-    // Direct accessors to individual effect modules (for Scene transitions & scripts)
+    // Direct accessors to individual effect modules 
+    [[nodiscard]] TemporalAAEffect& GetTemporalAA() noexcept { return *m_temporalAAEffect; }
     [[nodiscard]] PSXEffect& GetPSX() noexcept { return *m_psxEffect; }
     [[nodiscard]] LensDistortionEffect& GetLensDistortion() noexcept { return *m_lensDistortionEffect; }
     [[nodiscard]] RadialBlurEffect& GetRadialBlur() noexcept { return *m_radialBlurEffect; }
@@ -51,6 +53,9 @@ public:
     {
         return m_effects;
     }
+
+	// Direct access to the velocity buffer RTV for ModelRenderer's velocity pass
+    [[nodiscard]] ID3D11RenderTargetView* GetVelocityRTV() const noexcept { return m_velocityTarget.rtv.Get(); }
 
 	// Serialization Interface for saving/loading the entire post-process graph
     void SaveConfig(std::string_view filepath) const;
@@ -83,6 +88,9 @@ private:
 
     // Dual Ping-Pong Offscreen Targets
     std::array<RenderTargetResource, 2> m_pingPong{};
+
+    RenderTargetResource m_velocityTarget{}; // written by ModelRenderer's velocity pass
+    std::unique_ptr<TemporalAAEffect> m_temporalAAEffect{};
 
     // Shared Full-Screen Triangle Vertex Shader & Passthrough Blit Pixel Shader
     Microsoft::WRL::ComPtr<ID3D11VertexShader> m_fullscreenVS{};

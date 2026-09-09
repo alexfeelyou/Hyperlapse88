@@ -88,6 +88,15 @@
     <FxCompile Include="Shader\ShadowCasterVS.hlsl">
       <Filter>Shader</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\VelocityVS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\VelocityPS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\TemporalResolvePS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Source\System\BasicShader.cpp">
@@ -344,6 +353,12 @@
     </ClCompile>
     <ClCompile Include="Source\System\ShadowCasterShader.cpp">
       <Filter>System</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\System\VelocityShader.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Engine\Graphics\TemporalAAEffect.cpp">
+      <Filter>Source\Engine\Graphics</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -668,6 +683,12 @@
     </ClInclude>
     <ClInclude Include="Source\System\CollisionLayer.h">
       <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\System\VelocityShader.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Graphics\TemporalAAEffect.h">
+      <Filter>Source\Engine\Graphics</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

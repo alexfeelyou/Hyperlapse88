@@ -92,8 +92,15 @@ void MeshComponent::Render(ModelRenderer* renderer)
     // Retrieve the fully resolved world matrix (Position * Rotation * Scale) from the GameObject
     const DirectX::XMFLOAT4X4 worldMatrix{ m_owner->transform.GetWorldMatrix() };
 
-    // Submit to the ModelRenderer using the manual matrix overload 
-    renderer->Draw(m_model, m_color, worldMatrix);
+    // On the first frame there's no history yet — feeding worldMatrix as its own previous gives zero
+    // velocity instead of a huge false spike from an uninitialized matrix
+    const DirectX::XMFLOAT4X4& previousWorldMatrix{ m_hasPreviousWorldMatrix ? m_previousWorldMatrix : worldMatrix };
+
+    renderer->Draw(m_model, m_color, worldMatrix, previousWorldMatrix);
+
+    // Cache after submission, or this frame's data is lost before the velocity pass reads it next frame
+    m_previousWorldMatrix = worldMatrix;
+    m_hasPreviousWorldMatrix = true;
 }
 
 void MeshComponent::DrawInspector()

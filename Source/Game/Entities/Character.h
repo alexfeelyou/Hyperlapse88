@@ -24,6 +24,7 @@ public:
 
     [[nodiscard]] DirectX::XMFLOAT3 GetPosition() const { return movement->GetPosition(); }
     [[nodiscard]] CharacterMovement* GetMovement() const { return movement.get(); }
+    [[nodiscard]] std::shared_ptr<Model> GetModel() const noexcept { return model; }
 
     // Virtual transform setters
     // Allows LegacyCharacterComponent to update generic Characters, while giving 

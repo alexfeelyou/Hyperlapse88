@@ -39,8 +39,11 @@ public:
     [[nodiscard]] std::shared_ptr<Model> GetModel() const noexcept { return m_model; }
 
 private:
-    std::shared_ptr<Model> m_model{};
-    std::string            m_modelPath{ "None" }; // Tracks the loaded asset path
+    std::shared_ptr<Model>  m_model{};
+    std::string             m_modelPath{ "None" }; // Tracks the loaded asset path
 
-    DirectX::XMFLOAT4      m_color{ 1.0f, 1.0f, 1.0f, 1.0f };
+    DirectX::XMFLOAT4       m_color{ 1.0f, 1.0f, 1.0f, 1.0f };
+
+    DirectX::XMFLOAT4X4     m_previousWorldMatrix{};
+    bool                    m_hasPreviousWorldMatrix{ false }; // first frame after spawn has no valid history yet
 };

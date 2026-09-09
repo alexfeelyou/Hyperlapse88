@@ -33,6 +33,10 @@ private:
 
     Character* m_character{ nullptr }; // Non-owning pointer to the actual gameplay entity
 
+	// Cached world matrix from the previous frame to support motion blur and velocity effects
+    DirectX::XMFLOAT4X4 m_previousWorldMatrix{};
+    bool m_hasPreviousWorldMatrix{ false };
+
     // Cached states to detect if the Editor modified the Transform manually this frame
     DirectX::XMFLOAT3 m_lastFramePos{ 0.0f, 0.0f, 0.0f };
     DirectX::XMFLOAT3 m_lastFrameRot{ 0.0f, 0.0f, 0.0f };
