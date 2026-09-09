@@ -48,21 +48,15 @@ public:
     void Render(const RenderContext& rc);
 
 private:
-    void DrawMeshVelocity(
-        ID3D11DeviceContext* dc, const Model::Mesh& mesh, bool useManual,
-        const DirectX::XMFLOAT4X4& worldMatrix, const DirectX::XMFLOAT4X4& previousWorldMatrix,
-        const std::vector<DirectX::XMFLOAT4X4>* currentNodeGlobals,
-        const std::vector<DirectX::XMFLOAT4X4>* previousNodeGlobals);
+    void DrawMeshVelocity(ID3D11DeviceContext* dc, const Model::Mesh& mesh, std::size_t skeletonSlot);
 
     struct MeshDrawCommand
     {
         const Model::Mesh* mesh{};
-        const std::vector<DirectX::XMFLOAT4X4>* currentNodeGlobals{ nullptr };
-        const std::vector<DirectX::XMFLOAT4X4>* previousNodeGlobals{ nullptr };
+        std::size_t         skeletonSlot{ 0 };
         DirectX::XMFLOAT4   color{};
         bool                useManualMatrix{ false };
-        DirectX::XMFLOAT4X4 worldMatrix{};
-        DirectX::XMFLOAT4X4 previousWorldMatrix{};
+        DirectX::XMFLOAT4X4 worldMatrix{}; 
     };
 
     struct CbScene
@@ -102,33 +96,47 @@ private:
         std::shared_ptr<Model>  model{};
         const std::vector<DirectX::XMFLOAT4X4>* currentNodeGlobals{ nullptr };
         const std::vector<DirectX::XMFLOAT4X4>* previousNodeGlobals{ nullptr };
-        DirectX::XMFLOAT4       color{};
-        bool                    useManualMatrix{ false };
-        DirectX::XMFLOAT4X4     worldMatrix{};
-        DirectX::XMFLOAT4X4     previousWorldMatrix{};
-        bool                    castShadows{ true };
+        DirectX::XMFLOAT4        color{};
+        bool                     useManualMatrix{ false };
+        DirectX::XMFLOAT4X4      worldMatrix{};
+        DirectX::XMFLOAT4X4      previousWorldMatrix{};
+        bool                     castShadows{ true };
+        std::vector<std::size_t> skeletonSlots{}; 
     };
 
     struct TransparencyDrawInfo
     {
-        ShaderId                shaderId;
+        ShaderId            shaderId;
         const Model::Mesh* mesh;
-        float                   distance;
-        DirectX::XMFLOAT4       color;
-        bool                    useManualMatrix{ false };
-        DirectX::XMFLOAT4X4     worldMatrix;
-        const std::vector<DirectX::XMFLOAT4X4>* currentNodeGlobals{ nullptr };
+        float               distance;
+        DirectX::XMFLOAT4   color;
+        std::size_t         skeletonSlot{ 0 };
     };
 
-    std::unique_ptr<Shader>					shaders[static_cast<int>(ShaderId::EnumCount)];
-    std::unique_ptr<OutlineShader>          m_outlineShader;
-    std::unique_ptr<ShadowCasterShader>     m_shadowCasterShader{};
-    std::unique_ptr<VelocityShader>         m_velocityShader{};
-    std::vector<DrawInfo>					drawInfos;
-    std::vector<TransparencyDrawInfo>		transparencyDrawInfos;
+    struct SkeletonSlot
+    {
+        Microsoft::WRL::ComPtr<ID3D11Buffer> currentBuffer{};
+        Microsoft::WRL::ComPtr<ID3D11Buffer> previousBuffer{};
+    };
 
-    Microsoft::WRL::ComPtr<ID3D11Buffer>	sceneConstantBuffer;
-    Microsoft::WRL::ComPtr<ID3D11Buffer>	skeletonConstantBuffer;
-    Microsoft::WRL::ComPtr<ID3D11Buffer>	objectConstantBuffer;
-    Microsoft::WRL::ComPtr<ID3D11Buffer>    previousSkeletonConstantBuffer;
+    std::vector<SkeletonSlot> m_skeletonPool{};
+    std::size_t m_skeletonPoolUsed{ 0 };
+
+    [[nodiscard]] std::size_t AcquireSkeletonSlot(ID3D11Device* device);
+    void ComputeAndUploadSkeleton(
+        ID3D11DeviceContext* dc, std::size_t slotIndex, const Model::Mesh& mesh, bool useManual,
+        const DirectX::XMFLOAT4X4& worldMatrix, const DirectX::XMFLOAT4X4& previousWorldMatrix,
+        const std::vector<DirectX::XMFLOAT4X4>* currentNodeGlobals,
+        const std::vector<DirectX::XMFLOAT4X4>* previousNodeGlobals);
+    void BindSkeletonSlot(ID3D11DeviceContext* dc, std::size_t slotIndex) const noexcept;
+
+    std::unique_ptr<Shader>              shaders[static_cast<int>(ShaderId::EnumCount)];
+    std::unique_ptr<OutlineShader>       m_outlineShader;
+    std::unique_ptr<ShadowCasterShader>  m_shadowCasterShader{};
+    std::unique_ptr<VelocityShader>      m_velocityShader{};
+    std::vector<DrawInfo>                drawInfos;
+    std::vector<TransparencyDrawInfo>    transparencyDrawInfos;
+
+    Microsoft::WRL::ComPtr<ID3D11Buffer> sceneConstantBuffer;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> objectConstantBuffer;
 };

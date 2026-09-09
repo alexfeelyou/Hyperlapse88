@@ -121,12 +121,11 @@ namespace
 ModelRenderer::ModelRenderer(ID3D11Device* device)
 {
     GpuResourceUtils::CreateConstantBuffer(device, sizeof(CbScene), sceneConstantBuffer.GetAddressOf());
-    GpuResourceUtils::CreateConstantBuffer(device, sizeof(CbSkeleton), skeletonConstantBuffer.GetAddressOf());
     GpuResourceUtils::CreateConstantBuffer(device, sizeof(CbObject), objectConstantBuffer.GetAddressOf());
-    GpuResourceUtils::CreateConstantBuffer(device, sizeof(CbSkeleton), previousSkeletonConstantBuffer.GetAddressOf());
 
     drawInfos.reserve(2000);
     transparencyDrawInfos.reserve(2000);
+    m_skeletonPool.reserve(16);
 
     shaders[static_cast<int>(ShaderId::Basic)] = std::make_unique<BasicShader>(device);
     shaders[static_cast<int>(ShaderId::Lambert)] = std::make_unique<LambertShader>(device);
@@ -137,6 +136,102 @@ ModelRenderer::ModelRenderer(ID3D11Device* device)
     m_outlineShader = std::make_unique<OutlineShader>(device);
     m_shadowCasterShader = std::make_unique<ShadowCasterShader>(device);
     m_velocityShader = std::make_unique<VelocityShader>(device);
+}
+
+std::size_t ModelRenderer::AcquireSkeletonSlot(ID3D11Device* device)
+{
+    const std::size_t index{ m_skeletonPoolUsed++ };
+    if (index >= m_skeletonPool.size())
+    {
+        // Grows only the first time this many simultaneous meshes-with-transforms are drawn
+        // in one frame. Every subsequent frame at or below that count allocates nothing.
+        SkeletonSlot slot{};
+        GpuResourceUtils::CreateConstantBuffer(device, sizeof(CbSkeleton), slot.currentBuffer.GetAddressOf());
+        GpuResourceUtils::CreateConstantBuffer(device, sizeof(CbSkeleton), slot.previousBuffer.GetAddressOf());
+        m_skeletonPool.push_back(std::move(slot));
+    }
+    return index;
+}
+
+void ModelRenderer::ComputeAndUploadSkeleton(
+    ID3D11DeviceContext* dc, std::size_t slotIndex, const Model::Mesh& mesh, bool useManual,
+    const DirectX::XMFLOAT4X4& worldMatrix, const DirectX::XMFLOAT4X4& previousWorldMatrix,
+    const std::vector<DirectX::XMFLOAT4X4>* currentNodeGlobals,
+    const std::vector<DirectX::XMFLOAT4X4>* previousNodeGlobals)
+{
+    SkeletonSlot& slot{ m_skeletonPool[slotIndex] };
+    const std::size_t boneCount{ mesh.bones.empty() ? 1u : mesh.bones.size() };
+
+    // Full 256-entry structs, zero-initialized — unused trailing entries are never read by the
+    // shader (bone weights for those indices are always 0), so leaving them zeroed is correct
+    // and cheap; it's the memcpy that matters, not the entry count.
+    CbSkeleton cbCurrent{};
+    CbSkeleton cbPrevious{};
+
+    const DirectX::XMMATRIX manualWorldMat{ DirectX::XMLoadFloat4x4(&worldMatrix) };
+    const DirectX::XMMATRIX previousManualWorldMat{ DirectX::XMLoadFloat4x4(&previousWorldMatrix) };
+
+    if (!mesh.bones.empty())
+    {
+        for (std::size_t i{ 0 }; i < mesh.bones.size(); ++i)
+        {
+            const Model::Bone& bone{ mesh.bones[i] };
+
+            DirectX::XMMATRIX nodeGlobalMat;
+            DirectX::XMMATRIX prevNodeGlobalMat;
+
+            if (currentNodeGlobals && previousNodeGlobals &&
+                bone.nodeIndex >= 0 && static_cast<std::size_t>(bone.nodeIndex) < currentNodeGlobals->size())
+            {
+                nodeGlobalMat = DirectX::XMLoadFloat4x4(&(*currentNodeGlobals)[bone.nodeIndex]);
+                prevNodeGlobalMat = DirectX::XMLoadFloat4x4(&(*previousNodeGlobals)[bone.nodeIndex]);
+            }
+            else
+            {
+                nodeGlobalMat = DirectX::XMLoadFloat4x4(&bone.node->globalTransform);
+                prevNodeGlobalMat = nodeGlobalMat;
+            }
+
+            const DirectX::XMMATRIX offsetTransform{ DirectX::XMLoadFloat4x4(&bone.offsetTransform) };
+
+            const DirectX::XMMATRIX worldTransform{ useManual
+                ? (nodeGlobalMat * manualWorldMat)
+                : DirectX::XMLoadFloat4x4(&bone.node->worldTransform) };
+            DirectX::XMStoreFloat4x4(&cbCurrent.boneTransforms[i], offsetTransform * worldTransform);
+
+            const DirectX::XMMATRIX previousWorldTransform{ useManual
+                ? (prevNodeGlobalMat * previousManualWorldMat)
+                : DirectX::XMLoadFloat4x4(&bone.node->worldTransform) };
+            DirectX::XMStoreFloat4x4(&cbPrevious.boneTransforms[i], offsetTransform * previousWorldTransform);
+        }
+    }
+    else
+    {
+        if (useManual)
+        {
+            const DirectX::XMMATRIX nodeGlobalMat{ DirectX::XMLoadFloat4x4(&mesh.node->globalTransform) };
+            DirectX::XMStoreFloat4x4(&cbCurrent.boneTransforms[0], nodeGlobalMat * manualWorldMat);
+            DirectX::XMStoreFloat4x4(&cbPrevious.boneTransforms[0], nodeGlobalMat * previousManualWorldMat);
+        }
+        else
+        {
+            cbCurrent.boneTransforms[0] = mesh.node->worldTransform;
+            cbPrevious.boneTransforms[0] = mesh.node->worldTransform;
+        }
+    }
+
+    // pDstBox MUST be nullptr for constant buffers — D3D11 requires whole-buffer updates only.
+    dc->UpdateSubresource(slot.currentBuffer.Get(), 0, nullptr, &cbCurrent, 0, 0);
+    dc->UpdateSubresource(slot.previousBuffer.Get(), 0, nullptr, &cbPrevious, 0, 0);
+}
+
+void ModelRenderer::BindSkeletonSlot(ID3D11DeviceContext* dc, std::size_t slotIndex) const noexcept
+{
+    const SkeletonSlot& slot{ m_skeletonPool[slotIndex] };
+    ID3D11Buffer* const currentCb{ slot.currentBuffer.Get() };
+    ID3D11Buffer* const previousCb{ slot.previousBuffer.Get() };
+    dc->VSSetConstantBuffers(6, 1, &currentCb);  
+    dc->VSSetConstantBuffers(9, 1, &previousCb); 
 }
 
 void ModelRenderer::Draw(std::shared_ptr<Model> model, const DirectX::XMFLOAT4& color, bool castShadows)
@@ -166,10 +261,7 @@ void ModelRenderer::Draw(std::shared_ptr<Model> model, DirectX::XMFLOAT4 color,
     drawInfos.push_back(DrawInfo{ std::move(model), currentNodeGlobals, previousNodeGlobals, color, true, worldMatrix, previousWorldMatrix, castShadows });
 }
 
-void ModelRenderer::DrawMeshVelocity(
-    ID3D11DeviceContext* dc, const Model::Mesh& mesh, bool useManual,
-    const DirectX::XMFLOAT4X4& worldMatrix, const DirectX::XMFLOAT4X4& previousWorldMatrix,
-    const std::vector<DirectX::XMFLOAT4X4>* currentNodeGlobals, const std::vector<DirectX::XMFLOAT4X4>* previousNodeGlobals)
+void ModelRenderer::DrawMeshVelocity(ID3D11DeviceContext* dc, const Model::Mesh& mesh, std::size_t skeletonSlot)
 {
     UINT stride{ sizeof(Model::Vertex) };
     UINT offset{ 0 };
@@ -177,63 +269,7 @@ void ModelRenderer::DrawMeshVelocity(
     dc->IASetIndexBuffer(mesh.indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
     dc->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-    const DirectX::XMMATRIX manualWorldMat{ DirectX::XMLoadFloat4x4(&worldMatrix) };
-    const DirectX::XMMATRIX previousManualWorldMat{ DirectX::XMLoadFloat4x4(&previousWorldMatrix) };
-
-    CbSkeleton cbSkeleton{};
-    CbSkeleton cbSkeletonPrev{};
-
-    if (mesh.bones.size() > 0)
-    {
-        for (std::size_t i{ 0 }; i < mesh.bones.size(); ++i)
-        {
-            const Model::Bone& bone{ mesh.bones.at(i) };
-
-            DirectX::XMMATRIX nodeGlobalMat;
-            DirectX::XMMATRIX prevNodeGlobalMat;
-
-            // Safe Node lookup mapping
-            if (currentNodeGlobals && previousNodeGlobals && bone.nodeIndex >= 0 && bone.nodeIndex < currentNodeGlobals->size())
-            {
-                nodeGlobalMat = DirectX::XMLoadFloat4x4(&(*currentNodeGlobals)[bone.nodeIndex]);
-                prevNodeGlobalMat = DirectX::XMLoadFloat4x4(&(*previousNodeGlobals)[bone.nodeIndex]);
-            }
-            else
-            {
-                nodeGlobalMat = DirectX::XMLoadFloat4x4(&bone.node->globalTransform);
-                prevNodeGlobalMat = nodeGlobalMat;
-            }
-
-            const DirectX::XMMATRIX offsetTransform{ DirectX::XMLoadFloat4x4(&bone.offsetTransform) };
-
-            const DirectX::XMMATRIX worldTransform{ useManual ? (nodeGlobalMat * manualWorldMat) : DirectX::XMLoadFloat4x4(&bone.node->worldTransform) };
-            DirectX::XMStoreFloat4x4(&cbSkeleton.boneTransforms[i], offsetTransform * worldTransform);
-
-            const DirectX::XMMATRIX previousWorldTransform{ useManual ? (prevNodeGlobalMat * previousManualWorldMat) : DirectX::XMLoadFloat4x4(&bone.node->worldTransform) };
-            DirectX::XMStoreFloat4x4(&cbSkeletonPrev.boneTransforms[i], offsetTransform * previousWorldTransform);
-        }
-    }
-    else
-    {
-        if (useManual)
-        {
-            const DirectX::XMMATRIX nodeGlobalMat{ DirectX::XMLoadFloat4x4(&mesh.node->globalTransform) };
-            DirectX::XMStoreFloat4x4(&cbSkeleton.boneTransforms[0], nodeGlobalMat * manualWorldMat);
-            DirectX::XMStoreFloat4x4(&cbSkeletonPrev.boneTransforms[0], nodeGlobalMat * previousManualWorldMat);
-        }
-        else
-        {
-            cbSkeleton.boneTransforms[0] = mesh.node->worldTransform;
-            cbSkeletonPrev.boneTransforms[0] = mesh.node->worldTransform;
-        }
-    }
-
-    dc->UpdateSubresource(skeletonConstantBuffer.Get(), 0, 0, &cbSkeleton, 0, 0);
-    dc->UpdateSubresource(previousSkeletonConstantBuffer.Get(), 0, 0, &cbSkeletonPrev, 0, 0);
-
-    ID3D11Buffer* const vsCbs[]{ skeletonConstantBuffer.Get(), previousSkeletonConstantBuffer.Get() };
-    dc->VSSetConstantBuffers(6, 1, &vsCbs[0]);
-    dc->VSSetConstantBuffers(9, 1, &vsCbs[1]);
+    BindSkeletonSlot(dc, skeletonSlot);
 
     dc->DrawIndexed(static_cast<UINT>(mesh.indices.size()), 0, 0);
 
@@ -245,54 +281,40 @@ void ModelRenderer::Render(const RenderContext& rc)
 {
     if (drawInfos.empty()) return;
 
-    ID3D11DeviceContext* dc = rc.deviceContext;
+    ID3D11DeviceContext* const dc{ rc.deviceContext };
+    Microsoft::WRL::ComPtr<ID3D11Device> device{};
+    dc->GetDevice(device.GetAddressOf());
 
-    auto drawMesh = [&](const Model::Mesh& mesh, Shader* shader, bool useManual, const DirectX::XMFLOAT4X4& manualMatrix, const std::vector<DirectX::XMFLOAT4X4>* currentNodeGlobals)
+    m_skeletonPoolUsed = 0; // reset the frame arena — buffers themselves are reused, not freed
+
+    // PREPARE PASS: compute + upload every drawn mesh's skeleton exactly once. Shadow cascades,
+    // opaque, outline, transparency, and velocity all just bind these buffers afterward.
+    for (DrawInfo& drawInfo : drawInfos)
+    {
+        if (!drawInfo.model) continue;
+
+        const auto& meshes{ drawInfo.model->GetMeshes() };
+        drawInfo.skeletonSlots.resize(meshes.size());
+
+        for (std::size_t meshIdx{ 0 }; meshIdx < meshes.size(); ++meshIdx)
         {
-            UINT stride = sizeof(Model::Vertex);
-            UINT offset = 0;
+            const std::size_t slot{ AcquireSkeletonSlot(device.Get()) };
+            ComputeAndUploadSkeleton(dc, slot, meshes[meshIdx], drawInfo.useManualMatrix,
+                drawInfo.worldMatrix, drawInfo.previousWorldMatrix,
+                drawInfo.currentNodeGlobals, drawInfo.previousNodeGlobals);
+            drawInfo.skeletonSlots[meshIdx] = slot;
+        }
+    }
+
+    auto drawMesh = [&](const Model::Mesh& mesh, Shader* shader, std::size_t skeletonSlot)
+        {
+            UINT stride{ sizeof(Model::Vertex) };
+            UINT offset{ 0 };
             dc->IASetVertexBuffers(0, 1, mesh.vertexBuffer.GetAddressOf(), &stride, &offset);
             dc->IASetIndexBuffer(mesh.indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
             dc->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-            CbSkeleton cbSkeleton{};
-            DirectX::XMMATRIX manualWorldMat = DirectX::XMLoadFloat4x4(&manualMatrix);
-
-            if (mesh.bones.size() > 0)
-            {
-                for (size_t i = 0; i < mesh.bones.size(); ++i)
-                {
-                    const Model::Bone& bone = mesh.bones.at(i);
-
-                    DirectX::XMMATRIX nodeGlobalMat;
-                    if (currentNodeGlobals && bone.nodeIndex >= 0 && bone.nodeIndex < currentNodeGlobals->size())
-                    {
-                        nodeGlobalMat = DirectX::XMLoadFloat4x4(&(*currentNodeGlobals)[bone.nodeIndex]);
-                    }
-                    else
-                    {
-                        nodeGlobalMat = DirectX::XMLoadFloat4x4(&bone.node->globalTransform);
-                    }
-
-                    DirectX::XMMATRIX worldTransform = useManual ? (nodeGlobalMat * manualWorldMat) : DirectX::XMLoadFloat4x4(&bone.node->worldTransform);
-                    DirectX::XMMATRIX offsetTransform = DirectX::XMLoadFloat4x4(&bone.offsetTransform);
-                    DirectX::XMStoreFloat4x4(&cbSkeleton.boneTransforms[i], offsetTransform * worldTransform);
-                }
-            }
-            else
-            {
-                if (useManual)
-                {
-                    DirectX::XMMATRIX nodeGlobalMat = DirectX::XMLoadFloat4x4(&mesh.node->globalTransform);
-                    DirectX::XMStoreFloat4x4(&cbSkeleton.boneTransforms[0], nodeGlobalMat * manualWorldMat);
-                }
-                else
-                {
-                    cbSkeleton.boneTransforms[0] = mesh.node->worldTransform;
-                }
-            }
-
-            dc->UpdateSubresource(skeletonConstantBuffer.Get(), 0, 0, &cbSkeleton, 0, 0);
+            BindSkeletonSlot(dc, skeletonSlot);
 
             shader->Update(rc, mesh);
             dc->DrawIndexed(static_cast<UINT>(mesh.indices.size()), 0, 0);
@@ -324,9 +346,6 @@ void ModelRenderer::Render(const RenderContext& rc)
 
         m_shadowCasterShader->Begin(rc);
 
-        ID3D11Buffer* const vsShadowCbs[]{ skeletonConstantBuffer.Get() };
-        dc->VSSetConstantBuffers(6, 1, vsShadowCbs);
-
         for (int i = 0; i < SHADOW_CASCADE_COUNT; ++i)
         {
             ID3D11DepthStencilView* cascadeDSV = rc.lightManager->GetCascadeDSV(i);
@@ -344,14 +363,16 @@ void ModelRenderer::Render(const RenderContext& rc)
             {
                 if (!drawInfo.castShadows || !drawInfo.model) continue;
 
-                for (const Model::Mesh& mesh : drawInfo.model->GetMeshes())
+                const auto& meshes{ drawInfo.model->GetMeshes() };
+                for (std::size_t meshIdx{ 0 }; meshIdx < meshes.size(); ++meshIdx)
                 {
+                    const Model::Mesh& mesh{ meshes[meshIdx] };
                     if (mesh.material->alphaMode == AlphaMode::Blend) continue;
 
-                    const BoundingSphere sphere = CalculateMeshBoundingSphere(mesh, drawInfo.useManualMatrix, drawInfo.worldMatrix);
+                    const BoundingSphere sphere{ CalculateMeshBoundingSphere(mesh, drawInfo.useManualMatrix, drawInfo.worldMatrix) };
                     if (!IsSphereInCascade(cascadePlanes, sphere.center, sphere.radius)) continue;
 
-                    drawMesh(mesh, m_shadowCasterShader.get(), drawInfo.useManualMatrix, drawInfo.worldMatrix, drawInfo.currentNodeGlobals);
+                    drawMesh(mesh, m_shadowCasterShader.get(), drawInfo.skeletonSlots[meshIdx]);
                 }
             }
         }
@@ -429,13 +450,12 @@ void ModelRenderer::Render(const RenderContext& rc)
     }
 
     ID3D11Buffer* vsConstantBuffers[] = {
-        skeletonConstantBuffer.Get(),
         sceneConstantBuffer.Get(),
     };
     ID3D11Buffer* psConstantBuffers[] = {
         sceneConstantBuffer.Get(),
     };
-    dc->VSSetConstantBuffers(6, _countof(vsConstantBuffers), vsConstantBuffers);
+    dc->VSSetConstantBuffers(7, _countof(vsConstantBuffers), vsConstantBuffers);
     dc->PSSetConstantBuffers(7, _countof(psConstantBuffers), psConstantBuffers);
     dc->PSSetConstantBuffers(2, 1, objectConstantBuffer.GetAddressOf());
 
@@ -466,25 +486,23 @@ void ModelRenderer::Render(const RenderContext& rc)
     {
         if (!drawInfo.model) continue;
 
-        for (const Model::Mesh& mesh : drawInfo.model->GetMeshes())
+        const auto& meshes{ drawInfo.model->GetMeshes() };
+        for (std::size_t meshIdx{ 0 }; meshIdx < meshes.size(); ++meshIdx)
         {
-            const BoundingSphere sphere = CalculateMeshBoundingSphere(mesh, drawInfo.useManualMatrix, drawInfo.worldMatrix);
+            const Model::Mesh& mesh{ meshes[meshIdx] };
+            const std::size_t skeletonSlot{ drawInfo.skeletonSlots[meshIdx] };
 
-            if (!IsSphereInFrustum(cameraPlanes, sphere.center, sphere.radius))
-            {
-                continue;
-            }
+            const BoundingSphere sphere{ CalculateMeshBoundingSphere(mesh, drawInfo.useManualMatrix, drawInfo.worldMatrix) };
+            if (!IsSphereInFrustum(cameraPlanes, sphere.center, sphere.radius)) continue;
 
             if (mesh.material->alphaMode == AlphaMode::Blend ||
                 (mesh.material->baseColor.w > 0.01f && mesh.material->baseColor.w < 0.99f))
             {
-                TransparencyDrawInfo& transparencyDrawInfo{ transparencyDrawInfos.emplace_back() };
-                transparencyDrawInfo.mesh = &mesh;
-                transparencyDrawInfo.shaderId = static_cast<ShaderId>(mesh.material->shaderId);
-                transparencyDrawInfo.color = drawInfo.color;
-                transparencyDrawInfo.useManualMatrix = drawInfo.useManualMatrix;
-                transparencyDrawInfo.worldMatrix = drawInfo.worldMatrix;
-                transparencyDrawInfo.currentNodeGlobals = drawInfo.currentNodeGlobals;
+                TransparencyDrawInfo& t{ transparencyDrawInfos.emplace_back() };
+                t.mesh = &mesh;
+                t.shaderId = static_cast<ShaderId>(mesh.material->shaderId);
+                t.color = drawInfo.color;
+                t.skeletonSlot = skeletonSlot;
 
                 DirectX::XMFLOAT4X4 transformMatrix{};
                 if (drawInfo.useManualMatrix)
@@ -500,13 +518,13 @@ void ModelRenderer::Render(const RenderContext& rc)
 
                 DirectX::XMVECTOR Position{ DirectX::XMVectorSet(transformMatrix._41, transformMatrix._42, transformMatrix._43, 1.0f) };
                 DirectX::XMVECTOR Vec{ DirectX::XMVectorSubtract(Position, CameraPosition) };
-                transparencyDrawInfo.distance = DirectX::XMVectorGetX(DirectX::XMVector3Dot(CameraFront, Vec));
+                t.distance = DirectX::XMVectorGetX(DirectX::XMVector3Dot(CameraFront, Vec));
                 continue;
             }
 
             const std::size_t shaderIndex{ static_cast<std::size_t>(mesh.material->shaderId) };
             opaqueBuckets[shaderIndex].emplace_back(MeshDrawCommand{
-                &mesh, drawInfo.currentNodeGlobals, drawInfo.previousNodeGlobals, drawInfo.color, drawInfo.useManualMatrix, drawInfo.worldMatrix, drawInfo.previousWorldMatrix
+                &mesh, skeletonSlot, drawInfo.color, drawInfo.useManualMatrix, drawInfo.worldMatrix
                 });
         }
     }
@@ -535,7 +553,7 @@ void ModelRenderer::Render(const RenderContext& rc)
             cbObject.color = cmd.color;
             dc->UpdateSubresource(objectConstantBuffer.Get(), 0, 0, &cbObject, 0, 0);
 
-            drawMesh(*cmd.mesh, shader, cmd.useManualMatrix, cmd.worldMatrix, cmd.currentNodeGlobals);
+            drawMesh(*cmd.mesh, shader, cmd.skeletonSlot);
         }
         shader->End(rc);
 
@@ -570,7 +588,7 @@ void ModelRenderer::Render(const RenderContext& rc)
                 static constexpr float s_radiusBufferSq{ 25.0f };
                 if (distanceSq > (fadeEndSq + s_radiusBufferSq)) continue;
 
-                drawMesh(*cmd.mesh, m_outlineShader.get(), cmd.useManualMatrix, cmd.worldMatrix, cmd.currentNodeGlobals);
+                drawMesh(*cmd.mesh, m_outlineShader.get(), cmd.skeletonSlot);
             }
 
             m_outlineShader->End(rc);
@@ -599,7 +617,7 @@ void ModelRenderer::Render(const RenderContext& rc)
         {
             for (const MeshDrawCommand& cmd : bucket)
             {
-                DrawMeshVelocity(dc, *cmd.mesh, cmd.useManualMatrix, cmd.worldMatrix, cmd.previousWorldMatrix, cmd.currentNodeGlobals, cmd.previousNodeGlobals);
+                DrawMeshVelocity(dc, *cmd.mesh, cmd.skeletonSlot);
             }
         }
 
@@ -628,7 +646,7 @@ void ModelRenderer::Render(const RenderContext& rc)
         cbObject.color = transparencyDrawInfo.color;
         dc->UpdateSubresource(objectConstantBuffer.Get(), 0, 0, &cbObject, 0, 0);
 
-        drawMesh(*transparencyDrawInfo.mesh, shader, transparencyDrawInfo.useManualMatrix, transparencyDrawInfo.worldMatrix, transparencyDrawInfo.currentNodeGlobals);
+        drawMesh(*transparencyDrawInfo.mesh, shader, transparencyDrawInfo.skeletonSlot);
 
         shader->End(rc);
     }
@@ -636,7 +654,7 @@ void ModelRenderer::Render(const RenderContext& rc)
 
     for (ID3D11Buffer*& vsConstantBuffer : vsConstantBuffers) { vsConstantBuffer = nullptr; }
     for (ID3D11Buffer*& psConstantBuffer : psConstantBuffers) { psConstantBuffer = nullptr; }
-    dc->VSSetConstantBuffers(6, _countof(vsConstantBuffers), vsConstantBuffers);
+    dc->VSSetConstantBuffers(7, _countof(vsConstantBuffers), vsConstantBuffers);
     dc->PSSetConstantBuffers(7, _countof(psConstantBuffers), psConstantBuffers);
 
     ID3D11Buffer* nullBuffer = nullptr;
