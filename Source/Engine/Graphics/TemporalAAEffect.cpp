@@ -10,9 +10,12 @@ TemporalAAEffect::TemporalAAEffect(ID3D11Device* device)
     desc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
     desc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
     desc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+    desc.MaxAnisotropy = 1; 
+    desc.MinLOD = 0.0f;     
+    desc.MaxLOD = 0.0f;
     device->CreateSamplerState(&desc, m_linearSampler.GetAddressOf());
 
-    m_currentData.historyWeight = -1.0f; // force initial upload
+    m_currentData.historyWeight = -1.0f;
     CreateHistoryBuffers(device, m_width, m_height);
 }
 

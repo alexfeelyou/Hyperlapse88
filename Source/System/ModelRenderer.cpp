@@ -621,8 +621,6 @@ void ModelRenderer::Render(const RenderContext& rc)
         ID3D11RenderTargetView* const velocityRTV{ rc.velocityRenderTargetView };
         dc->OMSetRenderTargets(1, &velocityRTV, originalDSV);
 
-        // Static geometry no longer gets drawn into this buffer at all, so pixels behind it need an
-        // explicit zero here — that's what tells the resolve shader "no motion, trust history fully".
         constexpr float s_zeroVelocity[4]{ 0.0f, 0.0f, 0.0f, 0.0f };
         dc->ClearRenderTargetView(velocityRTV, s_zeroVelocity);
 
