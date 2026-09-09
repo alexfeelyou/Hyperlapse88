@@ -56,7 +56,8 @@ private:
         std::size_t         skeletonSlot{ 0 };
         DirectX::XMFLOAT4   color{};
         bool                useManualMatrix{ false };
-        DirectX::XMFLOAT4X4 worldMatrix{}; 
+        DirectX::XMFLOAT4X4 worldMatrix{};
+        bool                hasVelocity{ false }; 
     };
 
     struct CbScene
@@ -101,7 +102,8 @@ private:
         DirectX::XMFLOAT4X4      worldMatrix{};
         DirectX::XMFLOAT4X4      previousWorldMatrix{};
         bool                     castShadows{ true };
-        std::vector<std::size_t> skeletonSlots{}; 
+        bool                     hasVelocity{ false }; 
+        std::vector<std::size_t> skeletonSlots{};
     };
 
     struct TransparencyDrawInfo
@@ -125,6 +127,7 @@ private:
     [[nodiscard]] std::size_t AcquireSkeletonSlot(ID3D11Device* device);
     void ComputeAndUploadSkeleton(
         ID3D11DeviceContext* dc, std::size_t slotIndex, const Model::Mesh& mesh, bool useManual,
+        bool needsPrevious, 
         const DirectX::XMFLOAT4X4& worldMatrix, const DirectX::XMFLOAT4X4& previousWorldMatrix,
         const std::vector<DirectX::XMFLOAT4X4>* currentNodeGlobals,
         const std::vector<DirectX::XMFLOAT4X4>* previousNodeGlobals);

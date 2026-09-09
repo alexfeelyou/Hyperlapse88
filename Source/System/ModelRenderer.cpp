@@ -155,18 +155,15 @@ std::size_t ModelRenderer::AcquireSkeletonSlot(ID3D11Device* device)
 
 void ModelRenderer::ComputeAndUploadSkeleton(
     ID3D11DeviceContext* dc, std::size_t slotIndex, const Model::Mesh& mesh, bool useManual,
+    bool needsPrevious,
     const DirectX::XMFLOAT4X4& worldMatrix, const DirectX::XMFLOAT4X4& previousWorldMatrix,
     const std::vector<DirectX::XMFLOAT4X4>* currentNodeGlobals,
     const std::vector<DirectX::XMFLOAT4X4>* previousNodeGlobals)
 {
     SkeletonSlot& slot{ m_skeletonPool[slotIndex] };
-    const std::size_t boneCount{ mesh.bones.empty() ? 1u : mesh.bones.size() };
 
-    // Full 256-entry structs, zero-initialized — unused trailing entries are never read by the
-    // shader (bone weights for those indices are always 0), so leaving them zeroed is correct
-    // and cheap; it's the memcpy that matters, not the entry count.
     CbSkeleton cbCurrent{};
-    CbSkeleton cbPrevious{};
+    CbSkeleton cbPrevious{}; // only populated and uploaded when needsPrevious is true
 
     const DirectX::XMMATRIX manualWorldMat{ DirectX::XMLoadFloat4x4(&worldMatrix) };
     const DirectX::XMMATRIX previousManualWorldMat{ DirectX::XMLoadFloat4x4(&previousWorldMatrix) };
@@ -178,31 +175,38 @@ void ModelRenderer::ComputeAndUploadSkeleton(
             const Model::Bone& bone{ mesh.bones[i] };
 
             DirectX::XMMATRIX nodeGlobalMat;
-            DirectX::XMMATRIX prevNodeGlobalMat;
-
-            if (currentNodeGlobals && previousNodeGlobals &&
-                bone.nodeIndex >= 0 && static_cast<std::size_t>(bone.nodeIndex) < currentNodeGlobals->size())
+            if (currentNodeGlobals && bone.nodeIndex >= 0 && static_cast<std::size_t>(bone.nodeIndex) < currentNodeGlobals->size())
             {
                 nodeGlobalMat = DirectX::XMLoadFloat4x4(&(*currentNodeGlobals)[bone.nodeIndex]);
-                prevNodeGlobalMat = DirectX::XMLoadFloat4x4(&(*previousNodeGlobals)[bone.nodeIndex]);
             }
             else
             {
                 nodeGlobalMat = DirectX::XMLoadFloat4x4(&bone.node->globalTransform);
-                prevNodeGlobalMat = nodeGlobalMat;
             }
 
             const DirectX::XMMATRIX offsetTransform{ DirectX::XMLoadFloat4x4(&bone.offsetTransform) };
-
             const DirectX::XMMATRIX worldTransform{ useManual
                 ? (nodeGlobalMat * manualWorldMat)
                 : DirectX::XMLoadFloat4x4(&bone.node->worldTransform) };
             DirectX::XMStoreFloat4x4(&cbCurrent.boneTransforms[i], offsetTransform * worldTransform);
 
-            const DirectX::XMMATRIX previousWorldTransform{ useManual
-                ? (prevNodeGlobalMat * previousManualWorldMat)
-                : DirectX::XMLoadFloat4x4(&bone.node->worldTransform) };
-            DirectX::XMStoreFloat4x4(&cbPrevious.boneTransforms[i], offsetTransform * previousWorldTransform);
+            if (needsPrevious)
+            {
+                DirectX::XMMATRIX prevNodeGlobalMat;
+                if (previousNodeGlobals && bone.nodeIndex >= 0 && static_cast<std::size_t>(bone.nodeIndex) < previousNodeGlobals->size())
+                {
+                    prevNodeGlobalMat = DirectX::XMLoadFloat4x4(&(*previousNodeGlobals)[bone.nodeIndex]);
+                }
+                else
+                {
+                    prevNodeGlobalMat = nodeGlobalMat;
+                }
+
+                const DirectX::XMMATRIX previousWorldTransform{ useManual
+                    ? (prevNodeGlobalMat * previousManualWorldMat)
+                    : DirectX::XMLoadFloat4x4(&bone.node->worldTransform) };
+                DirectX::XMStoreFloat4x4(&cbPrevious.boneTransforms[i], offsetTransform * previousWorldTransform);
+            }
         }
     }
     else
@@ -211,18 +215,26 @@ void ModelRenderer::ComputeAndUploadSkeleton(
         {
             const DirectX::XMMATRIX nodeGlobalMat{ DirectX::XMLoadFloat4x4(&mesh.node->globalTransform) };
             DirectX::XMStoreFloat4x4(&cbCurrent.boneTransforms[0], nodeGlobalMat * manualWorldMat);
-            DirectX::XMStoreFloat4x4(&cbPrevious.boneTransforms[0], nodeGlobalMat * previousManualWorldMat);
+            if (needsPrevious)
+            {
+                DirectX::XMStoreFloat4x4(&cbPrevious.boneTransforms[0], nodeGlobalMat * previousManualWorldMat);
+            }
         }
         else
         {
             cbCurrent.boneTransforms[0] = mesh.node->worldTransform;
-            cbPrevious.boneTransforms[0] = mesh.node->worldTransform;
+            if (needsPrevious)
+            {
+                cbPrevious.boneTransforms[0] = mesh.node->worldTransform;
+            }
         }
     }
 
-    // pDstBox MUST be nullptr for constant buffers — D3D11 requires whole-buffer updates only.
     dc->UpdateSubresource(slot.currentBuffer.Get(), 0, nullptr, &cbCurrent, 0, 0);
-    dc->UpdateSubresource(slot.previousBuffer.Get(), 0, nullptr, &cbPrevious, 0, 0);
+    if (needsPrevious)
+    {
+        dc->UpdateSubresource(slot.previousBuffer.Get(), 0, nullptr, &cbPrevious, 0, 0);
+    }
 }
 
 void ModelRenderer::BindSkeletonSlot(ID3D11DeviceContext* dc, std::size_t slotIndex) const noexcept
@@ -250,6 +262,7 @@ void ModelRenderer::Draw(std::shared_ptr<Model> model, DirectX::XMFLOAT4 color, 
     drawInfo.color = color;
     drawInfo.useManualMatrix = true;
     drawInfo.worldMatrix = worldMatrix;
+    drawInfo.previousWorldMatrix = worldMatrix;
     drawInfo.castShadows = castShadows;
 }
 
@@ -258,7 +271,9 @@ void ModelRenderer::Draw(std::shared_ptr<Model> model, DirectX::XMFLOAT4 color,
     const std::vector<DirectX::XMFLOAT4X4>* currentNodeGlobals,
     const std::vector<DirectX::XMFLOAT4X4>* previousNodeGlobals, bool castShadows)
 {
-    drawInfos.push_back(DrawInfo{ std::move(model), currentNodeGlobals, previousNodeGlobals, color, true, worldMatrix, previousWorldMatrix, castShadows });
+    DrawInfo info{ std::move(model), currentNodeGlobals, previousNodeGlobals, color, true, worldMatrix, previousWorldMatrix, castShadows };
+    info.hasVelocity = true; 
+    drawInfos.push_back(std::move(info));
 }
 
 void ModelRenderer::DrawMeshVelocity(ID3D11DeviceContext* dc, const Model::Mesh& mesh, std::size_t skeletonSlot)
@@ -300,6 +315,7 @@ void ModelRenderer::Render(const RenderContext& rc)
         {
             const std::size_t slot{ AcquireSkeletonSlot(device.Get()) };
             ComputeAndUploadSkeleton(dc, slot, meshes[meshIdx], drawInfo.useManualMatrix,
+                drawInfo.hasVelocity, // ADD THIS ARGUMENT
                 drawInfo.worldMatrix, drawInfo.previousWorldMatrix,
                 drawInfo.currentNodeGlobals, drawInfo.previousNodeGlobals);
             drawInfo.skeletonSlots[meshIdx] = slot;
@@ -524,7 +540,7 @@ void ModelRenderer::Render(const RenderContext& rc)
 
             const std::size_t shaderIndex{ static_cast<std::size_t>(mesh.material->shaderId) };
             opaqueBuckets[shaderIndex].emplace_back(MeshDrawCommand{
-                &mesh, skeletonSlot, drawInfo.color, drawInfo.useManualMatrix, drawInfo.worldMatrix
+    &mesh, skeletonSlot, drawInfo.color, drawInfo.useManualMatrix, drawInfo.worldMatrix, drawInfo.hasVelocity
                 });
         }
     }
@@ -604,6 +620,12 @@ void ModelRenderer::Render(const RenderContext& rc)
 
         ID3D11RenderTargetView* const velocityRTV{ rc.velocityRenderTargetView };
         dc->OMSetRenderTargets(1, &velocityRTV, originalDSV);
+
+        // Static geometry no longer gets drawn into this buffer at all, so pixels behind it need an
+        // explicit zero here — that's what tells the resolve shader "no motion, trust history fully".
+        constexpr float s_zeroVelocity[4]{ 0.0f, 0.0f, 0.0f, 0.0f };
+        dc->ClearRenderTargetView(velocityRTV, s_zeroVelocity);
+
         dc->OMSetDepthStencilState(rc.renderState->GetDepthStencilState(DepthState::TestOnly), 0);
         dc->OMSetBlendState(rc.renderState->GetBlendState(BlendState::Opaque), nullptr, 0xFFFFFFFF);
 
@@ -617,6 +639,7 @@ void ModelRenderer::Render(const RenderContext& rc)
         {
             for (const MeshDrawCommand& cmd : bucket)
             {
+                if (!cmd.hasVelocity) continue; // static/untracked geometry: skip entirely, its velocity is zero by the clear above
                 DrawMeshVelocity(dc, *cmd.mesh, cmd.skeletonSlot);
             }
         }
