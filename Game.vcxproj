@@ -146,6 +146,7 @@
     <ClInclude Include="Source\Engine\Camera\Camera.h" />
     <ClInclude Include="Source\Engine\Camera\CameraController.h" />
     <ClInclude Include="Source\Engine\Camera\FreeCameraController.h" />
+    <ClInclude Include="Source\Engine\Components\CameraComponent.h" />
     <ClInclude Include="Source\Engine\Components\ComponentRegistry.h" />
     <ClInclude Include="Source\Engine\Components\LightComponent.h" />
     <ClInclude Include="Source\Engine\Components\MeshComponent.h" />
@@ -249,6 +250,7 @@
     <ClCompile Include="Source\Engine\Camera\Camera.cpp" />
     <ClCompile Include="Source\Engine\Camera\CameraController.cpp" />
     <ClCompile Include="Source\Engine\Camera\FreeCameraController.cpp" />
+    <ClCompile Include="Source\Engine\Components\CameraComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\LightComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\MeshComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\StaticMeshColliderComponent.cpp" />

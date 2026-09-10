@@ -459,6 +459,70 @@ void ShapeRenderer::DrawLine(const DirectX::XMFLOAT3& start, const DirectX::XMFL
 	DrawBox(mid, { pitch, yaw, 0.0f }, { 0.01f, 0.01f, length * 0.5f }, color);
 }
 
+// ƒtƒ‰ƒXƒ^ƒ€•`‰æ
+void ShapeRenderer::DrawFrustum(
+	const DirectX::XMFLOAT3& position,
+	const DirectX::XMFLOAT3& rotation,
+	float fovY,
+	float aspectRatio,
+	float nearZ,
+	float farZ,
+	const DirectX::XMFLOAT4& color,
+	float gizmoDrawDistance)
+{
+	// Visualize out to whichever is smaller: the camera's real far clip, or the
+	// requested gizmo distance. Prevents a far=1000 camera from drawing a frustum
+	// that swallows the entire scene view.
+	const float visualFarZ{ (std::min)(farZ, gizmoDrawDistance) };
+
+	// Half-extents of the near/far planes, derived from vertical FOV and aspect ratio
+	const float tanHalfFovY{ tanf(fovY * 0.5f) };
+	const float nearHalfHeight{ tanHalfFovY * nearZ };
+	const float nearHalfWidth{ nearHalfHeight * aspectRatio };
+	const float farHalfHeight{ tanHalfFovY * visualFarZ };
+	const float farHalfWidth{ farHalfHeight * aspectRatio };
+
+	// 8 corners in the camera's local (view) space - near plane first, then far plane,
+	// each wound top-left, top-right, bottom-right, bottom-left
+	const DirectX::XMFLOAT3 localCorners[8]
+	{
+		{ -nearHalfWidth,  nearHalfHeight, nearZ }, {  nearHalfWidth,  nearHalfHeight, nearZ },
+		{  nearHalfWidth, -nearHalfHeight, nearZ }, { -nearHalfWidth, -nearHalfHeight, nearZ },
+		{ -farHalfWidth,   farHalfHeight,  visualFarZ }, {  farHalfWidth,   farHalfHeight,  visualFarZ },
+		{  farHalfWidth,  -farHalfHeight,  visualFarZ }, { -farHalfWidth,  -farHalfHeight,  visualFarZ },
+	};
+
+	// Transform every corner from local view space into world space using the camera's pose
+	const DirectX::XMMATRIX rotationMatrix{ DirectX::XMMatrixRotationRollPitchYaw(rotation.x, rotation.y, rotation.z) };
+	const DirectX::XMVECTOR positionVector{ DirectX::XMLoadFloat3(&position) };
+
+	DirectX::XMFLOAT3 worldCorners[8]{};
+	for (int i{ 0 }; i < 8; ++i)
+	{
+		const DirectX::XMVECTOR local{ DirectX::XMLoadFloat3(&localCorners[i]) };
+		const DirectX::XMVECTOR world{ DirectX::XMVectorAdd(DirectX::XMVector3TransformNormal(local, rotationMatrix), positionVector) };
+		DirectX::XMStoreFloat3(&worldCorners[i], world);
+	}
+
+	// Near plane rectangle
+	DrawLine(worldCorners[0], worldCorners[1], color);
+	DrawLine(worldCorners[1], worldCorners[2], color);
+	DrawLine(worldCorners[2], worldCorners[3], color);
+	DrawLine(worldCorners[3], worldCorners[0], color);
+
+	// Far plane rectangle
+	DrawLine(worldCorners[4], worldCorners[5], color);
+	DrawLine(worldCorners[5], worldCorners[6], color);
+	DrawLine(worldCorners[6], worldCorners[7], color);
+	DrawLine(worldCorners[7], worldCorners[4], color);
+
+	// Connecting edges between near and far planes
+	DrawLine(worldCorners[0], worldCorners[4], color);
+	DrawLine(worldCorners[1], worldCorners[5], color);
+	DrawLine(worldCorners[2], worldCorners[6], color);
+	DrawLine(worldCorners[3], worldCorners[7], color);
+}
+
 // •`‰æŽÀs
 void ShapeRenderer::Render(
 	ID3D11DeviceContext* dc,

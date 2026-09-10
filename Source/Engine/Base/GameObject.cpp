@@ -65,6 +65,21 @@ void GameObject::Render(ModelRenderer* renderer)
     }
 }
 
+void GameObject::DrawGizmo(ShapeRenderer* shapeRenderer) noexcept
+{
+    if (!m_isActive) return;
+
+    for (const auto& component : m_components)
+    {
+        component->DrawGizmo(shapeRenderer);
+    }
+
+    for (const auto& child : m_children)
+    {
+        child->DrawGizmo(shapeRenderer);
+    }
+}
+
 void GameObject::DrawInspector()
 {
     // Capture the previous active state before ImGui modifies it

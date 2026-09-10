@@ -49,6 +49,17 @@ public:
 		ID3D11DeviceContext* dc,
 		const DirectX::XMFLOAT4X4& view,
 		const DirectX::XMFLOAT4X4& projection);
+	
+	// カメラのフラスタム（視錐台）をワイヤーフレームで描画
+	void DrawFrustum(
+		const DirectX::XMFLOAT3& position,
+		const DirectX::XMFLOAT3& rotation,
+		float fovY,
+		float aspectRatio,
+		float nearZ,
+		float farZ,
+		const DirectX::XMFLOAT4& color,
+		float gizmoDrawDistance = 5.0f);
 
 private:
 	struct Mesh

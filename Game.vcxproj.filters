@@ -360,6 +360,9 @@
     <ClCompile Include="Source\Engine\Graphics\TemporalAAEffect.cpp">
       <Filter>Source\Engine\Graphics</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Engine\Components\CameraComponent.cpp">
+      <Filter>Source\Engine\Components</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\System\BasicShader.h">
@@ -689,6 +692,9 @@
     </ClInclude>
     <ClInclude Include="Source\Engine\Graphics\TemporalAAEffect.h">
       <Filter>Source\Engine\Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Components\CameraComponent.h">
+      <Filter>Source\Engine\Components</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

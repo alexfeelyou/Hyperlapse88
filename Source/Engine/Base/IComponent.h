@@ -4,6 +4,7 @@
 // Forward declaration
 class GameObject; 
 class ModelRenderer;
+class ShapeRenderer;
 
 // Base class for all components that can be attached to a GameObject
 class IComponent
@@ -28,6 +29,10 @@ public:
 
     // Executes during the GPU submission phase
     virtual void Render(ModelRenderer* renderer) {}
+
+    // Hook for drawing Editor-only debug visuals (frustums, radii, etc.) in the scene view.
+    // Called once per frame per component while in Edit/Pause mode only - never in Play 
+    virtual void DrawGizmo(ShapeRenderer* shapeRenderer) noexcept {}
 
     // Hook for ImGui to draw variables specific to this component
     virtual void DrawInspector() = 0;

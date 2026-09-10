@@ -1,4 +1,5 @@
 ﻿#include "System/AssetManager.h"
+#include "System/PhysicsManager.h"
 #include "Player.h"
 
 using namespace DirectX;
@@ -97,6 +98,25 @@ void Player::InitPhysics(physx::PxControllerManager* manager, physx::PxMaterial*
     desc.stepOffset = PlayerConst::CapsuleStep;
 
     m_physxController = manager->createController(desc);
+}
+
+void Player::SettleOnGround(int maxIterations, float fixedDt)
+{
+    for (int i{ 0 }; i < maxIterations; ++i)
+    {
+        // Step the shared PhysX scene too, so any OTHER dynamic actor (crates, ragdolls,
+        // etc.) settles in the same pass instead of freezing while only the player moves.
+        // NOTE: the player's own grounding does not depend on this call - the capsule
+        // controller resolves floor contact via its own move() sweep inside Update()
+        PhysicsManager::Instance().Simulate(fixedDt);
+
+        Update(fixedDt, nullptr);
+
+        if (m_isGrounded)
+        {
+            break;
+        }
+    }
 }
 
 void Player::ApplyConfig(const PlayerConfig& config) noexcept
