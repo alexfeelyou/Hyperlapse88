@@ -48,7 +48,7 @@ ShapeRenderer::ShapeRenderer(ID3D11Device* device)
 void ShapeRenderer::DrawBox(const DirectX::XMFLOAT3& position, const DirectX::XMFLOAT3& angle, const DirectX::XMFLOAT3& size, const DirectX::XMFLOAT4& color)
 {
     Instance& instance{ m_instances.emplace_back() };
-    instance.mesh = &m_boxMesh; // Fixed prefix
+    instance.mesh = &m_boxMesh; 
     instance.color = color;
 
     const DirectX::XMMATRIX S{ DirectX::XMMatrixScaling(size.x, size.y, size.z) };
@@ -61,7 +61,7 @@ void ShapeRenderer::DrawBox(const DirectX::XMFLOAT3& position, const DirectX::XM
 void ShapeRenderer::DrawSphere(const DirectX::XMFLOAT3& position, float radius, const DirectX::XMFLOAT4& color)
 {
     Instance& instance{ m_instances.emplace_back() };
-    instance.mesh = &m_sphereMesh; // Fixed prefix
+    instance.mesh = &m_sphereMesh; 
     instance.color = color;
 
     const DirectX::XMMATRIX S{ DirectX::XMMatrixScaling(radius, radius, radius) };
@@ -78,7 +78,7 @@ void ShapeRenderer::DrawCapsule(const DirectX::XMFLOAT4X4& transform, float radi
 
     {
         Instance& instance{ m_instances.emplace_back() };
-        instance.mesh = &m_halfSphereMesh; // Fixed prefix
+        instance.mesh = &m_halfSphereMesh; 
         const DirectX::XMVECTOR Offset{ DirectX::XMVectorSet(0.0f, height * 0.5f, 0.0f, 0.0f) };
         const DirectX::XMVECTOR Position{ DirectX::XMVectorAdd(Transform.r[3], DirectX::XMVector3TransformNormal(Offset, RotScale)) };
 
@@ -90,7 +90,7 @@ void ShapeRenderer::DrawCapsule(const DirectX::XMFLOAT4X4& transform, float radi
     }
     {
         Instance& instance{ m_instances.emplace_back() };
-        instance.mesh = &m_cylinderMesh; // Fixed prefix
+        instance.mesh = &m_cylinderMesh; 
 
         DirectX::XMMATRIX World{ DirectX::XMMatrixScaling(radius, height, radius) * RotScale };
         World.r[3] = Transform.r[3];
@@ -100,7 +100,7 @@ void ShapeRenderer::DrawCapsule(const DirectX::XMFLOAT4X4& transform, float radi
     }
     {
         Instance& instance{ m_instances.emplace_back() };
-        instance.mesh = &m_halfSphereMesh; // Fixed prefix
+        instance.mesh = &m_halfSphereMesh; 
         const DirectX::XMVECTOR Offset{ DirectX::XMVectorSet(0.0f, -height * 0.5f, 0.0f, 0.0f) };
         const DirectX::XMVECTOR Position{ DirectX::XMVectorAdd(Transform.r[3], DirectX::XMVector3TransformNormal(Offset, RotScale)) };
 
@@ -116,7 +116,7 @@ void ShapeRenderer::DrawCapsule(const DirectX::XMFLOAT4X4& transform, float radi
 void ShapeRenderer::DrawBone(const DirectX::XMFLOAT4X4& transform, float length, const DirectX::XMFLOAT4& color)
 {
     Instance& instance{ m_instances.emplace_back() };
-    instance.mesh = &m_boneMesh; // Fixed prefix
+    instance.mesh = &m_boneMesh; 
     instance.color = color;
 
     DirectX::XMMATRIX W{ DirectX::XMLoadFloat4x4(&transform) };
@@ -361,7 +361,7 @@ void ShapeRenderer::CreateBoxMesh(ID3D11Device* device, float width, float heigh
     vertices.emplace_back(positions[2]); vertices.emplace_back(positions[6]);
     vertices.emplace_back(positions[3]); vertices.emplace_back(positions[7]);
 
-    CreateMesh(device, vertices, m_boxMesh); // Fixed prefix
+    CreateMesh(device, vertices, m_boxMesh); 
 }
 
 // 球メッシュ作成
@@ -398,7 +398,7 @@ void ShapeRenderer::CreateSphereMesh(ID3D11Device* device, float radius, int sub
         }
     }
 
-    CreateMesh(device, vertices, m_sphereMesh); // Fixed prefix
+    CreateMesh(device, vertices, m_sphereMesh); 
 }
 
 // 半球メッシュ作成
@@ -435,7 +435,7 @@ void ShapeRenderer::CreateHalfSphereMesh(ID3D11Device* device, float radius, int
         }
     }
 
-    CreateMesh(device, vertices, m_halfSphereMesh); // Fixed prefix
+    CreateMesh(device, vertices, m_halfSphereMesh); 
 }
 
 // 円柱
@@ -472,7 +472,7 @@ void ShapeRenderer::CreateCylinderMesh(ID3D11Device* device, float radius1, floa
     vertices.emplace_back(DirectX::XMFLOAT3(-radius1, start, 0.0f));
     vertices.emplace_back(DirectX::XMFLOAT3(-radius2, start + height, 0.0f));
 
-    CreateMesh(device, vertices, m_cylinderMesh); // Fixed prefix
+    CreateMesh(device, vertices, m_cylinderMesh); 
 }
 
 // 骨メッシュ作成
@@ -504,5 +504,5 @@ void ShapeRenderer::CreateBoneMesh(ID3D11Device* device, float length)
     vertices.emplace_back(positions[3]); vertices.emplace_back(positions[5]);
     vertices.emplace_back(positions[5]); vertices.emplace_back(positions[1]);
 
-    CreateMesh(device, vertices, m_boneMesh); // Fixed prefix
+    CreateMesh(device, vertices, m_boneMesh); 
 }

@@ -1024,6 +1024,7 @@ void SceneGame::Render(float elapsedTime, Camera* camera)
         // Navi hitboxes (blue)
         //if (m_navi) m_navi->RenderDebug(shapeRenderer);
 
+        VirtualCameraComponent::FlushGizmos(dc, targetCam);
         shapeRenderer->Render(dc, targetCam->GetView(), targetCam->GetProjection());
         primRenderer->Render(dc, targetCam->GetView(), targetCam->GetProjection(), D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
     }

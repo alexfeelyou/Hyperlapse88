@@ -33,6 +33,7 @@
 #include "SceneSerializer.h"
 #include "UIDialogueBox.h"
 #include "UIPause.h"
+#include "VirtualCameraComponent.h"
 
 // Forward Declarations
 class Camera;

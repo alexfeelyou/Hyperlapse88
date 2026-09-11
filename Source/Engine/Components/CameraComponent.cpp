@@ -1,60 +1,54 @@
+#include "CameraComponent.h"
 #include <algorithm>
 #include <cmath>
-#include <imgui.h>
 #include <utility>
-#include "System/Graphics.h"
-#include "System/ShapeRenderer.h"
-#include "CameraComponent.h"
-#include "CameraController.h"
+#include <imgui.h>
 #include "ComponentRegistry.h"
 #include "GameObject.h"
+#include "System/ShapeRenderer.h"
+#include "System/Graphics.h"
+#include "CameraController.h"
+#include "VirtualCameraComponent.h"
 
-// Anonymous namespace for internal helper functions (Internal Linkage)
 namespace
 {
-    // Decomposes a 4x4 world matrix into absolute position and Euler rotation (radians).
+    [[nodiscard]] inline bool IsFloat3Equal(const DirectX::XMFLOAT3& a, const DirectX::XMFLOAT3& b, float ep = 0.0001f) noexcept
+    {
+        return (std::abs(a.x - b.x) <= ep) && (std::abs(a.y - b.y) <= ep) && (std::abs(a.z - b.z) <= ep);
+    }
+
+    [[nodiscard]] DirectX::XMFLOAT3 ExtractEulerFromQuaternion(const DirectX::XMVECTOR& quat) noexcept
+    {
+        DirectX::XMFLOAT4X4 mRot{};
+        DirectX::XMStoreFloat4x4(&mRot, DirectX::XMMatrixRotationQuaternion(quat));
+
+        const float pitch{ std::asinf(std::clamp(-mRot._32, -1.0f, 1.0f)) };
+        float yaw{ 0.0f }, roll{ 0.0f };
+
+        constexpr float epsilon{ 0.0001f };
+        if (std::cos(pitch) > epsilon)
+        {
+            yaw = std::atan2(mRot._31, mRot._33);
+            roll = std::atan2(mRot._12, mRot._22);
+        }
+        else
+        {
+            yaw = std::atan2(-mRot._13, mRot._11);
+        }
+        return { pitch, yaw, roll };
+    }
+
     [[nodiscard]] std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> ExtractWorldTransform(const DirectX::XMFLOAT4X4& worldMatrix) noexcept
     {
         const DirectX::XMMATRIX matWorld{ DirectX::XMLoadFloat4x4(&worldMatrix) };
+        DirectX::XMVECTOR vScale{}, vRotQuat{}, vTrans{};
 
-        DirectX::XMVECTOR vScale{};
-        DirectX::XMVECTOR vRotQuat{};
-        DirectX::XMVECTOR vTrans{};
-
-        // Extract scale, rotation, and translation components
         if (DirectX::XMMatrixDecompose(&vScale, &vRotQuat, &vTrans, matWorld))
         {
             DirectX::XMFLOAT3 pos{};
             DirectX::XMStoreFloat3(&pos, vTrans);
-
-            // Convert quaternion back to a rotation matrix to extract Euler angles
-            DirectX::XMFLOAT4X4 mRot{};
-            DirectX::XMStoreFloat4x4(&mRot, DirectX::XMMatrixRotationQuaternion(vRotQuat));
-
-            // Extract Pitch (X), Yaw (Y), Roll (Z) in radians
-            // Clamp pitch to prevent NaN from precision errors when evaluating asin()
-            const float pitch{ std::asinf(std::clamp(-mRot._32, -1.0f, 1.0f)) };
-            float yaw{ 0.0f };
-            float roll{ 0.0f };
-
-            // Guard against Gimbal Lock (when looking straight up or down, cos(pitch) nears 0)
-            constexpr float epsilon{ 0.0001f };
-            if (std::cos(pitch) > epsilon)
-            {
-                yaw = std::atan2(mRot._31, mRot._33);
-                roll = std::atan2(mRot._12, mRot._22);
-            }
-            else
-            {
-                // In gimbal lock, roll and yaw axes align. Force roll to 0 and calculate yaw
-                yaw = std::atan2(-mRot._13, mRot._11);
-                roll = 0.0f;
-            }
-
-            return { pos, { pitch, yaw, roll } };
+            return { pos, ExtractEulerFromQuaternion(vRotQuat) };
         }
-
-        // Safe fallback in the rare event matrix decomposition fails (e.g., zero scale)
         return { {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
     }
 }
@@ -67,32 +61,102 @@ CameraComponent::CameraComponent()
 void CameraComponent::OnAttach(GameObject* owner) noexcept
 {
     IComponent::OnAttach(owner);
-    LoadGizmoIcon();
-}
-
-void CameraComponent::LoadGizmoIcon() noexcept
-{
-    if (m_iconLoaded) return;
-    m_gizmoSprite = std::make_unique<Sprite>(Graphics::Instance().GetDevice(), "Data/Icon/Gizmo/Camera.png");
-    m_iconLoaded = true;
+    VirtualCameraComponent::EnsureSharedGizmoLoaded();
 }
 
 void CameraComponent::Update(float dt)
 {
     if (!GetOwner()) return;
 
-    // Use Structured Binding to unpack the decomposed world matrix safely.
-    // This allows the Camera Brain to render correctly even if its GameObject 
-    // is deeply nested in the hierarchy (e.g. tracking a Player Socket).
-    const auto& [worldPos, worldRotRad] = ExtractWorldTransform(GetOwner()->transform.GetWorldMatrix());
+    VirtualCameraComponent* bestVCam{ nullptr };
+    int highestPriority{ -1 };
 
-    m_camera->SetPosition(worldPos);
-    m_camera->SetRotation(worldRotRad); // m_camera expects radians natively
+    for (VirtualCameraComponent* vcam : VirtualCameraComponent::GetRegistry())
+    {
+        if (vcam->GetOwner() && vcam->GetOwner()->IsActive())
+        {
+            if (vcam->GetPriority() > highestPriority)
+            {
+                highestPriority = vcam->GetPriority();
+                bestVCam = vcam;
+            }
+        }
+    }
+
+    if (bestVCam != m_activeVirtualCamera)
+    {
+        m_blendTimer = 0.0f;
+        m_blendStartPos = m_camera->GetPosition();
+        m_blendStartRot = m_camera->GetRotation();
+
+        if (!m_activeVirtualCamera) m_blendTimer = m_blendDuration;
+        m_activeVirtualCamera = bestVCam;
+    }
+
+    DirectX::XMFLOAT3 targetPos{};
+    DirectX::XMFLOAT3 targetRot{};
+
+    if (m_activeVirtualCamera)
+    {
+        const auto& [vPos, vRot] = ExtractWorldTransform(m_activeVirtualCamera->GetOwner()->transform.GetWorldMatrix());
+
+        if (m_blendTimer < m_blendDuration)
+        {
+            m_blendTimer += dt;
+            const float t{ std::clamp(m_blendTimer / m_blendDuration, 0.0f, 1.0f) };
+            const float smoothT{ t * t * (3.0f - 2.0f * t) };
+
+            const DirectX::XMVECTOR vStartPos{ DirectX::XMLoadFloat3(&m_blendStartPos) };
+            const DirectX::XMVECTOR vEndPos{ DirectX::XMLoadFloat3(&vPos) };
+            DirectX::XMStoreFloat3(&targetPos, DirectX::XMVectorLerp(vStartPos, vEndPos, smoothT));
+
+            const DirectX::XMVECTOR qStart{ DirectX::XMQuaternionRotationRollPitchYawFromVector(DirectX::XMLoadFloat3(&m_blendStartRot)) };
+            const DirectX::XMVECTOR qEnd{ DirectX::XMQuaternionRotationRollPitchYawFromVector(DirectX::XMLoadFloat3(&vRot)) };
+            targetRot = ExtractEulerFromQuaternion(DirectX::XMQuaternionSlerp(qStart, qEnd, smoothT));
+
+            m_fovDegrees = m_fovDegrees + (m_activeVirtualCamera->GetFovDegrees() - m_fovDegrees) * smoothT;
+            ApplyProjectionSettings();
+        }
+        else
+        {
+            targetPos = vPos;
+            targetRot = vRot;
+
+            if (std::abs(m_fovDegrees - m_activeVirtualCamera->GetFovDegrees()) > 0.01f)
+            {
+                m_fovDegrees = m_activeVirtualCamera->GetFovDegrees();
+                ApplyProjectionSettings();
+            }
+        }
+    }
+    else
+    {
+        const auto& [wPos, wRot] = ExtractWorldTransform(GetOwner()->transform.GetWorldMatrix());
+        targetPos = wPos;
+        targetRot = wRot;
+    }
+
+    if (!IsFloat3Equal(targetPos, m_lastPos) || !IsFloat3Equal(targetRot, m_lastRot))
+    {
+        m_camera->SetPosition(targetPos);
+        m_camera->SetRotation(targetRot);
+        m_lastPos = targetPos;
+        m_lastRot = targetRot;
+
+        if (m_activeVirtualCamera)
+        {
+            GetOwner()->SetPosition(targetPos);
+            GetOwner()->SetRotation({
+                DirectX::XMConvertToDegrees(targetRot.x),
+                DirectX::XMConvertToDegrees(targetRot.y),
+                DirectX::XMConvertToDegrees(targetRot.z)
+                });
+        }
+    }
 }
 
 void CameraComponent::SetAspectRatio(float aspectRatio) noexcept
 {
-    // Guard against degenerate window states (e.g., minimized application)
     constexpr float epsilon{ 0.001f };
     if (aspectRatio <= epsilon) return;
 
@@ -111,14 +175,16 @@ void CameraComponent::ApplyProjectionSettings() noexcept
 
 void CameraComponent::DrawInspector()
 {
-    bool projectionDirty{ false };
-
-    // Use bitwise OR to evaluate all dirty flags without short-circuiting UI rendering
-    projectionDirty |= ImGui::DragFloat("Field of View", &m_fovDegrees, 0.1f, 1.0f, 179.0f);
-    projectionDirty |= ImGui::DragFloat("Near Clip", &m_nearZ, 0.01f, 0.01f, m_farZ - 0.01f);
-    projectionDirty |= ImGui::DragFloat("Far Clip", &m_farZ, 1.0f, m_nearZ + 0.01f, 100000.0f);
+    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.0f, 1.0f), "CAMERA BRAIN");
+    ImGui::Text("Active Target: %s", m_activeVirtualCamera ? m_activeVirtualCamera->GetOwner()->GetName().c_str() : "None");
 
     ImGui::Separator();
+    ImGui::DragFloat("Blend Duration", &m_blendDuration, 0.1f, 0.0f, 10.0f);
+
+    ImGui::Separator();
+    bool projectionDirty{ false };
+    projectionDirty |= ImGui::DragFloat("Near Clip", &m_nearZ, 0.01f, 0.01f, m_farZ - 0.01f);
+    projectionDirty |= ImGui::DragFloat("Far Clip", &m_farZ, 1.0f, m_nearZ + 0.01f, 100000.0f);
     ImGui::DragFloat("Gizmo Draw Distance", &m_gizmoDrawDistance, 0.1f, 0.5f, 100.0f);
 
     if (projectionDirty)
@@ -133,11 +199,9 @@ void CameraComponent::DrawGizmo(ShapeRenderer* shapeRenderer) noexcept
 
     const auto& [worldPos, worldRotRad] = ExtractWorldTransform(GetOwner()->transform.GetWorldMatrix());
 
-    // Brain Camera Color: Distinct Yellow
     constexpr float r{ 1.0f }, g{ 0.85f }, b{ 0.0f }, a{ 1.0f };
     constexpr DirectX::XMFLOAT4 gizmoColor{ r, g, b, a };
 
-    // Draw Yellow Frustum
     shapeRenderer->DrawFrustum(
         worldPos,
         worldRotRad,
@@ -148,40 +212,34 @@ void CameraComponent::DrawGizmo(ShapeRenderer* shapeRenderer) noexcept
         gizmoColor,
         m_gizmoDrawDistance);
 
-    // Draw Yellow Tinted 3D Billboard
-    if (m_gizmoSprite)
+    Camera* activeCam{ CameraController::Instance().GetActiveCamera().get() };
+    if (activeCam && activeCam->CheckSphere(worldPos.x, worldPos.y, worldPos.z, 0.5f))
     {
-        Camera* activeCam{ CameraController::Instance().GetActiveCamera().get() };
-        if (activeCam && activeCam->CheckSphere(worldPos.x, worldPos.y, worldPos.z, 0.5f))
-        {
-            auto dc{ Graphics::Instance().GetDeviceContext() };
-            const DirectX::XMFLOAT3 activeCamRot{ activeCam->GetRotation() };
+        const DirectX::XMFLOAT3 activeCamRot{ activeCam->GetRotation() };
 
-            m_gizmoSprite->Render(
-                dc, activeCam,
-                worldPos.x, worldPos.y, worldPos.z,
-                0.5f, 0.5f,
-                activeCamRot.x, activeCamRot.y, activeCamRot.z,
-                r, g, b, a  // Tints the icon Yellow
-            );
-        }
+        VirtualCameraComponent::QueueGizmoIcon({
+            worldPos.x, worldPos.y, worldPos.z,
+            0.5f, 0.5f,
+            0.0f, 0.0f, 0.0f, 0.0f,
+            activeCamRot.x, activeCamRot.y, activeCamRot.z,
+            r, g, b, a
+            });
     }
 }
 
 void CameraComponent::Serialize(nlohmann::json& outJson) const
 {
-    outJson["FovDegrees"] = m_fovDegrees;
+    outJson["BlendDuration"] = m_blendDuration;
     outJson["NearZ"] = m_nearZ;
     outJson["FarZ"] = m_farZ;
 }
 
 void CameraComponent::Deserialize(const nlohmann::json& inJson)
 {
-    m_fovDegrees = inJson.value("FovDegrees", m_fovDegrees);
+    m_blendDuration = inJson.value("BlendDuration", m_blendDuration);
     m_nearZ = inJson.value("NearZ", m_nearZ);
     m_farZ = inJson.value("FarZ", m_farZ);
     ApplyProjectionSettings();
 }
 
-// Automatically registers CameraComponent in the Factory before main() executes
 REGISTER_COMPONENT(CameraComponent)

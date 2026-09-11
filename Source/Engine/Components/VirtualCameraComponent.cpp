@@ -1,3 +1,4 @@
+#include "VirtualCameraComponent.h"
 #include <algorithm>
 #include <cmath>
 #include <imgui.h>
@@ -6,11 +7,9 @@
 #include "ComponentRegistry.h"
 #include "GameObject.h"
 #include "CameraController.h"
-#include "VirtualCameraComponent.h"
 
 namespace
 {
-    // Resolves the shortest rotational path to prevent 360-degree unwinding spins
     [[nodiscard]] constexpr float WrapAngle(float angle) noexcept
     {
         while (angle > DirectX::XM_PI)  angle -= DirectX::XM_2PI;
@@ -18,12 +17,16 @@ namespace
         return angle;
     }
 
-    // Framerate-independent damping formula
     [[nodiscard]] inline float CalculateDampingBlend(float damping, float dt) noexcept
     {
         constexpr float epsilon{ 0.001f };
         if (damping <= epsilon) return 1.0f;
         return 1.0f - std::exp(-damping * dt);
+    }
+
+    [[nodiscard]] inline bool IsFloat3Equal(const DirectX::XMFLOAT3& a, const DirectX::XMFLOAT3& b, float ep = 0.0001f) noexcept
+    {
+        return (std::abs(a.x - b.x) <= ep) && (std::abs(a.y - b.y) <= ep) && (std::abs(a.z - b.z) <= ep);
     }
 }
 
@@ -40,53 +43,63 @@ VirtualCameraComponent::~VirtualCameraComponent()
 void VirtualCameraComponent::OnAttach(GameObject* owner) noexcept
 {
     IComponent::OnAttach(owner);
-    LoadGizmoIcon();
+    EnsureSharedGizmoLoaded();
+    ResolveTargets();
+
+    if (owner)
+    {
+        m_cachedPos = owner->GetPosition();
+        m_cachedRot = owner->GetRotation();
+    }
 }
 
-void VirtualCameraComponent::LoadGizmoIcon() noexcept
+void VirtualCameraComponent::EnsureSharedGizmoLoaded() noexcept
 {
-    if (m_iconLoaded) return;
-
-    // Instantiate the sprite specifically for 3D billboard rendering
-    m_gizmoSprite = std::make_unique<Sprite>(Graphics::Instance().GetDevice(), "Data/Icon/Gizmo/Camera.png");
-
-    m_iconLoaded = true;
+    if (!s_sharedGizmoSprite)
+    {
+        s_sharedGizmoSprite = std::make_shared<Sprite>(Graphics::Instance().GetDevice(), "Data/Icon/Gizmo/Camera.png");
+    }
 }
 
 GameObject* VirtualCameraComponent::FindTargetByName(const std::string& name) const noexcept
 {
     if (name.empty() || !m_owner || !m_owner->GetParent()) return nullptr;
 
-    // Traverse up to the Scene Root
     GameObject* root{ m_owner->GetParent() };
     while (root->GetParent() != nullptr)
     {
         root = root->GetParent();
     }
 
-    // Search top-level scene nodes
     for (const auto& child : root->GetChildren())
     {
-        if (child->GetName() == name)
-        {
-            return child.get();
-        }
+        if (child->GetName() == name) return child.get();
     }
     return nullptr;
+}
+
+void VirtualCameraComponent::ResolveTargets() noexcept
+{
+    m_followTarget = FindTargetByName(m_followTargetName);
+    m_lookAtTarget = FindTargetByName(m_lookAtTargetName);
 }
 
 void VirtualCameraComponent::Update(float dt)
 {
     if (!m_owner) return;
 
+    // Fast O(1) pointer validation instead of string search
+    if (m_followTarget && m_followTarget->IsDestroyed()) m_followTarget = nullptr;
+    if (m_lookAtTarget && m_lookAtTarget->IsDestroyed()) m_lookAtTarget = nullptr;
+
+    if (!m_followTarget && !m_lookAtTarget) return;
+
     DirectX::XMFLOAT3 currentPos{ m_owner->GetPosition() };
     DirectX::XMFLOAT3 currentRot{ m_owner->GetRotation() };
 
-    // Follow Target Resolution (Position)
-    if (GameObject * followTarget{ FindTargetByName(m_followTargetName) })
+    if (m_followTarget)
     {
-        const DirectX::XMFLOAT3 targetPos{ followTarget->GetPosition() };
-
+        const DirectX::XMFLOAT3 targetPos{ m_followTarget->GetPosition() };
         const DirectX::XMFLOAT3 desiredPos{
             targetPos.x + m_followOffset.x,
             targetPos.y + m_followOffset.y,
@@ -99,10 +112,9 @@ void VirtualCameraComponent::Update(float dt)
         currentPos.z += (desiredPos.z - currentPos.z) * tPos;
     }
 
-    // Look-At Target Resolution (Rotation)
-    if (GameObject * lookTarget{ FindTargetByName(m_lookAtTargetName) })
+    if (m_lookAtTarget)
     {
-        const DirectX::XMFLOAT3 targetPos{ lookTarget->GetPosition() };
+        const DirectX::XMFLOAT3 targetPos{ m_lookAtTarget->GetPosition() };
         const float dx{ targetPos.x - currentPos.x };
         const float dy{ targetPos.y - currentPos.y };
         const float dz{ targetPos.z - currentPos.z };
@@ -124,8 +136,16 @@ void VirtualCameraComponent::Update(float dt)
         currentRot.z = 0.0f;
     }
 
-    m_owner->SetPosition(currentPos);
-    m_owner->SetRotation(currentRot);
+    if (!IsFloat3Equal(currentPos, m_cachedPos))
+    {
+        m_owner->SetPosition(currentPos);
+        m_cachedPos = currentPos;
+    }
+    if (!IsFloat3Equal(currentRot, m_cachedRot))
+    {
+        m_owner->SetRotation(currentRot);
+        m_cachedRot = currentRot;
+    }
 }
 
 void VirtualCameraComponent::DrawInspector()
@@ -138,6 +158,7 @@ void VirtualCameraComponent::DrawInspector()
     if (ImGui::InputText("Follow Target", s_followBuf, sizeof(s_followBuf)))
     {
         m_followTargetName = s_followBuf;
+        ResolveTargets(); // Re-cache pointer on text change
     }
 
     ImGui::DragFloat3("Follow Offset", &m_followOffset.x, 0.1f);
@@ -150,6 +171,7 @@ void VirtualCameraComponent::DrawInspector()
     if (ImGui::InputText("Look-At Target", s_lookBuf, sizeof(s_lookBuf)))
     {
         m_lookAtTargetName = s_lookBuf;
+        ResolveTargets(); // Re-cache pointer on text change
     }
     ImGui::DragFloat("Rotation Damping", &m_rotationDamping, 0.1f, 0.0f, 50.0f);
 
@@ -158,7 +180,6 @@ void VirtualCameraComponent::DrawInspector()
     ImGui::DragFloat("Field of View", &m_fovDegrees, 0.1f, 1.0f, 179.0f);
     ImGui::DragFloat("Near Clip", &m_nearZ, 0.01f, 0.01f, m_farZ - 0.01f);
     ImGui::DragFloat("Far Clip", &m_farZ, 1.0f, m_nearZ + 0.01f, 100000.0f);
-
     ImGui::Separator();
     ImGui::DragFloat("Gizmo Draw Distance", &m_gizmoDrawDistance, 0.1f, 0.5f, 100.0f);
 }
@@ -176,31 +197,34 @@ void VirtualCameraComponent::DrawGizmo(ShapeRenderer* shapeRenderer) noexcept
         DirectX::XMConvertToRadians(rot.z)
     };
 
-    // Virtual Camera Color: Cyan
-    constexpr float r{ 0.2f }, g{ 0.8f }, b{ 1.0f }, a{ 1.0f };
-    constexpr DirectX::XMFLOAT4 gizmoColor{ r, g, b, a };
+    shapeRenderer->DrawFrustum(pos, rotRad, DirectX::XMConvertToRadians(m_fovDegrees), 16.0f / 9.0f, m_nearZ, m_farZ, { 0.2f, 0.8f, 1.0f, 1.0f }, m_gizmoDrawDistance);
 
-    // Draw Frustum Wireframe
-    shapeRenderer->DrawFrustum(pos, rotRad, DirectX::XMConvertToRadians(m_fovDegrees), 16.0f / 9.0f, m_nearZ, m_farZ, gizmoColor, m_gizmoDrawDistance);
-
-    // Draw 3D Billboard Icon
-    if (m_gizmoSprite)
+    // Queue to CPU batch array 
+    Camera* activeCam{ CameraController::Instance().GetActiveCamera().get() };
+    if (activeCam && activeCam->CheckSphere(pos.x, pos.y, pos.z, 0.5f))
     {
-        Camera* activeCam{ CameraController::Instance().GetActiveCamera().get() };
-        if (activeCam && activeCam->CheckSphere(pos.x, pos.y, pos.z, 0.5f))
-        {
-            auto dc{ Graphics::Instance().GetDeviceContext() };
-            const DirectX::XMFLOAT3 activeCamRot{ activeCam->GetRotation() };
+        const DirectX::XMFLOAT3 activeCamRot{ activeCam->GetRotation() };
 
-            m_gizmoSprite->Render(
-                dc, activeCam,
-                pos.x, pos.y, pos.z,
-                0.5f, 0.5f,
-                activeCamRot.x, activeCamRot.y, activeCamRot.z,
-                r, g, b, a   // Tints the icon Cyan
-            );
-        }
+        s_gizmoBatchData.push_back({
+            pos.x, pos.y, pos.z,
+            0.5f, 0.5f,
+            0.0f, 0.0f, 0.0f, 0.0f, 
+            activeCamRot.x, activeCamRot.y, activeCamRot.z,
+            0.2f, 0.8f, 1.0f, 1.0f  // Cyan
+            });
     }
+}
+
+void VirtualCameraComponent::FlushGizmos(ID3D11DeviceContext* dc, const Camera* activeCam) noexcept
+{
+    if (s_gizmoBatchData.empty()) return;
+
+    if (s_sharedGizmoSprite)
+    {
+        s_sharedGizmoSprite->Render3DBatch(dc, activeCam, s_gizmoBatchData);
+    }
+
+    s_gizmoBatchData.clear();
 }
 
 void VirtualCameraComponent::Serialize(nlohmann::json& outJson) const
@@ -231,6 +255,8 @@ void VirtualCameraComponent::Deserialize(const nlohmann::json& inJson)
     m_fovDegrees = inJson.value("FovDegrees", m_fovDegrees);
     m_nearZ = inJson.value("NearZ", m_nearZ);
     m_farZ = inJson.value("FarZ", m_farZ);
+
+    ResolveTargets(); // Resolve immediately upon load
 }
 
 REGISTER_COMPONENT(VirtualCameraComponent)

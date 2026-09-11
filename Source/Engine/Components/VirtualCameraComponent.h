@@ -4,21 +4,14 @@
 #include <json.hpp>
 #include <memory>
 #include <string>
+#include <vector>
 #include "System/Sprite.h"
 #include "IComponent.h"
 
-
-// VirtualCameraComponent
-// A data-driven shot descriptor. It does not render the scene; it calculates 
-// framing, tracking, and damping. The CameraBrain reads the highest-priority 
-// VirtualCamera and snaps to its coordinates.
 class VirtualCameraComponent final : public IComponent
 {
 public:
-    // Constructor automatically registers this camera to the global brain pool
     VirtualCameraComponent();
-
-    // Destructor cleanly unregisters it
     ~VirtualCameraComponent() override;
 
     VirtualCameraComponent(const VirtualCameraComponent&) = delete;
@@ -36,40 +29,43 @@ public:
     void Serialize(nlohmann::json& outJson) const override;
     void Deserialize(const nlohmann::json& inJson) override;
 
-    // Accessors 
     [[nodiscard]] int GetPriority() const noexcept { return m_priority; }
     [[nodiscard]] float GetFovDegrees() const noexcept { return m_fovDegrees; }
     [[nodiscard]] float GetNearZ() const noexcept { return m_nearZ; }
     [[nodiscard]] float GetFarZ() const noexcept { return m_farZ; }
 
-    // Static registry accessor for the Camera Brain
     [[nodiscard]] static const std::vector<VirtualCameraComponent*>& GetRegistry() noexcept { return s_registry; }
+
+    // Shared Batch Pipeline
+    static void FlushGizmos(ID3D11DeviceContext* dc, const class Camera* activeCam) noexcept;
+    static void QueueGizmoIcon(const Sprite::Sprite3DBatchData& data) noexcept { s_gizmoBatchData.push_back(data); }
+    static void EnsureSharedGizmoLoaded() noexcept;
+
 private:
-    // Ensures only one list exists across the entire translation unit
     static inline std::vector<VirtualCameraComponent*> s_registry{};
+    static inline std::shared_ptr<Sprite> s_sharedGizmoSprite{ nullptr };
+    static inline std::vector<Sprite::Sprite3DBatchData> s_gizmoBatchData{};
 
     int m_priority{ 10 };
 
-    // Target Identification 
     std::string m_followTargetName{};
     std::string m_lookAtTargetName{};
 
-    // Framing & Smoothing
+    class GameObject* m_followTarget{ nullptr };
+    class GameObject* m_lookAtTarget{ nullptr };
+
     DirectX::XMFLOAT3 m_followOffset{ 0.0f, 5.0f, -10.0f };
     float m_positionDamping{ 5.0f };
     float m_rotationDamping{ 5.0f };
 
-    // Lens Settings
     float m_fovDegrees{ 45.0f };
     float m_nearZ{ 0.2f };
     float m_farZ{ 1000.0f };
     float m_gizmoDrawDistance{ 5.0f };
 
-    // Gizmo Rendering
-    std::unique_ptr<Sprite> m_gizmoSprite{};
-    bool m_iconLoaded{ false };
+    DirectX::XMFLOAT3 m_cachedPos{ 0.0f, 0.0f, 0.0f };
+    DirectX::XMFLOAT3 m_cachedRot{ 0.0f, 0.0f, 0.0f };
 
-    // Internal Helpers
     [[nodiscard]] class GameObject* FindTargetByName(const std::string& name) const noexcept;
-    void LoadGizmoIcon() noexcept;
+    void ResolveTargets() noexcept;
 };
