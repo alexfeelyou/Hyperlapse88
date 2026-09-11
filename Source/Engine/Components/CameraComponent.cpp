@@ -1,11 +1,13 @@
-#include "CameraComponent.h"
 #include <algorithm>
 #include <cmath>
-#include <utility>
 #include <imgui.h>
+#include <utility>
+#include "System/Graphics.h"
+#include "System/ShapeRenderer.h"
+#include "CameraComponent.h"
+#include "CameraController.h"
 #include "ComponentRegistry.h"
 #include "GameObject.h"
-#include "System/ShapeRenderer.h"
 
 // Anonymous namespace for internal helper functions (Internal Linkage)
 namespace
@@ -62,6 +64,19 @@ CameraComponent::CameraComponent()
     ApplyProjectionSettings();
 }
 
+void CameraComponent::OnAttach(GameObject* owner) noexcept
+{
+    IComponent::OnAttach(owner);
+    LoadGizmoIcon();
+}
+
+void CameraComponent::LoadGizmoIcon() noexcept
+{
+    if (m_iconLoaded) return;
+    m_gizmoSprite = std::make_unique<Sprite>(Graphics::Instance().GetDevice(), "Data/Icon/Gizmo/Camera.png");
+    m_iconLoaded = true;
+}
+
 void CameraComponent::Update(float dt)
 {
     if (!GetOwner()) return;
@@ -103,32 +118,54 @@ void CameraComponent::DrawInspector()
     projectionDirty |= ImGui::DragFloat("Near Clip", &m_nearZ, 0.01f, 0.01f, m_farZ - 0.01f);
     projectionDirty |= ImGui::DragFloat("Far Clip", &m_farZ, 1.0f, m_nearZ + 0.01f, 100000.0f);
 
+    ImGui::Separator();
+    ImGui::DragFloat("Gizmo Draw Distance", &m_gizmoDrawDistance, 0.1f, 0.5f, 100.0f);
+
     if (projectionDirty)
     {
         ApplyProjectionSettings();
     }
-
-    ImGui::DragFloat("Gizmo Draw Distance", &m_gizmoDrawDistance, 0.1f, 0.5f, 100.0f);
 }
 
 void CameraComponent::DrawGizmo(ShapeRenderer* shapeRenderer) noexcept
 {
     if (!shapeRenderer || !GetOwner()) return;
 
-    constexpr DirectX::XMFLOAT4 gizmoColor{ 1.0f, 0.85f, 0.0f, 1.0f };
-
-    // In Editor Edit Mode, Gizmos draw from the component's absolute world location
     const auto& [worldPos, worldRotRad] = ExtractWorldTransform(GetOwner()->transform.GetWorldMatrix());
 
+    // Brain Camera Color: Distinct Yellow
+    constexpr float r{ 1.0f }, g{ 0.85f }, b{ 0.0f }, a{ 1.0f };
+    constexpr DirectX::XMFLOAT4 gizmoColor{ r, g, b, a };
+
+    // Draw Yellow Frustum
     shapeRenderer->DrawFrustum(
         worldPos,
-        worldRotRad, // Gizmo expects radians
+        worldRotRad,
         DirectX::XMConvertToRadians(m_fovDegrees),
         m_aspectRatio,
         m_nearZ,
         m_farZ,
         gizmoColor,
         m_gizmoDrawDistance);
+
+    // Draw Yellow Tinted 3D Billboard
+    if (m_gizmoSprite)
+    {
+        Camera* activeCam{ CameraController::Instance().GetActiveCamera().get() };
+        if (activeCam && activeCam->CheckSphere(worldPos.x, worldPos.y, worldPos.z, 0.5f))
+        {
+            auto dc{ Graphics::Instance().GetDeviceContext() };
+            const DirectX::XMFLOAT3 activeCamRot{ activeCam->GetRotation() };
+
+            m_gizmoSprite->Render(
+                dc, activeCam,
+                worldPos.x, worldPos.y, worldPos.z,
+                0.5f, 0.5f,
+                activeCamRot.x, activeCamRot.y, activeCamRot.z,
+                r, g, b, a  // Tints the icon Yellow
+            );
+        }
+    }
 }
 
 void CameraComponent::Serialize(nlohmann::json& outJson) const

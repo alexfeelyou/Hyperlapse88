@@ -363,6 +363,9 @@
     <ClCompile Include="Source\Engine\Components\CameraComponent.cpp">
       <Filter>Source\Engine\Components</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Engine\Components\VirtualCameraComponent.cpp">
+      <Filter>Source\Engine\Components</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\System\BasicShader.h">
@@ -694,6 +697,9 @@
       <Filter>Source\Engine\Graphics</Filter>
     </ClInclude>
     <ClInclude Include="Source\Engine\Components\CameraComponent.h">
+      <Filter>Source\Engine\Components</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Components\VirtualCameraComponent.h">
       <Filter>Source\Engine\Components</Filter>
     </ClInclude>
   </ItemGroup>

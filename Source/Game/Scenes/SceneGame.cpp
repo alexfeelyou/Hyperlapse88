@@ -997,6 +997,7 @@ void SceneGame::Render(float elapsedTime, Camera* camera)
 
         if (m_itemManager) m_itemManager->RenderDebug(shapeRenderer);
         if (m_enemyManager) m_enemyManager->RenderDebug(shapeRenderer);
+        if (m_sceneRoot) m_sceneRoot->DrawGizmo(shapeRenderer);
 
         // Player hitbox (green), Enemy hitboxes (red)
         //if (m_player)

@@ -45,6 +45,9 @@ ShapeRenderer::ShapeRenderer(ID3D11Device* device)
 
 	// 骨メッシュ生成
 	CreateBoneMesh(device, 1.0f);
+
+	// 線メッシュ生成
+	CreateLineMesh(device);
 }
 
 // 箱描画
@@ -171,6 +174,17 @@ void ShapeRenderer::CreateMesh(ID3D11Device* device, const std::vector<DirectX::
 	_ASSERT_EXPR(SUCCEEDED(hr), HRTrace(hr));
 
 	mesh.vertexCount = static_cast<UINT>(vertices.size());
+}
+
+// 線メッシュ作成
+void ShapeRenderer::CreateLineMesh(ID3D11Device* device)
+{
+	// A single line pointing exactly down the Z axis
+	const std::vector<DirectX::XMFLOAT3> vertices{
+		{ 0.0f, 0.0f, 0.0f },
+		{ 0.0f, 0.0f, 1.0f }
+	};
+	CreateMesh(device, vertices, lineMesh);
 }
 
 // 箱メッシュ作成
@@ -435,28 +449,31 @@ void ShapeRenderer::CreateBoneMesh(ID3D11Device* device, float length)
 // 線描画
 void ShapeRenderer::DrawLine(const DirectX::XMFLOAT3& start, const DirectX::XMFLOAT3& end, const DirectX::XMFLOAT4& color)
 {
-	// Draws a 3D line using a stretched box primitive.
-	DirectX::XMVECTOR vStart{ DirectX::XMLoadFloat3(&start) };
-	DirectX::XMVECTOR vEnd{ DirectX::XMLoadFloat3(&end) };
-	DirectX::XMVECTOR vDir{ DirectX::XMVectorSubtract(vEnd, vStart) };
-	DirectX::XMVECTOR vLen{ DirectX::XMVector3Length(vDir) };
+	Instance& instance{ instances.emplace_back() };
+	instance.mesh = &lineMesh;
+	instance.color = color;
 
-	const float length{ DirectX::XMVectorGetX(vLen) };
-	if (length < 0.0001f) return; // Prevent division by zero
+	const DirectX::XMVECTOR vStart{ DirectX::XMLoadFloat3(&start) };
+	const DirectX::XMVECTOR vEnd{ DirectX::XMLoadFloat3(&end) };
+	DirectX::XMVECTOR vDir{ DirectX::XMVectorSubtract(vEnd, vStart) };
+	const float length{ DirectX::XMVectorGetX(DirectX::XMVector3Length(vDir)) };
+
+	constexpr float epsilon{ 0.0001f };
+	if (length < epsilon) return;
 
 	vDir = DirectX::XMVectorScale(vDir, 1.0f / length);
 	DirectX::XMFLOAT3 dir{};
 	DirectX::XMStoreFloat3(&dir, vDir);
 
-	// Decompose direction into pitch and yaw
-	const float pitch{ asinf(-dir.y) };
-	const float yaw{ atan2f(dir.x, dir.z) };
+	const float pitch{ std::asinf(-dir.y) };
+	const float yaw{ std::atan2(dir.x, dir.z) };
 
-	DirectX::XMFLOAT3 mid{};
-	DirectX::XMStoreFloat3(&mid, DirectX::XMVectorScale(DirectX::XMVectorAdd(vStart, vEnd), 0.5f));
+	// Scale Z by length, rotate to point at target, translate to start
+	const DirectX::XMMATRIX S{ DirectX::XMMatrixScaling(1.0f, 1.0f, length) };
+	const DirectX::XMMATRIX R{ DirectX::XMMatrixRotationRollPitchYaw(pitch, yaw, 0.0f) };
+	const DirectX::XMMATRIX T{ DirectX::XMMatrixTranslation(start.x, start.y, start.z) };
 
-	// Draw a box that is 0.01 units thick, scaled to exactly the distance between A and B
-	DrawBox(mid, { pitch, yaw, 0.0f }, { 0.01f, 0.01f, length * 0.5f }, color);
+	DirectX::XMStoreFloat4x4(&instance.worldTransform, S * R * T);
 }
 
 // フラスタム描画

@@ -84,6 +84,9 @@ private:
 	// メッシュ生成
 	void CreateMesh(ID3D11Device* device, const std::vector<DirectX::XMFLOAT3>& vertices, Mesh& mesh);
 
+	// 線メッシュ作成
+	void CreateLineMesh(ID3D11Device* device);
+
 	// 箱メッシュ作成
 	void CreateBoxMesh(ID3D11Device* device, float width, float height, float depth);
 
@@ -105,6 +108,7 @@ private:
 	Mesh										halfSphereMesh;
 	Mesh										cylinderMesh;
 	Mesh										boneMesh;
+	Mesh										lineMesh;
 	std::vector<Instance>						instances;
 	Microsoft::WRL::ComPtr<ID3D11VertexShader>	vertexShader;
 	Microsoft::WRL::ComPtr<ID3D11PixelShader>	pixelShader;

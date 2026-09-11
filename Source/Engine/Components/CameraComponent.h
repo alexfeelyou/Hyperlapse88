@@ -1,7 +1,9 @@
 #pragma once
 
+#include <DirectXMath.h>
 #include <memory>
 #include <json.hpp>
+#include "System/Sprite.h"
 #include "Camera.h"
 #include "IComponent.h"
 
@@ -25,6 +27,9 @@ public:
     // Move semantics are explicitly allowed
     CameraComponent(CameraComponent&&) = default;
     CameraComponent& operator=(CameraComponent&&) = default;
+
+	// Called immediately when the component is added to a GameObject
+    void OnAttach(class GameObject* owner) noexcept override;
 
     // Extracts absolute world-transform from the owner and updates the lens
     void Update(float dt) override;
@@ -50,8 +55,15 @@ public:
 private:
     std::shared_ptr<Camera> m_camera{ std::make_shared<Camera>() };
 
+    // Blending Engine State
+    class VirtualCameraComponent* m_activeVirtualCamera{ nullptr };
+    float m_blendDuration{ 1.5f };
+    float m_blendTimer{ 0.0f };
+    DirectX::XMFLOAT3 m_blendStartPos{};
+    DirectX::XMFLOAT3 m_blendStartRot{};
+
     float m_fovDegrees{ 45.0f };
-    float m_nearZ{ 0.1f };
+    float m_nearZ{ 0.2f };
     float m_farZ{ 1000.0f };
     float m_aspectRatio{ 16.0f / 9.0f };
 
@@ -59,6 +71,13 @@ private:
     // far=1000 camera doesn't draw a gizmo that swallows the whole scene view
     float m_gizmoDrawDistance{ 5.0f };
 
+    // Gizmo Rendering
+    std::unique_ptr<Sprite> m_gizmoSprite{};
+    bool m_iconLoaded{ false };
+
     // Pushes fovDegrees/near/far/aspect into the underlying Camera's projection matrix
     void ApplyProjectionSettings() noexcept;
+
+	// Loads the 3D billboard icon for the Scene View gizmo. Called once on attach.
+    void LoadGizmoIcon() noexcept;
 };
