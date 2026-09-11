@@ -1,588 +1,508 @@
+#include <algorithm>
+#include <cmath>
 #include "ProfilerManager.h"
 #include "ShapeRenderer.h"
 
 // コンストラクタ
 ShapeRenderer::ShapeRenderer(ID3D11Device* device)
+    : m_device(device)
 {
-	// 入力レイアウト
-	D3D11_INPUT_ELEMENT_DESC inputElementDesc[] =
-	{
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-	};
+    const D3D11_INPUT_ELEMENT_DESC inputElementDesc[] =
+    {
+        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+    };
 
-	// 頂点シェーダー
-	GpuResourceUtils::LoadVertexShader(
-		device,
-		"Data/Shader/ShapeRendererVS.cso",
-		inputElementDesc,
-		_countof(inputElementDesc),
-		inputLayout.GetAddressOf(),
-		vertexShader.GetAddressOf());
+    GpuResourceUtils::LoadVertexShader(
+        device,
+        "Data/Shader/ShapeRendererVS.cso",
+        inputElementDesc,
+        _countof(inputElementDesc),
+        m_inputLayout.GetAddressOf(),
+        m_vertexShader.GetAddressOf());
 
-	// ピクセルシェーダー
-	GpuResourceUtils::LoadPixelShader(
-		device,
-		"Data/Shader/ShapeRendererPS.cso",
-		pixelShader.GetAddressOf());
+    GpuResourceUtils::LoadPixelShader(
+        device,
+        "Data/Shader/ShapeRendererPS.cso",
+        m_pixelShader.GetAddressOf());
 
-	// 定数バッファ
-	GpuResourceUtils::CreateConstantBuffer(
-		device,
-		sizeof(CbMesh),
-		constantBuffer.GetAddressOf());
+    // Create the Constant Buffer with D3D11_USAGE_DYNAMIC
+    D3D11_BUFFER_DESC cbDesc{};
+    cbDesc.ByteWidth = sizeof(CbMesh);
+    cbDesc.Usage = D3D11_USAGE_DYNAMIC;
+    cbDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    cbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    cbDesc.MiscFlags = 0;
+    cbDesc.StructureByteStride = 0;
 
-	// 箱メッシュ生成
-	CreateBoxMesh(device, 1.0f, 1.0f, 1.0f);
+    HRESULT hr{ device->CreateBuffer(&cbDesc, nullptr, m_constantBuffer.GetAddressOf()) };
+    _ASSERT_EXPR(SUCCEEDED(hr), HRTrace(hr));
 
-	// 球メッシュ生成
-	CreateSphereMesh(device, 1.0f, 32);
-
-	// 半球メッシュ生成
-	CreateHalfSphereMesh(device, 1.0f, 32);
-
-	// 円柱メッシュ生成
-	CreateCylinderMesh(device, 1.0f, 1.0f, -0.5f, 1.0f, 32);
-
-	// 骨メッシュ生成
-	CreateBoneMesh(device, 1.0f);
-
-	// 線メッシュ生成
-	CreateLineMesh(device);
+    CreateBoxMesh(device, 1.0f, 1.0f, 1.0f);
+    CreateSphereMesh(device, 1.0f, 32);
+    CreateHalfSphereMesh(device, 1.0f, 32);
+    CreateCylinderMesh(device, 1.0f, 1.0f, -0.5f, 1.0f, 32);
+    CreateBoneMesh(device, 1.0f);
 }
 
 // 箱描画
-void ShapeRenderer::DrawBox(
-	const DirectX::XMFLOAT3& position,
-	const DirectX::XMFLOAT3& angle,
-	const DirectX::XMFLOAT3& size,
-	const DirectX::XMFLOAT4& color)
+void ShapeRenderer::DrawBox(const DirectX::XMFLOAT3& position, const DirectX::XMFLOAT3& angle, const DirectX::XMFLOAT3& size, const DirectX::XMFLOAT4& color)
 {
-	Instance& instance = instances.emplace_back();
-	instance.mesh = &boxMesh;
-	instance.color = color;
+    Instance& instance{ m_instances.emplace_back() };
+    instance.mesh = &m_boxMesh; // Fixed prefix
+    instance.color = color;
 
-	DirectX::XMMATRIX S = DirectX::XMMatrixScaling(size.x, size.y, size.z);
-	DirectX::XMMATRIX R = DirectX::XMMatrixRotationRollPitchYaw(angle.x, angle.y, angle.z);
-	DirectX::XMMATRIX T = DirectX::XMMatrixTranslation(position.x, position.y, position.z);
-	DirectX::XMStoreFloat4x4(&instance.worldTransform, S * R * T);
+    const DirectX::XMMATRIX S{ DirectX::XMMatrixScaling(size.x, size.y, size.z) };
+    const DirectX::XMMATRIX R{ DirectX::XMMatrixRotationRollPitchYaw(angle.x, angle.y, angle.z) };
+    const DirectX::XMMATRIX T{ DirectX::XMMatrixTranslation(position.x, position.y, position.z) };
+    DirectX::XMStoreFloat4x4(&instance.worldTransform, S * R * T);
 }
 
 // 球描画
-void ShapeRenderer::DrawSphere(
-	const DirectX::XMFLOAT3& position,
-	float radius,
-	const DirectX::XMFLOAT4& color)
+void ShapeRenderer::DrawSphere(const DirectX::XMFLOAT3& position, float radius, const DirectX::XMFLOAT4& color)
 {
-	Instance& instance = instances.emplace_back();
-	instance.mesh = &sphereMesh;
-	instance.color = color;
+    Instance& instance{ m_instances.emplace_back() };
+    instance.mesh = &m_sphereMesh; // Fixed prefix
+    instance.color = color;
 
-	DirectX::XMMATRIX S = DirectX::XMMatrixScaling(radius, radius, radius);
-	DirectX::XMMATRIX T = DirectX::XMMatrixTranslation(position.x, position.y, position.z);
-	DirectX::XMStoreFloat4x4(&instance.worldTransform, S * T);
+    const DirectX::XMMATRIX S{ DirectX::XMMatrixScaling(radius, radius, radius) };
+    const DirectX::XMMATRIX T{ DirectX::XMMatrixTranslation(position.x, position.y, position.z) };
+    DirectX::XMStoreFloat4x4(&instance.worldTransform, S * T);
 }
 
 // カプセル描画
 void ShapeRenderer::DrawCapsule(const DirectX::XMFLOAT4X4& transform, float radius, float height, const DirectX::XMFLOAT4& color)
 {
-	DirectX::XMMATRIX Transform = DirectX::XMLoadFloat4x4(&transform);
+    const DirectX::XMMATRIX Transform{ DirectX::XMLoadFloat4x4(&transform) };
+    DirectX::XMMATRIX RotScale{ Transform };
+    RotScale.r[3] = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
 
-	// Extract pure Rotation and Scale to prevent shearing
-	DirectX::XMMATRIX RotScale = Transform;
-	RotScale.r[3] = DirectX::XMVectorSet(0.0f, 0.0f, 0.0f, 1.0f);
+    {
+        Instance& instance{ m_instances.emplace_back() };
+        instance.mesh = &m_halfSphereMesh; // Fixed prefix
+        const DirectX::XMVECTOR Offset{ DirectX::XMVectorSet(0.0f, height * 0.5f, 0.0f, 0.0f) };
+        const DirectX::XMVECTOR Position{ DirectX::XMVectorAdd(Transform.r[3], DirectX::XMVector3TransformNormal(Offset, RotScale)) };
 
-	// Top Hemisphere
-	{
-		Instance& instance = instances.emplace_back();
-		instance.mesh = &halfSphereMesh;
+        DirectX::XMMATRIX World{ DirectX::XMMatrixScaling(radius, radius, radius) * RotScale };
+        World.r[3] = DirectX::XMVectorSetW(Position, 1.0f);
 
-		DirectX::XMVECTOR Offset = DirectX::XMVectorSet(0.0f, height * 0.5f, 0.0f, 0.0f);
-		DirectX::XMVECTOR Position = DirectX::XMVectorAdd(Transform.r[3], DirectX::XMVector3TransformNormal(Offset, RotScale));
+        DirectX::XMStoreFloat4x4(&instance.worldTransform, World);
+        instance.color = color;
+    }
+    {
+        Instance& instance{ m_instances.emplace_back() };
+        instance.mesh = &m_cylinderMesh; // Fixed prefix
 
-		DirectX::XMMATRIX LocalScale = DirectX::XMMatrixScaling(radius, radius, radius);
-		DirectX::XMMATRIX World = LocalScale * RotScale;
-		World.r[3] = DirectX::XMVectorSetW(Position, 1.0f);
+        DirectX::XMMATRIX World{ DirectX::XMMatrixScaling(radius, height, radius) * RotScale };
+        World.r[3] = Transform.r[3];
 
-		DirectX::XMStoreFloat4x4(&instance.worldTransform, World);
-		instance.color = color;
-	}
+        DirectX::XMStoreFloat4x4(&instance.worldTransform, World);
+        instance.color = color;
+    }
+    {
+        Instance& instance{ m_instances.emplace_back() };
+        instance.mesh = &m_halfSphereMesh; // Fixed prefix
+        const DirectX::XMVECTOR Offset{ DirectX::XMVectorSet(0.0f, -height * 0.5f, 0.0f, 0.0f) };
+        const DirectX::XMVECTOR Position{ DirectX::XMVectorAdd(Transform.r[3], DirectX::XMVector3TransformNormal(Offset, RotScale)) };
 
-	// Cylinder Body
-	{
-		Instance& instance = instances.emplace_back();
-		instance.mesh = &cylinderMesh;
+        DirectX::XMMATRIX World{ DirectX::XMMatrixRotationX(DirectX::XM_PI) * DirectX::XMMatrixScaling(radius, radius, radius) * RotScale };
+        World.r[3] = DirectX::XMVectorSetW(Position, 1.0f);
 
-		DirectX::XMMATRIX LocalScale = DirectX::XMMatrixScaling(radius, height, radius);
-		DirectX::XMMATRIX World = LocalScale * RotScale;
-		World.r[3] = Transform.r[3];
-
-		DirectX::XMStoreFloat4x4(&instance.worldTransform, World);
-		instance.color = color;
-	}
-
-	// Bottom Hemisphere
-	{
-		Instance& instance = instances.emplace_back();
-		instance.mesh = &halfSphereMesh;
-
-		DirectX::XMVECTOR Offset = DirectX::XMVectorSet(0.0f, -height * 0.5f, 0.0f, 0.0f);
-		DirectX::XMVECTOR Position = DirectX::XMVectorAdd(Transform.r[3], DirectX::XMVector3TransformNormal(Offset, RotScale));
-
-		DirectX::XMMATRIX LocalRot = DirectX::XMMatrixRotationX(DirectX::XM_PI);
-		DirectX::XMMATRIX LocalScale = DirectX::XMMatrixScaling(radius, radius, radius);
-		DirectX::XMMATRIX World = LocalRot * LocalScale * RotScale;
-		World.r[3] = DirectX::XMVectorSetW(Position, 1.0f);
-
-		DirectX::XMStoreFloat4x4(&instance.worldTransform, World);
-		instance.color = color;
-	}
+        DirectX::XMStoreFloat4x4(&instance.worldTransform, World);
+        instance.color = color;
+    }
 }
 
 // 骨描画
-void ShapeRenderer::DrawBone(
-	const DirectX::XMFLOAT4X4& transform,
-	float length,
-	const DirectX::XMFLOAT4& color)
+void ShapeRenderer::DrawBone(const DirectX::XMFLOAT4X4& transform, float length, const DirectX::XMFLOAT4& color)
 {
-	Instance& instance = instances.emplace_back();
-	instance.mesh = &boneMesh;
-	instance.color = color;
+    Instance& instance{ m_instances.emplace_back() };
+    instance.mesh = &m_boneMesh; // Fixed prefix
+    instance.color = color;
 
-	DirectX::XMMATRIX W = DirectX::XMLoadFloat4x4(&transform);
-	W.r[0] = DirectX::XMVectorScale(DirectX::XMVector3Normalize(W.r[0]), length);
-	W.r[1] = DirectX::XMVectorScale(DirectX::XMVector3Normalize(W.r[1]), length);
-	W.r[2] = DirectX::XMVectorScale(DirectX::XMVector3Normalize(W.r[2]), length);
-	DirectX::XMStoreFloat4x4(&instance.worldTransform, W);
+    DirectX::XMMATRIX W{ DirectX::XMLoadFloat4x4(&transform) };
+    W.r[0] = DirectX::XMVectorScale(DirectX::XMVector3Normalize(W.r[0]), length);
+    W.r[1] = DirectX::XMVectorScale(DirectX::XMVector3Normalize(W.r[1]), length);
+    W.r[2] = DirectX::XMVectorScale(DirectX::XMVector3Normalize(W.r[2]), length);
+    DirectX::XMStoreFloat4x4(&instance.worldTransform, W);
+}
+
+// 線描画 (Highly Optimized Dynamic Batching)
+void ShapeRenderer::DrawLine(const DirectX::XMFLOAT3& start, const DirectX::XMFLOAT3& end, const DirectX::XMFLOAT4& color)
+{
+    LineBatch* targetBatch{ nullptr };
+
+    for (auto& batch : m_lineBatches)
+    {
+        constexpr float epsilon{ 0.001f };
+        if (std::abs(batch.color.x - color.x) < epsilon &&
+            std::abs(batch.color.y - color.y) < epsilon &&
+            std::abs(batch.color.z - color.z) < epsilon &&
+            std::abs(batch.color.w - color.w) < epsilon)
+        {
+            targetBatch = &batch;
+            break;
+        }
+    }
+
+    if (!targetBatch)
+    {
+        targetBatch = &m_lineBatches.emplace_back();
+        targetBatch->color = color;
+    }
+
+    targetBatch->vertices.push_back(start);
+    targetBatch->vertices.push_back(end);
+}
+
+// フラスタム描画
+void ShapeRenderer::DrawFrustum(const DirectX::XMFLOAT3& position, const DirectX::XMFLOAT3& rotation, float fovY, float aspectRatio, float nearZ, float farZ, const DirectX::XMFLOAT4& color, float gizmoDrawDistance)
+{
+    const float visualFarZ{ (std::min)(farZ, gizmoDrawDistance) };
+
+    const float tanHalfFovY{ std::tan(fovY * 0.5f) };
+    const float nearHalfHeight{ tanHalfFovY * nearZ };
+    const float nearHalfWidth{ nearHalfHeight * aspectRatio };
+    const float farHalfHeight{ tanHalfFovY * visualFarZ };
+    const float farHalfWidth{ farHalfHeight * aspectRatio };
+
+    const DirectX::XMFLOAT3 localCorners[8]
+    {
+        { -nearHalfWidth,  nearHalfHeight, nearZ }, {  nearHalfWidth,  nearHalfHeight, nearZ },
+        {  nearHalfWidth, -nearHalfHeight, nearZ }, { -nearHalfWidth, -nearHalfHeight, nearZ },
+        { -farHalfWidth,   farHalfHeight,  visualFarZ }, {  farHalfWidth,   farHalfHeight,  visualFarZ },
+        {  farHalfWidth,  -farHalfHeight,  visualFarZ }, { -farHalfWidth,  -farHalfHeight,  visualFarZ },
+    };
+
+    const DirectX::XMMATRIX rotationMatrix{ DirectX::XMMatrixRotationRollPitchYaw(rotation.x, rotation.y, rotation.z) };
+    const DirectX::XMVECTOR positionVector{ DirectX::XMLoadFloat3(&position) };
+
+    DirectX::XMFLOAT3 worldCorners[8]{};
+    for (int i{ 0 }; i < 8; ++i)
+    {
+        const DirectX::XMVECTOR local{ DirectX::XMLoadFloat3(&localCorners[i]) };
+        const DirectX::XMVECTOR world{ DirectX::XMVectorAdd(DirectX::XMVector3TransformNormal(local, rotationMatrix), positionVector) };
+        DirectX::XMStoreFloat3(&worldCorners[i], world);
+    }
+
+    // Near plane rectangle
+    DrawLine(worldCorners[0], worldCorners[1], color);
+    DrawLine(worldCorners[1], worldCorners[2], color);
+    DrawLine(worldCorners[2], worldCorners[3], color);
+    DrawLine(worldCorners[3], worldCorners[0], color);
+
+    // Connect camera origin to near plane for visual clarity
+    DrawLine(position, worldCorners[0], color);
+    DrawLine(position, worldCorners[1], color);
+    DrawLine(position, worldCorners[2], color);
+    DrawLine(position, worldCorners[3], color);
+
+    // Far plane rectangle
+    DrawLine(worldCorners[4], worldCorners[5], color);
+    DrawLine(worldCorners[5], worldCorners[6], color);
+    DrawLine(worldCorners[6], worldCorners[7], color);
+    DrawLine(worldCorners[7], worldCorners[4], color);
+
+    // Connecting edges between near and far planes
+    DrawLine(worldCorners[0], worldCorners[4], color);
+    DrawLine(worldCorners[1], worldCorners[5], color);
+    DrawLine(worldCorners[2], worldCorners[6], color);
+    DrawLine(worldCorners[3], worldCorners[7], color);
+}
+
+// 描画実行
+void ShapeRenderer::Render(ID3D11DeviceContext* dc, const DirectX::XMFLOAT4X4& view, const DirectX::XMFLOAT4X4& projection)
+{
+    dc->VSSetShader(m_vertexShader.Get(), nullptr, 0);
+    dc->PSSetShader(m_pixelShader.Get(), nullptr, 0);
+    dc->IASetInputLayout(m_inputLayout.Get());
+    dc->VSSetConstantBuffers(0, 1, m_constantBuffer.GetAddressOf());
+
+    const DirectX::XMMATRIX V{ DirectX::XMLoadFloat4x4(&view) };
+    const DirectX::XMMATRIX P{ DirectX::XMLoadFloat4x4(&projection) };
+    const DirectX::XMMATRIX VP{ V * P };
+
+    const UINT stride{ sizeof(DirectX::XMFLOAT3) };
+    const UINT offset{ 0 };
+
+    // Render Solid Instances (Boxes, Spheres, Capsules)
+    if (!m_instances.empty())
+    {
+        dc->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+
+        std::sort(m_instances.begin(), m_instances.end(), [](const Instance& a, const Instance& b) noexcept {
+            return a.mesh < b.mesh;
+            });
+
+        Mesh* currentMesh{ nullptr };
+
+        for (const Instance& instance : m_instances)
+        {
+            if (currentMesh != instance.mesh)
+            {
+                currentMesh = instance.mesh;
+                dc->IASetVertexBuffers(0, 1, currentMesh->vertexBuffer.GetAddressOf(), &stride, &offset);
+            }
+
+            const DirectX::XMMATRIX W{ DirectX::XMLoadFloat4x4(&instance.worldTransform) };
+
+            CbMesh cbMesh{};
+            DirectX::XMStoreFloat4x4(&cbMesh.worldViewProjection, W * VP);
+            cbMesh.color = instance.color;
+
+            D3D11_MAPPED_SUBRESOURCE mappedCb{};
+            if (SUCCEEDED(dc->Map(m_constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedCb)))
+            {
+                std::memcpy(mappedCb.pData, &cbMesh, sizeof(CbMesh));
+                dc->Unmap(m_constantBuffer.Get(), 0);
+            }
+
+            dc->Draw(instance.mesh->vertexCount, 0);
+            PROFILE_DRAW_CALL();
+        }
+        m_instances.clear();
+    }
+
+    // Render Batched Lines
+    if (!m_lineBatches.empty())
+    {
+        dc->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
+
+        CbMesh cbMesh{};
+        DirectX::XMStoreFloat4x4(&cbMesh.worldViewProjection, VP); // Lines are pre-transformed to World space
+
+        for (auto& batch : m_lineBatches)
+        {
+            if (batch.vertices.empty()) continue;
+
+            const UINT vertexCount{ static_cast<UINT>(batch.vertices.size()) };
+
+            if (vertexCount > m_dynamicLineVBCapacity)
+            {
+                m_dynamicLineVBCapacity = (std::max)(m_dynamicLineVBCapacity * 2, vertexCount + 2048);
+
+                D3D11_BUFFER_DESC vbDesc{};
+                vbDesc.ByteWidth = sizeof(DirectX::XMFLOAT3) * m_dynamicLineVBCapacity;
+                vbDesc.Usage = D3D11_USAGE_DYNAMIC;
+                vbDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+                vbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+                vbDesc.MiscFlags = 0;
+
+                const HRESULT hr{ m_device->CreateBuffer(&vbDesc, nullptr, m_dynamicLineVB.ReleaseAndGetAddressOf()) };
+                _ASSERT_EXPR(SUCCEEDED(hr), HRTrace(hr));
+            }
+
+            D3D11_MAPPED_SUBRESOURCE mappedVb{};
+            if (SUCCEEDED(dc->Map(m_dynamicLineVB.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedVb)))
+            {
+                std::memcpy(mappedVb.pData, batch.vertices.data(), sizeof(DirectX::XMFLOAT3) * vertexCount);
+                dc->Unmap(m_dynamicLineVB.Get(), 0);
+            }
+
+            cbMesh.color = batch.color;
+            D3D11_MAPPED_SUBRESOURCE mappedCb{};
+            if (SUCCEEDED(dc->Map(m_constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedCb)))
+            {
+                std::memcpy(mappedCb.pData, &cbMesh, sizeof(CbMesh));
+                dc->Unmap(m_constantBuffer.Get(), 0);
+            }
+
+            dc->IASetVertexBuffers(0, 1, m_dynamicLineVB.GetAddressOf(), &stride, &offset);
+            dc->Draw(vertexCount, 0);
+            PROFILE_DRAW_CALL();
+
+            batch.vertices.clear();
+        }
+    }
 }
 
 // メッシュ生成
 void ShapeRenderer::CreateMesh(ID3D11Device* device, const std::vector<DirectX::XMFLOAT3>& vertices, Mesh& mesh)
 {
-	D3D11_BUFFER_DESC desc = {};
-	desc.ByteWidth = static_cast<UINT>(sizeof(DirectX::XMFLOAT3) * vertices.size());
-	desc.Usage = D3D11_USAGE_IMMUTABLE;
-	desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	desc.CPUAccessFlags = 0;
-	desc.MiscFlags = 0;
-	desc.StructureByteStride = 0;
-	D3D11_SUBRESOURCE_DATA subresourceData = {};
-	subresourceData.pSysMem = vertices.data();
-	subresourceData.SysMemPitch = 0;
-	subresourceData.SysMemSlicePitch = 0;
+    D3D11_BUFFER_DESC desc = {};
+    desc.ByteWidth = static_cast<UINT>(sizeof(DirectX::XMFLOAT3) * vertices.size());
+    desc.Usage = D3D11_USAGE_IMMUTABLE;
+    desc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+    desc.CPUAccessFlags = 0;
+    desc.MiscFlags = 0;
+    desc.StructureByteStride = 0;
+    D3D11_SUBRESOURCE_DATA subresourceData = {};
+    subresourceData.pSysMem = vertices.data();
 
-	HRESULT hr = device->CreateBuffer(&desc, &subresourceData, mesh.vertexBuffer.GetAddressOf());
-	_ASSERT_EXPR(SUCCEEDED(hr), HRTrace(hr));
+    HRESULT hr = device->CreateBuffer(&desc, &subresourceData, mesh.vertexBuffer.GetAddressOf());
+    _ASSERT_EXPR(SUCCEEDED(hr), HRTrace(hr));
 
-	mesh.vertexCount = static_cast<UINT>(vertices.size());
-}
-
-// 線メッシュ作成
-void ShapeRenderer::CreateLineMesh(ID3D11Device* device)
-{
-	// A single line pointing exactly down the Z axis
-	const std::vector<DirectX::XMFLOAT3> vertices{
-		{ 0.0f, 0.0f, 0.0f },
-		{ 0.0f, 0.0f, 1.0f }
-	};
-	CreateMesh(device, vertices, lineMesh);
+    mesh.vertexCount = static_cast<UINT>(vertices.size());
 }
 
 // 箱メッシュ作成
 void ShapeRenderer::CreateBoxMesh(ID3D11Device* device, float width, float height, float depth)
 {
-	DirectX::XMFLOAT3 positions[8] =
-	{
-		// top
-		{ -width,  height, -depth},
-		{  width,  height, -depth},
-		{  width,  height,  depth},
-		{ -width,  height,  depth},
-		// bottom
-		{ -width, -height, -depth},
-		{  width, -height, -depth},
-		{  width, -height,  depth},
-		{ -width, -height,  depth},
-	};
+    DirectX::XMFLOAT3 positions[8] =
+    {
+        { -width,  height, -depth}, {  width,  height, -depth},
+        {  width,  height,  depth}, { -width,  height,  depth},
+        { -width, -height, -depth}, {  width, -height, -depth},
+        {  width, -height,  depth}, { -width, -height,  depth},
+    };
 
-	std::vector<DirectX::XMFLOAT3> vertices;
-	vertices.resize(32);
+    std::vector<DirectX::XMFLOAT3> vertices;
+    vertices.resize(32);
 
-	// top
-	vertices.emplace_back(positions[0]);
-	vertices.emplace_back(positions[1]);
-	vertices.emplace_back(positions[1]);
-	vertices.emplace_back(positions[2]);
-	vertices.emplace_back(positions[2]);
-	vertices.emplace_back(positions[3]);
-	vertices.emplace_back(positions[3]);
-	vertices.emplace_back(positions[0]);
-	// bottom
-	vertices.emplace_back(positions[4]);
-	vertices.emplace_back(positions[5]);
-	vertices.emplace_back(positions[5]);
-	vertices.emplace_back(positions[6]);
-	vertices.emplace_back(positions[6]);
-	vertices.emplace_back(positions[7]);
-	vertices.emplace_back(positions[7]);
-	vertices.emplace_back(positions[4]);
-	// side
-	vertices.emplace_back(positions[0]);
-	vertices.emplace_back(positions[4]);
-	vertices.emplace_back(positions[1]);
-	vertices.emplace_back(positions[5]);
-	vertices.emplace_back(positions[2]);
-	vertices.emplace_back(positions[6]);
-	vertices.emplace_back(positions[3]);
-	vertices.emplace_back(positions[7]);
+    vertices.emplace_back(positions[0]); vertices.emplace_back(positions[1]);
+    vertices.emplace_back(positions[1]); vertices.emplace_back(positions[2]);
+    vertices.emplace_back(positions[2]); vertices.emplace_back(positions[3]);
+    vertices.emplace_back(positions[3]); vertices.emplace_back(positions[0]);
+    vertices.emplace_back(positions[4]); vertices.emplace_back(positions[5]);
+    vertices.emplace_back(positions[5]); vertices.emplace_back(positions[6]);
+    vertices.emplace_back(positions[6]); vertices.emplace_back(positions[7]);
+    vertices.emplace_back(positions[7]); vertices.emplace_back(positions[4]);
+    vertices.emplace_back(positions[0]); vertices.emplace_back(positions[4]);
+    vertices.emplace_back(positions[1]); vertices.emplace_back(positions[5]);
+    vertices.emplace_back(positions[2]); vertices.emplace_back(positions[6]);
+    vertices.emplace_back(positions[3]); vertices.emplace_back(positions[7]);
 
-	// メッシュ生成
-	CreateMesh(device, vertices, boxMesh);
+    CreateMesh(device, vertices, m_boxMesh); // Fixed prefix
 }
 
 // 球メッシュ作成
 void ShapeRenderer::CreateSphereMesh(ID3D11Device* device, float radius, int subdivisions)
 {
-	float step = DirectX::XM_2PI / subdivisions;
+    float step = DirectX::XM_2PI / subdivisions;
+    std::vector<DirectX::XMFLOAT3> vertices;
 
-	std::vector<DirectX::XMFLOAT3> vertices;
+    for (int i = 0; i < subdivisions; ++i)
+    {
+        for (int j = 0; j < 2; ++j)
+        {
+            float theta = step * ((i + j) % subdivisions);
+            DirectX::XMFLOAT3& p = vertices.emplace_back();
+            p.x = sinf(theta) * radius; p.y = 0.0f; p.z = cosf(theta) * radius;
+        }
+    }
+    for (int i = 0; i < subdivisions; ++i)
+    {
+        for (int j = 0; j < 2; ++j)
+        {
+            float theta = step * ((i + j) % subdivisions);
+            DirectX::XMFLOAT3& p = vertices.emplace_back();
+            p.x = sinf(theta) * radius; p.y = cosf(theta) * radius; p.z = 0.0f;
+        }
+    }
+    for (int i = 0; i < subdivisions; ++i)
+    {
+        for (int j = 0; j < 2; ++j)
+        {
+            float theta = step * ((i + j) % subdivisions);
+            DirectX::XMFLOAT3& p = vertices.emplace_back();
+            p.x = 0.0f; p.y = sinf(theta) * radius; p.z = cosf(theta) * radius;
+        }
+    }
 
-	// XZ平面
-	for (int i = 0; i < subdivisions; ++i)
-	{
-		for (int j = 0; j < 2; ++j)
-		{
-			float theta = step * ((i + j) % subdivisions);
-
-			DirectX::XMFLOAT3& p = vertices.emplace_back();
-			p.x = sinf(theta) * radius;
-			p.y = 0.0f;
-			p.z = cosf(theta) * radius;
-		}
-	}
-	// XY平面
-	for (int i = 0; i < subdivisions; ++i)
-	{
-		for (int j = 0; j < 2; ++j)
-		{
-			float theta = step * ((i + j) % subdivisions);
-
-			DirectX::XMFLOAT3& p = vertices.emplace_back();
-			p.x = sinf(theta) * radius;
-			p.y = cosf(theta) * radius;
-			p.z = 0.0f;
-		}
-	}
-	// YZ平面
-	for (int i = 0; i < subdivisions; ++i)
-	{
-		for (int j = 0; j < 2; ++j)
-		{
-			float theta = step * ((i + j) % subdivisions);
-
-			DirectX::XMFLOAT3& p = vertices.emplace_back();
-			p.x = 0.0f;
-			p.y = sinf(theta) * radius;
-			p.z = cosf(theta) * radius;
-		}
-	}
-
-	// メッシュ生成
-	CreateMesh(device, vertices, sphereMesh);
+    CreateMesh(device, vertices, m_sphereMesh); // Fixed prefix
 }
 
 // 半球メッシュ作成
 void ShapeRenderer::CreateHalfSphereMesh(ID3D11Device* device, float radius, int subdivisions)
 {
-	std::vector<DirectX::XMFLOAT3> vertices;
+    std::vector<DirectX::XMFLOAT3> vertices;
+    float theta_step = DirectX::XM_2PI / subdivisions;
 
-	float theta_step = DirectX::XM_2PI / subdivisions;
+    for (int i = 0; i < subdivisions; ++i)
+    {
+        for (int j = 0; j < 2; ++j)
+        {
+            float theta = theta_step * ((i + j) % subdivisions);
+            DirectX::XMFLOAT3& v = vertices.emplace_back();
+            v.x = sinf(theta) * radius; v.y = 0.0f; v.z = cosf(theta) * radius;
+        }
+    }
+    for (int i = 0; i < subdivisions / 2; ++i)
+    {
+        for (int j = 0; j < 2; ++j)
+        {
+            float theta = theta_step * ((i + j) % subdivisions) - DirectX::XM_PIDIV2;
+            DirectX::XMFLOAT3& v = vertices.emplace_back();
+            v.x = sinf(theta) * radius; v.y = cosf(theta) * radius; v.z = 0.0f;
+        }
+    }
+    for (int i = 0; i < subdivisions / 2; ++i)
+    {
+        for (int j = 0; j < 2; ++j)
+        {
+            float theta = theta_step * ((i + j) % subdivisions);
+            DirectX::XMFLOAT3& v = vertices.emplace_back();
+            v.x = 0.0f; v.y = sinf(theta) * radius; v.z = cosf(theta) * radius;
+        }
+    }
 
-	// XZ平面
-	for (int i = 0; i < subdivisions; ++i)
-	{
-		for (int j = 0; j < 2; ++j)
-		{
-			float theta = theta_step * ((i + j) % subdivisions);
-
-			DirectX::XMFLOAT3& v = vertices.emplace_back();
-
-			v.x = sinf(theta) * radius;
-			v.y = 0.0f;
-			v.z = cosf(theta) * radius;
-		}
-	}
-	// XY平面
-	for (int i = 0; i < subdivisions / 2; ++i)
-	{
-		for (int j = 0; j < 2; ++j)
-		{
-			float theta = theta_step * ((i + j) % subdivisions) - DirectX::XM_PIDIV2;
-
-			DirectX::XMFLOAT3& v = vertices.emplace_back();
-
-			v.x = sinf(theta) * radius;
-			v.y = cosf(theta) * radius;
-			v.z = 0.0f;
-		}
-	}
-	// YZ平面
-	for (int i = 0; i < subdivisions / 2; ++i)
-	{
-		for (int j = 0; j < 2; ++j)
-		{
-			float theta = theta_step * ((i + j) % subdivisions);
-
-			DirectX::XMFLOAT3& v = vertices.emplace_back();
-
-			v.x = 0.0f;
-			v.y = sinf(theta) * radius;
-			v.z = cosf(theta) * radius;
-		}
-	}
-
-	// メッシュ生成
-	CreateMesh(device, vertices, halfSphereMesh);
+    CreateMesh(device, vertices, m_halfSphereMesh); // Fixed prefix
 }
 
 // 円柱
 void ShapeRenderer::CreateCylinderMesh(ID3D11Device* device, float radius1, float radius2, float start, float height, int subdivisions)
 {
-	std::vector<DirectX::XMFLOAT3> vertices;
+    std::vector<DirectX::XMFLOAT3> vertices;
+    float theta_step = DirectX::XM_2PI / subdivisions;
 
-	float theta_step = DirectX::XM_2PI / subdivisions;
+    for (int i = 0; i < subdivisions; ++i)
+    {
+        for (int j = 0; j < 2; ++j)
+        {
+            float theta = theta_step * ((i + j) % subdivisions);
+            DirectX::XMFLOAT3& v = vertices.emplace_back();
+            v.x = sinf(theta) * radius1; v.y = start; v.z = cosf(theta) * radius1;
+        }
+    }
+    for (int i = 0; i < subdivisions; ++i)
+    {
+        for (int j = 0; j < 2; ++j)
+        {
+            float theta = theta_step * ((i + j) % subdivisions);
+            DirectX::XMFLOAT3& v = vertices.emplace_back();
+            v.x = sinf(theta) * radius2; v.y = start + height; v.z = cosf(theta) * radius2;
+        }
+    }
+    vertices.emplace_back(DirectX::XMFLOAT3(0.0f, start, radius1));
+    vertices.emplace_back(DirectX::XMFLOAT3(0.0f, start + height, radius2));
+    vertices.emplace_back(DirectX::XMFLOAT3(0.0f, start, -radius1));
+    vertices.emplace_back(DirectX::XMFLOAT3(0.0f, start + height, -radius2));
 
-	// XZ平面
-	for (int i = 0; i < subdivisions; ++i)
-	{
-		for (int j = 0; j < 2; ++j)
-		{
-			float theta = theta_step * ((i + j) % subdivisions);
+    vertices.emplace_back(DirectX::XMFLOAT3(radius1, start, 0.0f));
+    vertices.emplace_back(DirectX::XMFLOAT3(radius2, start + height, 0.0f));
+    vertices.emplace_back(DirectX::XMFLOAT3(-radius1, start, 0.0f));
+    vertices.emplace_back(DirectX::XMFLOAT3(-radius2, start + height, 0.0f));
 
-			DirectX::XMFLOAT3& v = vertices.emplace_back();
-
-			v.x = sinf(theta) * radius1;
-			v.y = start;
-			v.z = cosf(theta) * radius1;
-		}
-	}
-	for (int i = 0; i < subdivisions; ++i)
-	{
-		for (int j = 0; j < 2; ++j)
-		{
-			float theta = theta_step * ((i + j) % subdivisions);
-
-			DirectX::XMFLOAT3& v = vertices.emplace_back();
-
-			v.x = sinf(theta) * radius2;
-			v.y = start + height;
-			v.z = cosf(theta) * radius2;
-		}
-	}
-	// XY平面
-	{
-		vertices.emplace_back(DirectX::XMFLOAT3(0.0f, start, radius1));
-		vertices.emplace_back(DirectX::XMFLOAT3(0.0f, start + height, radius2));
-		vertices.emplace_back(DirectX::XMFLOAT3(0.0f, start, -radius1));
-		vertices.emplace_back(DirectX::XMFLOAT3(0.0f, start + height, -radius2));
-	}
-	// YZ平面
-	{
-		vertices.emplace_back(DirectX::XMFLOAT3(radius1, start, 0.0f));
-		vertices.emplace_back(DirectX::XMFLOAT3(radius2, start + height, 0.0f));
-		vertices.emplace_back(DirectX::XMFLOAT3(-radius1, start, 0.0f));
-		vertices.emplace_back(DirectX::XMFLOAT3(-radius2, start + height, 0.0f));
-	}
-
-	// メッシュ生成
-	CreateMesh(device, vertices, cylinderMesh);
+    CreateMesh(device, vertices, m_cylinderMesh); // Fixed prefix
 }
 
 // 骨メッシュ作成
 void ShapeRenderer::CreateBoneMesh(ID3D11Device* device, float length)
 {
-	float width = length * 0.25f;
-	DirectX::XMFLOAT3 positions[8] =
-	{
-		{ -0.00f,  0.00f,  0.00f},
-		{  width,  0.00f,  width},
-		{  0.00f,  0.00f,  length},
-		{ -width,  0.00f,  width},
-		{  0.00f,  width,  width},
-		{  0.00f, -width,  width},
-	};
+    float width = length * 0.25f;
+    DirectX::XMFLOAT3 positions[8] =
+    {
+        { -0.00f,  0.00f,  0.00f}, {  width,  0.00f,  width},
+        {  0.00f,  0.00f,  length}, { -width,  0.00f,  width},
+        {  0.00f,  width,  width}, {  0.00f, -width,  width},
+    };
 
-	std::vector<DirectX::XMFLOAT3> vertices;
-	vertices.reserve(24);
+    std::vector<DirectX::XMFLOAT3> vertices;
+    vertices.reserve(24);
 
-	// xz
-	vertices.emplace_back(positions[0]);
-	vertices.emplace_back(positions[1]);
-	vertices.emplace_back(positions[1]);
-	vertices.emplace_back(positions[2]);
-	vertices.emplace_back(positions[2]);
-	vertices.emplace_back(positions[3]);
-	vertices.emplace_back(positions[3]);
-	vertices.emplace_back(positions[0]);
-	// yz
-	vertices.emplace_back(positions[0]);
-	vertices.emplace_back(positions[4]);
-	vertices.emplace_back(positions[4]);
-	vertices.emplace_back(positions[2]);
-	vertices.emplace_back(positions[2]);
-	vertices.emplace_back(positions[5]);
-	vertices.emplace_back(positions[5]);
-	vertices.emplace_back(positions[0]);
-	// xy
-	vertices.emplace_back(positions[1]);
-	vertices.emplace_back(positions[4]);
-	vertices.emplace_back(positions[4]);
-	vertices.emplace_back(positions[3]);
-	vertices.emplace_back(positions[3]);
-	vertices.emplace_back(positions[5]);
-	vertices.emplace_back(positions[5]);
-	vertices.emplace_back(positions[1]);
+    vertices.emplace_back(positions[0]); vertices.emplace_back(positions[1]);
+    vertices.emplace_back(positions[1]); vertices.emplace_back(positions[2]);
+    vertices.emplace_back(positions[2]); vertices.emplace_back(positions[3]);
+    vertices.emplace_back(positions[3]); vertices.emplace_back(positions[0]);
 
-	// メッシュ生成
-	CreateMesh(device, vertices, boneMesh);
-}
+    vertices.emplace_back(positions[0]); vertices.emplace_back(positions[4]);
+    vertices.emplace_back(positions[4]); vertices.emplace_back(positions[2]);
+    vertices.emplace_back(positions[2]); vertices.emplace_back(positions[5]);
+    vertices.emplace_back(positions[5]); vertices.emplace_back(positions[0]);
 
-// 線描画
-void ShapeRenderer::DrawLine(const DirectX::XMFLOAT3& start, const DirectX::XMFLOAT3& end, const DirectX::XMFLOAT4& color)
-{
-	Instance& instance{ instances.emplace_back() };
-	instance.mesh = &lineMesh;
-	instance.color = color;
+    vertices.emplace_back(positions[1]); vertices.emplace_back(positions[4]);
+    vertices.emplace_back(positions[4]); vertices.emplace_back(positions[3]);
+    vertices.emplace_back(positions[3]); vertices.emplace_back(positions[5]);
+    vertices.emplace_back(positions[5]); vertices.emplace_back(positions[1]);
 
-	const DirectX::XMVECTOR vStart{ DirectX::XMLoadFloat3(&start) };
-	const DirectX::XMVECTOR vEnd{ DirectX::XMLoadFloat3(&end) };
-	DirectX::XMVECTOR vDir{ DirectX::XMVectorSubtract(vEnd, vStart) };
-	const float length{ DirectX::XMVectorGetX(DirectX::XMVector3Length(vDir)) };
-
-	constexpr float epsilon{ 0.0001f };
-	if (length < epsilon) return;
-
-	vDir = DirectX::XMVectorScale(vDir, 1.0f / length);
-	DirectX::XMFLOAT3 dir{};
-	DirectX::XMStoreFloat3(&dir, vDir);
-
-	const float pitch{ std::asinf(-dir.y) };
-	const float yaw{ std::atan2(dir.x, dir.z) };
-
-	// Scale Z by length, rotate to point at target, translate to start
-	const DirectX::XMMATRIX S{ DirectX::XMMatrixScaling(1.0f, 1.0f, length) };
-	const DirectX::XMMATRIX R{ DirectX::XMMatrixRotationRollPitchYaw(pitch, yaw, 0.0f) };
-	const DirectX::XMMATRIX T{ DirectX::XMMatrixTranslation(start.x, start.y, start.z) };
-
-	DirectX::XMStoreFloat4x4(&instance.worldTransform, S * R * T);
-}
-
-// フラスタム描画
-void ShapeRenderer::DrawFrustum(
-	const DirectX::XMFLOAT3& position,
-	const DirectX::XMFLOAT3& rotation,
-	float fovY,
-	float aspectRatio,
-	float nearZ,
-	float farZ,
-	const DirectX::XMFLOAT4& color,
-	float gizmoDrawDistance)
-{
-	// Visualize out to whichever is smaller: the camera's real far clip, or the
-	// requested gizmo distance. Prevents a far=1000 camera from drawing a frustum
-	// that swallows the entire scene view.
-	const float visualFarZ{ (std::min)(farZ, gizmoDrawDistance) };
-
-	// Half-extents of the near/far planes, derived from vertical FOV and aspect ratio
-	const float tanHalfFovY{ tanf(fovY * 0.5f) };
-	const float nearHalfHeight{ tanHalfFovY * nearZ };
-	const float nearHalfWidth{ nearHalfHeight * aspectRatio };
-	const float farHalfHeight{ tanHalfFovY * visualFarZ };
-	const float farHalfWidth{ farHalfHeight * aspectRatio };
-
-	// 8 corners in the camera's local (view) space - near plane first, then far plane,
-	// each wound top-left, top-right, bottom-right, bottom-left
-	const DirectX::XMFLOAT3 localCorners[8]
-	{
-		{ -nearHalfWidth,  nearHalfHeight, nearZ }, {  nearHalfWidth,  nearHalfHeight, nearZ },
-		{  nearHalfWidth, -nearHalfHeight, nearZ }, { -nearHalfWidth, -nearHalfHeight, nearZ },
-		{ -farHalfWidth,   farHalfHeight,  visualFarZ }, {  farHalfWidth,   farHalfHeight,  visualFarZ },
-		{  farHalfWidth,  -farHalfHeight,  visualFarZ }, { -farHalfWidth,  -farHalfHeight,  visualFarZ },
-	};
-
-	// Transform every corner from local view space into world space using the camera's pose
-	const DirectX::XMMATRIX rotationMatrix{ DirectX::XMMatrixRotationRollPitchYaw(rotation.x, rotation.y, rotation.z) };
-	const DirectX::XMVECTOR positionVector{ DirectX::XMLoadFloat3(&position) };
-
-	DirectX::XMFLOAT3 worldCorners[8]{};
-	for (int i{ 0 }; i < 8; ++i)
-	{
-		const DirectX::XMVECTOR local{ DirectX::XMLoadFloat3(&localCorners[i]) };
-		const DirectX::XMVECTOR world{ DirectX::XMVectorAdd(DirectX::XMVector3TransformNormal(local, rotationMatrix), positionVector) };
-		DirectX::XMStoreFloat3(&worldCorners[i], world);
-	}
-
-	// Near plane rectangle
-	DrawLine(worldCorners[0], worldCorners[1], color);
-	DrawLine(worldCorners[1], worldCorners[2], color);
-	DrawLine(worldCorners[2], worldCorners[3], color);
-	DrawLine(worldCorners[3], worldCorners[0], color);
-
-	// Far plane rectangle
-	DrawLine(worldCorners[4], worldCorners[5], color);
-	DrawLine(worldCorners[5], worldCorners[6], color);
-	DrawLine(worldCorners[6], worldCorners[7], color);
-	DrawLine(worldCorners[7], worldCorners[4], color);
-
-	// Connecting edges between near and far planes
-	DrawLine(worldCorners[0], worldCorners[4], color);
-	DrawLine(worldCorners[1], worldCorners[5], color);
-	DrawLine(worldCorners[2], worldCorners[6], color);
-	DrawLine(worldCorners[3], worldCorners[7], color);
-}
-
-// 描画実行
-void ShapeRenderer::Render(
-	ID3D11DeviceContext* dc,
-	const DirectX::XMFLOAT4X4& view,
-	const DirectX::XMFLOAT4X4& projection)
-{
-	// シェーダー設定
-	dc->VSSetShader(vertexShader.Get(), nullptr, 0);
-	dc->PSSetShader(pixelShader.Get(), nullptr, 0);
-	dc->IASetInputLayout(inputLayout.Get());
-
-	// 定数バッファ設定
-	dc->VSSetConstantBuffers(0, 1, constantBuffer.GetAddressOf());
-
-	// ビュープロジェクション行列作成
-	DirectX::XMMATRIX V = DirectX::XMLoadFloat4x4(&view);
-	DirectX::XMMATRIX P = DirectX::XMLoadFloat4x4(&projection);
-	DirectX::XMMATRIX VP = V * P;
-
-	// プリミティブ設定
-	UINT stride = sizeof(DirectX::XMFLOAT3);
-	UINT offset = 0;
-	dc->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
-
-	for (const Instance& instance : instances)
-	{
-		// 頂点バッファ設定
-		dc->IASetVertexBuffers(0, 1, instance.mesh->vertexBuffer.GetAddressOf(), &stride, &offset);
-
-		// ワールドビュープロジェクション行列作成
-		DirectX::XMMATRIX W = DirectX::XMLoadFloat4x4(&instance.worldTransform);
-		DirectX::XMMATRIX WVP = W * VP;
-
-		// 定数バッファ更新
-		CbMesh cbMesh;
-		DirectX::XMStoreFloat4x4(&cbMesh.worldViewProjection, WVP);
-		cbMesh.color = instance.color;
-
-		dc->UpdateSubresource(constantBuffer.Get(), 0, 0, &cbMesh, 0, 0);
-
-		// 描画
-		dc->Draw(instance.mesh->vertexCount, 0);
-		PROFILE_DRAW_CALL();   // instances のループ1回転ごとに1回のDrawコール
-	}
-	instances.clear();
+    CreateMesh(device, vertices, m_boneMesh); // Fixed prefix
 }
