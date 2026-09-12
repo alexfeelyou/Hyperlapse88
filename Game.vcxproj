@@ -163,6 +163,7 @@
     <ClInclude Include="Source\Engine\Graphics\stb_truetype.h" />
     <ClInclude Include="Source\Engine\Graphics\TemporalAAEffect.h" />
     <ClInclude Include="Source\Engine\Helpers\CapeSimulator.h" />
+    <ClInclude Include="Source\Engine\Helpers\Random.h" />
     <ClInclude Include="Source\Engine\Helpers\SceneSerializer.h" />
     <ClInclude Include="Source\Engine\Helpers\UIResizedWindow.h" />
     <ClInclude Include="Source\Engine\Light\Light.h" />

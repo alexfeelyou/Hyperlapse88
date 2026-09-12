@@ -1,13 +1,15 @@
-#include "CameraComponent.h"
 #include <algorithm>
 #include <cmath>
-#include <utility>
 #include <imgui.h>
+#include <random>
+#include <utility>
+#include "System/Graphics.h"
+#include "System/ShapeRenderer.h"
+#include "CameraComponent.h"
+#include "CameraController.h"
 #include "ComponentRegistry.h"
 #include "GameObject.h"
-#include "System/ShapeRenderer.h"
-#include "System/Graphics.h"
-#include "CameraController.h"
+#include "Random.h"
 #include "VirtualCameraComponent.h"
 
 namespace
@@ -64,10 +66,17 @@ void CameraComponent::OnAttach(GameObject* owner) noexcept
     VirtualCameraComponent::EnsureSharedGizmoLoaded();
 }
 
+void CameraComponent::AddTrauma(float amount) noexcept
+{
+    // Clamp max trauma to 1.0f to prevent explosive math
+    m_trauma = std::clamp(m_trauma + amount, 0.0f, 1.0f);
+}
+
 void CameraComponent::Update(float dt)
 {
     if (!GetOwner()) return;
 
+    // ACTIVE SHOT RESOLVER
     VirtualCameraComponent* bestVCam{ nullptr };
     int highestPriority{ -1 };
 
@@ -89,6 +98,7 @@ void CameraComponent::Update(float dt)
         m_blendStartPos = m_camera->GetPosition();
         m_blendStartRot = m_camera->GetRotation();
 
+        // If no prior camera existed, force an instant snap to avoid flying from (0,0,0)
         if (!m_activeVirtualCamera) m_blendTimer = m_blendDuration;
         m_activeVirtualCamera = bestVCam;
     }
@@ -96,11 +106,24 @@ void CameraComponent::Update(float dt)
     DirectX::XMFLOAT3 targetPos{};
     DirectX::XMFLOAT3 targetRot{};
 
+    // STATE BLENDING & INSTANT CUT CHECK
     if (m_activeVirtualCamera)
     {
         const auto& [vPos, vRot] = ExtractWorldTransform(m_activeVirtualCamera->GetOwner()->transform.GetWorldMatrix());
 
-        if (m_blendTimer < m_blendDuration)
+        // Instant Cut Zero-Guard
+        if (m_blendDuration <= 0.001f || m_blendTimer >= m_blendDuration)
+        {
+            targetPos = vPos;
+            targetRot = vRot;
+
+            if (std::abs(m_fovDegrees - m_activeVirtualCamera->GetFovDegrees()) > 0.01f)
+            {
+                m_fovDegrees = m_activeVirtualCamera->GetFovDegrees();
+                ApplyProjectionSettings();
+            }
+        }
+        else
         {
             m_blendTimer += dt;
             const float t{ std::clamp(m_blendTimer / m_blendDuration, 0.0f, 1.0f) };
@@ -117,32 +140,57 @@ void CameraComponent::Update(float dt)
             m_fovDegrees = m_fovDegrees + (m_activeVirtualCamera->GetFovDegrees() - m_fovDegrees) * smoothT;
             ApplyProjectionSettings();
         }
-        else
-        {
-            targetPos = vPos;
-            targetRot = vRot;
-
-            if (std::abs(m_fovDegrees - m_activeVirtualCamera->GetFovDegrees()) > 0.01f)
-            {
-                m_fovDegrees = m_activeVirtualCamera->GetFovDegrees();
-                ApplyProjectionSettings();
-            }
-        }
     }
     else
     {
+        // Fallback: If no VirtualCameras exist, remain attached to the Brain's own physical transform
         const auto& [wPos, wRot] = ExtractWorldTransform(GetOwner()->transform.GetWorldMatrix());
         targetPos = wPos;
         targetRot = wRot;
     }
 
-    if (!IsFloat3Equal(targetPos, m_lastPos) || !IsFloat3Equal(targetRot, m_lastRot))
+    // GAME FEEL LAYER (ZOOM & SHAKE)
+
+    // Process Dynamic Combat Zoom
+    m_currentZoomOffset += (m_targetZoomOffset - m_currentZoomOffset) * (std::min)(m_zoomLerpSpeed * dt, 1.0f);
+
+    DirectX::XMFLOAT3 zoomOffset{
+        m_zoomAxis.x * m_currentZoomOffset,
+        m_zoomAxis.y * m_currentZoomOffset,
+        m_zoomAxis.z * m_currentZoomOffset
+    };
+
+    // Process Trauma Shake
+    if (m_trauma > 0.0f)
     {
-        m_camera->SetPosition(targetPos);
+        m_trauma = (std::max)(0.0f, m_trauma - (m_traumaDecay * dt));
+        const float shakeAmount{ m_trauma * m_trauma };
+
+        m_shakeOffset.x = Random::Get(-1.0f, 1.0f) * m_maxShakeOffset * shakeAmount;
+        m_shakeOffset.y = Random::Get(-1.0f, 1.0f) * m_maxShakeOffset * shakeAmount;
+        m_shakeOffset.z = Random::Get(-1.0f, 1.0f) * m_maxShakeOffset * shakeAmount;
+    }
+    else
+    {
+        m_shakeOffset = { 0.0f, 0.0f, 0.0f };
+    }
+
+    // Compose final Matrix
+    DirectX::XMFLOAT3 finalPos{
+        targetPos.x + zoomOffset.x + m_shakeOffset.x,
+        targetPos.y + zoomOffset.y + m_shakeOffset.y,
+        targetPos.z + zoomOffset.z + m_shakeOffset.z
+    };
+
+    // APPLY OUTPUT
+    if (!IsFloat3Equal(finalPos, m_lastPos) || !IsFloat3Equal(targetRot, m_lastRot))
+    {
+        m_camera->SetPosition(finalPos);
         m_camera->SetRotation(targetRot);
-        m_lastPos = targetPos;
+        m_lastPos = finalPos;
         m_lastRot = targetRot;
 
+        // Sync the base GameObject so the Scene View gizmo represents the mathematically pure target
         if (m_activeVirtualCamera)
         {
             GetOwner()->SetPosition(targetPos);
@@ -179,9 +227,17 @@ void CameraComponent::DrawInspector()
     ImGui::Text("Active Target: %s", m_activeVirtualCamera ? m_activeVirtualCamera->GetOwner()->GetName().c_str() : "None");
 
     ImGui::Separator();
-    ImGui::DragFloat("Blend Duration", &m_blendDuration, 0.1f, 0.0f, 10.0f);
+    ImGui::DragFloat("Blend Duration", &m_blendDuration, 0.05f, 0.0f, 10.0f);
 
     ImGui::Separator();
+    ImGui::TextDisabled("GAME FEEL");
+    ImGui::DragFloat("Trauma Decay", &m_traumaDecay, 0.1f, 0.1f, 10.0f);
+    ImGui::DragFloat("Max Shake Offset", &m_maxShakeOffset, 0.1f, 0.0f, 10.0f);
+    ImGui::DragFloat("Zoom Lerp Speed", &m_zoomLerpSpeed, 0.1f, 0.1f, 20.0f);
+    ImGui::DragFloat3("Zoom Axis", &m_zoomAxis.x, 0.1f);
+
+    ImGui::Separator();
+    ImGui::TextDisabled("LENS DEFAULTS");
     bool projectionDirty{ false };
     projectionDirty |= ImGui::DragFloat("Near Clip", &m_nearZ, 0.01f, 0.01f, m_farZ - 0.01f);
     projectionDirty |= ImGui::DragFloat("Far Clip", &m_farZ, 1.0f, m_nearZ + 0.01f, 100000.0f);
@@ -230,6 +286,10 @@ void CameraComponent::DrawGizmo(ShapeRenderer* shapeRenderer) noexcept
 void CameraComponent::Serialize(nlohmann::json& outJson) const
 {
     outJson["BlendDuration"] = m_blendDuration;
+    outJson["TraumaDecay"] = m_traumaDecay;
+    outJson["MaxShakeOffset"] = m_maxShakeOffset;
+    outJson["ZoomLerpSpeed"] = m_zoomLerpSpeed;
+    outJson["ZoomAxis"] = { m_zoomAxis.x, m_zoomAxis.y, m_zoomAxis.z };
     outJson["NearZ"] = m_nearZ;
     outJson["FarZ"] = m_farZ;
 }
@@ -237,6 +297,15 @@ void CameraComponent::Serialize(nlohmann::json& outJson) const
 void CameraComponent::Deserialize(const nlohmann::json& inJson)
 {
     m_blendDuration = inJson.value("BlendDuration", m_blendDuration);
+    m_traumaDecay = inJson.value("TraumaDecay", m_traumaDecay);
+    m_maxShakeOffset = inJson.value("MaxShakeOffset", m_maxShakeOffset);
+    m_zoomLerpSpeed = inJson.value("ZoomLerpSpeed", m_zoomLerpSpeed);
+
+    if (inJson.contains("ZoomAxis"))
+    {
+        m_zoomAxis = { inJson["ZoomAxis"][0], inJson["ZoomAxis"][1], inJson["ZoomAxis"][2] };
+    }
+
     m_nearZ = inJson.value("NearZ", m_nearZ);
     m_farZ = inJson.value("FarZ", m_farZ);
     ApplyProjectionSettings();
