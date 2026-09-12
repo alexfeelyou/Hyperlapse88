@@ -28,12 +28,20 @@ void CameraController::SetEnabled(bool enabled) noexcept
 
     if (enabled)
     {
-        m_toggleCursor = true;
+        // Do not force the cursor to lock on boot. Let the right-click logic handle it.
+        m_toggleCursor = false;
         SyncFromActiveCamera();
     }
     else
     {
-        // Explicitly release the mouse when the editor camera shuts down
+        // If the scene changes or the editor shuts down while we were flying, 
+        // we must release the trap and make the cursor visible again.
+        if (m_toggleCursor)
+        {
+            SetCursorPos(m_lockedCursorX, m_lockedCursorY);
+            ShowCursor(TRUE);
+        }
+
         m_toggleCursor = false;
         Input::Instance().GetMouse().LockCursor(false);
     }
@@ -56,58 +64,63 @@ void CameraController::Update(float dt)
     if (!camera) return;
 
     // Hold Right Mouse Button to fly/look
-    const bool isRightClickDown{ (GetKeyState(VK_RBUTTON) & 0x8000) != 0 };
-
     // ImGui Window Focus Safety
-    if (ImGui::GetCurrentContext() != nullptr)
-    {
-        const ImGuiIO& io{ ImGui::GetIO() };
-        if (io.WantCaptureMouse && !m_isViewportHovered && !m_toggleCursor)
-        {
-            m_toggleCursor = false;
-        }
-        else
-        {
-            m_toggleCursor = isRightClickDown;
-        }
-    }
-    else
-    {
-        m_toggleCursor = isRightClickDown;
-    }
+    ImGuiIO& io = ImGui::GetIO();
+    const bool isRightClickDown = io.MouseDown[ImGuiMouseButton_Right];
 
-    Input::Instance().GetMouse().LockCursor(m_toggleCursor);
-
-    // Only process look and movement if the cursor is actively locked into the viewport
-    if (!m_toggleCursor) return;
-
-    // Track the Right Mouse Button state globally across all frames
     static bool s_wasRightBtnDown{ false };
-    static int s_ignoreFrames{ 0 };
-
     const bool justPressed{ isRightClickDown && !s_wasRightBtnDown };
+    const bool justReleased{ !isRightClickDown && s_wasRightBtnDown };
     s_wasRightBtnDown = isRightClickDown;
 
     if (justPressed)
     {
-        // Absorb the initial click frame and the subsequent OS warp frame
-        s_ignoreFrames = 2;
+        // Only engage if we aren't clicking on an ImGui menu, unless we are already hovering the 3D viewport
+        if (!io.WantCaptureMouse || m_isViewportHovered)
+        {
+            m_toggleCursor = true;
+
+            // Anchor the cursor using a local POINT struct
+            POINT p;
+            GetCursorPos(&p);
+            m_lockedCursorX = p.x;
+            m_lockedCursorY = p.y;
+
+            ShowCursor(FALSE);
+        }
+    }
+    else if (justReleased)
+    {
+        if (m_toggleCursor)
+        {
+            m_toggleCursor = false;
+            // Restore the cursor
+            SetCursorPos(m_lockedCursorX, m_lockedCursorY);
+            ShowCursor(TRUE);
+        }
     }
 
-    auto& mouse{ Input::Instance().GetMouse() };
-    float deltaX{ static_cast<float>(mouse.GetDeltaX()) };
-    float deltaY{ static_cast<float>(mouse.GetDeltaY()) };
+    if (!m_toggleCursor) return;
 
-    // Discard the massive delta spike while the OS centers the cursor
-    if (s_ignoreFrames > 0)
+    // Calculate deltas manually
+    POINT currentCursorPos;
+    GetCursorPos(&currentCursorPos);
+
+    float deltaX = static_cast<float>(currentCursorPos.x - m_lockedCursorX);
+    float deltaY = static_cast<float>(currentCursorPos.y - m_lockedCursorY);
+
+    // Trap the cursor
+    SetCursorPos(m_lockedCursorX, m_lockedCursorY);
+
+    // Invalidate the very first frame's delta to prevent an initial jump
+    if (justPressed)
     {
         deltaX = 0.0f;
         deltaY = 0.0f;
-        --s_ignoreFrames;
     }
 
-    // Apply rotation purely using the cached angle to prevent matrix read-back drift
-    constexpr float sensitivity{ 0.5f };
+    // Apply rotation
+    constexpr float sensitivity{ 0.15f }; 
     const float rotSpeed{ m_rollSpeed * dt };
 
     m_currentAngle.y += deltaX * sensitivity * rotSpeed;

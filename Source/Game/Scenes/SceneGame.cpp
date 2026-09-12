@@ -317,6 +317,24 @@ void SceneGame::Update(const float elapsedTime)
         }
         else if (currentMode == EditorMode::Pause)
         {
+            if (m_lastEditorMode == EditorMode::Play)
+            {
+                // Align Editor Camera to Game Camera before releasing control
+                if (m_sceneRoot)
+                {
+                    for (const auto& child : m_sceneRoot->GetChildren())
+                    {
+                        if (auto* brain = child->GetComponent<CameraComponent>())
+                        {
+                            m_mainCamera->SetPosition(brain->GetCamera()->GetPosition());
+                            m_mainCamera->SetRotation(brain->GetCamera()->GetRotation());
+                            break;
+                        }
+                    }
+                }
+                // Force the controller to inherit the new Euler angles to prevent snapping
+                CameraController::Instance().SyncFromActiveCamera();
+            }
             CameraController::Instance().SetEnabled(true);
         }
         else if (currentMode == EditorMode::Play && m_lastEditorMode == EditorMode::Pause)

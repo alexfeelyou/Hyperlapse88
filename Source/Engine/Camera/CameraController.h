@@ -39,6 +39,8 @@ private:
 
     std::weak_ptr<Camera> m_activeCamera{};
 
+    long m_lockedCursorX{ 0 };
+    long m_lockedCursorY{ 0 };
     bool m_isEnabled{ false };
     bool m_isViewportHovered{ false };
     bool m_toggleCursor{ true };
