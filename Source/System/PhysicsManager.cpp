@@ -1,8 +1,58 @@
 #include <algorithm>
 #include <cassert>
 #include <DirectXMath.h>
-#include "System/PhysicsManager.h"
-#include "System/Model.h"
+#include "CollisionLayer.h"
+#include "Model.h"
+#include "PhysicsManager.h"
+
+namespace
+{
+    // Evaluates 32-bit bitmasks packed in PxFilterData to resolve collision pairs
+    physx::PxFilterFlags CustomSimulationFilterShader(
+        physx::PxFilterObjectAttributes attributes0,
+        physx::PxFilterData filterData0,
+        physx::PxFilterObjectAttributes attributes1,
+        physx::PxFilterData filterData1,
+        physx::PxPairFlags& pairFlags,
+        const void* constantBlock,
+        physx::PxU32 constantBlockSize) noexcept
+    {
+        // Suppress collisions if either object is unassigned or configured to None
+        if (filterData0.word0 == CollisionLayer::None || filterData1.word0 == CollisionLayer::None)
+        {
+            return physx::PxFilterFlag::eSUPPRESS;
+        }
+
+        // Mutual collision test: Both objects must consent to collide with each other's layer
+        const bool pairMatches{
+            ((filterData0.word0 & filterData1.word1) != 0) &&
+            ((filterData1.word0 & filterData0.word1) != 0)
+        };
+
+        if (!pairMatches)
+        {
+            return physx::PxFilterFlag::eSUPPRESS;
+        }
+
+        // Trigger Volume Detection
+        const bool isTrigger0{ physx::PxFilterObjectIsTrigger(attributes0) };
+        const bool isTrigger1{ physx::PxFilterObjectIsTrigger(attributes1) };
+
+        if (isTrigger0 || isTrigger1)
+        {
+            pairFlags = physx::PxPairFlag::eTRIGGER_DEFAULT;
+            return physx::PxFilterFlag::eDEFAULT;
+        }
+
+        // Standard Solid Rigidbody Collision Resolution
+        pairFlags = physx::PxPairFlag::eCONTACT_DEFAULT
+            | physx::PxPairFlag::eNOTIFY_TOUCH_FOUND
+            | physx::PxPairFlag::eNOTIFY_TOUCH_LOST
+            | physx::PxPairFlag::eNOTIFY_CONTACT_POINTS;
+
+        return physx::PxFilterFlag::eDEFAULT;
+    }
+}
 
 void PhysicsManager::Initialize()
 {
@@ -21,7 +71,9 @@ void PhysicsManager::Initialize()
 
     m_dispatcher.reset(physx::PxDefaultCpuDispatcherCreate(2));
     sceneDesc.cpuDispatcher = m_dispatcher.get();
-    sceneDesc.filterShader = physx::PxDefaultSimulationFilterShader;
+
+    // Bind our custom bitmask filter 
+    sceneDesc.filterShader = CustomSimulationFilterShader;
 
     // Create Scene, Character Controller Manager, and Default Surface Material
     m_scene.reset(m_physics->createScene(sceneDesc));
