@@ -234,7 +234,6 @@
                     "ProxyExtY": 22.02230453491211,
                     "ProxyExtZ": 22.02230453491211,
                     "ShapeType": 3,
-                    "ShowDebug": false,
                     "Type": "StaticMeshColliderComponent"
                 }
             ],
@@ -243,6 +242,66 @@
             "PosX": 0.0,
             "PosY": 0.0,
             "PosZ": 0.0,
+            "RotX": 0.0,
+            "RotY": 0.0,
+            "RotZ": 0.0,
+            "ScaleX": 1.0,
+            "ScaleY": 1.0,
+            "ScaleZ": 1.0
+        },
+        {
+            "Children": [],
+            "Components": [
+                {
+                    "BlendDuration": 1.5,
+                    "FarZ": 1000.0,
+                    "MaxShakeOffset": 2.0,
+                    "NearZ": 0.20000000298023224,
+                    "TraumaDecay": 1.5,
+                    "Type": "CameraComponent",
+                    "ZoomAxis": [
+                        0.0,
+                        1.0,
+                        -0.5
+                    ],
+                    "ZoomLerpSpeed": 2.5
+                }
+            ],
+            "IsActive": true,
+            "Name": "Main Camera",
+            "PosX": 0.10000000149011612,
+            "PosY": 1.100000023841858,
+            "PosZ": -4.900000095367432,
+            "RotX": -0.0,
+            "RotY": 0.0,
+            "RotZ": -0.0,
+            "ScaleX": 1.0,
+            "ScaleY": 1.0,
+            "ScaleZ": 1.0
+        },
+        {
+            "Children": [],
+            "Components": [
+                {
+                    "FarZ": 1000.0,
+                    "FollowOffsetX": 0.10000000149011612,
+                    "FollowOffsetY": 1.100000023841858,
+                    "FollowOffsetZ": -4.800000190734863,
+                    "FollowTarget": "Player",
+                    "FovDegrees": 45.0,
+                    "LookAtTarget": "",
+                    "NearZ": 0.20000000298023224,
+                    "PositionDamping": 5.0,
+                    "Priority": 10,
+                    "RotationDamping": 5.0,
+                    "Type": "VirtualCameraComponent"
+                }
+            ],
+            "IsActive": true,
+            "Name": "Virtual Camera",
+            "PosX": 0.10000000149011612,
+            "PosY": 1.100000023841858,
+            "PosZ": -4.800000190734863,
             "RotX": 0.0,
             "RotY": 0.0,
             "RotZ": 0.0,

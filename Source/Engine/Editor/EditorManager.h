@@ -11,6 +11,7 @@
 #include "System/Logger.h"
 #include "Framework.h"
 #include "GameObject.h"
+#include "IComponent.h"
 #include "ProfilerManager.h"
 #include "Scene.h"
 #include "SceneGame.h"
@@ -59,6 +60,10 @@ public:
     [[nodiscard]] IComponent* GetSelectedComponent() const noexcept { return m_selectedComponent; }
     void SetSelectedComponent(IComponent* comp) noexcept { m_selectedComponent = comp; }
 
+    // Gizmo State Accessors
+    [[nodiscard]] bool GetShowGizmos() const noexcept { return m_showGizmos; }
+    [[nodiscard]] std::uint32_t GetGizmoMask() const noexcept { return m_gizmoMask; }
+
     // State accessors for the Game loop to query
     [[nodiscard]] EditorMode GetEditorMode() const noexcept { return m_editorMode; }
     void SetEditorMode(EditorMode mode) noexcept { m_editorMode = mode; }
@@ -96,6 +101,8 @@ private:
     // Gizmo State
     ImGuizmo::OPERATION m_gizmoOperation{ ImGuizmo::TRANSLATE };
     ImGuizmo::MODE      m_gizmoMode{ ImGuizmo::WORLD };
+    bool m_showGizmos{ true };
+    std::uint32_t m_gizmoMask{ static_cast<std::uint32_t>(GizmoCategory::Cameras) };
 
     // Release vs Editor Boot State
 #ifdef _DEBUG

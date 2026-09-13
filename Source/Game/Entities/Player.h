@@ -84,6 +84,10 @@ public:
     void InitPhysics(physx::PxControllerManager* manager, physx::PxMaterial* material,
         float spawnY = 15.0f);
 
+    // Drives PhysX + this player's own Update() through repeated fixed steps until the
+    // capsule controller reports ground contact, or the iteration budget runs out
+    void SettleOnGround(int maxIterations = 300, float fixedDt = 1.0f / 60.0f);
+
 	// Weapon 
     void SetActiveWeapon(WeaponType type) { m_activeWeaponType = type; }
 

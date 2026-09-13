@@ -1,0 +1,391 @@
+#include <algorithm>
+#include <cmath>
+#include <imgui.h>
+#include "System/Graphics.h"
+#include "System/ShapeRenderer.h"
+#include "CameraController.h"
+#include "ComponentRegistry.h"
+#include "GameObject.h"
+#include "VirtualCameraComponent.h"
+
+namespace
+{
+    [[nodiscard]] GameObject* FindChildRecursive(GameObject* current, const std::string& name) noexcept
+    {
+        if (!current) return nullptr;
+        if (current->GetName() == name) return current;
+
+        for (const auto& child : current->GetChildren())
+        {
+            if (auto* found = FindChildRecursive(child.get(), name))
+            {
+                return found;
+            }
+        }
+        return nullptr;
+    }
+
+    [[nodiscard]] constexpr float WrapAngle(float angle) noexcept
+    {
+        while (angle > DirectX::XM_PI)  angle -= DirectX::XM_2PI;
+        while (angle < -DirectX::XM_PI) angle += DirectX::XM_2PI;
+        return angle;
+    }
+
+    [[nodiscard]] inline float CalculateDampingBlend(float damping, float dt) noexcept
+    {
+        constexpr float epsilon{ 0.001f };
+        if (damping <= epsilon) return 1.0f;
+        return 1.0f - std::exp(-damping * dt);
+    }
+
+    [[nodiscard]] inline bool IsFloat3Equal(const DirectX::XMFLOAT3& a, const DirectX::XMFLOAT3& b, float ep = 0.0001f) noexcept
+    {
+        return (std::abs(a.x - b.x) <= ep) && (std::abs(a.y - b.y) <= ep) && (std::abs(a.z - b.z) <= ep);
+    }
+}
+
+VirtualCameraComponent::VirtualCameraComponent()
+{
+    s_registry.push_back(this);
+    s_globalDirtyFrame++; // Notify the Camera Brain that a new camera was created
+}
+
+VirtualCameraComponent::~VirtualCameraComponent()
+{
+    s_registry.erase(std::remove(s_registry.begin(), s_registry.end(), this), s_registry.end());
+    s_globalDirtyFrame++; // Notify the Camera Brain if a camera was deleted
+}
+
+void VirtualCameraComponent::OnAttach(GameObject* owner) noexcept
+{
+    IComponent::OnAttach(owner);
+    EnsureSharedGizmoLoaded();
+    ResolveTargets();
+
+    if (owner)
+    {
+        m_cachedPos = owner->GetPosition();
+        m_cachedRot = owner->GetRotation();
+    }
+
+    m_isDirty = true;
+    s_globalDirtyFrame++; // Trigger immediate sync once GameObject transform is attached
+}
+
+void VirtualCameraComponent::EnsureSharedGizmoLoaded() noexcept
+{
+    if (!s_sharedGizmoSprite)
+    {
+        s_sharedGizmoSprite = std::make_shared<Sprite>(Graphics::Instance().GetDevice(), "Data/Icon/Gizmo/Camera.png");
+    }
+}
+
+GameObject* VirtualCameraComponent::FindTargetByName(const std::string& name) const noexcept
+{
+    if (name.empty() || !m_owner) return nullptr;
+
+    GameObject* root{ m_owner };
+    while (root->GetParent() != nullptr)
+    {
+        root = root->GetParent();
+    }
+
+    return FindChildRecursive(root, name);
+}
+
+void VirtualCameraComponent::ResolveTargets() noexcept
+{
+    m_followTarget = FindTargetByName(m_followTargetName);
+    m_lookAtTarget = FindTargetByName(m_lookAtTargetName);
+}
+
+void VirtualCameraComponent::Update(float dt)
+{
+    if (!m_owner) return;
+
+    // Lazy resolve targets once connected to a hierarchy
+    if (!m_followTarget && !m_followTargetName.empty()) ResolveTargets();
+    if (!m_lookAtTarget && !m_lookAtTargetName.empty()) ResolveTargets();
+
+    if (m_followTarget && m_followTarget->IsDestroyed()) m_followTarget = nullptr;
+    if (m_lookAtTarget && m_lookAtTarget->IsDestroyed()) m_lookAtTarget = nullptr;
+
+    // Detect if an external tool (ImGuizmo / Transform Inspector) moved the GameObject
+    const DirectX::XMFLOAT3 ownerPos{ m_owner->GetPosition() };
+    const DirectX::XMFLOAT3 ownerRot{ m_owner->GetRotation() };
+    if (!IsFloat3Equal(ownerPos, m_cachedPos) || !IsFloat3Equal(ownerRot, m_cachedRot))
+    {
+        m_cachedPos = ownerPos;
+        m_cachedRot = ownerRot;
+        s_globalDirtyFrame++;
+    }
+
+    // Freeze rule: exit only if paused, not dirty, and no target tracking is active
+    if (dt <= 0.0001f && !m_isDirty) return;
+
+    DirectX::XMFLOAT3 currentPos{ ownerPos };
+    DirectX::XMFLOAT3 currentRot{ ownerRot };
+
+    if (m_followTarget)
+    {
+        const DirectX::XMFLOAT3 targetPos{ m_followTarget->GetPosition() };
+        const DirectX::XMFLOAT3 desiredPos{
+            targetPos.x + m_followOffset.x,
+            targetPos.y + m_followOffset.y,
+            targetPos.z + m_followOffset.z
+        };
+
+        const float tPos{ m_isDirty ? 1.0f : CalculateDampingBlend(m_positionDamping, dt) };
+        currentPos.x += (desiredPos.x - currentPos.x) * tPos;
+        currentPos.y += (desiredPos.y - currentPos.y) * tPos;
+        currentPos.z += (desiredPos.z - currentPos.z) * tPos;
+    }
+
+    if (m_lookAtTarget)
+    {
+        const DirectX::XMFLOAT3 targetPos{ m_lookAtTarget->GetPosition() };
+        const float dx{ targetPos.x - currentPos.x };
+        const float dy{ targetPos.y - currentPos.y };
+        const float dz{ targetPos.z - currentPos.z };
+        const float horizontalDist{ std::sqrt((dx * dx) + (dz * dz)) };
+
+        const float desiredPitch{ std::atan2(-dy, horizontalDist) };
+        const float desiredYaw{ std::atan2(dx, dz) };
+
+        const float currentPitchRad{ DirectX::XMConvertToRadians(currentRot.x) };
+        const float currentYawRad{ DirectX::XMConvertToRadians(currentRot.y) };
+
+        const float pitchDiff{ WrapAngle(desiredPitch - currentPitchRad) };
+        const float yawDiff{ WrapAngle(desiredYaw - currentYawRad) };
+
+        const float tRot{ m_isDirty ? 1.0f : CalculateDampingBlend(m_rotationDamping, dt) };
+
+        currentRot.x = DirectX::XMConvertToDegrees(currentPitchRad + (pitchDiff * tRot));
+        currentRot.y = DirectX::XMConvertToDegrees(currentYawRad + (yawDiff * tRot));
+        currentRot.z = 0.0f;
+    }
+
+    if (!IsFloat3Equal(currentPos, m_cachedPos) || m_isDirty)
+    {
+        m_owner->SetPosition(currentPos);
+        m_cachedPos = currentPos;
+    }
+    if (!IsFloat3Equal(currentRot, m_cachedRot) || m_isDirty)
+    {
+        m_owner->SetRotation(currentRot);
+        m_cachedRot = currentRot;
+    }
+
+    m_isDirty = false;
+}
+
+void VirtualCameraComponent::DrawInspector()
+{
+    ImGui::DragInt("Priority", &m_priority, 1, 0, 999);
+    ImGui::Separator();
+
+    static char s_followBuf[64];
+    strncpy_s(s_followBuf, sizeof(s_followBuf), m_followTargetName.c_str(), _TRUNCATE);
+    if (ImGui::InputText("Follow Target", s_followBuf, sizeof(s_followBuf)))
+    {
+        m_followTargetName = s_followBuf;
+        ResolveTargets();
+        m_isDirty = true;
+        s_globalDirtyFrame++;
+        ForceSync();
+    }
+
+    if (ImGui::DragFloat3("Follow Offset", &m_followOffset.x, 0.1f))
+    {
+        m_isDirty = true;
+        s_globalDirtyFrame++;
+        ForceSync();
+    }
+    if (ImGui::DragFloat("Position Damping", &m_positionDamping, 0.1f, 0.0f, 50.0f))
+    {
+        m_isDirty = true;
+        s_globalDirtyFrame++;
+    }
+
+    ImGui::Separator();
+
+    static char s_lookBuf[64];
+    strncpy_s(s_lookBuf, sizeof(s_lookBuf), m_lookAtTargetName.c_str(), _TRUNCATE);
+    if (ImGui::InputText("Look-At Target", s_lookBuf, sizeof(s_lookBuf)))
+    {
+        m_lookAtTargetName = s_lookBuf;
+        ResolveTargets();
+        m_isDirty = true;
+        s_globalDirtyFrame++;
+        ForceSync();
+    }
+    if (ImGui::DragFloat("Rotation Damping", &m_rotationDamping, 0.1f, 0.0f, 50.0f))
+    {
+        m_isDirty = true;
+        s_globalDirtyFrame++;
+    }
+
+    ImGui::Separator();
+
+    if (ImGui::DragFloat("Field of View", &m_fovDegrees, 0.1f, 1.0f, 179.0f))
+    {
+        m_isDirty = true;
+        s_globalDirtyFrame++;
+    }
+    if (ImGui::DragFloat("Near Clip", &m_nearZ, 0.01f, 0.01f, m_farZ - 0.01f))
+    {
+        m_isDirty = true;
+        s_globalDirtyFrame++;
+    }
+    if (ImGui::DragFloat("Far Clip", &m_farZ, 1.0f, m_nearZ + 0.01f, 100000.0f))
+    {
+        m_isDirty = true;
+        s_globalDirtyFrame++;
+    }
+
+    ImGui::Separator();
+    ImGui::DragFloat("Gizmo Draw Distance", &m_gizmoDrawDistance, 0.1f, 0.5f, 100.0f);
+}
+
+void VirtualCameraComponent::DrawGizmo(const GizmoContext& ctx) noexcept
+{
+    if (!(ctx.categoryMask & static_cast<std::uint32_t>(GizmoCategory::Cameras))) return;
+
+    if (!ctx.shapes || !m_owner) return;
+
+    if (m_isActiveShot) return;
+
+    const DirectX::XMFLOAT3 pos{ m_owner->GetPosition() };
+    const DirectX::XMFLOAT3 rot{ m_owner->GetRotation() };
+
+    if (ctx.activeCamera)
+    {
+        const DirectX::XMFLOAT3 camPos = ctx.activeCamera->GetPosition();
+        const float dx = pos.x - camPos.x;
+        const float dy = pos.y - camPos.y;
+        const float dz = pos.z - camPos.z;
+        if ((dx * dx + dy * dy + dz * dz) < 0.01f) return;
+    }
+
+    const DirectX::XMFLOAT3 rotRad{
+        DirectX::XMConvertToRadians(rot.x),
+        DirectX::XMConvertToRadians(rot.y),
+        DirectX::XMConvertToRadians(rot.z)
+    };
+
+    const float currentAspect{ ctx.activeCamera ? ctx.activeCamera->GetAspectRatio() : (16.0f / 9.0f) };
+
+    ctx.shapes->DrawFrustum(
+        pos,
+        rotRad,
+        DirectX::XMConvertToRadians(m_fovDegrees),
+        currentAspect,
+        m_nearZ,
+        m_farZ,
+        { 0.2f, 0.8f, 1.0f, 1.0f },
+        m_gizmoDrawDistance
+    );
+
+    if (ctx.activeCamera && ctx.activeCamera->CheckSphere(pos.x, pos.y, pos.z, 0.5f))
+    {
+        const DirectX::XMFLOAT3 activeCamRot{ ctx.activeCamera->GetRotation() };
+
+        s_gizmoBatchData.push_back({
+            pos.x, pos.y, pos.z,
+            0.5f, 0.5f,
+            0.0f, 0.0f, 0.0f, 0.0f,
+            activeCamRot.x, activeCamRot.y, activeCamRot.z,
+            0.2f, 0.8f, 1.0f, 1.0f
+            });
+    }
+}
+
+void VirtualCameraComponent::ForceSync() noexcept
+{
+    if (!m_owner) return;
+    ResolveTargets();
+
+    if (m_followTarget && m_followTarget->IsDestroyed()) m_followTarget = nullptr;
+    if (m_lookAtTarget && m_lookAtTarget->IsDestroyed()) m_lookAtTarget = nullptr;
+
+    DirectX::XMFLOAT3 currentPos{ m_owner->GetPosition() };
+    DirectX::XMFLOAT3 currentRot{ m_owner->GetRotation() };
+
+    if (m_followTarget)
+    {
+        const DirectX::XMFLOAT3 targetPos{ m_followTarget->GetPosition() };
+        currentPos = {
+            targetPos.x + m_followOffset.x,
+            targetPos.y + m_followOffset.y,
+            targetPos.z + m_followOffset.z
+        };
+    }
+
+    if (m_lookAtTarget)
+    {
+        const DirectX::XMFLOAT3 targetPos{ m_lookAtTarget->GetPosition() };
+        const float dx{ targetPos.x - currentPos.x };
+        const float dy{ targetPos.y - currentPos.y };
+        const float dz{ targetPos.z - currentPos.z };
+        const float horizontalDist{ std::sqrt((dx * dx) + (dz * dz)) };
+
+        const float desiredPitch{ std::atan2(-dy, horizontalDist) };
+        const float desiredYaw{ std::atan2(dx, dz) };
+
+        currentRot.x = DirectX::XMConvertToDegrees(desiredPitch);
+        currentRot.y = DirectX::XMConvertToDegrees(desiredYaw);
+        currentRot.z = 0.0f;
+    }
+
+    m_owner->SetPosition(currentPos);
+    m_owner->SetRotation(currentRot);
+    m_cachedPos = currentPos;
+    m_cachedRot = currentRot;
+}
+
+void VirtualCameraComponent::FlushGizmos(ID3D11DeviceContext* dc, const Camera* activeCam) noexcept
+{
+    if (s_gizmoBatchData.empty()) return;
+
+    if (s_sharedGizmoSprite)
+    {
+        s_sharedGizmoSprite->Render3DBatch(dc, activeCam, s_gizmoBatchData);
+    }
+
+    s_gizmoBatchData.clear();
+}
+
+void VirtualCameraComponent::Serialize(nlohmann::json& outJson) const
+{
+    outJson["Priority"] = m_priority;
+    outJson["FollowTarget"] = m_followTargetName;
+    outJson["LookAtTarget"] = m_lookAtTargetName;
+    outJson["FollowOffsetX"] = m_followOffset.x;
+    outJson["FollowOffsetY"] = m_followOffset.y;
+    outJson["FollowOffsetZ"] = m_followOffset.z;
+    outJson["PositionDamping"] = m_positionDamping;
+    outJson["RotationDamping"] = m_rotationDamping;
+    outJson["FovDegrees"] = m_fovDegrees;
+    outJson["NearZ"] = m_nearZ;
+    outJson["FarZ"] = m_farZ;
+}
+
+void VirtualCameraComponent::Deserialize(const nlohmann::json& inJson)
+{
+    m_priority = inJson.value("Priority", m_priority);
+    m_followTargetName = inJson.value("FollowTarget", m_followTargetName);
+    m_lookAtTargetName = inJson.value("LookAtTarget", m_lookAtTargetName);
+    m_followOffset.x = inJson.value("FollowOffsetX", m_followOffset.x);
+    m_followOffset.y = inJson.value("FollowOffsetY", m_followOffset.y);
+    m_followOffset.z = inJson.value("FollowOffsetZ", m_followOffset.z);
+    m_positionDamping = inJson.value("PositionDamping", m_positionDamping);
+    m_rotationDamping = inJson.value("RotationDamping", m_rotationDamping);
+    m_fovDegrees = inJson.value("FovDegrees", m_fovDegrees);
+    m_nearZ = inJson.value("NearZ", m_nearZ);
+    m_farZ = inJson.value("FarZ", m_farZ);
+
+    ResolveTargets();
+}
+
+REGISTER_COMPONENT(VirtualCameraComponent)

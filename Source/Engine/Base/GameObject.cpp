@@ -65,6 +65,13 @@ void GameObject::Render(ModelRenderer* renderer)
     }
 }
 
+void GameObject::DrawGizmo(const GizmoContext& ctx) noexcept
+{
+    if (!m_isActive) return;
+    for (auto& comp : m_components) comp->DrawGizmo(ctx);
+    for (auto& child : m_children) child->DrawGizmo(ctx);
+}
+
 void GameObject::DrawInspector()
 {
     // Capture the previous active state before ImGui modifies it

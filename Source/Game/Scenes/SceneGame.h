@@ -33,23 +33,22 @@
 #include "SceneSerializer.h"
 #include "UIDialogueBox.h"
 #include "UIPause.h"
+#include "CameraComponent.h"
+#include "VirtualCameraComponent.h"
 
-// Forward Declarations
 class Camera;
 class CollisionManager;
-class Enemy;
 class EnemyManager;
 class GameBreakerGUI;
 class ItemManager;
 class NaviAlly;
 class Player;
 class PostProcessManager;
-class Primitive;
 class UIPause;
 
 enum class EditorMode : std::uint8_t;
 
-class SceneGame : public Scene
+class SceneGame final : public Scene
 {
     friend class GameBreakerGUI;
 
@@ -59,31 +58,19 @@ public:
 
     SceneGame(const SceneGame&) = delete;
     SceneGame& operator=(const SceneGame&) = delete;
+    SceneGame(SceneGame&&) = delete;
+    SceneGame& operator=(SceneGame&&) = delete;
 
     void Update(float elapsedTime) override;
     void Render(float elapsedTime, Camera* camera = nullptr) override;
     void OnResize(int width, int height) override;
 
-    Camera* GetMainCamera() const { return m_mainCamera.get(); }
+    [[nodiscard]] Camera* GetMainCamera() const noexcept { return m_mainCamera.get(); }
     [[nodiscard]] PostProcessManager* GetPostProcessManager() const noexcept override { return m_postProcess.get(); }
 
-	// Assign unique JSON save path for the Game Screen
-    [[nodiscard]] std::string_view GetSceneSavePath() const noexcept override
-    {
-        return "Data/Scenes/Scene_Game.json"; // or "Data/Scenes/Stage_01.json"
-    }
-
-    // Assign unique JSON profile for the Game Screen
-    [[nodiscard]] std::string_view GetPostProcessProfilePath() const noexcept override
-    {
-        return "Data/Config/PostProcess_Game.json";
-    }
-
-    // Assign unique name identifier for the Editor Hierarchy
-    [[nodiscard]] std::string_view GetSceneName() const noexcept override
-    {
-        return "Scene_Game";
-    }
+    [[nodiscard]] std::string_view GetSceneSavePath() const noexcept override { return "Data/Scenes/Scene_Game.json"; }
+    [[nodiscard]] std::string_view GetPostProcessProfilePath() const noexcept override { return "Data/Config/PostProcess_Game.json"; }
+    [[nodiscard]] std::string_view GetSceneName() const noexcept override { return "Scene_Game"; }
 
     [[nodiscard]] EnemyManager* GetEnemyManager() const noexcept { return m_enemyManager.get(); }
     [[nodiscard]] ItemManager* GetItemManager() const noexcept { return m_itemManager.get(); }
@@ -98,10 +85,6 @@ private:
         static constexpr float CAM_NEAR{ 0.1f };
         static constexpr float CAM_FAR{ 1000.0f };
         static constexpr float CAM_START_HEIGHT{ 20.0f };
-        static constexpr float FX_CRT_BASE_STRENGTH{ 0.2f };
-        static constexpr float FX_CRT_ROTATION_TARGET{ 0.45f };
-        static constexpr float FX_TRANSITION_WINDOW{ 0.2f };
-        static constexpr float FX_GLITCH_FACTOR{ 0.7f };
     };
 
     void RenderScene(float elapsedTime, Camera* camera);
@@ -111,44 +94,34 @@ private:
     std::unique_ptr<CollisionManager> m_collisionManager{};
     std::unique_ptr<EnemyManager> m_enemyManager{};
     std::unique_ptr<ItemManager> m_itemManager{};
+
+    // Fallback/Editor Camera
     std::shared_ptr<Camera> m_mainCamera{};
+
     std::unique_ptr<UIDialogueBox> m_dialogueBox{};
     std::unique_ptr<UIPause> m_uiPause{};
-
-    DirectX::XMFLOAT3 m_cameraPosition{ 0.0f, 18.0f, 0.0f };
-    DirectX::XMFLOAT3 m_cameraTarget{ 0.0f, 0.0f, 0.0f };
-
     std::unique_ptr<PostProcessManager> m_postProcess{};
 
     std::unique_ptr<Sprite> m_fadeSprite{};
     float m_fadeAlpha{ 1.0f };
-    DirectX::XMFLOAT4 m_bgSpriteColor{ 1.0f, 1.0f, 1.0f, 1.0f };
     std::unique_ptr<Sprite> m_whiteSprite{};
     float m_whiteAlpha{ 0.0f };
 
     float m_globalTime{ 0.0f };
-    float m_configFineDensity{ 30.0f };
-    float m_configZoomDensity{ 0.0f };
 
     // Editor state tracking
     EditorMode m_lastEditorMode{};
-    DirectX::XMFLOAT3 m_cachedEditorCamPos{ 0.001f, 18.0f, -14.0f };
-    DirectX::XMFLOAT3 m_cachedEditorCamRot{ 0.0f, 0.0f, 0.0f };
 
-	// Pause & Exit to Title
+    // Pause & Exit to Title
     bool m_isPaused{ false };
     bool m_isExitingToTitle{ false };
     float m_exitToTitleTimer{ 0.0f };
 
     [[nodiscard]] bool CheckPauseToggleTriggered() const noexcept;
 
-	// Health & Damage
-    static constexpr float BOSS_MAX_HP{ 150.0f };
     static constexpr float NORMAL_MAX_HP{ 100.0f };
 
-    bool m_hasHealedForBoss{ false };
-
-	// Death & Respawn
+    // Death & Respawn
     bool m_isDying{ false };
     float m_deathTimer{ 0.0f };
     float m_bootTimer{ 1.1f };
@@ -162,17 +135,11 @@ private:
 
     bool m_hasIntroDialogueTestStarted{ false };
     bool m_hasTriggeredMushroomDialogue{ false };
-    bool m_bossDialogueStarted{ false };
-    bool m_hasTriggeredPoisonDialogue{ false };
-    bool m_isPoisonDialogueActive{ false };
 
     static constexpr float DEATH_DELAY_DURATION{ 0.5f };
     static constexpr float DEATH_FADE_DURATION{ 3.0f };
     static constexpr float NAVI_DEFEAT_FADE_DURATION{ 3.0f };
     static constexpr float RESPAWN_FADE_DURATION{ 3.0f };
-    static constexpr float WHITEOUT_HOLD_DURATION{ 7.0f };
-    static constexpr float FADE_BACK_DURATION{ 2.0f };
-    static constexpr float DIALOG_CHARACTERS_PER_SECOND{ 18.0f };
 
     // Post-Process Values for Fading to Black
     static constexpr float FX_BASE_SMOOTHNESS{ 0.2f };
@@ -185,34 +152,6 @@ private:
     void StartPlayerDeathSequence();
     void StartNaviDefeatSequence();
     void StartIntroDialogueTest();
-    void UpdateDialogue(float elapsedTime);
-    void RenderDialogue();
     void StartMushroomDialogue();
-    void StartPoisonDialogue();
     void ResetLevel();
-
-    // Cinematic States
-    class Enemy* GetFakeBoss() const;
-    void StartBossCinematic();
-
-    bool m_bossCinematicTriggered{ false };
-    bool m_isBossCinematicActive{ false };
-    float m_bossCinematicTimer{ 0.0f };
-    bool m_bossEffectTriggered{ false };
-    int m_poisonEffectHandle{ -1 };
-
-	// Cinematic Constants
-    static constexpr float BOSS_CINEMATIC_DURATION{ 4.0f };
-    static constexpr float BOSS_CINEMATIC_HOLD_DURATION{ 3.0f };
-    static constexpr float BOSS_EFFECT_WHITEOUT_DELAY{ 4.5f }; 
-    static constexpr float WHITEOUT_FADE_DURATION{ 3.0f };
-    float m_fakeBossEffectScale{ 3.000f };
-    DirectX::XMFLOAT3 m_fakeBossEffectOffset{ 9.690f, 0.000f, 24.600f };
-    DirectX::XMFLOAT3 m_fakeBossEffectRotation{ 0.000f, 25.000f, 0.000f };
-    DirectX::XMFLOAT3 m_cinematicStartTarget{ 0.0f, 0.0f, 0.0f };
-    DirectX::XMFLOAT3 m_cinematicEndTarget{ 0.0f, 0.0f, 0.0f };
-
-    float m_targetZoom{ 0.0f };
-    int m_zoomFrameCounter{ 0 };
-    const Enemy* m_cachedClosestEnemy{ nullptr };
 };

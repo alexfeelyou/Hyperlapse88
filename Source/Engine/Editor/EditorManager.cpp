@@ -2,9 +2,11 @@
 #include <fstream>
 #include <json.hpp>
 #include "Camera.h"
+#include "CameraComponent.h"
 #include "EditorManager.h"
 #include "LightComponent.h"
 #include "StaticMeshColliderComponent.h"
+#include "VirtualCameraComponent.h"
 
 namespace
 {
@@ -356,13 +358,50 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
     ImGui::SetCursorPosX((availWidth * 0.5f) - (totalToolbarWidth * 0.5f));
 
     if (DrawToolbarIconButton("##PlayBtn", ToolbarIcon::Play, m_editorMode == EditorMode::Play, ImVec4{ 0.2f, 0.7f, 0.2f, 1.0f }, buttonSize))
+    {
         SetEditorMode(EditorMode::Play);
+        ClearSelection();
+        m_showGizmos = false; // Auto-hide gizmos for a clean gameplay experience
+    }
     ImGui::SameLine();
     if (DrawToolbarIconButton("##PauseBtn", ToolbarIcon::Pause, m_editorMode == EditorMode::Pause, ImVec4{ 0.7f, 0.7f, 0.2f, 1.0f }, buttonSize))
+    {
         SetEditorMode(EditorMode::Pause);
+        ClearSelection();
+        m_showGizmos = true; // Auto-show gizmos to inspect the paused state
+    }
     ImGui::SameLine();
     if (DrawToolbarIconButton("##StopBtn", ToolbarIcon::Stop, m_editorMode == EditorMode::Edit, ImVec4{ 0.7f, 0.2f, 0.2f, 1.0f }, buttonSize))
+    {
         SetEditorMode(EditorMode::Edit);
+        m_showGizmos = true; // Auto-show gizmos for level editing
+    }
+
+    // Gizmo Category Dropdown aligned to the right
+    ImGui::SameLine(availWidth - 140.0f);
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 2.0f);
+    ImGui::Checkbox("Gizmos", &m_showGizmos);
+
+    ImGui::SameLine();
+    ImGui::BeginDisabled(!m_showGizmos);
+    if (ImGui::Button("▼##GizmoDrop"))
+    {
+        ImGui::OpenPopup("GizmoSettingsPopup");
+    }
+
+    if (ImGui::BeginPopup("GizmoSettingsPopup"))
+    {
+        ImGui::TextDisabled("GIZMO VISIBILITY");
+        ImGui::Separator();
+
+        ImGui::CheckboxFlags("Cameras", &m_gizmoMask, static_cast<std::uint32_t>(GizmoCategory::Cameras));
+        ImGui::CheckboxFlags("Static Physics", &m_gizmoMask, static_cast<std::uint32_t>(GizmoCategory::StaticPhysics));
+        ImGui::CheckboxFlags("Character Physics", &m_gizmoMask, static_cast<std::uint32_t>(GizmoCategory::DynamicPhysics));
+        ImGui::CheckboxFlags("Combat Hitboxes", &m_gizmoMask, static_cast<std::uint32_t>(GizmoCategory::Hitboxes));
+
+        ImGui::EndPopup();
+    }
+    ImGui::EndDisabled();
 
     const auto* mainWindow{ WindowManager::Instance().GetWindowByIndex(0) };
     const float gameWidth{ mainWindow ? static_cast<float>(mainWindow->GetWidth()) : 1920.0f };
@@ -413,14 +452,16 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
         ImGui::Image(reinterpret_cast<ImTextureID>(m_sceneSRV.Get()), renderSize);
     }
 
-    if ((ImGui::IsWindowFocused() || ImGui::IsWindowHovered()) && !ImGui::IsMouseDown(ImGuiMouseButton_Right))
+    const bool isPlayMode{ m_editorMode == EditorMode::Play };
+
+    // Only allow W/E/R gizmo hotkeys if we are not playing the game
+    if (!isPlayMode && (ImGui::IsWindowFocused() || ImGui::IsWindowHovered()) && !ImGui::IsMouseDown(ImGuiMouseButton_Right))
     {
         if (ImGui::IsKeyPressed(ImGuiKey_W)) m_gizmoOperation = ImGuizmo::TRANSLATE;
         if (ImGui::IsKeyPressed(ImGuiKey_E)) m_gizmoOperation = ImGuizmo::ROTATE;
         if (ImGui::IsKeyPressed(ImGuiKey_R)) m_gizmoOperation = ImGuizmo::SCALE;
     }
 
-    const bool isPlayMode{ m_editorMode == EditorMode::Play };
     const bool hasSelection{ m_selectedObject != nullptr };
     const bool isNotRoot{ currentScene && (m_selectedObject != currentScene->GetRootGameObject()) };
 
@@ -705,27 +746,47 @@ void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
             if (auto* gameScene{ dynamic_cast<SceneGame*>(currentScene) })
             {
                 ImGui::Separator();
+                ImGui::TextDisabled("Rendering");
+
+                if (ImGui::BeginMenu("Camera"))
+                {
+                    if (ImGui::MenuItem("Main Camera"))
+                    {
+                        auto camObj = std::make_unique<GameObject>("Main Camera");
+                        camObj->AddComponent<CameraComponent>();
+                        currentScene->GetRootGameObject()->AddChild(std::move(camObj));
+                    }
+                    if (ImGui::MenuItem("Virtual Camera"))
+                    {
+                        auto vcamObj = std::make_unique<GameObject>("Virtual Camera");
+                        vcamObj->AddComponent<VirtualCameraComponent>();
+                        currentScene->GetRootGameObject()->AddChild(std::move(vcamObj));
+                    }
+                    ImGui::EndMenu();
+                }
+
+                ImGui::Separator();
                 ImGui::TextDisabled("Lighting");
 
                 if (ImGui::BeginMenu("Light"))
                 {
                     if (ImGui::MenuItem("Directional Light"))
                     {
-                        auto lightObj = std::make_unique<GameObject>("Directional_Light");
+                        auto lightObj = std::make_unique<GameObject>("Directional Light");
                         lightObj->transform.rotation = { 45.0f, -45.0f, 0.0f };
                         lightObj->AddComponent<DirectionalLightComponent>();
                         currentScene->GetRootGameObject()->AddChild(std::move(lightObj));
                     }
                     if (ImGui::MenuItem("Point Light"))
                     {
-                        auto lightObj = std::make_unique<GameObject>("Point_Light");
+                        auto lightObj = std::make_unique<GameObject>("Point Light");
                         lightObj->transform.position = { 0.0f, 3.0f, 0.0f };
                         lightObj->AddComponent<PointLightComponent>();
                         currentScene->GetRootGameObject()->AddChild(std::move(lightObj));
                     }
                     if (ImGui::MenuItem("Spot Light"))
                     {
-                        auto lightObj = std::make_unique<GameObject>("Spot_Light");
+                        auto lightObj = std::make_unique<GameObject>("Spot Light");
                         lightObj->transform.position = { 0.0f, 5.0f, 0.0f };
                         lightObj->transform.rotation = { 90.0f, 0.0f, 0.0f };
                         lightObj->AddComponent<SpotLightComponent>();

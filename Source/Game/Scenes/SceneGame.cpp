@@ -50,7 +50,6 @@ namespace
 [[nodiscard]] bool SceneGame::CheckPauseToggleTriggered() const noexcept
 {
     // Do not allow pausing during death, respawn, or boot transitions
-    // This prevents soft-locks where timers freeze during critical system states
     if (m_isDying || m_isNaviDefeatSequenceActive || m_bootTimer > 0.0f)
     {
         return false;
@@ -76,77 +75,48 @@ SceneGame::SceneGame()
         screenH = static_cast<float>(window->GetHeight());
     }
 
+    // Initialize Editor Camera (Fallback)
     auto& camCtrl{ CameraController::Instance() };
     camCtrl.ClearCamera();
-    camCtrl.StopSequence();
-    camCtrl.SetTargetOffset({ 0.0f, 0.0f, 0.0f });
-    camCtrl.SetFixedYawOffset(0.0f);
-    camCtrl.SetFixedRollOffset(0.0f);
-    camCtrl.SetSplineTension(1.0f);
 
     m_mainCamera = std::make_shared<Camera>();
     m_mainCamera->SetPerspectiveFov(XMConvertToRadians(Config::CAM_FOV), screenW / screenH, Config::CAM_NEAR, Config::CAM_FAR);
+    m_mainCamera->SetPosition({ 0.001f, Config::CAM_START_HEIGHT, -14.0f });
 
-    XMFLOAT3 startPos{ m_cameraPosition };
-    startPos.x = 0.001f;
-    startPos.z = -14.0f;
-    startPos.y = Config::CAM_START_HEIGHT;
-
-    m_mainCamera->SetPosition(startPos);
-    m_mainCamera->LookAt(m_cameraTarget);
     camCtrl.SetActiveCamera(m_mainCamera);
-
-    // Sync camera with initial editor mode state
-    camCtrl.SetFixedSetting(startPos);
-    camCtrl.SetTarget(m_cameraTarget);
 
     m_lastEditorMode = EditorManager::Instance().GetEditorMode();
     if (m_lastEditorMode == EditorMode::Edit)
     {
-        camCtrl.SetControlMode(CameraControlMode::Free);
-
-        // Load the persistent camera position right when the scene boots
         EditorManager::Instance().LoadUserPreferences(this, m_mainCamera.get());
-
-        // Sync the controller's internal state
         camCtrl.SyncFromActiveCamera();
+        camCtrl.SetEnabled(true);
 
-        // Remove the black screen boot fade
         m_bootTimer = 0.0f;
         m_fadeAlpha = 0.0f;
     }
     else
     {
-        camCtrl.SetControlMode(CameraControlMode::FixedFollow);
+        camCtrl.SetEnabled(false);
     }
 
+    // Initialize Game Systems
     m_respawnTimer = 0.0f;
-
-    // Initialize the Global Physics Engine
     PhysicsManager::Instance().Initialize();
 
     m_player = std::make_unique<Player>();
-
     m_player->SetPosition(m_playerSpawnPos);
-    m_player->InitPhysics(
-        PhysicsManager::Instance().GetControllerManager(),
-        PhysicsManager::Instance().GetDefaultMaterial()
-    );
-
-    m_player->SetMaxHP(100);
+    m_player->InitPhysics(PhysicsManager::Instance().GetControllerManager(), PhysicsManager::Instance().GetDefaultMaterial());
+    m_player->SetMaxHP(NORMAL_MAX_HP);
 
     PlayerConfig gameConfig{};
     gameConfig.moveSpeed = 8.0f;
     gameConfig.dashSpeed = 28.0f;
-
     m_player->ApplyConfig(gameConfig);
     m_player->GetMovement()->SetRotationY(DirectX::XM_PI);
 
-    // Create a GameObject node named "Player"
     auto playerNode{ std::make_unique<GameObject>("Player") };
     playerNode->AddComponent<LegacyCharacterComponent>(m_player.get());
-
-    // Add it to the Scene's Root GameObject 
     m_sceneRoot->AddChild(std::move(playerNode));
 
     m_enemyManager = std::make_unique<EnemyManager>();
@@ -156,16 +126,16 @@ SceneGame::SceneGame()
 
     m_itemManager = std::make_unique<ItemManager>();
     m_itemManager->Initialize(Graphics::Instance().GetDevice(), m_sceneRoot.get());
-    
-    // Reads the JSON file and pushes the saved data into the managers
+
+    // Load Scene Hierarchy (Spawns the real CameraComponent)
     SceneSerializer::Load(GetSceneSavePath(), m_sceneRoot.get());
 
     m_collisionManager = std::make_unique<CollisionManager>();
     m_collisionManager->Initialize(m_player.get(), m_enemyManager.get(), m_itemManager.get());
     m_collisionManager->SetNavi(m_navi.get());
-
     m_player->SetCollisionManager(m_collisionManager.get());
 
+    // Pre-Warm Physics
     if (m_lastEditorMode == EditorMode::Play)
     {
         for (int i{ 0 }; i < 300; ++i)
@@ -174,48 +144,23 @@ SceneGame::SceneGame()
             if (m_player) m_player->Update(0.01666f, nullptr);
             if (m_navi)   m_navi->Update(0.01666f, nullptr);
 
-            // Break instantly once the PhysX capsule registers a floor collision
-            if (m_player && m_player->IsGrounded())
-            {
-                break;
-            }
+            if (m_player && m_player->IsGrounded()) break;
         }
 
-        if (m_player)
-        {
-            // Camera Cut and Spawn Sync for Initial Boot
-            m_playerSpawnPos = m_player->GetPosition();
-
-            CameraController::Instance().SetTarget(m_playerSpawnPos);
-            CameraController::Instance().SnapToTarget();
-
-            // If the game boots directly from the Title Screen in Play Mode, 
-            // the Edit -> Play transition never occurs. This anchors the Stop button
-            // to the initial gameplay perspective instead of a blank forward vector
-            if (Camera * activeCam{ CameraController::Instance().GetActiveCamera().get() })
-            {
-                m_cachedEditorCamPos = activeCam->GetPosition();
-                m_cachedEditorCamRot = activeCam->GetRotation();
-            }
-        }
+        if (m_player) m_playerSpawnPos = m_player->GetPosition();
     }
-
     else if (m_lastEditorMode == EditorMode::Edit)
     {
         PhysicsManager::Instance().Simulate(0.0f);
-
-        Camera* activeCam{ CameraController::Instance().GetActiveCamera().get() };
-
-        if (m_enemyManager) m_enemyManager->Update(0.0f, activeCam, m_cameraTarget, true);
-        if (m_itemManager) m_itemManager->Update(0.0f, activeCam);
+        if (m_enemyManager) m_enemyManager->Update(0.0f, m_mainCamera.get(), { 0,0,0 }, true);
+        if (m_itemManager) m_itemManager->Update(0.0f, m_mainCamera.get());
         if (m_sceneRoot) m_sceneRoot->Update(0.0f);
     }
 
+    // Initialize Rendering Pipeline
     m_postProcess = std::make_unique<PostProcessManager>();
     m_postProcess->Initialize(static_cast<int>(screenW), static_cast<int>(screenH));
     m_postProcess->SetEnabled(true);
-
-    // Automatically load this scene's unique post-process profile on boot
     m_postProcess->LoadConfig(GetPostProcessProfilePath());
 
     if (m_lastEditorMode == EditorMode::Edit)
@@ -233,7 +178,6 @@ SceneGame::SceneGame()
     m_fadeSprite = std::make_unique<Sprite>(Graphics::Instance().GetDevice(), "Data/Sprite/Scene Game/Black.png");
     m_whiteSprite = std::make_unique<Sprite>(Graphics::Instance().GetDevice(), "Data/Sprite/Scene Game/White.png");
     EffectManager::Instance().PreloadEffect("Data/Effect/Hit.efk");
-    EffectManager::Instance().PreloadEffect("Data/Effect/FakeBossPoison.efk");
 }
 
 SceneGame::~SceneGame()
@@ -249,71 +193,47 @@ SceneGame::~SceneGame()
     m_player.reset();
     m_enemyManager.reset();
     m_itemManager.reset();
-
     m_sceneRoot.reset();
 
     PhysicsManager::Instance().Shutdown();
 
-    // Clean up the temporary Play Mode auto-save file
     std::error_code ec;
     std::filesystem::remove("Data/Scenes/AutoSave_PlayMode.json", ec);
 }
 
 void SceneGame::Update(const float elapsedTime)
 {
-    EditorMode currentMode = EditorManager::Instance().GetEditorMode();
+    const EditorMode currentMode{ EditorManager::Instance().GetEditorMode() };
 
-    // Editor State Machine
+    // Editor State Machine (Strict Decoupling)
     if (m_lastEditorMode != currentMode)
     {
         if (currentMode == EditorMode::Play && m_lastEditorMode == EditorMode::Edit)
         {
-            // Permanently save the developer's camera position
             EditorManager::Instance().SaveUserPreferences(this, CameraController::Instance().GetActiveCamera().get());
-
-            // Temporarily backup the authored scene layout for runtime reversion
             SceneSerializer::Save("Data/Scenes/AutoSave_PlayMode.json", m_sceneRoot.get(), false);
 
-            CameraController::Instance().SetControlMode(CameraControlMode::FixedFollow);
+            // Relinquish camera control to the Scene Graph
+            CameraController::Instance().SetEnabled(false);
 
-            // Snap the camera to the player before pre-warming physics
-            // This ensures the player's logic uses the correct gameplay camera angle,
-            // preventing the Editor's free-cam angle from bleeding into game logic
             if (m_player)
             {
-                CameraController::Instance().SetTarget(m_player->GetPosition());
-                CameraController::Instance().SnapToTarget();
-            }
-
-            // Dynamic Physics Settling (Pre-Warming)
-            for (int i{ 0 }; i < 300; ++i)
-            {
-                PhysicsManager::Instance().Simulate(0.01666f);
-
-                if (m_player) m_player->Update(0.01666f, CameraController::Instance().GetActiveCamera().get());
-                if (m_navi)   m_navi->Update(0.01666f, CameraController::Instance().GetActiveCamera().get());
-
-                if (m_player && m_player->IsGrounded())
+                for (int i{ 0 }; i < 300; ++i)
                 {
-                    break;
+                    PhysicsManager::Instance().Simulate(0.01666f);
+                    if (m_player) m_player->Update(0.01666f, nullptr);
+                    if (m_navi)   m_navi->Update(0.01666f, nullptr);
+
+                    if (m_player->IsGrounded()) break;
                 }
-            }
-
-            // Snap one final time after physics settle perfectly on the ground
-            if (m_player)
-            {
                 m_playerSpawnPos = m_player->GetPosition();
-                CameraController::Instance().SetTarget(m_playerSpawnPos);
-                CameraController::Instance().SnapToTarget();
             }
 
-            // Start the game boot sequence
             m_bootTimer = 1.1f;
-
             m_respawnTimer = 0.0f;
             m_isDying = false;
-
             m_fadeAlpha = 1.0f;
+
             if (m_postProcess)
             {
                 m_postProcess->GetVignette().GetData().smoothness = FX_BLACK_SMOOTHNESS;
@@ -334,7 +254,7 @@ void SceneGame::Update(const float elapsedTime)
                         child->Destroy();
                     }
                 }
-                m_sceneRoot->Update(0.0f); // Flush dead objects immediately
+                m_sceneRoot->Update(0.0f);
             }
 
             SceneSerializer::Load("Data/Scenes/AutoSave_PlayMode.json", m_sceneRoot.get(), false);
@@ -353,55 +273,37 @@ void SceneGame::Update(const float elapsedTime)
             if (m_navi)
             {
                 m_navi->Reset();
-                m_navi->SetPotionedState(false);
                 m_navi->SetPosition({ m_playerSpawnPos.x + 1.0f, m_playerSpawnPos.y + 2.0f, m_playerSpawnPos.z + 0.5f });
                 m_navi->ForceVisualSync();
             }
 
+            // Restore Editor Camera Control
             EditorManager::Instance().LoadUserPreferences(this, CameraController::Instance().GetActiveCamera().get());
-            CameraController::Instance().SetControlMode(CameraControlMode::Free);
             CameraController::Instance().SyncFromActiveCamera();
+            CameraController::Instance().SetEnabled(true);
 
             Camera* activeCam{ CameraController::Instance().GetActiveCamera().get() };
-            if (m_enemyManager) m_enemyManager->Update(0.0f, activeCam, m_cameraTarget, true);
+            if (m_enemyManager) m_enemyManager->Update(0.0f, activeCam, { 0,0,0 }, true);
             if (m_itemManager)  m_itemManager->Update(0.0f, activeCam);
             Scene::Update(0.0f);
 
-            // Reset runtime progression and checkpoint flags
             m_hasCheckpoint = false;
-            m_currentCheckpointPos = { 0.0f, 0.0f, 0.0f };
-
-            // Reset gameplay menu, timers, and camera zoom targets
             m_isPaused = false;
             m_isExitingToTitle = false;
             m_exitToTitleTimer = 0.0f;
-
             m_isDying = false;
             m_respawnTimer = 0.0f;
             m_bootTimer = 0.0f;
-
-            m_cachedClosestEnemy = nullptr;
-            m_targetZoom = 0.0f;
-
-            m_bossCinematicTriggered = false;
-            m_isBossCinematicActive = false;
-            m_bossDialogueStarted = false;
-            m_bossEffectTriggered = false;
-            m_isPoisonDialogueActive = false;
-
             m_hasBGMStarted = false;
             m_hasIntroDialogueTestStarted = false;
             m_hasTriggeredMushroomDialogue = false;
-            m_hasTriggeredPoisonDialogue = false;
 
-            // Reinitialize dialogue UI to clear active typewriter buffers
             m_dialogueBox = std::make_unique<UIDialogueBox>();
             m_dialogueBox->Initialize();
 
             if (m_uiPause) m_uiPause->ResetSelection();
             if (m_player)  m_player->SetInputEnabled(true);
 
-            // Visual & Audio cleanup
             m_fadeAlpha = 0.0f;
             m_whiteAlpha = 0.0f;
             if (m_postProcess)
@@ -415,13 +317,41 @@ void SceneGame::Update(const float elapsedTime)
         }
         else if (currentMode == EditorMode::Pause)
         {
-            // PLAY -> PAUSE: Switch to Free camera so designer can inspect the frozen combat frame
-            CameraController::Instance().SetControlMode(CameraControlMode::Free);
-        }
+            if (m_lastEditorMode == EditorMode::Play)
+            {
+                // Clear lingering selections so gizmos don't flash on screen
+                EditorManager::Instance().ClearSelection();
+                // Align Editor Camera to Game Camera before releasing control
+                if (m_sceneRoot)
+                {
+                    for (const auto& child : m_sceneRoot->GetChildren())
+                    {
+                        if (auto* brain = child->GetComponent<CameraComponent>())
+                        {
+                            auto brainCam = brain->GetCamera();
+                            m_mainCamera->SetPosition(brainCam->GetPosition());
+                            m_mainCamera->SetRotation(brainCam->GetRotation());
+
+							// Sync the Editor Camera's FOV and aspect ratio to match the Game Camera
+                            m_mainCamera->SetPerspectiveFov(
+                                brainCam->GetFovY(),
+                                brainCam->GetAspectRatio(),
+                                brainCam->GetNearZ(),
+                                brainCam->GetFarZ()
+                            );
+
+                            break;
+                        }
+                    }
+                }
+                // Force the controller to inherit the new Euler angles to prevent snapping
+                CameraController::Instance().SyncFromActiveCamera();
+            }
+            CameraController::Instance().SetEnabled(true);
+            }
         else if (currentMode == EditorMode::Play && m_lastEditorMode == EditorMode::Pause)
         {
-            // PAUSE -> PLAY: Snap back to gameplay camera
-            CameraController::Instance().SetControlMode(CameraControlMode::FixedFollow);
+            CameraController::Instance().SetEnabled(false);
         }
 
         m_lastEditorMode = currentMode;
@@ -429,20 +359,13 @@ void SceneGame::Update(const float elapsedTime)
 
     const bool isPlaying{ currentMode == EditorMode::Play };
 
-    // In game pause mode
     if (isPlaying)
     {
-        if (CheckPauseToggleTriggered())
-        {
-            m_isPaused = !m_isPaused;
-        }
+        if (CheckPauseToggleTriggered()) m_isPaused = !m_isPaused;
 
         if (m_isPaused)
         {
-            auto& input = Input::Instance();
-            auto& keyboard = input.GetKeyboard();
-            auto& gamepad = input.GetGamePad();
-
+            auto& input{ Input::Instance() };
             if (m_isExitingToTitle)
             {
                 m_exitToTitleTimer += elapsedTime;
@@ -451,40 +374,33 @@ void SceneGame::Update(const float elapsedTime)
                 m_postProcess->GetVignette().GetData().smoothness = FX_BASE_SMOOTHNESS + (FX_BLACK_SMOOTHNESS - FX_BASE_SMOOTHNESS) * t;
                 m_postProcess->GetVignette().GetData().intensity = FX_BASE_INTENSITY + (FX_BLACK_INTENSITY - FX_BASE_INTENSITY) * t;
 
-                if (t >= 1.0f)
-                {
-                    Framework::Instance()->ChangeScene([]() { return std::make_unique<SceneTitle>(); });
-                }
+                if (t >= 1.0f) Framework::Instance()->ChangeScene([]() { return std::make_unique<SceneTitle>(); });
                 return;
             }
 
             bool moveUp{ false };
             bool moveDown{ false };
 
-            if (keyboard.IsTriggered('W') || keyboard.IsTriggered(VK_UP) || (gamepad.GetButtonDown() & GamePad::BTN_UP) != 0) moveUp = true;
-            else if (keyboard.IsTriggered('S') || keyboard.IsTriggered(VK_DOWN) || (gamepad.GetButtonDown() & GamePad::BTN_DOWN) != 0) moveDown = true;
+            if (input.GetKeyboard().IsTriggered('W') || input.GetKeyboard().IsTriggered(VK_UP) || (input.GetGamePad().GetButtonDown() & GamePad::BTN_UP) != 0) moveUp = true;
+            else if (input.GetKeyboard().IsTriggered('S') || input.GetKeyboard().IsTriggered(VK_DOWN) || (input.GetGamePad().GetButtonDown() & GamePad::BTN_DOWN) != 0) moveDown = true;
 
             static bool s_analogLatchReset{ true };
-            const float ly{ gamepad.GetAxisLY() };
-            constexpr float analogThreshold{ 0.6f };
-            constexpr float deadzoneThreshold{ 0.2f };
-
-            if (ly > analogThreshold) { if (s_analogLatchReset) { moveUp = true; s_analogLatchReset = false; } }
-            else if (ly < -analogThreshold) { if (s_analogLatchReset) { moveDown = true; s_analogLatchReset = false; } }
-            else if (std::abs(ly) < deadzoneThreshold) { s_analogLatchReset = true; }
+            const float ly{ input.GetGamePad().GetAxisLY() };
+            if (ly > 0.6f) { if (s_analogLatchReset) { moveUp = true; s_analogLatchReset = false; } }
+            else if (ly < -0.6f) { if (s_analogLatchReset) { moveDown = true; s_analogLatchReset = false; } }
+            else if (std::abs(ly) < 0.2f) { s_analogLatchReset = true; }
 
             if (moveUp)   m_uiPause->MoveSelection(-1);
             if (moveDown) m_uiPause->MoveSelection(1);
 
-            if (keyboard.IsTriggered(VK_RETURN) || keyboard.IsTriggered(VK_SPACE) || (gamepad.GetButtonDown() & GamePad::BTN_A) != 0)
+            if (input.GetKeyboard().IsTriggered(VK_RETURN) || input.GetKeyboard().IsTriggered(VK_SPACE) || (input.GetGamePad().GetButtonDown() & GamePad::BTN_A) != 0)
             {
-                const auto selected = m_uiPause->GetSelectedOption();
-                if (selected == UIPause::PauseOption::Resume)
+                if (m_uiPause->GetSelectedOption() == UIPause::PauseOption::Resume)
                 {
                     m_isPaused = false;
                     m_uiPause->ResetSelection();
                 }
-                else if (selected == UIPause::PauseOption::Exit)
+                else if (m_uiPause->GetSelectedOption() == UIPause::PauseOption::Exit)
                 {
                     m_isExitingToTitle = true;
                     m_exitToTitleTimer = 0.0f;
@@ -492,14 +408,9 @@ void SceneGame::Update(const float elapsedTime)
                     AudioManager::Instance().FadeOutAmbientSFX(RESPAWN_FADE_DURATION);
                 }
             }
-
-            return; // Halt ALL further updates while the in-game menu is paused
+            return;
         }
-    }
 
-    // Gameplay Simulation (Only runs in Play Mode)
-    if (isPlaying)
-    {
         m_globalTime += elapsedTime;
         if (m_globalTime > Config::TIME_LOOP_MAX) m_globalTime -= Config::TIME_LOOP_MAX;
 
@@ -518,17 +429,7 @@ void SceneGame::Update(const float elapsedTime)
 
             if (linearT >= 1.0f)
             {
-                m_postProcess->GetVignette().GetData().smoothness = FX_BLACK_SMOOTHNESS;
-                m_postProcess->GetVignette().GetData().intensity = FX_BLACK_INTENSITY;
-                m_fadeAlpha = 1.0f;
                 m_isNaviDefeatReadyForNextScene = true;
-                m_player.reset(); m_navi.reset(); m_enemyManager.reset(); m_itemManager.reset(); m_collisionManager.reset();
-
-                m_sceneRoot.reset();
-
-                PhysicsManager::Instance().Shutdown();
-
-                CameraController::Instance().ClearCamera();
                 Framework::Instance()->ChangeScene([]() { return std::make_unique<SceneTitle>(); });
                 return;
             }
@@ -536,20 +437,13 @@ void SceneGame::Update(const float elapsedTime)
         else if (m_bootTimer > 0.0f)
         {
             m_bootTimer -= elapsedTime;
-
             const float t{ std::clamp(m_bootTimer / 1.1f, 0.0f, 1.0f) };
             m_fadeAlpha = t;
 
             m_postProcess->GetVignette().GetData().smoothness = FX_BASE_SMOOTHNESS + (FX_BLACK_SMOOTHNESS - FX_BASE_SMOOTHNESS) * t;
             m_postProcess->GetVignette().GetData().intensity = FX_BASE_INTENSITY + (FX_BLACK_INTENSITY - FX_BASE_INTENSITY) * t;
 
-            if (m_player)
-            {
-                m_player->SetInputEnabled(false);
-                CameraController::Instance().SetTarget(m_player->GetPosition());
-                CameraController::Instance().Update(0.0f);
-            }
-
+            if (m_player) m_player->SetInputEnabled(false);
             if (m_bootTimer <= 0.0f && m_player) m_player->SetInputEnabled(true);
         }
         else if (m_isDying)
@@ -557,14 +451,11 @@ void SceneGame::Update(const float elapsedTime)
             m_deathTimer += elapsedTime;
             if (m_deathTimer < DEATH_DELAY_DURATION)
             {
-                m_postProcess->GetVignette().GetData().smoothness = FX_BASE_SMOOTHNESS;
-                m_postProcess->GetVignette().GetData().intensity = FX_BASE_INTENSITY;
                 m_fadeAlpha = 0.0f;
             }
             else
             {
-                const float fadeTime{ m_deathTimer - DEATH_DELAY_DURATION };
-                const float t{ std::clamp(fadeTime / DEATH_FADE_DURATION, 0.0f, 1.0f) };
+                const float t{ std::clamp((m_deathTimer - DEATH_DELAY_DURATION) / DEATH_FADE_DURATION, 0.0f, 1.0f) };
                 m_postProcess->GetVignette().GetData().smoothness = FX_BASE_SMOOTHNESS + (FX_BLACK_SMOOTHNESS - FX_BASE_SMOOTHNESS) * t;
                 m_postProcess->GetVignette().GetData().intensity = FX_BASE_INTENSITY + (FX_BLACK_INTENSITY - FX_BASE_INTENSITY) * t;
                 m_fadeAlpha = t;
@@ -584,17 +475,16 @@ void SceneGame::Update(const float elapsedTime)
         {
             m_respawnTimer -= elapsedTime;
             if (m_player) m_player->SetInputEnabled(false);
-            const float linearT{ std::clamp(m_respawnTimer / RESPAWN_FADE_DURATION, 0.0f, 1.0f) };
-            const float t{ linearT * linearT };
-            m_postProcess->GetVignette().GetData().smoothness = FX_BASE_SMOOTHNESS + (FX_BLACK_SMOOTHNESS - FX_BASE_SMOOTHNESS) * t;
-            m_postProcess->GetVignette().GetData().intensity = FX_BASE_INTENSITY + (FX_BLACK_INTENSITY - FX_BASE_INTENSITY) * t;
-            m_fadeAlpha = t;
+            const float t{ std::clamp(m_respawnTimer / RESPAWN_FADE_DURATION, 0.0f, 1.0f) };
+
+            m_postProcess->GetVignette().GetData().smoothness = FX_BASE_SMOOTHNESS + (FX_BLACK_SMOOTHNESS - FX_BASE_SMOOTHNESS) * (t * t);
+            m_postProcess->GetVignette().GetData().intensity = FX_BASE_INTENSITY + (FX_BLACK_INTENSITY - FX_BASE_INTENSITY) * (t * t);
+            m_fadeAlpha = t * t;
 
             if (m_respawnTimer <= 0.0f && m_player) m_player->SetInputEnabled(true);
         }
         else
         {
-            m_postProcess->GetVignette().GetData().smoothness = FX_BASE_SMOOTHNESS;
             m_fadeAlpha = 0.0f;
             if (!m_hasBGMStarted) { AudioManager::Instance().PlayMusic("Data/Sound/BGM_Game.wav", 0.1f, true); m_hasBGMStarted = true; }
         }
@@ -606,191 +496,45 @@ void SceneGame::Update(const float elapsedTime)
 
         if (m_dialogueBox) m_dialogueBox->Update(elapsedTime);
 
-        // Run Physics
         PhysicsManager::Instance().Simulate(elapsedTime);
 
-        Camera* activeCam{ CameraController::Instance().GetActiveCamera().get() };
+        // Entities update without caring about the camera anymore (decoupled)
+        if (m_player) m_player->Update(elapsedTime, nullptr);
+        if (m_navi)   m_navi->Update(elapsedTime, nullptr);
 
-        // Run Entities
-        if (m_player) {
-            m_player->Update(elapsedTime, activeCam);
-            if (m_navi) m_navi->Update(elapsedTime, activeCam);
-        }
-
-        if (m_enemyManager) {
-            XMFLOAT3 targetPos{ 0.0f, 0.0f, 0.0f };
-            if (m_player) targetPos = m_player->GetPosition();
-            bool canAttack = (m_player && m_player->GetHP() > 0);
-            m_enemyManager->Update(elapsedTime, activeCam, targetPos, canAttack);
-        }
-
-        if (m_itemManager) m_itemManager->Update(elapsedTime, activeCam);
+        if (m_enemyManager) m_enemyManager->Update(elapsedTime, nullptr, m_player ? m_player->GetPosition() : XMFLOAT3{ 0,0,0 }, m_player && m_player->GetHP() > 0);
+        if (m_itemManager) m_itemManager->Update(elapsedTime, nullptr);
         if (m_collisionManager) m_collisionManager->Update(elapsedTime);
 
-        // Boss Cinematic Logic
-        if (m_isBossCinematicActive)
+        if (m_player && m_enemyManager && m_dialogueBox && !m_dialogueBox->IsActive() && !m_hasTriggeredMushroomDialogue)
         {
-            float t = std::clamp(m_bossCinematicTimer / BOSS_CINEMATIC_DURATION, 0.0f, 1.0f);
-            float smoothT = t * t * (3.0f - 2.0f * t);
-
-            DirectX::XMFLOAT3 currentTarget = {
-                m_cinematicStartTarget.x + (m_cinematicEndTarget.x - m_cinematicStartTarget.x) * smoothT,
-                m_cinematicStartTarget.y + (m_cinematicEndTarget.y - m_cinematicStartTarget.y) * smoothT,
-                m_cinematicStartTarget.z + (m_cinematicEndTarget.z - m_cinematicStartTarget.z) * smoothT
-            };
-
-            CameraController::Instance().SetDynamicZoomOffset(0.0f);
-            CameraController::Instance().SetTarget(currentTarget);
-
-            if (m_bossCinematicTimer < BOSS_CINEMATIC_DURATION)
+            const DirectX::XMFLOAT3 pPos{ m_player->GetPosition() };
+            for (const auto& enemy : m_enemyManager->GetEnemies())
             {
-                m_bossCinematicTimer += elapsedTime;
-            }
-            else if (!m_bossDialogueStarted)
-            {
-                m_bossDialogueStarted = true;
-                std::vector<std::string> dialogPages = {
-                    u8"えっ...？ 何あのキノコ...。\n他のやつらより、ずっと大きい...？",
-                    u8"ちょっと待って、様子がおかしいわ。\nなんか...膨らんでない！？",
-                    u8"きゃあああああっ！？\n毒ガス！？ ごほっ、げほっ...！"
-                };
-                m_dialogueBox->StartDialogue(dialogPages);
-            }
-            else if (m_bossDialogueStarted)
-            {
-                int currentLine = m_dialogueBox->GetCurrentDialogueIndex();
-                if (currentLine == 2 && !m_bossEffectTriggered)
+                if (!enemy || !enemy->IsActive()) continue;
+                const DirectX::XMFLOAT3 ePos{ enemy->GetPosition() };
+                const float dx{ pPos.x - ePos.x };
+                const float dz{ pPos.z - ePos.z };
+                if ((dx * dx) + (dz * dz) < 150.0f && enemy->GetType() == EnemyType::MushroomNone)
                 {
-                    m_bossEffectTriggered = true;
-                    static const std::string POISON_SFX{ "Data/Sound/SE_FakeBoss_Poison.wav" };
-                    AudioManager::Instance().PlayAmbientSFX(POISON_SFX, 1.0f, 0.5f);
-
-                    if (Enemy* fakeBoss = GetFakeBoss())
-                    {
-                        DirectX::XMFLOAT3 spawnPos = fakeBoss->GetPosition();
-                        spawnPos.x += m_fakeBossEffectOffset.x; spawnPos.y += m_fakeBossEffectOffset.y; spawnPos.z += m_fakeBossEffectOffset.z;
-
-                        m_poisonEffectHandle = EffectManager::Instance().Play("Data/Effect/FakeBossPoison.efk", spawnPos, m_fakeBossEffectScale);
-
-                        if (m_poisonEffectHandle >= 0) {
-                            DirectX::XMFLOAT3 rotRad{ DirectX::XMConvertToRadians(m_fakeBossEffectRotation.x), DirectX::XMConvertToRadians(m_fakeBossEffectRotation.y), DirectX::XMConvertToRadians(m_fakeBossEffectRotation.z) };
-                            EffectManager::Instance().SetRotation(m_poisonEffectHandle, rotRad);
-                        }
-                    }
-                }
-
-                if (m_bossEffectTriggered && !m_dialogueBox->IsActive())
-                {
-                    AudioManager::Instance().FadeOutAmbientSFX(1.5f);
-                    m_bossCinematicTimer += elapsedTime;
-                    float timeInFade = m_bossCinematicTimer - BOSS_CINEMATIC_DURATION;
-
-                    if (timeInFade < WHITEOUT_FADE_DURATION)
-                    {
-                        float linearT = std::clamp(timeInFade / WHITEOUT_FADE_DURATION, 0.0f, 1.0f);
-                        m_whiteAlpha = linearT * linearT * (3.0f - 2.0f * linearT);
-                    }
-                    else if (timeInFade < WHITEOUT_FADE_DURATION + WHITEOUT_HOLD_DURATION)
-                    {
-                        m_whiteAlpha = 1.0f;
-                        if (m_poisonEffectHandle >= 0) { EffectManager::Instance().Stop(m_poisonEffectHandle); m_poisonEffectHandle = -1; }
-                        if (!m_hasHealedForBoss) { if (m_player) m_player->SetMaxHP(BOSS_MAX_HP); m_hasHealedForBoss = true; }
-                    }
-                    else
-                    {
-                        float fadeOutTime = timeInFade - (WHITEOUT_FADE_DURATION + WHITEOUT_HOLD_DURATION);
-                        m_whiteAlpha = 1.0f - std::clamp(fadeOutTime / FADE_BACK_DURATION, 0.0f, 1.0f);
-
-                        if (m_navi) { m_navi->SetPotionedState(true); m_navi->StartAttackDelay(999.0f); }
-
-                        if (m_whiteAlpha <= 0.0f)
-                        {
-                            m_whiteAlpha = 0.0f;
-                            m_isBossCinematicActive = false;
-                            if (!m_hasTriggeredPoisonDialogue) StartPoisonDialogue();
-                        }
-                    }
+                    m_hasTriggeredMushroomDialogue = true;
+                    StartMushroomDialogue();
+                    break;
                 }
             }
-        }
-        else // Normal gameplay camera behavior
-        {
-            if (m_player) CameraController::Instance().SetTarget(m_player->GetPosition());
-
-            if (m_zoomFrameCounter++ % 10 == 0)
-            {
-                if (m_enemyManager && m_player)
-                {
-                    float closestDistSq{ 999999.0f };
-                    const DirectX::XMFLOAT3 pPos{ m_player->GetPosition() };
-                    const Enemy* currentClosest{ nullptr };
-
-                    for (const auto& enemy : m_enemyManager->GetEnemies())
-                    {
-                        if (!enemy || !enemy->IsActive()) continue;
-                        const DirectX::XMFLOAT3 ePos{ enemy->GetPosition() };
-                        const float dx{ pPos.x - ePos.x }; const float dz{ pPos.z - ePos.z };
-                        const float distSq{ (dx * dx) + (dz * dz) };
-
-                        if (distSq < closestDistSq) { closestDistSq = distSq; currentClosest = enemy.get(); }
-                    }
-                    m_cachedClosestEnemy = currentClosest;
-
-                    if (m_cachedClosestEnemy)
-                    {
-                        constexpr float combatRadius{ 25.0f }; constexpr float maxZoomIn{ -8.0f };
-                        const float dist{ std::sqrt(closestDistSq) };
-                        const float intensity{ std::clamp(1.0f - (dist / combatRadius), 0.0f, 1.0f) };
-                        m_targetZoom = maxZoomIn * intensity;
-                    }
-                    else m_targetZoom = 0.0f;
-                }
-            }
-
-            if (m_cachedClosestEnemy && !m_cachedClosestEnemy->IsActive()) { m_cachedClosestEnemy = nullptr; m_targetZoom = 0.0f; }
-            CameraController::Instance().SetDynamicZoomOffset(m_targetZoom);
-        }
-
-        // Dialogue Checkers
-        if (m_player && m_enemyManager && m_dialogueBox && !m_dialogueBox->IsActive())
-        {
-            if (!m_hasTriggeredMushroomDialogue)
-            {
-                const DirectX::XMFLOAT3 pPos = m_player->GetPosition();
-                for (const auto& enemy : m_enemyManager->GetEnemies())
-                {
-                    if (!enemy || !enemy->IsActive()) continue;
-                    const DirectX::XMFLOAT3 ePos = enemy->GetPosition();
-                    const float dx = pPos.x - ePos.x; const float dz = pPos.z - ePos.z;
-                    if ((dx * dx) + (dz * dz) < 150.0f)
-                    {
-                        if (!m_hasTriggeredMushroomDialogue && enemy->GetType() == EnemyType::MushroomNone) { m_hasTriggeredMushroomDialogue = true; StartMushroomDialogue(); break; }
-                    }
-                }
-            }
-        }
-
-        if (m_isPoisonDialogueActive && m_dialogueBox && !m_dialogueBox->IsActive())
-        {
-            m_isPoisonDialogueActive = false;
-            if (m_player) { m_player->SetInputEnabled(true); m_player->SetAimLocked(false); }
-            if (m_navi) { m_navi->StartAttackDelay(0.5f); }
         }
     }
 
-    // Engine Core & Visuals (Always runs so Editor functions)
+    // Engine Core Ticks
     CameraController::Instance().Update(elapsedTime);
+    if (m_player) m_postProcess->GetLensDistortion().GetData().glitchStrength = m_player->GetDamageGlitchIntensity();
 
-    if (m_player)
-    {
-        m_postProcess->GetLensDistortion().GetData().glitchStrength = m_player->GetDamageGlitchIntensity();
-    }
+    // Freeze the Scene's delta-time if the Editor is paused or in edit mode
+    // This stops the Camera components from drifting via damping
+    const float sceneDt = isPlaying ? elapsedTime : 0.0f;
+    Scene::Update(sceneDt);
 
-    // Tick the Scene Graph / GameObjects to sync transforms to ImGuizmo
-    Scene::Update(elapsedTime);
-
-    // Freeze effects when not playing so explosions don't animate during Pause/Edit
-    EffectManager::Instance().Update(isPlaying ? elapsedTime : 0.0f);
+    EffectManager::Instance().Update(sceneDt);
 }
 
 void SceneGame::StartPlayerDeathSequence()
@@ -798,10 +542,6 @@ void SceneGame::StartPlayerDeathSequence()
     if (m_isDying) return;
     m_isDying = true;
     m_deathTimer = 0.0f;
-
-    //AudioManager::Instance().PlaySFX("Data/Sound/SE_Explosion.wav", 0.4f);
-
-    // Redundancy: Ensure the player is fully hidden and disabled
     if (m_player)
     {
         m_player->SetInputEnabled(false);
@@ -812,13 +552,9 @@ void SceneGame::StartPlayerDeathSequence()
 void SceneGame::StartNaviDefeatSequence()
 {
     if (m_isNaviDefeatSequenceActive) return;
-
     m_isNaviDefeatSequenceActive = true;
     m_naviDefeatTimer = 0.0f;
-    m_isNaviDefeatReadyForNextScene = false;
-
     AudioManager::Instance().FadeOutMusic(NAVI_DEFEAT_FADE_DURATION);
-
     if (m_player)
     {
         m_player->SetInputEnabled(false);
@@ -831,18 +567,14 @@ void SceneGame::StartNaviDefeatSequence()
 void SceneGame::StartIntroDialogueTest()
 {
     m_hasIntroDialogueTestStarted = true;
-
     if (m_dialogueBox)
     {
-		// Dialogue pages for the intro tutorial
-        std::vector<std::string> dialogPages = {
+        m_dialogueBox->SetPosition(536.0f, 750.0f);
+        m_dialogueBox->StartDialogue({
             u8"目を覚まして。戦いの時間が来たわ。\n{ATK}で攻撃よ。遠くの敵は撃ち抜き、\n近づけばその刃で斬り裂くの。",
             u8"そして、よく覚えておいて。\nいずれそのキーは、敵の牙を弾き返す\n「Parry」の要にもなるわ。魂に刻み込んで。",
             u8"次は{DASH}を試して。\n風のように「Dash」して、敵の弾幕をすり抜けるのよ。\n\nさあ、あなたの力を見せて。"
-        };
-
-        m_dialogueBox->SetPosition(536.0f, 750.0f);
-        m_dialogueBox->StartDialogue(dialogPages);
+            });
     }
 }
 
@@ -850,80 +582,33 @@ void SceneGame::StartMushroomDialogue()
 {
     if (m_dialogueBox)
     {
-        std::vector<std::string> dialogPages = {
+        m_dialogueBox->StartDialogue({
             u8"あのキノコを見て。今は大人しく見えるけれど…\n気を抜かないで。",
             u8"この森の奥は奇妙な薬液で汚染されているわ。\n凶暴化した個体もいるはずよ。"
-        };
-
-        m_dialogueBox->StartDialogue(dialogPages);
-    }
-}
-
-void SceneGame::StartPoisonDialogue()
-{
-    if (m_dialogueBox)
-    {
-        std::vector<std::string> dialogPages = {
-            u8"あ....あ、ぁ....",
-            u8"あつい....からだが...とける....",
-            u8"にげて...わたし、もう.....",
-            u8"あはッ......アはハハハハハハハッ！！！！"
-        };
-
-        m_hasTriggeredPoisonDialogue = true;
-        m_isPoisonDialogueActive = true;
-
-        m_dialogueBox->StartDialogue(dialogPages);
+            });
     }
 }
 
 void SceneGame::ResetLevel()
 {
-    const bool isBossStage = m_bossCinematicTriggered;
+    DirectX::XMFLOAT3 respawnPos{ m_playerSpawnPos };
+    if (m_hasCheckpoint) respawnPos = { m_currentCheckpointPos.x, m_playerSpawnPos.y, m_currentCheckpointPos.z };
 
-    // Calculate Respawn Position
-    DirectX::XMFLOAT3 respawnPos = m_playerSpawnPos;
-
-    if (isBossStage)
-    {
-        // If Navi is poisoned / Boss stage is active, respawn exactly where you died
-        if (m_player)
-        {
-            respawnPos = m_player->GetPosition(); 
-            respawnPos.y = m_playerSpawnPos.y; 
-        }
-    }
-    else if (m_hasCheckpoint)
-    {
-        // Normal stage progression still uses your checkpoint lines
-        respawnPos = { m_currentCheckpointPos.x, m_playerSpawnPos.y, m_currentCheckpointPos.z };
-    }
-
-    // Reset Player State
     if (m_player)
     {
         m_player->SetPosition(respawnPos);
         m_player->GetMovement()->SetVelocity({ 0.0f, 0.0f, 0.0f });
-        m_player->SetMaxHP(isBossStage ? BOSS_MAX_HP : NORMAL_MAX_HP);
+        m_player->SetMaxHP(NORMAL_MAX_HP);
         m_player->SetInputEnabled(false);
         m_player->scale = { 1.0f, 1.0f, 1.0f };
         m_player->GetStateMachine()->ChangeState(m_player.get(), std::make_unique<PlayerIdle>());
         m_player->GetProjectiles().clear();
     }
 
-    // Reset Navi Ally
     if (m_navi)
     {
         m_navi->Reset();
-        m_navi->SetPotionedState(isBossStage);
-
-        // Position Navi near Player
         m_navi->SetPosition({ respawnPos.x + 1.0f, respawnPos.y + 2.0f, respawnPos.z + 0.5f });
-
-        if (isBossStage)
-        {
-            m_navi->StartAttackDelay(3.0f);
-        }
     }
 
     if (EditorManager::Instance().GetEditorMode() == EditorMode::Play)
@@ -934,17 +619,29 @@ void SceneGame::ResetLevel()
             if (m_player) m_player->Update(0.01666f, nullptr);
             if (m_navi) m_navi->Update(0.01666f, nullptr);
         }
-
-        CameraController::Instance().SetDynamicZoomOffset(0.0f);
-        CameraController::Instance().SetTarget(m_player ? m_player->GetPosition() : respawnPos);
-        CameraController::Instance().Update(1.0f);
     }
 }
 
 void SceneGame::Render(float elapsedTime, Camera* camera)
 {
-    const float renderTime = m_isPaused ? 0.0f : elapsedTime;
+    const float renderTime{ m_isPaused ? 0.0f : elapsedTime };
+
+    // Dynamic Camera Resolution
+    // Default to the Editor Free Camera (m_mainCamera)
     Camera* targetCam{ camera ? camera : m_mainCamera.get() };
+
+    // In Play Mode, overwrite with the active scene Camera Brain
+    if (EditorManager::Instance().GetEditorMode() == EditorMode::Play && m_sceneRoot)
+    {
+        for (const auto& child : m_sceneRoot->GetChildren())
+        {
+            if (auto* brain = child->GetComponent<CameraComponent>())
+            {
+                targetCam = brain->GetCamera().get();
+                break; // Found the Camera Brain!
+            }
+        }
+    }
 
     auto dc{ Graphics::Instance().GetDeviceContext() };
     auto rs{ Graphics::Instance().GetRenderState() };
@@ -962,18 +659,14 @@ void SceneGame::Render(float elapsedTime, Camera* camera)
     targetCam->SetJitterEnabled(m_postProcess->IsEnabled() && m_postProcess->GetTemporalAA().IsEnabled());
     targetCam->AdvanceJitter(++s_taaFrameIndex, screenW, screenH);
 
-
-    if (m_postProcess->IsEnabled())
+    if (m_postProcess->IsEnabled()) m_postProcess->BeginCapture();
+    else
     {
-        m_postProcess->BeginCapture();
-    }
-    else {
-        // Fallback clear if post-process is bypassed
         ID3D11RenderTargetView* originalRTV{ nullptr };
         ID3D11DepthStencilView* originalDSV{ nullptr };
         dc->OMGetRenderTargets(1, &originalRTV, &originalDSV);
         if (originalRTV) {
-            float clearColor[4]{ 0.0f, 0.0f, 0.0f, 1.0f }; 
+            float clearColor[4]{ 0.0f, 0.0f, 0.0f, 1.0f };
             dc->ClearRenderTargetView(originalRTV, clearColor);
             originalRTV->Release();
         }
@@ -989,125 +682,64 @@ void SceneGame::Render(float elapsedTime, Camera* camera)
 
     RenderScene(renderTime, targetCam);
 
-    if (targetCam == m_mainCamera.get()) {
+    // Gizmo Render Pass
+    const bool isEditMode = EditorManager::Instance().GetEditorMode() != EditorMode::Play;
+    const bool shouldDrawGizmos = EditorManager::Instance().GetShowGizmos();
+
+    if (shouldDrawGizmos)
+    {
         auto shapeRenderer{ Graphics::Instance().GetShapeRenderer() };
         auto primRenderer{ Graphics::Instance().GetPrimitiveRenderer() };
 
-        //primRenderer->DrawGrid(50, 1.0f);
+        // Pack the context payload with the bitmask from the Editor
+        GizmoContext ctx{ 
+            shapeRenderer, 
+            primRenderer, 
+            targetCam, 
+            EditorManager::Instance().GetGizmoMask() 
+        };
 
+        // External managers
         if (m_itemManager) m_itemManager->RenderDebug(shapeRenderer);
         if (m_enemyManager) m_enemyManager->RenderDebug(shapeRenderer);
+        
+        // Broadcast to all active components in the hierarchy
+        if (m_sceneRoot) m_sceneRoot->DrawGizmo(ctx);
 
-        // Player hitbox (green), Enemy hitboxes (red)
-        //if (m_player)
-        //{
-        //    DirectX::XMFLOAT3 pPos = m_player->GetMovement()->GetPosition();
-        //    constexpr float PLAYER_RADIUS = 0.25f;
-        //    shapeRenderer->DrawSphere(pPos, PLAYER_RADIUS, { 0.0f, 1.0f, 0.0f, 1.0f });
-        //}
-        //if (m_enemyManager && m_collisionManager)
-        //{
-        //    for (const auto& enemy : m_enemyManager->GetEnemies())
-        //    {
-        //        if (!enemy || !enemy->IsActive()) continue;
-
-        //        DirectX::XMFLOAT3 ePos = enemy->GetPosition();
-
-        //        // Ask the collision manager how big this specific enemy's hitbox is
-        //        float radius = m_collisionManager->GetEnemyPushRadius(enemy.get());
-
-        //        shapeRenderer->DrawSphere(ePos, radius, { 1.0f, 0.0f, 0.0f, 0.5f });
-        //    }
-        //}
-
-        // Navi hitboxes (blue)
-        //if (m_navi) m_navi->RenderDebug(shapeRenderer);
-
+        VirtualCameraComponent::FlushGizmos(dc, targetCam);
         shapeRenderer->Render(dc, targetCam->GetView(), targetCam->GetProjection());
         primRenderer->Render(dc, targetCam->GetView(), targetCam->GetProjection(), D3D11_PRIMITIVE_TOPOLOGY_LINELIST);
     }
-
-    if (m_postProcess->IsEnabled())
+    else
     {
-        m_postProcess->EndCapture(renderTime);
+        // Safely discard accumulated queue data if gizmos are toggled off
+        VirtualCameraComponent::FlushGizmos(dc, targetCam);
     }
 
-    if (m_dialogueBox)
-    {
-        m_dialogueBox->Render(dc, screenW, screenH);
-    }
+    if (m_postProcess->IsEnabled()) m_postProcess->EndCapture(renderTime);
+
+    if (m_dialogueBox) m_dialogueBox->Render(dc, screenW, screenH);
 
     if (m_fadeAlpha > 0.001f && m_fadeSprite)
     {
-        // Enable 2D Transparency
         dc->OMSetBlendState(rs->GetBlendState(BlendState::Transparency), nullptr, 0xFFFFFFFF);
         dc->OMSetDepthStencilState(rs->GetDepthStencilState(DepthState::NoTestNoWrite), 0);
-
-        const auto fade = UI::GetScaled(0.0f, 0.0f, 1920.0f, 1080.0f, screenW, screenH);
-
-        // Draw the sprite over the whole screen using the scaled coordinates
-        m_fadeSprite->Render(
-            dc,
-            fade.x, fade.y, 0.0f,
-            fade.w, fade.h,
-            0.0f, 0.0f,
-            1920.0f, 1080.0f,
-            0.0f,
-            0.0f, 0.0f, 0.0f, m_fadeAlpha 
-        );
-    }
-
-    if (m_whiteAlpha > 0.001f && m_whiteSprite)
-    {
-        // Enable 2D Transparency
-        dc->OMSetBlendState(rs->GetBlendState(BlendState::Transparency), nullptr, 0xFFFFFFFF);
-        dc->OMSetDepthStencilState(rs->GetDepthStencilState(DepthState::NoTestNoWrite), 0);
-
-        const auto white = UI::GetScaled(0.0f, 0.0f, 1920.0f, 1080.0f, screenW, screenH);
-
-        // Draw the white sprite over the whole screen
-        m_whiteSprite->Render(
-            dc,
-            white.x, white.y, 0.0f,
-            white.w, white.h,
-            0.0f, 0.0f,
-            1920.0f, 1080.0f,
-            0.0f,
-            1.0f, 1.0f, 1.0f, m_whiteAlpha
-        );
+        const auto fade{ UI::GetScaled(0.0f, 0.0f, 1920.0f, 1080.0f, screenW, screenH) };
+        m_fadeSprite->Render(dc, fade.x, fade.y, 0.0f, fade.w, fade.h, 0.0f, 0.0f, 1920.0f, 1080.0f, 0.0f, 0.0f, 0.0f, 0.0f, m_fadeAlpha);
     }
 
     if (m_isPaused && m_fadeSprite)
     {
-        // Enable 2D Transparency 
         dc->OMSetBlendState(rs->GetBlendState(BlendState::Transparency), nullptr, 0xFFFFFFFF);
         dc->OMSetDepthStencilState(rs->GetDepthStencilState(DepthState::NoTestNoWrite), 0);
+        const auto pauseFade{ UI::GetScaled(0.0f, 0.0f, 1920.0f, 1080.0f, screenW, screenH) };
+        m_fadeSprite->Render(dc, pauseFade.x, pauseFade.y, 0.0f, pauseFade.w, pauseFade.h, 0.0f, 0.0f, 1920.0f, 1080.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.6f);
 
-        const auto pauseFade = UI::GetScaled(0.0f, 0.0f, 1920.0f, 1080.0f, screenW, screenH);
-
-        // Render the black sprite over the whole screen with 60% opacity 
-        m_fadeSprite->Render(
-            dc,
-            pauseFade.x, pauseFade.y, 0.0f,
-            pauseFade.w, pauseFade.h,
-            0.0f, 0.0f,
-            1920.0f, 1080.0f,
-            0.0f,
-            0.0f, 0.0f, 0.0f, 0.6f
-        );
-
-        // Render the pause menu UI on top of the darkened screen
-        if (m_uiPause)
-        {
-            // If we are exiting, fade the UI out. Otherwise, alpha is 1.0f.
-            const float uiAlpha = m_isExitingToTitle ? (1.0f - m_fadeAlpha) : 1.0f;
-            m_uiPause->Render(dc, screenW, screenH, uiAlpha);
-        }
+        if (m_uiPause) m_uiPause->Render(dc, screenW, screenH, m_isExitingToTitle ? (1.0f - m_fadeAlpha) : 1.0f);
     }
 
     targetCam->CachePreviousViewProjection();
 }
-
 
 void SceneGame::RenderScene(const float elapsedTime, Camera* camera)
 {
@@ -1115,52 +747,25 @@ void SceneGame::RenderScene(const float elapsedTime, Camera* camera)
     auto dc{ Graphics::Instance().GetDeviceContext() };
     if (Graphics::Instance().GetLightManager().HasSkybox())
     {
-        Graphics::Instance().GetSkyboxRenderer()->Render(
-            dc,
-            *camera,
-            Graphics::Instance().GetLightManager().GetSkyboxSRV()
-        );
+        Graphics::Instance().GetSkyboxRenderer()->Render(dc, *camera, Graphics::Instance().GetLightManager().GetSkyboxSRV());
     }
+
     auto modelRenderer{ Graphics::Instance().GetModelRenderer() };
-    RenderContext rc{
-        dc,
-        Graphics::Instance().GetRenderState(),
-        camera,
-        &Graphics::Instance().GetLightManager()
-    };
+    RenderContext rc{ dc, Graphics::Instance().GetRenderState(), camera, &Graphics::Instance().GetLightManager() };
 
-    if (m_postProcess->IsEnabled() && m_postProcess->GetTemporalAA().IsEnabled())
-    {
-        rc.velocityRenderTargetView = m_postProcess->GetVelocityRTV();
-    }
-    else
-    {
-        rc.velocityRenderTargetView = nullptr;
-    }
+    rc.velocityRenderTargetView = m_postProcess->IsEnabled() && m_postProcess->GetTemporalAA().IsEnabled() ? m_postProcess->GetVelocityRTV() : nullptr;
+    rc.psxEnabled = (m_postProcess->IsEnabled() && m_postProcess->GetPSX().GetData().enabled);
+    rc.psxResWidth = m_postProcess->GetPSX().GetData().resWidth;
+    rc.psxResHeight = m_postProcess->GetPSX().GetData().resHeight;
 
-    const auto& psxData = m_postProcess->GetPSX().GetData();
-    rc.psxEnabled = (m_postProcess->IsEnabled() && psxData.enabled);
-    rc.psxResWidth = psxData.resWidth;
-    rc.psxResHeight = psxData.resHeight;
+    if (m_sceneRoot) m_sceneRoot->Render(modelRenderer);
 
-    // Data-driven render pass
-    if (m_sceneRoot)
-    {
-        m_sceneRoot->Render(modelRenderer);
-    }
-
-    // Legacy Fallbacks (To be converted to Components later)
     if (m_player && (!m_player->GetOwnerNode() || m_player->GetOwnerNode()->IsActive()))
     {
         m_player->RenderWeapon(modelRenderer);
         m_player->RenderProjectiles(modelRenderer);
     }
-
-    if (m_navi && (!m_navi->GetOwnerNode() || m_navi->GetOwnerNode()->IsActive()))
-    {
-        m_navi->RenderProjectiles(modelRenderer);
-    }
-
+    if (m_navi && (!m_navi->GetOwnerNode() || m_navi->GetOwnerNode()->IsActive())) m_navi->RenderProjectiles(modelRenderer);
     if (m_enemyManager)
     {
         for (auto& enemy : m_enemyManager->GetEnemies())
@@ -1177,47 +782,12 @@ void SceneGame::RenderScene(const float elapsedTime, Camera* camera)
 void SceneGame::OnResize(int width, int height)
 {
     if (height <= 0) height = 1;
-    if (m_mainCamera) {
-        m_mainCamera->SetPerspectiveFov(DirectX::XMConvertToRadians(Config::CAM_FOV), static_cast<float>(width) / static_cast<float>(height), Config::CAM_NEAR, Config::CAM_FAR);
-    }
-    if (m_postProcess) m_postProcess->OnResize(width, height);
-}
 
-Enemy* SceneGame::GetFakeBoss() const
-{
-    if (!m_enemyManager) return nullptr;
-
-    for (const auto& enemy : m_enemyManager->GetEnemies())
+    // Only update Aspect Ratio so we don't destroy synced FOV settings from Play Mode
+    if (m_mainCamera)
     {
-        if (enemy && enemy->IsActive() && enemy->GetType() == EnemyType::FakeBoss)
-        {
-            return enemy.get();
-        }
+        m_mainCamera->SetAspectRatio(static_cast<float>(width) / static_cast<float>(height));
     }
-    return nullptr;
-}
 
-void SceneGame::StartBossCinematic()
-{
-    if (m_bossCinematicTriggered) return;
-
-    Enemy* fakeBoss = GetFakeBoss();
-
-    if (!fakeBoss || !m_player) return;
-
-    m_bossCinematicTriggered = true;
-    m_isBossCinematicActive = true;
-    m_bossCinematicTimer = 0.0f;
-    m_bossDialogueStarted = false;
-
-    // Lock the Player 
-    m_player->SetInputEnabled(false);
-    m_player->GetMovement()->SetVelocity({ 0.0f, 0.0f, 0.0f });
-    m_player->GetStateMachine()->ChangeState(m_player.get(), std::make_unique<PlayerIdle>());
-    m_player->SetAimLocked(true);
-    m_player->ForceAimTarget(fakeBoss->GetPosition());
-
-    // Set lerp anchors
-    m_cinematicStartTarget = m_player->GetPosition();
-    m_cinematicEndTarget = fakeBoss->GetPosition();
+    if (m_postProcess) m_postProcess->OnResize(width, height);
 }

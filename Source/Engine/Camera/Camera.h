@@ -57,7 +57,7 @@ public:
     const DirectX::XMFLOAT3& GetRight() const { return right; }
     const DirectX::XMFLOAT3& GetUp() const { return up; }
 
-    bool CheckSphere(float x, float y, float z, float radius);
+    bool CheckSphere(float x, float y, float z, float radius) const;
 private:
     void UpdateViewMatrix();
 
