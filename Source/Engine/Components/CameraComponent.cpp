@@ -76,16 +76,27 @@ void CameraComponent::Update(float dt)
 {
     if (!GetOwner()) return;
 
-    bool previewSnap = m_isDirty;
-
-    // Check if the user touched any Virtual Camera slider in the Inspector
+    // Check if the user touched any Virtual Camera slider or Inspector property
     if (VirtualCameraComponent::GetGlobalDirtyFrame() != m_lastVCamDirtyFrame)
     {
-        previewSnap = true;
+        m_dirtyFrames = 2; // Keep awake for 2 frames to bridge hierarchy order
         m_lastVCamDirtyFrame = VirtualCameraComponent::GetGlobalDirtyFrame();
     }
 
-    // FREEZE RULE: Only freeze if paused AND the user didn't tweak any camera properties
+    // Check if CameraComponent's own Inspector properties were modified
+    if (m_isDirty)
+    {
+        m_dirtyFrames = 2;
+        m_isDirty = false;
+    }
+
+    bool previewSnap = (m_dirtyFrames > 0);
+    if (m_dirtyFrames > 0)
+    {
+        --m_dirtyFrames;
+    }
+
+    // FREEZE RULE: Only freeze if paused and no preview updates are pending
     if (dt <= 0.0001f && !previewSnap) return;
 
     // ACTIVE SHOT RESOLVER
@@ -113,7 +124,7 @@ void CameraComponent::Update(float dt)
 
         if (!m_activeVirtualCamera) m_blendTimer = m_blendDuration;
         m_activeVirtualCamera = bestVCam;
-        previewSnap = true; // Force instant cut to align with newly bound camera
+        previewSnap = true; 
     }
 
     if (m_activeVirtualCamera) m_activeVirtualCamera->SetActiveShot(true);

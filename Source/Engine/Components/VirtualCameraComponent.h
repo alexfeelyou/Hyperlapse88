@@ -23,6 +23,9 @@ public:
     void Update(float dt) override;
     void DrawInspector() override;
     void DrawGizmo(const GizmoContext& ctx) noexcept override;
+    void ForceSync() noexcept;
+    void OnEnable() noexcept override { s_globalDirtyFrame++; }
+    void OnDisable() noexcept override { s_globalDirtyFrame++; }
 
     [[nodiscard]] const char* GetTypeName() const noexcept override { return "VirtualCameraComponent"; }
     void SetActiveShot(bool active) noexcept { m_isActiveShot = active; }
