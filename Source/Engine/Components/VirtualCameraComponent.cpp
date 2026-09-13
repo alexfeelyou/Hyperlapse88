@@ -88,6 +88,9 @@ void VirtualCameraComponent::Update(float dt)
 {
     if (!m_owner) return;
 
+    // Freeze completely on pause
+    if (dt <= 0.0001f) return;
+
     // Fast O(1) pointer validation instead of string search
     if (m_followTarget && m_followTarget->IsDestroyed()) m_followTarget = nullptr;
     if (m_lookAtTarget && m_lookAtTarget->IsDestroyed()) m_lookAtTarget = nullptr;
@@ -191,6 +194,17 @@ void VirtualCameraComponent::DrawGizmo(ShapeRenderer* shapeRenderer) noexcept
     const DirectX::XMFLOAT3 pos{ m_owner->GetPosition() };
     const DirectX::XMFLOAT3 rot{ m_owner->GetRotation() };
 
+    Camera* activeCam{ CameraController::Instance().GetActiveCamera().get() };
+    if (activeCam)
+    {
+        // Hide VCam gizmo if we are actively looking through it
+        const DirectX::XMFLOAT3 camPos = activeCam->GetPosition();
+        const float dx = pos.x - camPos.x;
+        const float dy = pos.y - camPos.y;
+        const float dz = pos.z - camPos.z;
+        if ((dx * dx + dy * dy + dz * dz) < 0.01f) return;
+    }
+
     const DirectX::XMFLOAT3 rotRad{
         DirectX::XMConvertToRadians(rot.x),
         DirectX::XMConvertToRadians(rot.y),
@@ -199,8 +213,7 @@ void VirtualCameraComponent::DrawGizmo(ShapeRenderer* shapeRenderer) noexcept
 
     shapeRenderer->DrawFrustum(pos, rotRad, DirectX::XMConvertToRadians(m_fovDegrees), 16.0f / 9.0f, m_nearZ, m_farZ, { 0.2f, 0.8f, 1.0f, 1.0f }, m_gizmoDrawDistance);
 
-    // Queue to CPU batch array 
-    Camera* activeCam{ CameraController::Instance().GetActiveCamera().get() };
+    // Reuse the activeCam pointer we already declared at the top
     if (activeCam && activeCam->CheckSphere(pos.x, pos.y, pos.z, 0.5f))
     {
         const DirectX::XMFLOAT3 activeCamRot{ activeCam->GetRotation() };
@@ -208,7 +221,7 @@ void VirtualCameraComponent::DrawGizmo(ShapeRenderer* shapeRenderer) noexcept
         s_gizmoBatchData.push_back({
             pos.x, pos.y, pos.z,
             0.5f, 0.5f,
-            0.0f, 0.0f, 0.0f, 0.0f, 
+            0.0f, 0.0f, 0.0f, 0.0f,
             activeCamRot.x, activeCamRot.y, activeCamRot.z,
             0.2f, 0.8f, 1.0f, 1.0f  // Cyan
             });

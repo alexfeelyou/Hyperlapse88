@@ -319,6 +319,8 @@ void SceneGame::Update(const float elapsedTime)
         {
             if (m_lastEditorMode == EditorMode::Play)
             {
+                // Clear lingering selections so gizmos don't flash on screen
+                EditorManager::Instance().ClearSelection();
                 // Align Editor Camera to Game Camera before releasing control
                 if (m_sceneRoot)
                 {
@@ -326,8 +328,18 @@ void SceneGame::Update(const float elapsedTime)
                     {
                         if (auto* brain = child->GetComponent<CameraComponent>())
                         {
-                            m_mainCamera->SetPosition(brain->GetCamera()->GetPosition());
-                            m_mainCamera->SetRotation(brain->GetCamera()->GetRotation());
+                            auto brainCam = brain->GetCamera();
+                            m_mainCamera->SetPosition(brainCam->GetPosition());
+                            m_mainCamera->SetRotation(brainCam->GetRotation());
+
+							// Sync the Editor Camera's FOV and aspect ratio to match the Game Camera
+                            m_mainCamera->SetPerspectiveFov(
+                                brainCam->GetFovY(),
+                                brainCam->GetAspectRatio(),
+                                brainCam->GetNearZ(),
+                                brainCam->GetFarZ()
+                            );
+
                             break;
                         }
                     }
@@ -336,7 +348,7 @@ void SceneGame::Update(const float elapsedTime)
                 CameraController::Instance().SyncFromActiveCamera();
             }
             CameraController::Instance().SetEnabled(true);
-        }
+            }
         else if (currentMode == EditorMode::Play && m_lastEditorMode == EditorMode::Pause)
         {
             CameraController::Instance().SetEnabled(false);
@@ -516,8 +528,13 @@ void SceneGame::Update(const float elapsedTime)
     // Engine Core Ticks
     CameraController::Instance().Update(elapsedTime);
     if (m_player) m_postProcess->GetLensDistortion().GetData().glitchStrength = m_player->GetDamageGlitchIntensity();
-    Scene::Update(elapsedTime);
-    EffectManager::Instance().Update(isPlaying ? elapsedTime : 0.0f);
+
+    // Freeze the Scene's delta-time if the Editor is paused or in edit mode
+    // This stops the Camera components from drifting via damping
+    const float sceneDt = isPlaying ? elapsedTime : 0.0f;
+    Scene::Update(sceneDt);
+
+    EffectManager::Instance().Update(sceneDt);
 }
 
 void SceneGame::StartPlayerDeathSequence()
@@ -751,6 +768,12 @@ void SceneGame::RenderScene(const float elapsedTime, Camera* camera)
 void SceneGame::OnResize(int width, int height)
 {
     if (height <= 0) height = 1;
-    if (m_mainCamera) m_mainCamera->SetPerspectiveFov(DirectX::XMConvertToRadians(Config::CAM_FOV), static_cast<float>(width) / static_cast<float>(height), Config::CAM_NEAR, Config::CAM_FAR);
+
+    // Only update Aspect Ratio so we don't destroy synced FOV settings from Play Mode
+    if (m_mainCamera)
+    {
+        m_mainCamera->SetAspectRatio(static_cast<float>(width) / static_cast<float>(height));
+    }
+
     if (m_postProcess) m_postProcess->OnResize(width, height);
 }

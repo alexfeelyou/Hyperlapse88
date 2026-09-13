@@ -76,7 +76,10 @@ void CameraComponent::Update(float dt)
 {
     if (!GetOwner()) return;
 
-    // ACTIVE SHOT RESOLVER
+    // Freeze completely on pause so the camera doesn't jump forward to catch up
+    if (dt <= 0.0001f) return;
+
+    // Active Shot Resolver
     VirtualCameraComponent* bestVCam{ nullptr };
     int highestPriority{ -1 };
 
@@ -106,7 +109,7 @@ void CameraComponent::Update(float dt)
     DirectX::XMFLOAT3 targetPos{};
     DirectX::XMFLOAT3 targetRot{};
 
-    // STATE BLENDING & INSTANT CUT CHECK
+    // State Blending & Instant Cut Check
     if (m_activeVirtualCamera)
     {
         const auto& [vPos, vRot] = ExtractWorldTransform(m_activeVirtualCamera->GetOwner()->transform.GetWorldMatrix());
@@ -149,8 +152,7 @@ void CameraComponent::Update(float dt)
         targetRot = wRot;
     }
 
-    // GAME FEEL LAYER (ZOOM & SHAKE)
-
+    // Game feel layer
     // Process Dynamic Combat Zoom
     m_currentZoomOffset += (m_targetZoomOffset - m_currentZoomOffset) * (std::min)(m_zoomLerpSpeed * dt, 1.0f);
 
@@ -182,7 +184,7 @@ void CameraComponent::Update(float dt)
         targetPos.z + zoomOffset.z + m_shakeOffset.z
     };
 
-    // APPLY OUTPUT
+    // Apply Output
     if (!IsFloat3Equal(finalPos, m_lastPos) || !IsFloat3Equal(targetRot, m_lastRot))
     {
         m_camera->SetPosition(finalPos);
@@ -255,6 +257,18 @@ void CameraComponent::DrawGizmo(ShapeRenderer* shapeRenderer) noexcept
 
     const auto& [worldPos, worldRotRad] = ExtractWorldTransform(GetOwner()->transform.GetWorldMatrix());
 
+    Camera* activeCam{ CameraController::Instance().GetActiveCamera().get() };
+    if (activeCam)
+    {
+        // If the Editor Camera is perfectly aligned with this Camera Brain, hide the gizmo 
+        // to prevent frustum lines from rendering on the edges of the screen.
+        const DirectX::XMFLOAT3 camPos = activeCam->GetPosition();
+        const float dx = worldPos.x - camPos.x;
+        const float dy = worldPos.y - camPos.y;
+        const float dz = worldPos.z - camPos.z;
+        if ((dx * dx + dy * dy + dz * dz) < 0.01f) return;
+    }
+
     constexpr float r{ 1.0f }, g{ 0.85f }, b{ 0.0f }, a{ 1.0f };
     constexpr DirectX::XMFLOAT4 gizmoColor{ r, g, b, a };
 
@@ -268,7 +282,7 @@ void CameraComponent::DrawGizmo(ShapeRenderer* shapeRenderer) noexcept
         gizmoColor,
         m_gizmoDrawDistance);
 
-    Camera* activeCam{ CameraController::Instance().GetActiveCamera().get() };
+    // Reuse the activeCam pointer we already declared at the top
     if (activeCam && activeCam->CheckSphere(worldPos.x, worldPos.y, worldPos.z, 0.5f))
     {
         const DirectX::XMFLOAT3 activeCamRot{ activeCam->GetRotation() };

@@ -356,13 +356,21 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
     ImGui::SetCursorPosX((availWidth * 0.5f) - (totalToolbarWidth * 0.5f));
 
     if (DrawToolbarIconButton("##PlayBtn", ToolbarIcon::Play, m_editorMode == EditorMode::Play, ImVec4{ 0.2f, 0.7f, 0.2f, 1.0f }, buttonSize))
+    {
         SetEditorMode(EditorMode::Play);
+        ClearSelection(); 
+    }
     ImGui::SameLine();
     if (DrawToolbarIconButton("##PauseBtn", ToolbarIcon::Pause, m_editorMode == EditorMode::Pause, ImVec4{ 0.7f, 0.7f, 0.2f, 1.0f }, buttonSize))
+    {
         SetEditorMode(EditorMode::Pause);
+        ClearSelection(); 
+    }
     ImGui::SameLine();
     if (DrawToolbarIconButton("##StopBtn", ToolbarIcon::Stop, m_editorMode == EditorMode::Edit, ImVec4{ 0.7f, 0.2f, 0.2f, 1.0f }, buttonSize))
+    {
         SetEditorMode(EditorMode::Edit);
+    }
 
     const auto* mainWindow{ WindowManager::Instance().GetWindowByIndex(0) };
     const float gameWidth{ mainWindow ? static_cast<float>(mainWindow->GetWidth()) : 1920.0f };
@@ -413,14 +421,16 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
         ImGui::Image(reinterpret_cast<ImTextureID>(m_sceneSRV.Get()), renderSize);
     }
 
-    if ((ImGui::IsWindowFocused() || ImGui::IsWindowHovered()) && !ImGui::IsMouseDown(ImGuiMouseButton_Right))
+    const bool isPlayMode{ m_editorMode == EditorMode::Play };
+
+    // Only allow W/E/R gizmo hotkeys if we are not playing the game
+    if (!isPlayMode && (ImGui::IsWindowFocused() || ImGui::IsWindowHovered()) && !ImGui::IsMouseDown(ImGuiMouseButton_Right))
     {
         if (ImGui::IsKeyPressed(ImGuiKey_W)) m_gizmoOperation = ImGuizmo::TRANSLATE;
         if (ImGui::IsKeyPressed(ImGuiKey_E)) m_gizmoOperation = ImGuizmo::ROTATE;
         if (ImGui::IsKeyPressed(ImGuiKey_R)) m_gizmoOperation = ImGuizmo::SCALE;
     }
 
-    const bool isPlayMode{ m_editorMode == EditorMode::Play };
     const bool hasSelection{ m_selectedObject != nullptr };
     const bool isNotRoot{ currentScene && (m_selectedObject != currentScene->GetRootGameObject()) };
 
