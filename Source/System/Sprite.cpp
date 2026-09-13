@@ -417,15 +417,23 @@ void Sprite::Render3DBatch(ID3D11DeviceContext* dc,
 	if (batchData.empty()) return;
 
 	constexpr size_t MAX_BATCH_VERTICES = 10000;
-	std::vector<Vertex> vertices;
-	vertices.reserve((std::min)(batchData.size() * 6, MAX_BATCH_VERTICES));
+
+	// Make the vector static. 
+	// It allocates memory on the very first frame and reuses it forever.
+	static std::vector<Vertex> s_vertices;
+	s_vertices.clear(); // Clears the array count, but keeps the memory allocated
+
+	// Ensure capacity only once
+	if (s_vertices.capacity() < MAX_BATCH_VERTICES)
+	{
+		s_vertices.reserve(MAX_BATCH_VERTICES);
+	}
 
 	XMMATRIX matVP = XMLoadFloat4x4(&camera->GetView()) * XMLoadFloat4x4(&camera->GetProjection());
 
 	for (const auto& data : batchData)
 	{
-		// Hard guard: Do not exceed the GPU vertex buffer limit
-		if (vertices.size() + 6 > MAX_BATCH_VERTICES) break;
+		if (s_vertices.size() + 6 > MAX_BATCH_VERTICES) break;
 
 		float actualSW = (data.sw <= 0.001f) ? textureWidth : data.sw;
 		float actualSH = (data.sh <= 0.001f) ? textureHeight : data.sh;
@@ -467,17 +475,16 @@ void Sprite::Render3DBatch(ID3D11DeviceContext* dc,
 		v[2].texcoord = { u0, v1 };
 		v[3].texcoord = { u1, v1 };
 
-		vertices.push_back(v[0]); vertices.push_back(v[1]); vertices.push_back(v[2]);
-		vertices.push_back(v[1]); vertices.push_back(v[3]); vertices.push_back(v[2]);
+		s_vertices.push_back(v[0]); s_vertices.push_back(v[1]); s_vertices.push_back(v[2]);
+		s_vertices.push_back(v[1]); s_vertices.push_back(v[3]); s_vertices.push_back(v[2]);
 	}
 
-	if (vertices.empty()) return;
+	if (s_vertices.empty()) return;
 
 	D3D11_MAPPED_SUBRESOURCE ms;
 	if (SUCCEEDED(dc->Map(vertexBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &ms)))
 	{
-		// Safe write bounded by MAX_BATCH_VERTICES
-		memcpy(ms.pData, vertices.data(), sizeof(Vertex) * vertices.size());
+		memcpy(ms.pData, s_vertices.data(), sizeof(Vertex) * s_vertices.size());
 		dc->Unmap(vertexBuffer.Get(), 0);
 	}
 
@@ -493,7 +500,7 @@ void Sprite::Render3DBatch(ID3D11DeviceContext* dc,
 
 	BindRenderState(dc);
 
-	dc->Draw(static_cast<UINT>(vertices.size()), 0);
+	dc->Draw(static_cast<UINT>(s_vertices.size()), 0);
 }
 
 void Sprite::BindRenderState(ID3D11DeviceContext* dc) const
