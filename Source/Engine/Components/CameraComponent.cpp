@@ -113,6 +113,7 @@ void CameraComponent::Update(float dt)
 
         if (!m_activeVirtualCamera) m_blendTimer = m_blendDuration;
         m_activeVirtualCamera = bestVCam;
+        previewSnap = true; // Force instant cut to align with newly bound camera
     }
 
     if (m_activeVirtualCamera) m_activeVirtualCamera->SetActiveShot(true);

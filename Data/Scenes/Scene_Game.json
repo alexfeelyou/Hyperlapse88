@@ -268,10 +268,10 @@
                 }
             ],
             "IsActive": true,
-            "Name": "Camera",
-            "PosX": 0.0,
-            "PosY": 1.600000023841858,
-            "PosZ": -10.0,
+            "Name": "Main Camera",
+            "PosX": 0.10000000149011612,
+            "PosY": 1.100000023841858,
+            "PosZ": -4.900000095367432,
             "RotX": -0.0,
             "RotY": 0.0,
             "RotZ": -0.0,
@@ -284,9 +284,9 @@
             "Components": [
                 {
                     "FarZ": 1000.0,
-                    "FollowOffsetX": 0.0,
-                    "FollowOffsetY": 1.600000023841858,
-                    "FollowOffsetZ": -10.0,
+                    "FollowOffsetX": 0.10000000149011612,
+                    "FollowOffsetY": 1.100000023841858,
+                    "FollowOffsetZ": -4.800000190734863,
                     "FollowTarget": "Player",
                     "FovDegrees": 45.0,
                     "LookAtTarget": "",
@@ -299,45 +299,15 @@
             ],
             "IsActive": true,
             "Name": "Virtual Camera",
-            "PosX": 0.0,
-            "PosY": 1.600000023841858,
-            "PosZ": -10.0,
-            "RotX": -0.0,
+            "PosX": 0.10000000149011612,
+            "PosY": 1.100000023841858,
+            "PosZ": -4.800000190734863,
+            "RotX": 0.0,
             "RotY": 0.0,
-            "RotZ": -0.0,
+            "RotZ": 0.0,
             "ScaleX": 1.0,
             "ScaleY": 1.0,
             "ScaleZ": 1.0
-        },
-        {
-            "Children": [],
-            "Components": [
-                {
-                    "FarZ": 1000.0,
-                    "FollowOffsetX": 0.0,
-                    "FollowOffsetY": 5.0,
-                    "FollowOffsetZ": -10.0,
-                    "FollowTarget": "",
-                    "FovDegrees": 45.0,
-                    "LookAtTarget": "",
-                    "NearZ": 0.20000000298023224,
-                    "PositionDamping": 5.0,
-                    "Priority": 5,
-                    "RotationDamping": 5.0,
-                    "Type": "VirtualCameraComponent"
-                }
-            ],
-            "IsActive": true,
-            "Name": "Virtual Camera 2",
-            "PosX": -11.781266212463379,
-            "PosY": 2.3414230346679688,
-            "PosZ": 15.292780876159668,
-            "RotX": -0.0,
-            "RotY": 109.18074035644531,
-            "RotZ": 0.0,
-            "ScaleX": 0.9999954104423523,
-            "ScaleY": 1.0,
-            "ScaleZ": 0.9999954104423523
         }
     ]
 }

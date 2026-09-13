@@ -33,11 +33,13 @@ namespace
 VirtualCameraComponent::VirtualCameraComponent()
 {
     s_registry.push_back(this);
+    s_globalDirtyFrame++; // Notify the Camera Brain that a new camera was created
 }
 
 VirtualCameraComponent::~VirtualCameraComponent()
 {
     s_registry.erase(std::remove(s_registry.begin(), s_registry.end(), this), s_registry.end());
+    s_globalDirtyFrame++; // Notify the Camera Brain if a camera was deleted
 }
 
 void VirtualCameraComponent::OnAttach(GameObject* owner) noexcept
@@ -51,6 +53,9 @@ void VirtualCameraComponent::OnAttach(GameObject* owner) noexcept
         m_cachedPos = owner->GetPosition();
         m_cachedRot = owner->GetRotation();
     }
+
+    m_isDirty = true;
+    s_globalDirtyFrame++; // Trigger immediate sync once GameObject transform is attached
 }
 
 void VirtualCameraComponent::EnsureSharedGizmoLoaded() noexcept
