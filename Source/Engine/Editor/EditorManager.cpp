@@ -358,18 +358,21 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
     if (DrawToolbarIconButton("##PlayBtn", ToolbarIcon::Play, m_editorMode == EditorMode::Play, ImVec4{ 0.2f, 0.7f, 0.2f, 1.0f }, buttonSize))
     {
         SetEditorMode(EditorMode::Play);
-        ClearSelection(); 
+        ClearSelection();
+        m_showGizmos = false; // Auto-hide gizmos for a clean gameplay experience
     }
     ImGui::SameLine();
     if (DrawToolbarIconButton("##PauseBtn", ToolbarIcon::Pause, m_editorMode == EditorMode::Pause, ImVec4{ 0.7f, 0.7f, 0.2f, 1.0f }, buttonSize))
     {
         SetEditorMode(EditorMode::Pause);
-        ClearSelection(); 
+        ClearSelection();
+        m_showGizmos = true; // Auto-show gizmos to inspect the paused state
     }
     ImGui::SameLine();
     if (DrawToolbarIconButton("##StopBtn", ToolbarIcon::Stop, m_editorMode == EditorMode::Edit, ImVec4{ 0.7f, 0.2f, 0.2f, 1.0f }, buttonSize))
     {
         SetEditorMode(EditorMode::Edit);
+        m_showGizmos = true; // Auto-show gizmos for level editing
     }
 
     // Gizmo Category Dropdown aligned to the right

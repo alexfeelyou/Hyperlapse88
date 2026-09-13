@@ -102,7 +102,7 @@ private:
     ImGuizmo::OPERATION m_gizmoOperation{ ImGuizmo::TRANSLATE };
     ImGuizmo::MODE      m_gizmoMode{ ImGuizmo::WORLD };
     bool m_showGizmos{ true };
-    std::uint32_t m_gizmoMask{ static_cast<std::uint32_t>(GizmoCategory::All) };
+    std::uint32_t m_gizmoMask{ static_cast<std::uint32_t>(GizmoCategory::Cameras) };
 
     // Release vs Editor Boot State
 #ifdef _DEBUG
