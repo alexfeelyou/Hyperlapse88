@@ -2,9 +2,11 @@
 #include <fstream>
 #include <json.hpp>
 #include "Camera.h"
+#include "CameraComponent.h"
 #include "EditorManager.h"
 #include "LightComponent.h"
 #include "StaticMeshColliderComponent.h"
+#include "VirtualCameraComponent.h"
 
 namespace
 {
@@ -744,27 +746,47 @@ void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
             if (auto* gameScene{ dynamic_cast<SceneGame*>(currentScene) })
             {
                 ImGui::Separator();
+                ImGui::TextDisabled("Rendering");
+
+                if (ImGui::BeginMenu("Camera"))
+                {
+                    if (ImGui::MenuItem("Main Camera"))
+                    {
+                        auto camObj = std::make_unique<GameObject>("Main Camera");
+                        camObj->AddComponent<CameraComponent>();
+                        currentScene->GetRootGameObject()->AddChild(std::move(camObj));
+                    }
+                    if (ImGui::MenuItem("Virtual Camera"))
+                    {
+                        auto vcamObj = std::make_unique<GameObject>("Virtual Camera");
+                        vcamObj->AddComponent<VirtualCameraComponent>();
+                        currentScene->GetRootGameObject()->AddChild(std::move(vcamObj));
+                    }
+                    ImGui::EndMenu();
+                }
+
+                ImGui::Separator();
                 ImGui::TextDisabled("Lighting");
 
                 if (ImGui::BeginMenu("Light"))
                 {
                     if (ImGui::MenuItem("Directional Light"))
                     {
-                        auto lightObj = std::make_unique<GameObject>("Directional_Light");
+                        auto lightObj = std::make_unique<GameObject>("Directional Light");
                         lightObj->transform.rotation = { 45.0f, -45.0f, 0.0f };
                         lightObj->AddComponent<DirectionalLightComponent>();
                         currentScene->GetRootGameObject()->AddChild(std::move(lightObj));
                     }
                     if (ImGui::MenuItem("Point Light"))
                     {
-                        auto lightObj = std::make_unique<GameObject>("Point_Light");
+                        auto lightObj = std::make_unique<GameObject>("Point Light");
                         lightObj->transform.position = { 0.0f, 3.0f, 0.0f };
                         lightObj->AddComponent<PointLightComponent>();
                         currentScene->GetRootGameObject()->AddChild(std::move(lightObj));
                     }
                     if (ImGui::MenuItem("Spot Light"))
                     {
-                        auto lightObj = std::make_unique<GameObject>("Spot_Light");
+                        auto lightObj = std::make_unique<GameObject>("Spot Light");
                         lightObj->transform.position = { 0.0f, 5.0f, 0.0f };
                         lightObj->transform.rotation = { 90.0f, 0.0f, 0.0f };
                         lightObj->AddComponent<SpotLightComponent>();
