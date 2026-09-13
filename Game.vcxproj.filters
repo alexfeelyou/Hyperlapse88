@@ -366,6 +366,9 @@
     <ClCompile Include="Source\Engine\Components\VirtualCameraComponent.cpp">
       <Filter>Source\Engine\Components</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Engine\Components\CapsuleColliderComponent.cpp">
+      <Filter>Source\Engine\Components</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\System\BasicShader.h">
@@ -704,6 +707,9 @@
     </ClInclude>
     <ClInclude Include="Source\Engine\Helpers\Random.h">
       <Filter>Source\Engine\Helpers</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Components\CapsuleColliderComponent.h">
+      <Filter>Source\Engine\Components</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
