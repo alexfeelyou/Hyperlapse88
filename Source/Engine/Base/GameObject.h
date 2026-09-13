@@ -30,8 +30,8 @@ public:
     // Recursively renders this object and all its children
     void Render(class ModelRenderer* renderer);
 
-    // Recursively draws Editor-only gizmos for this object's components and all children
-    void DrawGizmo(class ShapeRenderer* shapeRenderer) noexcept;
+    // Recursively draws debug gizmos for this object and all its children
+    void DrawGizmo(const GizmoContext& ctx) noexcept;
 
     // Iterates over components to draw their ImGui Inspector UI
     void DrawInspector();

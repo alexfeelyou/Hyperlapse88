@@ -251,18 +251,18 @@ void CameraComponent::DrawInspector()
     }
 }
 
-void CameraComponent::DrawGizmo(ShapeRenderer* shapeRenderer) noexcept
+void CameraComponent::DrawGizmo(const GizmoContext& ctx) noexcept
 {
-    if (!shapeRenderer || !GetOwner()) return;
+    // Fast-fail if Camera Gizmos are toggled off in the editor
+    if (!(ctx.categoryMask & static_cast<std::uint32_t>(GizmoCategory::Cameras))) return;
+
+    if (!ctx.shapes || !GetOwner()) return;
 
     const auto& [worldPos, worldRotRad] = ExtractWorldTransform(GetOwner()->transform.GetWorldMatrix());
 
-    Camera* activeCam{ CameraController::Instance().GetActiveCamera().get() };
-    if (activeCam)
+    if (ctx.activeCamera)
     {
-        // If the Editor Camera is perfectly aligned with this Camera Brain, hide the gizmo 
-        // to prevent frustum lines from rendering on the edges of the screen.
-        const DirectX::XMFLOAT3 camPos = activeCam->GetPosition();
+        const DirectX::XMFLOAT3 camPos = ctx.activeCamera->GetPosition();
         const float dx = worldPos.x - camPos.x;
         const float dy = worldPos.y - camPos.y;
         const float dz = worldPos.z - camPos.z;
@@ -272,7 +272,7 @@ void CameraComponent::DrawGizmo(ShapeRenderer* shapeRenderer) noexcept
     constexpr float r{ 1.0f }, g{ 0.85f }, b{ 0.0f }, a{ 1.0f };
     constexpr DirectX::XMFLOAT4 gizmoColor{ r, g, b, a };
 
-    shapeRenderer->DrawFrustum(
+    ctx.shapes->DrawFrustum(
         worldPos,
         worldRotRad,
         DirectX::XMConvertToRadians(m_fovDegrees),
@@ -282,18 +282,15 @@ void CameraComponent::DrawGizmo(ShapeRenderer* shapeRenderer) noexcept
         gizmoColor,
         m_gizmoDrawDistance);
 
-    // Reuse the activeCam pointer we already declared at the top
-    if (activeCam && activeCam->CheckSphere(worldPos.x, worldPos.y, worldPos.z, 0.5f))
+    if (ctx.activeCamera && ctx.activeCamera->CheckSphere(worldPos.x, worldPos.y, worldPos.z, 0.5f))
     {
-        const DirectX::XMFLOAT3 activeCamRot{ activeCam->GetRotation() };
-
+        const DirectX::XMFLOAT3 activeCamRot{ ctx.activeCamera->GetRotation() };
         VirtualCameraComponent::QueueGizmoIcon({
             worldPos.x, worldPos.y, worldPos.z,
-            0.5f, 0.5f,
-            0.0f, 0.0f, 0.0f, 0.0f,
+            0.5f, 0.5f, 0.0f, 0.0f, 0.0f, 0.0f,
             activeCamRot.x, activeCamRot.y, activeCamRot.z,
             r, g, b, a
-            });
+        });
     }
 }
 

@@ -21,7 +21,7 @@ public:
     void OnAttach(class GameObject* owner) noexcept override;
     void Update(float dt) override;
     void DrawInspector() override;
-    void DrawGizmo(class ShapeRenderer* shapeRenderer) noexcept override;
+    void DrawGizmo(const GizmoContext& ctx) noexcept override;
 
     [[nodiscard]] const char* GetTypeName() const noexcept override { return "CameraComponent"; }
 

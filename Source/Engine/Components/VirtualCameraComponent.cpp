@@ -187,18 +187,20 @@ void VirtualCameraComponent::DrawInspector()
     ImGui::DragFloat("Gizmo Draw Distance", &m_gizmoDrawDistance, 0.1f, 0.5f, 100.0f);
 }
 
-void VirtualCameraComponent::DrawGizmo(ShapeRenderer* shapeRenderer) noexcept
+void VirtualCameraComponent::DrawGizmo(const GizmoContext& ctx) noexcept
 {
-    if (!shapeRenderer || !m_owner) return;
+    // Fast-fail if Camera Gizmos are toggled off
+    if (!(ctx.categoryMask & static_cast<std::uint32_t>(GizmoCategory::Cameras))) return;
+
+    if (!ctx.shapes || !m_owner) return;
 
     const DirectX::XMFLOAT3 pos{ m_owner->GetPosition() };
     const DirectX::XMFLOAT3 rot{ m_owner->GetRotation() };
 
-    Camera* activeCam{ CameraController::Instance().GetActiveCamera().get() };
-    if (activeCam)
+    if (ctx.activeCamera)
     {
         // Hide VCam gizmo if we are actively looking through it
-        const DirectX::XMFLOAT3 camPos = activeCam->GetPosition();
+        const DirectX::XMFLOAT3 camPos = ctx.activeCamera->GetPosition();
         const float dx = pos.x - camPos.x;
         const float dy = pos.y - camPos.y;
         const float dz = pos.z - camPos.z;
@@ -211,12 +213,12 @@ void VirtualCameraComponent::DrawGizmo(ShapeRenderer* shapeRenderer) noexcept
         DirectX::XMConvertToRadians(rot.z)
     };
 
-    shapeRenderer->DrawFrustum(pos, rotRad, DirectX::XMConvertToRadians(m_fovDegrees), 16.0f / 9.0f, m_nearZ, m_farZ, { 0.2f, 0.8f, 1.0f, 1.0f }, m_gizmoDrawDistance);
+    ctx.shapes->DrawFrustum(pos, rotRad, DirectX::XMConvertToRadians(m_fovDegrees), 16.0f / 9.0f, m_nearZ, m_farZ, { 0.2f, 0.8f, 1.0f, 1.0f }, m_gizmoDrawDistance);
 
-    // Reuse the activeCam pointer we already declared at the top
-    if (activeCam && activeCam->CheckSphere(pos.x, pos.y, pos.z, 0.5f))
+    // Reuse the active camera from the context
+    if (ctx.activeCamera && ctx.activeCamera->CheckSphere(pos.x, pos.y, pos.z, 0.5f))
     {
-        const DirectX::XMFLOAT3 activeCamRot{ activeCam->GetRotation() };
+        const DirectX::XMFLOAT3 activeCamRot{ ctx.activeCamera->GetRotation() };
 
         s_gizmoBatchData.push_back({
             pos.x, pos.y, pos.z,

@@ -682,15 +682,29 @@ void SceneGame::Render(float elapsedTime, Camera* camera)
 
     RenderScene(renderTime, targetCam);
 
-    // Render Editor Gizmos only if we are looking through the Editor Free Camera
-    if (targetCam == m_mainCamera.get() && EditorManager::Instance().GetEditorMode() != EditorMode::Play)
+    // Gizmo Render Pass
+    const bool isEditMode = EditorManager::Instance().GetEditorMode() != EditorMode::Play;
+    const bool shouldDrawGizmos = EditorManager::Instance().GetShowGizmos();
+
+    if (shouldDrawGizmos)
     {
         auto shapeRenderer{ Graphics::Instance().GetShapeRenderer() };
         auto primRenderer{ Graphics::Instance().GetPrimitiveRenderer() };
 
+        // Pack the context payload with the bitmask from the Editor
+        GizmoContext ctx{ 
+            shapeRenderer, 
+            primRenderer, 
+            targetCam, 
+            EditorManager::Instance().GetGizmoMask() 
+        };
+
+        // External managers
         if (m_itemManager) m_itemManager->RenderDebug(shapeRenderer);
         if (m_enemyManager) m_enemyManager->RenderDebug(shapeRenderer);
-        if (m_sceneRoot) m_sceneRoot->DrawGizmo(shapeRenderer);
+        
+        // Broadcast to all active components in the hierarchy
+        if (m_sceneRoot) m_sceneRoot->DrawGizmo(ctx);
 
         VirtualCameraComponent::FlushGizmos(dc, targetCam);
         shapeRenderer->Render(dc, targetCam->GetView(), targetCam->GetProjection());
@@ -698,7 +712,7 @@ void SceneGame::Render(float elapsedTime, Camera* camera)
     }
     else
     {
-        // Even if we don't render gizmos in play mode, we must safely discard accumulated queue data
+        // Safely discard accumulated queue data if gizmos are toggled off
         VirtualCameraComponent::FlushGizmos(dc, targetCam);
     }
 

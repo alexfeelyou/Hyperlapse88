@@ -372,6 +372,32 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
         SetEditorMode(EditorMode::Edit);
     }
 
+    // Gizmo Category Dropdown aligned to the right
+    ImGui::SameLine(availWidth - 140.0f);
+    ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 2.0f);
+    ImGui::Checkbox("Gizmos", &m_showGizmos);
+
+    ImGui::SameLine();
+    ImGui::BeginDisabled(!m_showGizmos);
+    if (ImGui::Button("▼##GizmoDrop"))
+    {
+        ImGui::OpenPopup("GizmoSettingsPopup");
+    }
+
+    if (ImGui::BeginPopup("GizmoSettingsPopup"))
+    {
+        ImGui::TextDisabled("GIZMO VISIBILITY");
+        ImGui::Separator();
+
+        ImGui::CheckboxFlags("Cameras", &m_gizmoMask, static_cast<std::uint32_t>(GizmoCategory::Cameras));
+        ImGui::CheckboxFlags("Static Physics", &m_gizmoMask, static_cast<std::uint32_t>(GizmoCategory::StaticPhysics));
+        ImGui::CheckboxFlags("Character Physics", &m_gizmoMask, static_cast<std::uint32_t>(GizmoCategory::DynamicPhysics));
+        ImGui::CheckboxFlags("Combat Hitboxes", &m_gizmoMask, static_cast<std::uint32_t>(GizmoCategory::Hitboxes));
+
+        ImGui::EndPopup();
+    }
+    ImGui::EndDisabled();
+
     const auto* mainWindow{ WindowManager::Instance().GetWindowByIndex(0) };
     const float gameWidth{ mainWindow ? static_cast<float>(mainWindow->GetWidth()) : 1920.0f };
     const float gameHeight{ mainWindow ? static_cast<float>(mainWindow->GetHeight()) : 1080.0f };

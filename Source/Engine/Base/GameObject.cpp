@@ -65,19 +65,11 @@ void GameObject::Render(ModelRenderer* renderer)
     }
 }
 
-void GameObject::DrawGizmo(ShapeRenderer* shapeRenderer) noexcept
+void GameObject::DrawGizmo(const GizmoContext& ctx) noexcept
 {
     if (!m_isActive) return;
-
-    for (const auto& component : m_components)
-    {
-        component->DrawGizmo(shapeRenderer);
-    }
-
-    for (const auto& child : m_children)
-    {
-        child->DrawGizmo(shapeRenderer);
-    }
+    for (auto& comp : m_components) comp->DrawGizmo(ctx);
+    for (auto& child : m_children) child->DrawGizmo(ctx);
 }
 
 void GameObject::DrawInspector()

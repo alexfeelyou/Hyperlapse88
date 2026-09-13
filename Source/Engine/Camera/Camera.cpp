@@ -197,7 +197,7 @@ void Camera::UpdateViewMatrix()
     XMStoreFloat4x4(&view, XMMatrixLookToLH(vPos, vFront, vUp));
 }
 
-bool Camera::CheckSphere(float x, float y, float z, float radius)
+bool Camera::CheckSphere(float x, float y, float z, float radius) const
 {
     XMMATRIX matView = XMLoadFloat4x4(&view);
     XMMATRIX matProj = XMLoadFloat4x4(&projection);

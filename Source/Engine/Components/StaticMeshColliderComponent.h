@@ -49,7 +49,9 @@ public:
     void Update(float dt) override;
     void DrawInspector() override;
 
-    void Render(ModelRenderer* renderer) override;
+    void Render(class ModelRenderer* renderer) override;
+    void DrawGizmo(const GizmoContext& ctx) noexcept override;
+
     void Serialize(nlohmann::json& json) const override;
     void Deserialize(const nlohmann::json& json) override;
 
@@ -71,8 +73,6 @@ private:
     StaticColliderConfig m_config{};
     physx::PxRigidStatic* m_physxActor{ nullptr };
     std::vector<physx::PxShape*> m_attachedShapes{};
-
-    bool m_showDebug{ false };
 
     DirectX::XMFLOAT3 m_lastFramePos{ 0.0f, 0.0f, 0.0f };
     DirectX::XMFLOAT3 m_lastFrameRot{ 0.0f, 0.0f, 0.0f };

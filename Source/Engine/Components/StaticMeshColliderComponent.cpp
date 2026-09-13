@@ -283,10 +283,14 @@ void StaticMeshColliderComponent::RebuildPhysics() noexcept
 
 void StaticMeshColliderComponent::Render(ModelRenderer* renderer)
 {
-    if (!m_showDebug || !m_owner) return;
+}
 
-    auto* shapeRenderer{ Graphics::Instance().GetShapeRenderer() };
-    if (!shapeRenderer || m_attachedShapes.empty()) return;
+void StaticMeshColliderComponent::DrawGizmo(const GizmoContext& ctx) noexcept
+{
+    // Fast-fail if Static Physics Gizmos are toggled off
+    if (!(ctx.categoryMask & static_cast<std::uint32_t>(GizmoCategory::StaticPhysics))) return;
+
+    if (!m_owner || !ctx.shapes || m_attachedShapes.empty()) return;
 
     const Transform& t{ m_owner->transform };
     const DirectX::XMFLOAT3 radRot{
@@ -303,7 +307,6 @@ void StaticMeshColliderComponent::Render(ModelRenderer* renderer)
 
     const DirectX::XMMATRIX locScale{ DirectX::XMMatrixScaling(1.0f, 1.0f, 1.0f) };
 
-    // Mirror the exact same Triangle Mesh hard-locks into the rendering matrix
     const DirectX::XMMATRIX locRot = isTriangleMesh ? DirectX::XMMatrixIdentity() : DirectX::XMMatrixRotationRollPitchYaw(
         DirectX::XMConvertToRadians(m_config.localRotation.x),
         DirectX::XMConvertToRadians(m_config.localRotation.y),
@@ -344,13 +347,13 @@ void StaticMeshColliderComponent::Render(ModelRenderer* renderer)
             (std::max)(0.001f, m_config.proxyExtents.y * t.scale.y * 0.5f),
             (std::max)(0.001f, m_config.proxyExtents.z * t.scale.z * 0.5f)
         };
-        shapeRenderer->DrawBox(wPos, wRot, halfExtents, debugColor);
+        ctx.shapes->DrawBox(wPos, wRot, halfExtents, debugColor);
         break;
     }
     case ColliderShapeType::Sphere:
     {
         const float radius{ (std::max)(0.001f, m_config.proxyExtents.x * t.scale.x) };
-        shapeRenderer->DrawSphere(wPos, radius, debugColor);
+        ctx.shapes->DrawSphere(wPos, radius, debugColor);
         break;
     }
     case ColliderShapeType::Capsule:
@@ -360,7 +363,7 @@ void StaticMeshColliderComponent::Render(ModelRenderer* renderer)
 
         DirectX::XMFLOAT4X4 transformMatrix{};
         DirectX::XMStoreFloat4x4(&transformMatrix, compWorld);
-        shapeRenderer->DrawCapsule(transformMatrix, radius, height, debugColor);
+        ctx.shapes->DrawCapsule(transformMatrix, radius, height, debugColor);
         break;
     }
     case ColliderShapeType::TriangleMesh:
@@ -399,9 +402,9 @@ void StaticMeshColliderComponent::Render(ModelRenderer* renderer)
                 const physx::PxVec3 v1{ globalPose.transform(pxScale.transform(vertices[i1])) };
                 const physx::PxVec3 v2{ globalPose.transform(pxScale.transform(vertices[i2])) };
 
-                shapeRenderer->DrawLine({ v0.x, v0.y, v0.z }, { v1.x, v1.y, v1.z }, debugColor);
-                shapeRenderer->DrawLine({ v1.x, v1.y, v1.z }, { v2.x, v2.y, v2.z }, debugColor);
-                shapeRenderer->DrawLine({ v2.x, v2.y, v2.z }, { v0.x, v0.y, v0.z }, debugColor);
+                ctx.shapes->DrawLine({ v0.x, v0.y, v0.z }, { v1.x, v1.y, v1.z }, debugColor);
+                ctx.shapes->DrawLine({ v1.x, v1.y, v1.z }, { v2.x, v2.y, v2.z }, debugColor);
+                ctx.shapes->DrawLine({ v2.x, v2.y, v2.z }, { v0.x, v0.y, v0.z }, debugColor);
             }
         }
         break;
@@ -430,7 +433,6 @@ void StaticMeshColliderComponent::Serialize(nlohmann::json& json) const
     json["LocalRotZ"] = m_config.localRotation.z;
 
     json["IsTrigger"] = m_config.isTrigger;
-    json["ShowDebug"] = m_showDebug;
 }
 
 void StaticMeshColliderComponent::Deserialize(const nlohmann::json& json)
@@ -458,7 +460,6 @@ void StaticMeshColliderComponent::Deserialize(const nlohmann::json& json)
     };
 
     m_config.isTrigger = json.value("IsTrigger", false);
-    m_showDebug = json.value("ShowDebug", false);
 
     RebuildPhysics();
 }
@@ -502,7 +503,6 @@ void StaticMeshColliderComponent::DrawInspector()
     }
 
     ImGui::Spacing();
-    ImGui::Checkbox("Show Debug Collision", &m_showDebug);
 
     int shapeTypeAsInt{ static_cast<int>(m_config.shapeType) };
     const char* shapeNames[]{ "Box", "Sphere", "Capsule", "TriangleMesh" };
