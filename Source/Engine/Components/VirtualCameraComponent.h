@@ -26,6 +26,7 @@ public:
 
     [[nodiscard]] const char* GetTypeName() const noexcept override { return "VirtualCameraComponent"; }
     void SetActiveShot(bool active) noexcept { m_isActiveShot = active; }
+    static std::uint32_t GetGlobalDirtyFrame() noexcept { return s_globalDirtyFrame; }
 
     void Serialize(nlohmann::json& outJson) const override;
     void Deserialize(const nlohmann::json& inJson) override;
@@ -68,6 +69,9 @@ private:
     DirectX::XMFLOAT3 m_cachedRot{ 0.0f, 0.0f, 0.0f };
 
     bool m_isActiveShot{ false };
+
+    static inline std::uint32_t s_globalDirtyFrame{ 0 };
+    bool m_isDirty{ false };
 
     [[nodiscard]] class GameObject* FindTargetByName(const std::string& name) const noexcept;
     void ResolveTargets() noexcept;

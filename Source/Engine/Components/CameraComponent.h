@@ -69,6 +69,12 @@ private:
     // Determines which local axis the camera pushes out/in during a zoom
     DirectX::XMFLOAT3 m_zoomAxis{ 0.0f, 1.0f, -0.5f };
 
+	// Dirty-tracking for camera updates
+    bool m_isDirty{ false };
+    std::uint32_t m_lastVCamDirtyFrame{ 0 };
+    DirectX::XMFLOAT3 m_lastVCamPos{ 0.0f, 0.0f, 0.0f };
+    DirectX::XMFLOAT3 m_lastVCamRot{ 0.0f, 0.0f, 0.0f };
+
     // Dirty-tracking cache for zero matrix overhead when idle
     DirectX::XMFLOAT3 m_lastPos{ 0.0f, 0.0f, 0.0f };
     DirectX::XMFLOAT3 m_lastRot{ 0.0f, 0.0f, 0.0f };

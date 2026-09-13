@@ -76,18 +76,25 @@ void CameraComponent::Update(float dt)
 {
     if (!GetOwner()) return;
 
-    // Freeze completely on pause so the camera doesn't jump forward to catch up
-    if (dt <= 0.0001f) return;
+    bool previewSnap = m_isDirty;
 
-    // Active Shot Resolver
+    // Check if the user touched any Virtual Camera slider in the Inspector
+    if (VirtualCameraComponent::GetGlobalDirtyFrame() != m_lastVCamDirtyFrame)
+    {
+        previewSnap = true;
+        m_lastVCamDirtyFrame = VirtualCameraComponent::GetGlobalDirtyFrame();
+    }
+
+    // FREEZE RULE: Only freeze if paused AND the user didn't tweak any camera properties
+    if (dt <= 0.0001f && !previewSnap) return;
+
+    // ACTIVE SHOT RESOLVER
     VirtualCameraComponent* bestVCam{ nullptr };
     int highestPriority{ -1 };
 
     for (VirtualCameraComponent* vcam : VirtualCameraComponent::GetRegistry())
     {
-        // Reset all VCams to false every frame
         vcam->SetActiveShot(false);
-
         if (vcam->GetOwner() && vcam->GetOwner()->IsActive())
         {
             if (vcam->GetPriority() > highestPriority)
@@ -108,22 +115,17 @@ void CameraComponent::Update(float dt)
         m_activeVirtualCamera = bestVCam;
     }
 
-    // Flag the winning Virtual Camera so it hides its own gizmo
-    if (m_activeVirtualCamera)
-    {
-        m_activeVirtualCamera->SetActiveShot(true);
-    }
+    if (m_activeVirtualCamera) m_activeVirtualCamera->SetActiveShot(true);
 
     DirectX::XMFLOAT3 targetPos{};
     DirectX::XMFLOAT3 targetRot{};
 
-    // State Blending & Instant Cut Check
     if (m_activeVirtualCamera)
     {
         const auto& [vPos, vRot] = ExtractWorldTransform(m_activeVirtualCamera->GetOwner()->transform.GetWorldMatrix());
 
-        // Instant Cut Zero-Guard
-        if (m_blendDuration <= 0.001f || m_blendTimer >= m_blendDuration)
+        // LIVE PREVIEW: Force an instant cut to preview Inspector edits
+        if (m_blendDuration <= 0.001f || m_blendTimer >= m_blendDuration || previewSnap)
         {
             targetPos = vPos;
             targetRot = vRot;
@@ -154,15 +156,20 @@ void CameraComponent::Update(float dt)
     }
     else
     {
-        // Fallback: If no VirtualCameras exist, remain attached to the Brain's own physical transform
         const auto& [wPos, wRot] = ExtractWorldTransform(GetOwner()->transform.GetWorldMatrix());
         targetPos = wPos;
         targetRot = wRot;
     }
 
-    // Game feel layer
-    // Process Dynamic Combat Zoom
-    m_currentZoomOffset += (m_targetZoomOffset - m_currentZoomOffset) * (std::min)(m_zoomLerpSpeed * dt, 1.0f);
+    // Dynamic Combat Zoom
+    if (previewSnap)
+    {
+        m_currentZoomOffset = m_targetZoomOffset; // Instant snap
+    }
+    else
+    {
+        m_currentZoomOffset += (m_targetZoomOffset - m_currentZoomOffset) * (std::min)(m_zoomLerpSpeed * dt, 1.0f);
+    }
 
     DirectX::XMFLOAT3 zoomOffset{
         m_zoomAxis.x * m_currentZoomOffset,
@@ -170,8 +177,8 @@ void CameraComponent::Update(float dt)
         m_zoomAxis.z * m_currentZoomOffset
     };
 
-    // Process Trauma Shake
-    if (m_trauma > 0.0f)
+    // Trauma Shake
+    if (m_trauma > 0.0f && dt > 0.0f)
     {
         m_trauma = (std::max)(0.0f, m_trauma - (m_traumaDecay * dt));
         const float shakeAmount{ m_trauma * m_trauma };
@@ -180,27 +187,28 @@ void CameraComponent::Update(float dt)
         m_shakeOffset.y = Random::Get(-1.0f, 1.0f) * m_maxShakeOffset * shakeAmount;
         m_shakeOffset.z = Random::Get(-1.0f, 1.0f) * m_maxShakeOffset * shakeAmount;
     }
+    else if (dt <= 0.0f)
+    {
+        // Don't modify trauma while paused to preserve effect
+    }
     else
     {
         m_shakeOffset = { 0.0f, 0.0f, 0.0f };
     }
 
-    // Compose final Matrix
     DirectX::XMFLOAT3 finalPos{
         targetPos.x + zoomOffset.x + m_shakeOffset.x,
         targetPos.y + zoomOffset.y + m_shakeOffset.y,
         targetPos.z + zoomOffset.z + m_shakeOffset.z
     };
 
-    // Apply Output
-    if (!IsFloat3Equal(finalPos, m_lastPos) || !IsFloat3Equal(targetRot, m_lastRot))
+    if (!IsFloat3Equal(finalPos, m_lastPos) || !IsFloat3Equal(targetRot, m_lastRot) || previewSnap)
     {
         m_camera->SetPosition(finalPos);
         m_camera->SetRotation(targetRot);
         m_lastPos = finalPos;
         m_lastRot = targetRot;
 
-        // Sync the base GameObject so the Scene View gizmo represents the mathematically pure target
         if (m_activeVirtualCamera)
         {
             GetOwner()->SetPosition(targetPos);
@@ -211,6 +219,8 @@ void CameraComponent::Update(float dt)
                 });
         }
     }
+
+    m_isDirty = false;
 }
 
 void CameraComponent::SetAspectRatio(float aspectRatio) noexcept
@@ -237,14 +247,14 @@ void CameraComponent::DrawInspector()
     ImGui::Text("Active Target: %s", m_activeVirtualCamera ? m_activeVirtualCamera->GetOwner()->GetName().c_str() : "None");
 
     ImGui::Separator();
-    ImGui::DragFloat("Blend Duration", &m_blendDuration, 0.05f, 0.0f, 10.0f);
+    if (ImGui::DragFloat("Blend Duration", &m_blendDuration, 0.05f, 0.0f, 10.0f)) m_isDirty = true;
 
     ImGui::Separator();
     ImGui::TextDisabled("GAME FEEL");
-    ImGui::DragFloat("Trauma Decay", &m_traumaDecay, 0.1f, 0.1f, 10.0f);
-    ImGui::DragFloat("Max Shake Offset", &m_maxShakeOffset, 0.1f, 0.0f, 10.0f);
-    ImGui::DragFloat("Zoom Lerp Speed", &m_zoomLerpSpeed, 0.1f, 0.1f, 20.0f);
-    ImGui::DragFloat3("Zoom Axis", &m_zoomAxis.x, 0.1f);
+    if (ImGui::DragFloat("Trauma Decay", &m_traumaDecay, 0.1f, 0.1f, 10.0f)) m_isDirty = true;
+    if (ImGui::DragFloat("Max Shake Offset", &m_maxShakeOffset, 0.1f, 0.0f, 10.0f)) m_isDirty = true;
+    if (ImGui::DragFloat("Zoom Lerp Speed", &m_zoomLerpSpeed, 0.1f, 0.1f, 20.0f)) m_isDirty = true;
+    if (ImGui::DragFloat3("Zoom Axis", &m_zoomAxis.x, 0.1f)) m_isDirty = true;
 
     ImGui::Separator();
     ImGui::TextDisabled("LENS DEFAULTS");
@@ -256,6 +266,7 @@ void CameraComponent::DrawInspector()
     if (projectionDirty)
     {
         ApplyProjectionSettings();
+        m_isDirty = true;
     }
 }
 
@@ -263,22 +274,31 @@ void CameraComponent::DrawGizmo(const GizmoContext& ctx) noexcept
 {
     if (!(ctx.categoryMask & static_cast<std::uint32_t>(GizmoCategory::Cameras))) return;
 
-    if (!ctx.shapes || !GetOwner()) return;
+    if (!ctx.shapes || !GetOwner() || !m_camera) return;
 
     // PLAY MODE CHECK: Never draw the gizmo for the camera lens we are actively looking through
     if (ctx.activeCamera == m_camera.get()) return;
 
-    const auto& [worldPos, worldRotRad] = ExtractWorldTransform(GetOwner()->transform.GetWorldMatrix());
+    // Extract transform from the actual physical Lens, NOT the GameObject.
+    // The GameObject sits ahead of the lens during a dash due to cinematic lag.
+    const DirectX::XMFLOAT3 worldPos = m_camera->GetPosition();
+    const DirectX::XMFLOAT3 rot = m_camera->GetRotation();
 
     if (ctx.activeCamera)
     {
-        // PAUSE MODE CHECK: Hide if the Editor Camera is perfectly overlapping us
+        // PAUSE MODE CHECK: Hide if the Editor Camera is perfectly overlapping the Lens
         const DirectX::XMFLOAT3 camPos = ctx.activeCamera->GetPosition();
         const float dx = worldPos.x - camPos.x;
         const float dy = worldPos.y - camPos.y;
         const float dz = worldPos.z - camPos.z;
         if ((dx * dx + dy * dy + dz * dz) < 0.01f) return;
     }
+
+    const DirectX::XMFLOAT3 worldRotRad{
+        DirectX::XMConvertToRadians(rot.x),
+        DirectX::XMConvertToRadians(rot.y),
+        DirectX::XMConvertToRadians(rot.z)
+    };
 
     constexpr float r{ 1.0f }, g{ 0.85f }, b{ 0.0f }, a{ 1.0f };
     constexpr DirectX::XMFLOAT4 gizmoColor{ r, g, b, a };

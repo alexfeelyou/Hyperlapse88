@@ -88,14 +88,14 @@ void VirtualCameraComponent::Update(float dt)
 {
     if (!m_owner) return;
 
-    // Freeze completely on pause
-    if (dt <= 0.0001f) return;
-
-    // Fast O(1) pointer validation instead of string search
+    // Fast pointer validation
     if (m_followTarget && m_followTarget->IsDestroyed()) m_followTarget = nullptr;
     if (m_lookAtTarget && m_lookAtTarget->IsDestroyed()) m_lookAtTarget = nullptr;
 
     if (!m_followTarget && !m_lookAtTarget) return;
+
+    // FREEZE RULE: Only freeze if perfectly paused and the user isn't tweaking the Inspector
+    if (dt <= 0.0001f && !m_isDirty) return;
 
     DirectX::XMFLOAT3 currentPos{ m_owner->GetPosition() };
     DirectX::XMFLOAT3 currentRot{ m_owner->GetRotation() };
@@ -109,7 +109,8 @@ void VirtualCameraComponent::Update(float dt)
             targetPos.z + m_followOffset.z
         };
 
-        const float tPos{ CalculateDampingBlend(m_positionDamping, dt) };
+        // LIVE PREVIEW: If dirty, force time step to 1.0f for an instant snap
+        const float tPos{ m_isDirty ? 1.0f : CalculateDampingBlend(m_positionDamping, dt) };
         currentPos.x += (desiredPos.x - currentPos.x) * tPos;
         currentPos.y += (desiredPos.y - currentPos.y) * tPos;
         currentPos.z += (desiredPos.z - currentPos.z) * tPos;
@@ -132,23 +133,26 @@ void VirtualCameraComponent::Update(float dt)
         const float pitchDiff{ WrapAngle(desiredPitch - currentPitchRad) };
         const float yawDiff{ WrapAngle(desiredYaw - currentYawRad) };
 
-        const float tRot{ CalculateDampingBlend(m_rotationDamping, dt) };
+        // LIVE PREVIEW: Instant snap rotation
+        const float tRot{ m_isDirty ? 1.0f : CalculateDampingBlend(m_rotationDamping, dt) };
 
         currentRot.x = DirectX::XMConvertToDegrees(currentPitchRad + (pitchDiff * tRot));
         currentRot.y = DirectX::XMConvertToDegrees(currentYawRad + (yawDiff * tRot));
         currentRot.z = 0.0f;
     }
 
-    if (!IsFloat3Equal(currentPos, m_cachedPos))
+    if (!IsFloat3Equal(currentPos, m_cachedPos) || m_isDirty)
     {
         m_owner->SetPosition(currentPos);
         m_cachedPos = currentPos;
     }
-    if (!IsFloat3Equal(currentRot, m_cachedRot))
+    if (!IsFloat3Equal(currentRot, m_cachedRot) || m_isDirty)
     {
         m_owner->SetRotation(currentRot);
         m_cachedRot = currentRot;
     }
+
+    m_isDirty = false;
 }
 
 void VirtualCameraComponent::DrawInspector()
@@ -161,11 +165,13 @@ void VirtualCameraComponent::DrawInspector()
     if (ImGui::InputText("Follow Target", s_followBuf, sizeof(s_followBuf)))
     {
         m_followTargetName = s_followBuf;
-        ResolveTargets(); // Re-cache pointer on text change
+        ResolveTargets();
+        m_isDirty = true;
+        s_globalDirtyFrame++;
     }
 
-    ImGui::DragFloat3("Follow Offset", &m_followOffset.x, 0.1f);
-    ImGui::DragFloat("Position Damping", &m_positionDamping, 0.1f, 0.0f, 50.0f);
+    if (ImGui::DragFloat3("Follow Offset", &m_followOffset.x, 0.1f)) { m_isDirty = true; s_globalDirtyFrame++; }
+    if (ImGui::DragFloat("Position Damping", &m_positionDamping, 0.1f, 0.0f, 50.0f)) { m_isDirty = true; s_globalDirtyFrame++; }
 
     ImGui::Separator();
 
@@ -174,15 +180,18 @@ void VirtualCameraComponent::DrawInspector()
     if (ImGui::InputText("Look-At Target", s_lookBuf, sizeof(s_lookBuf)))
     {
         m_lookAtTargetName = s_lookBuf;
-        ResolveTargets(); // Re-cache pointer on text change
+        ResolveTargets();
+        m_isDirty = true;
+        s_globalDirtyFrame++;
     }
-    ImGui::DragFloat("Rotation Damping", &m_rotationDamping, 0.1f, 0.0f, 50.0f);
+    if (ImGui::DragFloat("Rotation Damping", &m_rotationDamping, 0.1f, 0.0f, 50.0f)) { m_isDirty = true; s_globalDirtyFrame++; }
 
     ImGui::Separator();
 
-    ImGui::DragFloat("Field of View", &m_fovDegrees, 0.1f, 1.0f, 179.0f);
-    ImGui::DragFloat("Near Clip", &m_nearZ, 0.01f, 0.01f, m_farZ - 0.01f);
-    ImGui::DragFloat("Far Clip", &m_farZ, 1.0f, m_nearZ + 0.01f, 100000.0f);
+    if (ImGui::DragFloat("Field of View", &m_fovDegrees, 0.1f, 1.0f, 179.0f)) { m_isDirty = true; s_globalDirtyFrame++; }
+    if (ImGui::DragFloat("Near Clip", &m_nearZ, 0.01f, 0.01f, m_farZ - 0.01f)) { m_isDirty = true; s_globalDirtyFrame++; }
+    if (ImGui::DragFloat("Far Clip", &m_farZ, 1.0f, m_nearZ + 0.01f, 100000.0f)) { m_isDirty = true; s_globalDirtyFrame++; }
+
     ImGui::Separator();
     ImGui::DragFloat("Gizmo Draw Distance", &m_gizmoDrawDistance, 0.1f, 0.5f, 100.0f);
 }
