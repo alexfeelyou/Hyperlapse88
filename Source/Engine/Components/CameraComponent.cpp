@@ -85,6 +85,9 @@ void CameraComponent::Update(float dt)
 
     for (VirtualCameraComponent* vcam : VirtualCameraComponent::GetRegistry())
     {
+        // Reset all VCams to false every frame
+        vcam->SetActiveShot(false);
+
         if (vcam->GetOwner() && vcam->GetOwner()->IsActive())
         {
             if (vcam->GetPriority() > highestPriority)
@@ -101,9 +104,14 @@ void CameraComponent::Update(float dt)
         m_blendStartPos = m_camera->GetPosition();
         m_blendStartRot = m_camera->GetRotation();
 
-        // If no prior camera existed, force an instant snap to avoid flying from (0,0,0)
         if (!m_activeVirtualCamera) m_blendTimer = m_blendDuration;
         m_activeVirtualCamera = bestVCam;
+    }
+
+    // Flag the winning Virtual Camera so it hides its own gizmo
+    if (m_activeVirtualCamera)
+    {
+        m_activeVirtualCamera->SetActiveShot(true);
     }
 
     DirectX::XMFLOAT3 targetPos{};
@@ -253,15 +261,18 @@ void CameraComponent::DrawInspector()
 
 void CameraComponent::DrawGizmo(const GizmoContext& ctx) noexcept
 {
-    // Fast-fail if Camera Gizmos are toggled off in the editor
     if (!(ctx.categoryMask & static_cast<std::uint32_t>(GizmoCategory::Cameras))) return;
 
     if (!ctx.shapes || !GetOwner()) return;
+
+    // PLAY MODE CHECK: Never draw the gizmo for the camera lens we are actively looking through
+    if (ctx.activeCamera == m_camera.get()) return;
 
     const auto& [worldPos, worldRotRad] = ExtractWorldTransform(GetOwner()->transform.GetWorldMatrix());
 
     if (ctx.activeCamera)
     {
+        // PAUSE MODE CHECK: Hide if the Editor Camera is perfectly overlapping us
         const DirectX::XMFLOAT3 camPos = ctx.activeCamera->GetPosition();
         const float dx = worldPos.x - camPos.x;
         const float dy = worldPos.y - camPos.y;
@@ -285,12 +296,14 @@ void CameraComponent::DrawGizmo(const GizmoContext& ctx) noexcept
     if (ctx.activeCamera && ctx.activeCamera->CheckSphere(worldPos.x, worldPos.y, worldPos.z, 0.5f))
     {
         const DirectX::XMFLOAT3 activeCamRot{ ctx.activeCamera->GetRotation() };
+
         VirtualCameraComponent::QueueGizmoIcon({
             worldPos.x, worldPos.y, worldPos.z,
-            0.5f, 0.5f, 0.0f, 0.0f, 0.0f, 0.0f,
+            0.5f, 0.5f,
+            0.0f, 0.0f, 0.0f, 0.0f,
             activeCamRot.x, activeCamRot.y, activeCamRot.z,
             r, g, b, a
-        });
+            });
     }
 }
 

@@ -189,17 +189,19 @@ void VirtualCameraComponent::DrawInspector()
 
 void VirtualCameraComponent::DrawGizmo(const GizmoContext& ctx) noexcept
 {
-    // Fast-fail if Camera Gizmos are toggled off
     if (!(ctx.categoryMask & static_cast<std::uint32_t>(GizmoCategory::Cameras))) return;
 
     if (!ctx.shapes || !m_owner) return;
+
+    // PLAY MODE CHECK: Never draw the frustum of the VCam driving the active shot (Fixes Dash Flash)
+    if (m_isActiveShot) return;
 
     const DirectX::XMFLOAT3 pos{ m_owner->GetPosition() };
     const DirectX::XMFLOAT3 rot{ m_owner->GetRotation() };
 
     if (ctx.activeCamera)
     {
-        // Hide VCam gizmo if we are actively looking through it
+        // PAUSE MODE CHECK: Hide if the Editor Camera flies perfectly inside this VCam
         const DirectX::XMFLOAT3 camPos = ctx.activeCamera->GetPosition();
         const float dx = pos.x - camPos.x;
         const float dy = pos.y - camPos.y;
@@ -215,7 +217,6 @@ void VirtualCameraComponent::DrawGizmo(const GizmoContext& ctx) noexcept
 
     ctx.shapes->DrawFrustum(pos, rotRad, DirectX::XMConvertToRadians(m_fovDegrees), 16.0f / 9.0f, m_nearZ, m_farZ, { 0.2f, 0.8f, 1.0f, 1.0f }, m_gizmoDrawDistance);
 
-    // Reuse the active camera from the context
     if (ctx.activeCamera && ctx.activeCamera->CheckSphere(pos.x, pos.y, pos.z, 0.5f))
     {
         const DirectX::XMFLOAT3 activeCamRot{ ctx.activeCamera->GetRotation() };
@@ -225,7 +226,7 @@ void VirtualCameraComponent::DrawGizmo(const GizmoContext& ctx) noexcept
             0.5f, 0.5f,
             0.0f, 0.0f, 0.0f, 0.0f,
             activeCamRot.x, activeCamRot.y, activeCamRot.z,
-            0.2f, 0.8f, 1.0f, 1.0f  // Cyan
+            0.2f, 0.8f, 1.0f, 1.0f
             });
     }
 }

@@ -25,6 +25,7 @@ public:
     void DrawGizmo(const GizmoContext& ctx) noexcept override;
 
     [[nodiscard]] const char* GetTypeName() const noexcept override { return "VirtualCameraComponent"; }
+    void SetActiveShot(bool active) noexcept { m_isActiveShot = active; }
 
     void Serialize(nlohmann::json& outJson) const override;
     void Deserialize(const nlohmann::json& inJson) override;
@@ -65,6 +66,8 @@ private:
 
     DirectX::XMFLOAT3 m_cachedPos{ 0.0f, 0.0f, 0.0f };
     DirectX::XMFLOAT3 m_cachedRot{ 0.0f, 0.0f, 0.0f };
+
+    bool m_isActiveShot{ false };
 
     [[nodiscard]] class GameObject* FindTargetByName(const std::string& name) const noexcept;
     void ResolveTargets() noexcept;
