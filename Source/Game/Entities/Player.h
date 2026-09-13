@@ -1,29 +1,27 @@
 ﻿#pragma once
 
-#include "Bullet.h"
-#include "CapeSimulator.h"
-#include "Character.h"
-#include "PlayerConstants.h"
-#include "Weapon.h"
+#include <array>
+#include <characterkinematic/PxCapsuleController.h>
+#include <characterkinematic/PxController.h> 
+#include <characterkinematic/PxControllerManager.h>
+#include <cmath>
+#include <DirectXMath.h>
+#include <deque>
+#include <memory>
+#include <SDL3/SDL.h>
+#include "System/AudioManager.h"
 #include "System/CollisionManager.h"
 #include "System/Input.h"
 #include "System/Graphics.h"
 #include "AnimationController.h"
+#include "Bullet.h"
 #include "Camera.h"
-#include "Framework.h"
-#include "PlayerStates.h"
-#include "StateMachine.h"
-#include <cmath>
+#include "CapeSimulator.h"
+#include "Character.h"
 #include "EffectManager.h"
-#include "System/AudioManager.h"
-#include <array>
-#include <deque>
-#include <memory>
-#include <DirectXMath.h>
-#include <SDL3/SDL.h>
-#include <characterkinematic/PxController.h> 
-#include <characterkinematic/PxCapsuleController.h>
-#include <characterkinematic/PxControllerManager.h>
+#include "Framework.h"
+#include "PlayerConstants.h"
+#include "Weapon.h"
 
 class StateMachine;
 class AnimationController;
@@ -64,7 +62,6 @@ public:
     void Update(float elapsedTime, Camera* camera) override;
 
     // Component accessors 
-    StateMachine* GetStateMachine() const { return stateMachine.get(); }
     CharacterMovement* GetMovement()     const { return movement.get(); }
     AnimationController* GetAnimator()     const { return animator.get(); }
     std::shared_ptr<Model> GetModel()        const { return model; }
@@ -169,7 +166,6 @@ private:
     void UpdateProjectiles(float dt, Camera* camera);
 
     // Owned components 
-    std::unique_ptr<StateMachine>        stateMachine;
     std::unique_ptr<AnimationController> animator;
 
     // PhysX controller (lifecycle managed by PhysX, released manually in destructor) 

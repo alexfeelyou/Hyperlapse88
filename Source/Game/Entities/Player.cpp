@@ -5,8 +5,7 @@
 using namespace DirectX;
 
 Player::Player()
-    : stateMachine(std::make_unique<StateMachine>())
-    , animator(std::make_unique<AnimationController>())
+    : animator(std::make_unique<AnimationController>())
 {
     ID3D11Device* device = Graphics::Instance().GetDevice();
 
@@ -36,7 +35,6 @@ Player::Player()
 
     animator->Initialize(model);
     animator->SetUpperBodyMaskRoot("body");
-    stateMachine->Initialize(std::make_unique<PlayerIdle>(), this);
 
     // Log loaded animations to debug output
     OutputDebugStringA("\n=== ANIMATIONS LOADED ===\n");
@@ -159,8 +157,6 @@ void Player::Update(float elapsedTime, Camera* camera)
     }
     else
     {
-        // Normal Gameplay
-        if (stateMachine) stateMachine->Update(this, elapsedTime);
     }
 
     if (animator) animator->Update(elapsedTime);

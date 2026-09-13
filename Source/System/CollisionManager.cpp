@@ -167,7 +167,6 @@ void CollisionManager::CheckEnemyProjectilesFull(float elapsedTime)
                         m_player->scale = { 0.0f, 0.0f, 0.0f };
                         m_player->SetInputEnabled(false);
                         m_player->GetMovement()->SetVelocity({ 0,0,0 });
-                        m_player->GetStateMachine()->ChangeState(m_player, std::make_unique<PlayerDead>());
                     }
 
                     it = projectiles.erase(it);
@@ -494,7 +493,6 @@ void CollisionManager::CheckNaviAllyProjectilesVsPlayer(const float elapsedTime)
                 m_player->scale = { 0.0f, 0.0f, 0.0f };
                 m_player->SetInputEnabled(false);
                 m_player->GetMovement()->SetVelocity({ 0.0f, 0.0f, 0.0f });
-                m_player->GetStateMachine()->ChangeState(m_player, std::make_unique<PlayerDead>());
 
                 // Trigger Fade via Callback
                 if (m_onPlayerDeathCallback)

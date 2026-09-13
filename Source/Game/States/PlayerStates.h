@@ -1,94 +1,73 @@
 ﻿#pragma once
-#include "PlayerState.h"
-#include "PlayerConstants.h"
-#include "Player.h"
-#include "StateMachine.h"
-#include "AnimationController.h"
-#include "System/Input.h"
+
 #include <memory>
-#include <cmath>
-#include "System/CollisionManager.h"
-#include "Enemy.h"
-#include "Bullet.h"
-#include "System/AudioManager.h"
-#include "EffectManager.h"
 #include <DirectXMath.h>
+#include "PlayerState.h"
+#include "PlayerControllerComponent.h"
 
-class Player;
+// Forward declarations 
+class CharacterMovementComponent;
 
-class PlayerIdle : public PlayerState
+class PlayerIdle final : public PlayerState
 {
 public:
-    void Enter(Player* player) override;
-    void Update(Player* player, float dt) override;
-    void Exit(Player* player) override {}
+    void Enter(PlayerControllerComponent* controller) override;
+    void Update(PlayerControllerComponent* controller, float dt) override;
+    void Exit(PlayerControllerComponent* controller) override;
 };
 
-class PlayerMoving : public PlayerState
+class PlayerMoving final : public PlayerState
 {
 public:
-    void Enter(Player* player) override;
-    void Update(Player* player, float dt) override;
-    void Exit(Player* player) override {}
+    void Enter(PlayerControllerComponent* controller) override;
+    void Update(PlayerControllerComponent* controller, float dt) override;
+    void Exit(PlayerControllerComponent* controller) override;
 };
 
-class PlayerDash : public PlayerState
+class PlayerDash final : public PlayerState
 {
 public:
-    void Enter(Player* player) override;
-    void Update(Player* player, float dt) override;
-    void Exit(Player* player) override;
+    void Enter(PlayerControllerComponent* controller) override;
+    void Update(PlayerControllerComponent* controller, float dt) override;
+    void Exit(PlayerControllerComponent* controller) override;
+
 private:
-    float timer = 0.0f;
-    DirectX::XMFLOAT2 dashDir = { 0.0f, 0.0f };
-    int m_dashGoVfxHandle = -1;
+    // State-specific encapsulated constants
+    static constexpr float DASH_DURATION{ 0.15f };
+    static constexpr float DASH_IMPULSE_FORCE{ 45.0f };
+    static constexpr float DASH_IFRAME_DURATION{ 0.2f };
+
+    float m_timer{ 0.0f };
+    DirectX::XMFLOAT2 m_dashDir{ 0.0f, 0.0f };
+    int m_dashGoVfxHandle{ -1 };
 };
 
-class PlayerSlash : public PlayerState
+class PlayerSlash final : public PlayerState
 {
 public:
-    void Enter(Player* player) override;
-    void Update(Player* player, float dt) override;
-    void Exit(Player* player) override;
+    void Enter(PlayerControllerComponent* controller) override;
+    void Update(PlayerControllerComponent* controller, float dt) override;
+    void Exit(PlayerControllerComponent* controller) override;
+
 private:
-    float timer = PlayerConst::SlashDuration;
+    static constexpr float SLASH_DURATION{ 0.15f };
+    static constexpr float SLASH_LUNGE_FORCE{ 40.0f };
+    static constexpr float SLASH_DRAG_MULTIPLIER{ 10.0f };
+
+    float m_timer{ 0.0f };
 };
 
-class PlayerParry : public PlayerState
+class PlayerShoot final : public PlayerState
 {
 public:
-    void Enter(Player* player) override;
-    void Update(Player* player, float dt) override;
-    void Exit(Player* player) override;
-private:
-    float timer = PlayerConst::ParryDuration;
-};
+    void Enter(PlayerControllerComponent* controller) override;
+    void Update(PlayerControllerComponent* controller, float dt) override;
+    void Exit(PlayerControllerComponent* controller) override;
 
-class PlayerShoot : public PlayerState
-{
-public:
-    void Enter(Player* player) override;
-    void Update(Player* player, float dt) override;
-    void Exit(Player* player) override;
 private:
-    void PerformShootInternal(Player* player, bool isHeld = false);
+    static constexpr float BASE_SHOOT_DELAY{ 0.15f };
+    static constexpr float HOLD_PENALTY_MULTIPLIER{ 1.5f };
 
     float m_timer{ 0.0f };
     float m_minTapCooldown{ 0.0f };
-};
-
-class PlayerDamage : public PlayerState
-{
-public:
-    void Enter(Player* player) override {}
-    void Update(Player* player, float dt) override {}
-    void Exit(Player* player) override {}
-};
-
-class PlayerDead : public PlayerState
-{
-public:
-    void Enter(Player* player) override {}
-    void Update(Player* player, float dt) override {}
-    void Exit(Player* player) override {}
 };

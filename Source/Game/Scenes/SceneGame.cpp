@@ -265,7 +265,6 @@ void SceneGame::Update(const float elapsedTime)
                 m_player->GetMovement()->SetVelocity({ 0.0f, 0.0f, 0.0f });
                 m_player->SetMaxHP(NORMAL_MAX_HP);
                 m_player->scale = { 1.0f, 1.0f, 1.0f };
-                m_player->GetStateMachine()->ChangeState(m_player.get(), std::make_unique<PlayerIdle>());
                 m_player->GetProjectiles().clear();
                 m_player->ForceVisualSync();
             }
@@ -601,7 +600,6 @@ void SceneGame::ResetLevel()
         m_player->SetMaxHP(NORMAL_MAX_HP);
         m_player->SetInputEnabled(false);
         m_player->scale = { 1.0f, 1.0f, 1.0f };
-        m_player->GetStateMachine()->ChangeState(m_player.get(), std::make_unique<PlayerIdle>());
         m_player->GetProjectiles().clear();
     }
 
