@@ -369,6 +369,9 @@
     <ClCompile Include="Source\Engine\Components\CapsuleColliderComponent.cpp">
       <Filter>Source\Engine\Components</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Engine\Components\CharacterMovementComponent.cpp">
+      <Filter>Source\Engine\Components</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\System\BasicShader.h">
@@ -709,6 +712,9 @@
       <Filter>Source\Engine\Helpers</Filter>
     </ClInclude>
     <ClInclude Include="Source\Engine\Components\CapsuleColliderComponent.h">
+      <Filter>Source\Engine\Components</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Components\CharacterMovementComponent.h">
       <Filter>Source\Engine\Components</Filter>
     </ClInclude>
   </ItemGroup>
