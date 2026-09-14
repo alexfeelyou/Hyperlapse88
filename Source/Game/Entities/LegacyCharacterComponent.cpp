@@ -36,19 +36,30 @@ void LegacyCharacterComponent::Update(float dt)
 
     Transform& editorTransform{ m_owner->transform };
 
-    // DETECT NEW COMPONENT ARCHITECTURE
+    // Bi-directional Sync 
     if (m_owner->GetComponent<CharacterMovementComponent>())
     {
-        // The Capsule / Kinematic Motor is driving the GameObject.
-        // Sync the old internal POD from the GameObject so aiming/shooting math works.
-        movement->SetPosition(editorTransform.position);
-        movement->SetRotation(editorTransform.rotation);
-        m_character->scale = editorTransform.scale;
+        const bool isPlaying{ EditorManager::Instance().GetEditorMode() == EditorMode::Play };
 
+        if (isPlaying)
+        {
+            // Play Mode: Capsule drives Position (Down), Player math drives Rotation (Up)
+            movement->SetPosition(editorTransform.position);
+            editorTransform.rotation = movement->GetRotation();
+        }
+        else
+        {
+            // Edit Mode: Editor Gizmo drives everything (Down)
+            movement->SetPosition(editorTransform.position);
+            movement->SetRotation(editorTransform.rotation);
+        }
+
+        m_character->scale = editorTransform.scale;
+        
         m_lastFramePos = editorTransform.position;
         m_lastFrameRot = editorTransform.rotation;
         m_lastFrameScale = editorTransform.scale;
-        return;
+        return; 
     }
 
     // --- OLD LEGACY PATH (For enemies that haven't been updated yet) ---

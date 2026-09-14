@@ -29,9 +29,11 @@ public:
     // Exits current state, takes ownership of newState, enters it
     void ChangeState(PlayerControllerComponent* controller, std::unique_ptr<PlayerState> newState) noexcept
     {
-        if (m_currentState)
+        // Move to temporary to prevent recursive dangling pointers if Exit() triggers a state change
+        std::unique_ptr<PlayerState> oldState{ std::move(m_currentState) };
+        if (oldState)
         {
-            m_currentState->Exit(controller);
+            oldState->Exit(controller);
         }
 
         m_currentState = std::move(newState);
