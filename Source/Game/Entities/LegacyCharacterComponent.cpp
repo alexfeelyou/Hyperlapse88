@@ -1,6 +1,7 @@
 #include <cmath>
 #include <imgui.h>
 #include "CharacterMovement.h"
+#include "CharacterMovementComponent.h"
 #include "LegacyCharacterComponent.h"
 #include "Player.h"
 
@@ -35,14 +36,28 @@ void LegacyCharacterComponent::Update(float dt)
 
     Transform& editorTransform{ m_owner->transform };
 
+    // DETECT NEW COMPONENT ARCHITECTURE
+    if (m_owner->GetComponent<CharacterMovementComponent>())
+    {
+        // The Capsule / Kinematic Motor is driving the GameObject.
+        // Sync the old internal POD from the GameObject so aiming/shooting math works.
+        movement->SetPosition(editorTransform.position);
+        movement->SetRotation(editorTransform.rotation);
+        m_character->scale = editorTransform.scale;
+
+        m_lastFramePos = editorTransform.position;
+        m_lastFrameRot = editorTransform.rotation;
+        m_lastFrameScale = editorTransform.scale;
+        return;
+    }
+
+    // --- OLD LEGACY PATH (For enemies that haven't been updated yet) ---
     const bool editorMovedX{ !IsFloatEqual(editorTransform.position.x, m_lastFramePos.x) };
     const bool editorMovedY{ !IsFloatEqual(editorTransform.position.y, m_lastFramePos.y) };
     const bool editorMovedZ{ !IsFloatEqual(editorTransform.position.z, m_lastFramePos.z) };
-
     const bool editorRotatedX{ !IsFloatEqual(editorTransform.rotation.x, m_lastFrameRot.x) };
     const bool editorRotatedY{ !IsFloatEqual(editorTransform.rotation.y, m_lastFrameRot.y) };
     const bool editorRotatedZ{ !IsFloatEqual(editorTransform.rotation.z, m_lastFrameRot.z) };
-
     const bool editorScaledX{ !IsFloatEqual(editorTransform.scale.x, m_lastFrameScale.x) };
     const bool editorScaledY{ !IsFloatEqual(editorTransform.scale.y, m_lastFrameScale.y) };
     const bool editorScaledZ{ !IsFloatEqual(editorTransform.scale.z, m_lastFrameScale.z) };
@@ -56,20 +71,14 @@ void LegacyCharacterComponent::Update(float dt)
     if (wasEditedInGUI)
     {
         m_character->SetPosition(editorTransform.position);
-
-        // FIX: Removed XMConvertToRadians. Game logic expects degrees.
         m_character->SetRotation(editorTransform.rotation);
-
         m_character->scale = editorTransform.scale;
         m_character->ForceVisualSync();
     }
     else
     {
         editorTransform.position = movement->GetPosition();
-
-        // FIX: Removed XMConvertToDegrees. Game logic already provides degrees.
         editorTransform.rotation = movement->GetRotation();
-
         editorTransform.scale = m_character->scale;
     }
 
@@ -88,18 +97,26 @@ void LegacyCharacterComponent::OnAttach(GameObject* owner) noexcept
 
         if (m_character->GetMovement() && m_owner)
         {
-            m_owner->transform.position = m_character->GetMovement()->GetPosition();
+            if (m_owner->GetComponent<CharacterMovementComponent>())
+            {
+                // New architecture: Do NOT overwrite the transform on spawn.
+                // Let the capsule set the spawn position.
+                m_lastFramePos = m_owner->transform.position;
+                m_lastFrameRot = m_owner->transform.rotation;
+                m_lastFrameScale = m_owner->transform.scale;
+            }
+            else
+            {
+                m_owner->transform.position = m_character->GetMovement()->GetPosition();
+                m_owner->transform.rotation = m_character->GetMovement()->GetRotation();
+                m_owner->transform.scale = m_character->scale;
 
-            // FIX: Removed XMConvertToDegrees.
-            m_owner->transform.rotation = m_character->GetMovement()->GetRotation();
+                m_lastFramePos = m_owner->transform.position;
+                m_lastFrameRot = m_owner->transform.rotation;
+                m_lastFrameScale = m_owner->transform.scale;
 
-            m_owner->transform.scale = m_character->scale;
-
-            m_lastFramePos = m_owner->transform.position;
-            m_lastFrameRot = m_owner->transform.rotation;
-            m_lastFrameScale = m_owner->transform.scale;
-
-            m_character->ForceVisualSync();
+                m_character->ForceVisualSync();
+            }
         }
     }
 }
