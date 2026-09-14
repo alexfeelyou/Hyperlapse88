@@ -360,9 +360,125 @@ void AnimationComponent::DrawInspector()
                 m_editorPreview = false; // Freeze the animation again
             }
 
+            ImGui::Spacing();
+            ImGui::Separator();
+
+            // The Event Track Editor 
+            ImGui::TextDisabled("EVENTS");
+            ImGui::SameLine(ImGui::GetContentRegionAvail().x - 60.0f);
+            if (ImGui::Button("+ Event"))
+            {
+                state.events.push_back(AnimationEvent{ 0.0f, 0, 0.0f });
+            }
+
+            static constexpr const char* const s_eventNames[] = {
+                "None", "Hitbox_Active", "Hitbox_Inactive",
+                "CancelWindow_Open", "Invincible_Start", "Invincible_End",
+                "Play_SFX", "Play_VFX"
+            };
+
+            // Using iterators to allow safe deletion while looping
+            for (auto it = state.events.begin(); it != state.events.end(); )
+            {
+                // Unique ID based on memory address so ImGui doesn't mix sliders up
+                ImGui::PushID(&(*it));
+
+                ImGui::BeginGroup();
+
+                // Normalized Time Slider (0.0 = Start of Animation, 1.0 = End)
+                ImGui::SliderFloat("Time", &it->normalizedTime, 0.0f, 1.0f, "%.2f");
+
+                // Event Type Dropdown
+                int currentEventId{ static_cast<int>(it->eventId) };
+                if (ImGui::Combo("Type", &currentEventId, s_eventNames, IM_ARRAYSIZE(s_eventNames)))
+                {
+                    it->eventId = static_cast<std::uint32_t>(currentEventId);
+                }
+
+                // Delete Event Button
+                bool deleteTriggered{ false };
+                if (ImGui::Button("Remove"))
+                {
+                    deleteTriggered = true;
+                }
+
+                ImGui::EndGroup();
+                ImGui::PopID();
+                ImGui::Spacing();
+
+                if (deleteTriggered)
+                {
+                    it = state.events.erase(it);
+                }
+                else
+                {
+                    ++it;
+                }
+            }
+
             ImGui::TreePop();
         }
         ImGui::PopID();
+    }
+}
+
+void AnimationComponent::Serialize(nlohmann::json& j) const
+{
+    nlohmann::json statesArray = nlohmann::json::array();
+
+    for (const auto& state : m_states)
+    {
+        nlohmann::json stateJson{};
+        stateJson["Name"] = state.name;
+        stateJson["ClipIndex"] = state.clipIndex;
+        stateJson["Speed"] = state.speedMultiplier;
+        stateJson["Blend"] = state.blendDuration;
+        stateJson["Loop"] = state.isLooping;
+
+        nlohmann::json eventsArray = nlohmann::json::array();
+        for (const auto& ev : state.events)
+        {
+            nlohmann::json evJson{};
+            evJson["Time"] = ev.normalizedTime;
+            evJson["Id"] = ev.eventId;
+            evJson["Payload"] = ev.payload;
+            eventsArray.push_back(evJson);
+        }
+        stateJson["Events"] = eventsArray;
+
+        statesArray.push_back(stateJson);
+    }
+
+    j["States"] = statesArray;
+}
+
+void AnimationComponent::Deserialize(const nlohmann::json& j)
+{
+    m_states.clear();
+
+    if (!j.contains("States")) return;
+
+    for (const auto& stateJson : j["States"])
+    {
+        AnimationState state{};
+        state.name = stateJson.value("Name", "State");
+        state.clipIndex = stateJson.value("ClipIndex", -1);
+        state.speedMultiplier = stateJson.value("Speed", 1.0f);
+        state.blendDuration = stateJson.value("Blend", 0.2f);
+        state.isLooping = stateJson.value("Loop", true);
+
+        if (stateJson.contains("Events"))
+        {
+            for (const auto& evJson : stateJson["Events"])
+            {
+                AnimationEvent ev{};
+                ev.normalizedTime = evJson.value("Time", 0.0f);
+                ev.eventId = evJson.value("Id", 0u);
+                ev.payload = evJson.value("Payload", 0.0f);
+                state.events.push_back(ev);
+            }
+        }
+        m_states.push_back(state);
     }
 }
 

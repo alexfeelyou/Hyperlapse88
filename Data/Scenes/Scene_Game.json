@@ -332,6 +332,337 @@
             "ScaleX": 1.0,
             "ScaleY": 1.0,
             "ScaleZ": 1.0
+        },
+        {
+            "Children": [],
+            "Components": [
+                {
+                    "Color": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Materials": [
+                        {
+                            "AlphaCutoff": 0.5,
+                            "AlphaMode": 2,
+                            "BaseColor": [
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0
+                            ],
+                            "Emissive": [
+                                0.0,
+                                0.0,
+                                0.0
+                            ],
+                            "EnableOutline": true,
+                            "Metalness": 0.20000000298023224,
+                            "Name": "eyeline",
+                            "OutlineColor": [
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                1.0
+                            ],
+                            "OutlineFadeEnd": 28.0,
+                            "OutlineFadeStart": 12.0,
+                            "OutlineWidth": 0.014999999664723873,
+                            "Roughness": 0.800000011920929,
+                            "ShaderId": 2,
+                            "TexBase": "",
+                            "TexNormal": ""
+                        },
+                        {
+                            "AlphaCutoff": 0.5,
+                            "AlphaMode": 2,
+                            "BaseColor": [
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0
+                            ],
+                            "Emissive": [
+                                0.0,
+                                0.0,
+                                0.0
+                            ],
+                            "EnableOutline": true,
+                            "Metalness": 0.20000000298023224,
+                            "Name": "eyebase",
+                            "OutlineColor": [
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                1.0
+                            ],
+                            "OutlineFadeEnd": 28.0,
+                            "OutlineFadeStart": 12.0,
+                            "OutlineWidth": 0.014999999664723873,
+                            "Roughness": 0.800000011920929,
+                            "ShaderId": 2,
+                            "TexBase": "",
+                            "TexNormal": ""
+                        },
+                        {
+                            "AlphaCutoff": 0.5,
+                            "AlphaMode": 0,
+                            "BaseColor": [
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0
+                            ],
+                            "Emissive": [
+                                0.0,
+                                0.0,
+                                0.0
+                            ],
+                            "EnableOutline": true,
+                            "Metalness": 0.20000000298023224,
+                            "Name": "face",
+                            "OutlineColor": [
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                1.0
+                            ],
+                            "OutlineFadeEnd": 28.0,
+                            "OutlineFadeStart": 12.0,
+                            "OutlineWidth": 0.014999999664723873,
+                            "Roughness": 0.800000011920929,
+                            "ShaderId": 2,
+                            "TexBase": "",
+                            "TexNormal": ""
+                        },
+                        {
+                            "AlphaCutoff": 0.5,
+                            "AlphaMode": 2,
+                            "BaseColor": [
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0
+                            ],
+                            "Emissive": [
+                                0.0,
+                                0.0,
+                                0.0
+                            ],
+                            "EnableOutline": true,
+                            "Metalness": 0.20000000298023224,
+                            "Name": "eye_L1",
+                            "OutlineColor": [
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                1.0
+                            ],
+                            "OutlineFadeEnd": 28.0,
+                            "OutlineFadeStart": 12.0,
+                            "OutlineWidth": 0.014999999664723873,
+                            "Roughness": 0.800000011920929,
+                            "ShaderId": 2,
+                            "TexBase": "",
+                            "TexNormal": ""
+                        },
+                        {
+                            "AlphaCutoff": 0.5,
+                            "AlphaMode": 2,
+                            "BaseColor": [
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0
+                            ],
+                            "Emissive": [
+                                0.0,
+                                0.0,
+                                0.0
+                            ],
+                            "EnableOutline": true,
+                            "Metalness": 0.20000000298023224,
+                            "Name": "eye_R1",
+                            "OutlineColor": [
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                1.0
+                            ],
+                            "OutlineFadeEnd": 28.0,
+                            "OutlineFadeStart": 12.0,
+                            "OutlineWidth": 0.014999999664723873,
+                            "Roughness": 0.800000011920929,
+                            "ShaderId": 2,
+                            "TexBase": "",
+                            "TexNormal": ""
+                        },
+                        {
+                            "AlphaCutoff": 0.5,
+                            "AlphaMode": 0,
+                            "BaseColor": [
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0
+                            ],
+                            "Emissive": [
+                                0.0,
+                                0.0,
+                                0.0
+                            ],
+                            "EnableOutline": true,
+                            "Metalness": 0.20000000298023224,
+                            "Name": "body",
+                            "OutlineColor": [
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                1.0
+                            ],
+                            "OutlineFadeEnd": 28.0,
+                            "OutlineFadeStart": 12.0,
+                            "OutlineWidth": 0.014999999664723873,
+                            "Roughness": 0.800000011920929,
+                            "ShaderId": 2,
+                            "TexBase": "",
+                            "TexNormal": ""
+                        },
+                        {
+                            "AlphaCutoff": 0.5,
+                            "AlphaMode": 2,
+                            "BaseColor": [
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0
+                            ],
+                            "Emissive": [
+                                0.0,
+                                0.0,
+                                0.0
+                            ],
+                            "EnableOutline": true,
+                            "Metalness": 0.20000000298023224,
+                            "Name": "mat_cheek",
+                            "OutlineColor": [
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                1.0
+                            ],
+                            "OutlineFadeEnd": 28.0,
+                            "OutlineFadeStart": 12.0,
+                            "OutlineWidth": 0.014999999664723873,
+                            "Roughness": 0.800000011920929,
+                            "ShaderId": 2,
+                            "TexBase": "",
+                            "TexNormal": ""
+                        },
+                        {
+                            "AlphaCutoff": 0.5,
+                            "AlphaMode": 0,
+                            "BaseColor": [
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0
+                            ],
+                            "Emissive": [
+                                0.0,
+                                0.0,
+                                0.0
+                            ],
+                            "EnableOutline": true,
+                            "Metalness": 0.20000000298023224,
+                            "Name": "hair",
+                            "OutlineColor": [
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                1.0
+                            ],
+                            "OutlineFadeEnd": 28.0,
+                            "OutlineFadeStart": 12.0,
+                            "OutlineWidth": 0.014999999664723873,
+                            "Roughness": 0.800000011920929,
+                            "ShaderId": 2,
+                            "TexBase": "",
+                            "TexNormal": ""
+                        },
+                        {
+                            "AlphaCutoff": 0.5,
+                            "AlphaMode": 0,
+                            "BaseColor": [
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0
+                            ],
+                            "Emissive": [
+                                0.0,
+                                0.0,
+                                0.0
+                            ],
+                            "EnableOutline": true,
+                            "Metalness": 0.20000000298023224,
+                            "Name": "skin1",
+                            "OutlineColor": [
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                1.0
+                            ],
+                            "OutlineFadeEnd": 28.0,
+                            "OutlineFadeStart": 12.0,
+                            "OutlineWidth": 0.014999999664723873,
+                            "Roughness": 0.800000011920929,
+                            "ShaderId": 2,
+                            "TexBase": "",
+                            "TexNormal": ""
+                        }
+                    ],
+                    "ModelPath": "C:\\Users\\2240823\\Downloads\\配布用ゲープロⅤ\\配布用ゲープロⅤ\\Data\\Model\\unitychan\\unitychan.glb",
+                    "Type": "MeshComponent"
+                },
+                {
+                    "States": [
+                        {
+                            "Blend": 0.20000000298023224,
+                            "ClipIndex": 0,
+                            "Events": [
+                                {
+                                    "Id": 1,
+                                    "Payload": 0.0,
+                                    "Time": 0.3499999940395355
+                                },
+                                {
+                                    "Id": 2,
+                                    "Payload": 0.0,
+                                    "Time": 0.6499999761581421
+                                }
+                            ],
+                            "Loop": true,
+                            "Name": "Attack",
+                            "Speed": 1.0
+                        }
+                    ],
+                    "Type": "AnimationComponent"
+                }
+            ],
+            "IsActive": true,
+            "Name": "Unichan",
+            "PosX": 0.0,
+            "PosY": 0.0,
+            "PosZ": 0.0,
+            "RotX": 0.0,
+            "RotY": 0.0,
+            "RotZ": 0.0,
+            "ScaleX": 1.0,
+            "ScaleY": 1.0,
+            "ScaleZ": 1.0
         }
     ]
 }

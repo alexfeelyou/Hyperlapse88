@@ -213,10 +213,10 @@ void ModelRenderer::ComputeAndUploadSkeleton(
     {
         if (useManual)
         {
-            // --- FIX 4: Unskinned meshes must track the animated node ---
+            // Unskinned meshes must track the animated node
             DirectX::XMMATRIX nodeGlobalMat;
 
-            // If the AnimationComponent provided evaluated globals, use them!
+            // If the AnimationComponent provided evaluated globals, use them
             if (currentNodeGlobals && mesh.nodeIndex >= 0 && static_cast<std::size_t>(mesh.nodeIndex) < currentNodeGlobals->size())
             {
                 nodeGlobalMat = DirectX::XMLoadFloat4x4(&(*currentNodeGlobals)[mesh.nodeIndex]);

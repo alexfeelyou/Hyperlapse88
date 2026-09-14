@@ -2,11 +2,25 @@
 
 #include <cstdint>
 #include <DirectXMath.h>
+#include <json.hpp>
 #include <memory>
 #include <string>
 #include <vector>
 #include "System/Model.h"
 #include "IComponent.h"
+
+// Strongly typed combat event IDs mapped directly to integers
+enum class CombatEventId : std::uint32_t
+{
+    None = 0,
+    Hitbox_Active,
+    Hitbox_Inactive,
+    CancelWindow_Open,
+    Invincible_Start,
+    Invincible_End,
+    Play_SFX,
+    Play_VFX
+};
 
 // Authored event embedded within an animation state's timeline
 struct AnimationEvent
@@ -41,6 +55,9 @@ public:
     void OnAttach(GameObject* owner) noexcept override;
     void Update(float dt) override;
     void DrawInspector() override;
+
+    void Serialize(nlohmann::json& outJson) const override;
+    void Deserialize(const nlohmann::json& inJson) override;
 
     [[nodiscard]] const char* GetTypeName() const noexcept override { return "AnimationComponent"; }
 
