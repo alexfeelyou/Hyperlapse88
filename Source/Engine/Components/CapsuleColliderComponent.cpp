@@ -259,13 +259,21 @@ void CapsuleColliderComponent::DrawGizmo(const GizmoContext& ctx) noexcept
 
     constexpr DirectX::XMFLOAT4 capsuleColor{ 0.1f, 0.8f, 1.0f, 0.6f };
 
-    const DirectX::XMFLOAT3 centerPos{ GetCenterPosition() };
-    const DirectX::XMMATRIX matWorld{ DirectX::XMMatrixTranslation(centerPos.x, centerPos.y, centerPos.z) };
+    // Grab the authoritative World Matrix from the parent GameObject
+    const Transform& t{ m_owner->transform };
+    const DirectX::XMMATRIX objWorld{ DirectX::XMLoadFloat4x4(&t.GetWorldMatrix()) };
+
+    // Apply the capsule's local offsets
+    const float centerOffsetY{ GetTotalHalfHeight() + m_config.localOffset.y };
+    const DirectX::XMMATRIX locTrans{ DirectX::XMMatrixTranslation(m_config.localOffset.x, centerOffsetY, m_config.localOffset.z) };
+
+    // Multiply Local * World to get the final render matrix 
+    const DirectX::XMMATRIX compWorld{ locTrans * objWorld };
 
     DirectX::XMFLOAT4X4 transformMatrix{};
-    DirectX::XMStoreFloat4x4(&transformMatrix, matWorld);
+    DirectX::XMStoreFloat4x4(&transformMatrix, compWorld);
 
-    // Render debug capsule: radius and inner cylinder height
+    // Render debug capsule
     ctx.shapes->DrawCapsule(transformMatrix, m_config.radius, m_config.height, capsuleColor);
 }
 
@@ -287,7 +295,7 @@ void CapsuleColliderComponent::DrawInspector()
         const EditorMode mode{ EditorManager::Instance().GetEditorMode() };
         if (mode == EditorMode::Edit)
         {
-            CreateController();
+            MarkDirty(); // Defer to Update loop for rebuilding safely
         }
         else
         {

@@ -509,9 +509,6 @@
     <ClInclude Include="Source\Engine\VFX\AnimationController.h">
       <Filter>Source\Engine\VFX</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Game\Entities\PlayerConstants.h">
-      <Filter>Source\Game\Entities</Filter>
-    </ClInclude>
     <ClInclude Include="Source\Engine\UI\UIDialogueBox.h">
       <Filter>Source\Engine\UI</Filter>
     </ClInclude>

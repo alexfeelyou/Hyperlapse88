@@ -27,6 +27,30 @@
             "Components": [
                 {
                     "Type": "LegacyCharacterComponent"
+                },
+                {
+                    "CollidesWith": 126,
+                    "ContactOffset": 0.019999999552965164,
+                    "Height": 0.8100000023841858,
+                    "Layer": 4,
+                    "LocalOffsetX": 0.0,
+                    "LocalOffsetY": 0.0,
+                    "LocalOffsetZ": 0.0,
+                    "Radius": 0.5,
+                    "SlopeLimitDeg": 45.0,
+                    "StepOffset": 0.30000001192092896,
+                    "Type": "CapsuleColliderComponent"
+                },
+                {
+                    "Acceleration": 7.0,
+                    "Deceleration": 6.0,
+                    "ImpulseDrag": 11.0,
+                    "MaxWalkSpeed": 9.5,
+                    "Type": "CharacterMovementComponent",
+                    "UseGravity": true
+                },
+                {
+                    "Type": "PlayerControllerComponent"
                 }
             ],
             "IsActive": true,
@@ -271,7 +295,7 @@
             "Name": "Main Camera",
             "PosX": 0.10000000149011612,
             "PosY": 1.100000023841858,
-            "PosZ": -4.900000095367432,
+            "PosZ": -4.800000190734863,
             "RotX": -0.0,
             "RotY": 0.0,
             "RotZ": -0.0,

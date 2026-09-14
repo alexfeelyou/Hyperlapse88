@@ -188,7 +188,6 @@
     <ClInclude Include="Source\Game\Entities\LegacyCharacterComponent.h" />
     <ClInclude Include="Source\Game\Entities\NaviAlly.h" />
     <ClInclude Include="Source\Game\Entities\Player.h" />
-    <ClInclude Include="Source\Game\Entities\PlayerConstants.h" />
     <ClInclude Include="Source\Game\Entities\Weapon.h" />
     <ClInclude Include="Source\Game\Scenes\Scene.h" />
     <ClInclude Include="Source\Game\Scenes\SceneGame.h" />
