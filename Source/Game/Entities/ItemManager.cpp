@@ -1,5 +1,4 @@
 #include "ItemManager.h"
-#include "LegacyCharacterComponent.h"
 
 using namespace DirectX;
 
@@ -38,7 +37,6 @@ void ItemManager::SpawnItem(const ItemSpawnData& data)
         nodeName += "_" + std::to_string(++m_spawnCounter);
 
         auto itemNode{ std::make_unique<GameObject>(nodeName) };
-        itemNode->AddComponent<LegacyCharacterComponent>(newItem.get());
 
         itemNode->transform.position = data.Position;
         itemNode->transform.rotation = data.Rotation;

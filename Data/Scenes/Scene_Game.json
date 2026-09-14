@@ -26,49 +26,6 @@
             "Children": [],
             "Components": [
                 {
-                    "Type": "LegacyCharacterComponent"
-                },
-                {
-                    "CollidesWith": 126,
-                    "ContactOffset": 0.019999999552965164,
-                    "Height": 0.8100000023841858,
-                    "Layer": 4,
-                    "LocalOffsetX": 0.0,
-                    "LocalOffsetY": 0.0,
-                    "LocalOffsetZ": 0.0,
-                    "Radius": 0.5,
-                    "SlopeLimitDeg": 45.0,
-                    "StepOffset": 0.30000001192092896,
-                    "Type": "CapsuleColliderComponent"
-                },
-                {
-                    "Acceleration": 7.0,
-                    "Deceleration": 6.0,
-                    "ImpulseDrag": 11.0,
-                    "MaxWalkSpeed": 9.5,
-                    "Type": "CharacterMovementComponent",
-                    "UseGravity": true
-                },
-                {
-                    "Type": "PlayerControllerComponent"
-                }
-            ],
-            "IsActive": true,
-            "Name": "Player",
-            "PosX": 0.0,
-            "PosY": 0.0,
-            "PosZ": 0.0,
-            "RotX": 0.0,
-            "RotY": 180.0,
-            "RotZ": 0.0,
-            "ScaleX": 1.0,
-            "ScaleY": 1.0,
-            "ScaleZ": 1.0
-        },
-        {
-            "Children": [],
-            "Components": [
-                {
                     "CastShadows": true,
                     "Color": [
                         1.0,
@@ -311,7 +268,7 @@
                     "FollowOffsetX": 0.10000000149011612,
                     "FollowOffsetY": 1.100000023841858,
                     "FollowOffsetZ": -4.800000190734863,
-                    "FollowTarget": "Player",
+                    "FollowTarget": "Unichan",
                     "FovDegrees": 45.0,
                     "LookAtTarget": "",
                     "NearZ": 0.20000000298023224,
@@ -650,6 +607,30 @@
                         }
                     ],
                     "Type": "AnimationComponent"
+                },
+                {
+                    "CollidesWith": 126,
+                    "ContactOffset": 0.019999999552965164,
+                    "Height": 0.5199999809265137,
+                    "Layer": 4,
+                    "LocalOffsetX": 0.0,
+                    "LocalOffsetY": 0.0,
+                    "LocalOffsetZ": 0.0,
+                    "Radius": 0.5,
+                    "SlopeLimitDeg": 45.0,
+                    "StepOffset": 0.30000001192092896,
+                    "Type": "CapsuleColliderComponent"
+                },
+                {
+                    "Acceleration": 21.0,
+                    "Deceleration": 23.5,
+                    "ImpulseDrag": 11.899999618530273,
+                    "MaxWalkSpeed": 8.899999618530273,
+                    "Type": "CharacterMovementComponent",
+                    "UseGravity": true
+                },
+                {
+                    "Type": "PlayerControllerComponent"
                 }
             ],
             "IsActive": true,

@@ -1,6 +1,5 @@
 #include "Enemy.h"
 #include "EnemyManager.h"
-#include "LegacyCharacterComponent.h"
 
 using namespace DirectX;
 
@@ -94,22 +93,6 @@ void EnemyManager::SpawnEnemy(const EnemySpawnConfig& config)
 
         activeEnemyPtr = newEnemy.get();
         m_enemies.push_back(std::move(newEnemy));
-    }
-
-    // Always create a GameObject wrapper, whether it's new or from the pool
-    if (m_parentNode && activeEnemyPtr)
-    {
-        std::string nodeName{ GetEnemyTypeName(config.Type) };
-        nodeName += "_" + std::to_string(++m_spawnCounter);
-
-        auto enemyNode{ std::make_unique<GameObject>(nodeName) };
-        enemyNode->AddComponent<LegacyCharacterComponent>(activeEnemyPtr);
-
-        enemyNode->transform.position = config.Position;
-        enemyNode->transform.rotation = config.Rotation;
-        enemyNode->transform.scale = finalScale;
-
-        m_parentNode->AddChild(std::move(enemyNode));
     }
 }
 
