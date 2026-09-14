@@ -15,7 +15,6 @@
 #include "EnemyManager.h"
 #include "ItemManager.h"
 #include "StateMachine.h"
-#include "PlayerStates.h"
 #include "NaviAlly.h"
 
 class ItemManager;

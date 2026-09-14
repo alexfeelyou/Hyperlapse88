@@ -372,6 +372,9 @@
     <ClCompile Include="Source\Engine\Components\CharacterMovementComponent.cpp">
       <Filter>Source\Engine\Components</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Engine\Components\PlayerControllerComponent.cpp">
+      <Filter>Source\Engine\Components</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\System\BasicShader.h">
@@ -505,9 +508,6 @@
     </ClInclude>
     <ClInclude Include="Source\Engine\VFX\AnimationController.h">
       <Filter>Source\Engine\VFX</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Game\Entities\PlayerConstants.h">
-      <Filter>Source\Game\Entities</Filter>
     </ClInclude>
     <ClInclude Include="Source\Engine\UI\UIDialogueBox.h">
       <Filter>Source\Engine\UI</Filter>
@@ -715,6 +715,9 @@
       <Filter>Source\Engine\Components</Filter>
     </ClInclude>
     <ClInclude Include="Source\Engine\Components\CharacterMovementComponent.h">
+      <Filter>Source\Engine\Components</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Components\PlayerControllerComponent.h">
       <Filter>Source\Engine\Components</Filter>
     </ClInclude>
   </ItemGroup>

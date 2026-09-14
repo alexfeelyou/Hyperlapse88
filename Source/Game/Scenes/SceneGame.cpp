@@ -105,18 +105,34 @@ SceneGame::SceneGame()
     PhysicsManager::Instance().Initialize();
 
     m_player = std::make_unique<Player>();
-    m_player->SetPosition(m_playerSpawnPos);
-    m_player->InitPhysics(PhysicsManager::Instance().GetControllerManager(), PhysicsManager::Instance().GetDefaultMaterial());
     m_player->SetMaxHP(NORMAL_MAX_HP);
-
-    PlayerConfig gameConfig{};
-    gameConfig.moveSpeed = 8.0f;
-    gameConfig.dashSpeed = 28.0f;
-    m_player->ApplyConfig(gameConfig);
     m_player->GetMovement()->SetRotationY(DirectX::XM_PI);
 
     auto playerNode{ std::make_unique<GameObject>("Player") };
+
+    // 1. Visual Bridge
     playerNode->AddComponent<LegacyCharacterComponent>(m_player.get());
+
+    // 2. Physics Proxy 
+    CapsuleColliderConfig capConfig{};
+    capConfig.radius = 0.5f;
+    capConfig.height = 0.7f;
+    capConfig.stepOffset = 0.3f;
+    capConfig.layer = CollisionLayer::Player;
+    capConfig.collidesWith = CollisionLayer::Mask::Player;
+    playerNode->AddComponent<CapsuleColliderComponent>(capConfig);
+
+    // 3. Kinematic Motor
+    CharacterMovementConfig moveConfig{};
+    moveConfig.maxWalkSpeed = 15.0f;
+    moveConfig.acceleration = 60.0f;
+    moveConfig.deceleration = 60.0f;
+    playerNode->AddComponent<CharacterMovementComponent>(moveConfig);
+
+    // 4. Brain
+    playerNode->AddComponent<PlayerControllerComponent>();
+
+    playerNode->transform.position = m_playerSpawnPos;
     m_sceneRoot->AddChild(std::move(playerNode));
 
     m_enemyManager = std::make_unique<EnemyManager>();
@@ -135,21 +151,7 @@ SceneGame::SceneGame()
     m_collisionManager->SetNavi(m_navi.get());
     m_player->SetCollisionManager(m_collisionManager.get());
 
-    // Pre-Warm Physics
-    if (m_lastEditorMode == EditorMode::Play)
-    {
-        for (int i{ 0 }; i < 300; ++i)
-        {
-            PhysicsManager::Instance().Simulate(0.0f);
-            if (m_player) m_player->Update(0.01666f, nullptr);
-            if (m_navi)   m_navi->Update(0.01666f, nullptr);
-
-            if (m_player && m_player->IsGrounded()) break;
-        }
-
-        if (m_player) m_playerSpawnPos = m_player->GetPosition();
-    }
-    else if (m_lastEditorMode == EditorMode::Edit)
+    if (m_lastEditorMode == EditorMode::Edit)
     {
         PhysicsManager::Instance().Simulate(0.0f);
         if (m_enemyManager) m_enemyManager->Update(0.0f, m_mainCamera.get(), { 0,0,0 }, true);
@@ -216,19 +218,6 @@ void SceneGame::Update(const float elapsedTime)
             // Relinquish camera control to the Scene Graph
             CameraController::Instance().SetEnabled(false);
 
-            if (m_player)
-            {
-                for (int i{ 0 }; i < 300; ++i)
-                {
-                    PhysicsManager::Instance().Simulate(0.01666f);
-                    if (m_player) m_player->Update(0.01666f, nullptr);
-                    if (m_navi)   m_navi->Update(0.01666f, nullptr);
-
-                    if (m_player->IsGrounded()) break;
-                }
-                m_playerSpawnPos = m_player->GetPosition();
-            }
-
             m_bootTimer = 1.1f;
             m_respawnTimer = 0.0f;
             m_isDying = false;
@@ -265,7 +254,6 @@ void SceneGame::Update(const float elapsedTime)
                 m_player->GetMovement()->SetVelocity({ 0.0f, 0.0f, 0.0f });
                 m_player->SetMaxHP(NORMAL_MAX_HP);
                 m_player->scale = { 1.0f, 1.0f, 1.0f };
-                m_player->GetStateMachine()->ChangeState(m_player.get(), std::make_unique<PlayerIdle>());
                 m_player->GetProjectiles().clear();
                 m_player->ForceVisualSync();
             }
@@ -601,7 +589,6 @@ void SceneGame::ResetLevel()
         m_player->SetMaxHP(NORMAL_MAX_HP);
         m_player->SetInputEnabled(false);
         m_player->scale = { 1.0f, 1.0f, 1.0f };
-        m_player->GetStateMachine()->ChangeState(m_player.get(), std::make_unique<PlayerIdle>());
         m_player->GetProjectiles().clear();
     }
 

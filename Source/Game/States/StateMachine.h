@@ -1,35 +1,56 @@
 #pragma once
+
 #include <memory>
 #include "PlayerState.h"
+
+// Forward declaration of the new Brain component
+class PlayerControllerComponent;
 
 class StateMachine
 {
 public:
+    StateMachine() noexcept = default;
     ~StateMachine() = default;
 
+    // Delete copy/move to enforce strict ownership
+    StateMachine(const StateMachine&) = delete;
+    StateMachine& operator=(const StateMachine&) = delete;
+
     // Takes ownership of startState and immediately enters it
-    void Initialize(std::unique_ptr<PlayerState> startState, Player* player)
+    void Initialize(std::unique_ptr<PlayerState> startState, PlayerControllerComponent* controller) noexcept
     {
-        currentState = std::move(startState);
-        currentState->Enter(player);
+        m_currentState = std::move(startState);
+        if (m_currentState)
+        {
+            m_currentState->Enter(controller);
+        }
     }
 
     // Exits current state, takes ownership of newState, enters it
-    void ChangeState(Player* player, std::unique_ptr<PlayerState> newState)
+    void ChangeState(PlayerControllerComponent* controller, std::unique_ptr<PlayerState> newState) noexcept
     {
-        if (currentState)
-            currentState->Exit(player);
+        // Move to temporary to prevent recursive dangling pointers if Exit() triggers a state change
+        std::unique_ptr<PlayerState> oldState{ std::move(m_currentState) };
+        if (oldState)
+        {
+            oldState->Exit(controller);
+        }
 
-        currentState = std::move(newState);
-        currentState->Enter(player);
+        m_currentState = std::move(newState);
+        if (m_currentState)
+        {
+            m_currentState->Enter(controller);
+        }
     }
 
-    void Update(Player* player, float elapsedTime)
+    void Update(PlayerControllerComponent* controller, float elapsedTime) noexcept
     {
-        if (currentState)
-            currentState->Update(player, elapsedTime);
+        if (m_currentState)
+        {
+            m_currentState->Update(controller, elapsedTime);
+        }
     }
 
 private:
-    std::unique_ptr<PlayerState> currentState;
+    std::unique_ptr<PlayerState> m_currentState{};
 };

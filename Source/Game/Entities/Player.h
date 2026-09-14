@@ -1,46 +1,27 @@
 ﻿#pragma once
 
-#include "Bullet.h"
-#include "CapeSimulator.h"
-#include "Character.h"
-#include "PlayerConstants.h"
-#include "Weapon.h"
+#include <array>
+#include <cmath>
+#include <DirectXMath.h>
+#include <deque>
+#include <memory>
+#include <SDL3/SDL.h>
+#include "System/AudioManager.h"
 #include "System/CollisionManager.h"
 #include "System/Input.h"
 #include "System/Graphics.h"
 #include "AnimationController.h"
+#include "Bullet.h"
 #include "Camera.h"
-#include "Framework.h"
-#include "PlayerStates.h"
-#include "StateMachine.h"
-#include <cmath>
+#include "CapeSimulator.h"
+#include "Character.h"
 #include "EffectManager.h"
-#include "System/AudioManager.h"
-#include <array>
-#include <deque>
-#include <memory>
-#include <DirectXMath.h>
-#include <SDL3/SDL.h>
-#include <characterkinematic/PxController.h> 
-#include <characterkinematic/PxCapsuleController.h>
-#include <characterkinematic/PxControllerManager.h>
+#include "Framework.h"
+#include "Weapon.h"
 
-class StateMachine;
 class AnimationController;
 class Camera;
 class CollisionManager;
-
-struct PlayerConfig
-{
-    float moveSpeed{ PlayerConst::MoveSpeed };
-    float dashSpeed{ PlayerConst::DashSpeed };
-    float dashDuration{ PlayerConst::DashDuration };
-    float dashCooldown{ PlayerConst::DashCooldown };
-    float acceleration{ PlayerConst::Acceleration };
-    float deceleration{ PlayerConst::Deceleration };
-    bool  gravityEnabled{ true };
-    bool  invertControls{ false };
-};
 
 class Player : public Character
 {
@@ -48,7 +29,7 @@ public:
     enum class WeaponType {
         Crossbow = 0,
         Sword,
-        Count // Automatically tracks the number of weapons
+        Count
     };
 
     struct DebugAnimState {
@@ -64,43 +45,24 @@ public:
     void Update(float elapsedTime, Camera* camera) override;
 
     // Component accessors 
-    StateMachine* GetStateMachine() const { return stateMachine.get(); }
-    CharacterMovement* GetMovement()     const { return movement.get(); }
-    AnimationController* GetAnimator()     const { return animator.get(); }
-    std::shared_ptr<Model> GetModel()        const { return model; }
+    CharacterMovement* GetMovement() const { return movement.get(); }
+    AnimationController* GetAnimator() const { return animator.get(); }
+    std::shared_ptr<Model> GetModel() const { return model; }
 
-    // Input & camera 
     void SetInputEnabled(bool enable) { isInputEnabled = enable; }
-    [[nodiscard]] bool IsInputEnabled() const { return isInputEnabled; } 
+    [[nodiscard]] bool IsInputEnabled() const { return isInputEnabled; }
     void SetCamera(Camera* cam) { activeCamera = cam; }
 
     void SetPosition(const DirectX::XMFLOAT3& pos) noexcept override;
     void SetRotation(const DirectX::XMFLOAT3& rot) noexcept override { if (movement) movement->SetRotation(rot); }
 
-    // Movement config
-    void ApplyConfig(const PlayerConfig& config) noexcept;
-
-    // Physics init (call once after scene PhysX setup) 
-    void InitPhysics(physx::PxControllerManager* manager, physx::PxMaterial* material,
-        float spawnY = 15.0f);
-
-    // Drives PhysX + this player's own Update() through repeated fixed steps until the
-    // capsule controller reports ground contact, or the iteration budget runs out
-    void SettleOnGround(int maxIterations = 300, float fixedDt = 1.0f / 60.0f);
-
-	// Weapon 
     void SetActiveWeapon(WeaponType type) { m_activeWeaponType = type; }
-
-    // Returns the weapon currently being held
     [[nodiscard]] Weapon* GetActiveWeapon() const { return m_weapons[static_cast<size_t>(m_activeWeaponType)].get(); }
 
     void RenderWeapon(ModelRenderer* renderer);
-
-    // Aim 
     void RotateModelToPoint(const DirectX::XMFLOAT3& targetPos);
     [[nodiscard]] const DirectX::XMFLOAT3& GetAimTarget() const { return m_aimTarget; }
 
-    // Projectiles
     void FireProjectile();
     void RenderProjectiles(ModelRenderer* renderer);
     void ResetPlayerBulletOffsets() {
@@ -109,41 +71,17 @@ public:
         m_playerbulletOffsetScale = { 1.0f, 1.0f, 1.0f };
     }
 
-    float GetShootDelay() const {
-        return m_shootDelay;
-    }
-
     std::deque<std::unique_ptr<Bullet>>& GetProjectiles() { return m_projectiles; }
-
-    bool IsMoving() const
-    {
-        return (std::abs(currentSmoothInput.x) > 0.01f ||
-            std::abs(currentSmoothInput.y) > 0.01f);
-    }
     [[nodiscard]] bool IsBackpedaling() const { return m_isBackpedaling; }
 
-    [[nodiscard]] bool IsGrounded() const noexcept { return m_isGrounded; }
-
-    // Visual tint (used by states for hit flash, etc)
     DirectX::XMFLOAT4 color = { 1.0f, 1.0f, 1.0f, 1.0f };
-
-    // Read accessors for state machine 
-    float GetDashSpeed()    const { return dashSpeed; }
-    float GetDashDuration() const { return dashDuration; }
-    float GetDashCooldown() const { return dashCooldown; } 
     DirectX::XMFLOAT2 GetLastValidInput() const { return lastValidInput; }
 
-    bool  canDash = true;
-    float dashCooldownTimer = 0.0f;
-
-	// Health 
+    // Health & Invincibility
     void TakeDamage(float damage);
-    void SetMaxHP(float maxHp) { m_maxHp = maxHp; m_hp = maxHp; } 
-
-    [[nodiscard]] float GetHP() const { return m_hp; }      
+    void SetMaxHP(float maxHp) { m_maxHp = maxHp; m_hp = maxHp; }
+    [[nodiscard]] float GetHP() const { return m_hp; }
     [[nodiscard]] float GetMaxHP() const { return m_maxHp; }
-
-	// Invincibility (used by PlayerDash and PlayerHit states) 
     void TriggerInvincibility(float duration) { m_invincibilityTimer = duration; }
     [[nodiscard]] bool IsInvincible() const { return m_invincibilityTimer > 0.0f; }
 
@@ -154,101 +92,62 @@ public:
     void SetCollisionManager(CollisionManager* colMgr) { m_collisionManager = colMgr; }
     CollisionManager* GetCollisionManager() const { return m_collisionManager; }
 
-	// Glitch Effect 
     [[nodiscard]] float GetDamageGlitchIntensity() const noexcept;
 
+    static constexpr float CapsuleHalfHeight{ 1.0f };
+    static constexpr float AimMinDistSq{ 0.0f };
+    static constexpr float MaxTorsoAngle{ 1.5707963f };
+    static constexpr float RotSmoothSpeed{ 15.0f };
+    static constexpr float BulletSpeed{ 50.0f };
+    static constexpr float BulletSpawnFwd{ 1.5f };
+    static constexpr float BulletSpawnY{ 1.0f };
+    static constexpr int   MaxBullets{ 150 };
+
 private:
-    // Update pipeline 
-    void UpdateDashCooldown(float dt);
-    void HandleMovementInput(float dt);
     void HandleAimInput(Camera* camera);
-    void UpdateHorizontalMovement(float dt);
     void UpdateFootRotation(float dt, float& outSmoothedYaw);
     void UpdateAimConstraint(float dt, float& inOutSmoothedYaw, bool& outShouldAim, float& outRelativeAngle);
     void ApplyWorldMatrix(float smoothedYaw, bool shouldAim, float relativeAngle);
     void UpdateProjectiles(float dt, Camera* camera);
+    void StopAllVFX();
 
-    // Owned components 
-    std::unique_ptr<StateMachine>        stateMachine;
     std::unique_ptr<AnimationController> animator;
-
-    // PhysX controller (lifecycle managed by PhysX, released manually in destructor) 
-    physx::PxController* m_physxController = nullptr;
-
-    // Camera 
     Camera* activeCamera = nullptr;
 
-    // Input state 
     bool isInputEnabled = true;
-    bool invertControls = false;
     bool m_isBackpedaling = false;
-    bool gravityEnabled = true;
-    bool m_isGrounded{ false };
-    DirectX::XMFLOAT2 currentSmoothInput = { 0.0f, 0.0f };
     DirectX::XMFLOAT2 lastValidInput = { 0.0f, 1.0f };
 
-    // Movement params 
-    float moveSpeed = PlayerConst::MoveSpeed;
-    float acceleration = PlayerConst::Acceleration;
-    float deceleration = PlayerConst::Deceleration;
-
-    // Dash params 
-    float baseSpeed = 10.0f;
-    float dashSpeed = PlayerConst::DashSpeed;
-    float dashDuration = PlayerConst::DashDuration;
-    float dashCooldown = PlayerConst::DashCooldown;
-
-    // Health 
-    float m_hp = 30.0f;      
-    float m_maxHp = 30.0f;   
-
-	// Invincibility timer (counts down when active, prevents damage) 
+    float m_hp = 30.0f;
+    float m_maxHp = 30.0f;
     float m_invincibilityTimer = 0.0f;
 
-	// Weapon 
     std::array<std::unique_ptr<Weapon>, static_cast<size_t>(WeaponType::Count)> m_weapons{};
     WeaponType m_activeWeaponType{ WeaponType::Crossbow };
-    int m_rightHandBoneIndex{ -1 }; // -1 indicates "Not Found Yet"
+    int m_rightHandBoneIndex{ -1 };
 
-    // Aim target (set by RotateModelToPoint) 
     DirectX::XMFLOAT3 m_aimTarget = { 0.0f, 0.0f, 0.0f };
-
     bool m_aimLocked = false;
 
-    // Projectile pool 
     std::shared_ptr<Model> m_playerbulletModel{};
     DirectX::XMFLOAT3 m_playerbulletOffsetPos{ 0.000f, 0.460f, -0.950f };
     DirectX::XMFLOAT3 m_playerbulletOffsetRot{ 0.000f, 90.000f, 0.000f };
     DirectX::XMFLOAT3 m_playerbulletOffsetScale{ 0.200f, 0.200f, 0.700f };
     DirectX::XMFLOAT4 m_playerbulletColor{ 4.000f, 4.000f, 4.000f, 1.000f };
     std::deque<std::unique_ptr<Bullet>> m_projectiles;
-    float m_bulletSpeed = PlayerConst::BulletSpeed;
-
-    float m_shootDelay = PlayerConst::ShootDuration;
-
     int m_bulletDamage = 5;
 
     CollisionManager* m_collisionManager = nullptr;
-
-	// Cape Simulator (optional) 
     std::unique_ptr<CapeSimulator> m_capeSimulator{};
 
-	// Debug Animation 
     DebugAnimState m_debugState{};
-
     bool m_enableIFrames = false;
     float m_iFrameDuration = 1.0f;
 
     int m_dashReadyVfxHandle = -1;
     float m_dashReadyOffsetY = 0.0f;
-
     int m_dashStandbyVfxHandle = -1;
 
-	// Stop effect
-    void StopAllVFX();
-
-
-	// Glitch Effect 
     float m_damageGlitchTimer{ 0.0f };
     static constexpr float DAMAGE_GLITCH_DURATION{ 0.4f };
     static constexpr float DAMAGE_GLITCH_MAX_INTENSITY{ 0.120f };

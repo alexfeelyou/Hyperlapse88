@@ -61,7 +61,13 @@ bool CharacterMovementComponent::IsMoving() const noexcept
 
 void CharacterMovementComponent::Update(const float dt)
 {
-    if (!m_capsule) return;
+    // Lazy Initialization 
+    // Guarantees the motor finds the capsule regardless of JSON load order
+    if (!m_capsule)
+    {
+        m_capsule = m_owner->GetComponent<CapsuleColliderComponent>();
+        if (!m_capsule) return;
+    }
 
     // Process Input Locomotion (Accelerate towards desired direction)
     const DirectX::XMFLOAT2 targetVelocity{

@@ -3,6 +3,7 @@
 #include <json.hpp>
 #include "Camera.h"
 #include "CameraComponent.h"
+#include "CapsuleColliderComponent.h"
 #include "EditorManager.h"
 #include "LightComponent.h"
 #include "StaticMeshColliderComponent.h"
@@ -481,6 +482,8 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
             auto& config{ staticCollider->GetConfig() };
             const DirectX::XMMATRIX objWorld{ DirectX::XMLoadFloat4x4(&targetMatrix) };
 
+            // Inject the proxyExtents so ImGuizmo knows the absolute size
+            const DirectX::XMMATRIX locScale{ DirectX::XMMatrixScaling(config.proxyExtents.x, config.proxyExtents.y, config.proxyExtents.z) };
             const DirectX::XMMATRIX locRot{ DirectX::XMMatrixRotationRollPitchYaw(
                 DirectX::XMConvertToRadians(config.localRotation.x),
                 DirectX::XMConvertToRadians(config.localRotation.y),
@@ -488,7 +491,7 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
             };
             const DirectX::XMMATRIX locTrans{ DirectX::XMMatrixTranslation(config.localOffset.x, config.localOffset.y, config.localOffset.z) };
 
-            DirectX::XMStoreFloat4x4(&targetMatrix, locRot * locTrans * objWorld);
+            DirectX::XMStoreFloat4x4(&targetMatrix, locScale * locRot * locTrans * objWorld);
         }
 
         ImGuizmo::SetOrthographic(false);
@@ -513,11 +516,13 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
                 {
                     DirectX::XMStoreFloat3(&config.localOffset, vTrans);
 
-                    DirectX::XMFLOAT3 scaleDelta;
-                    DirectX::XMStoreFloat3(&scaleDelta, vScale);
-                    config.proxyExtents.x *= scaleDelta.x;
-                    config.proxyExtents.y *= scaleDelta.y;
-                    config.proxyExtents.z *= scaleDelta.z;
+                    // Assign absolute scale directly to prevent exponential blowup
+                    DirectX::XMStoreFloat3(&config.proxyExtents, vScale);
+
+                    // Clamp to prevent collapsing the physics engine
+                    config.proxyExtents.x = (std::max)(0.001f, config.proxyExtents.x);
+                    config.proxyExtents.y = (std::max)(0.001f, config.proxyExtents.y);
+                    config.proxyExtents.z = (std::max)(0.001f, config.proxyExtents.z);
 
                     const DirectX::XMFLOAT4X4 mRot{ [&]() {
                         DirectX::XMFLOAT4X4 temp;
@@ -547,6 +552,7 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
             }
             else
             {
+                // Base GameObject Transform Math (Untouched)
                 DirectX::XMMATRIX matLocal{ matNewWorld };
                 if (m_selectedObject->transform.parent)
                 {
