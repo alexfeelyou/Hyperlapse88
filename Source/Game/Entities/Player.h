@@ -71,13 +71,10 @@ public:
         m_playerbulletOffsetScale = { 1.0f, 1.0f, 1.0f };
     }
 
-    float GetShootDelay() const { return ShootDuration; }
     std::deque<std::unique_ptr<Bullet>>& GetProjectiles() { return m_projectiles; }
-
     [[nodiscard]] bool IsBackpedaling() const { return m_isBackpedaling; }
 
     DirectX::XMFLOAT4 color = { 1.0f, 1.0f, 1.0f, 1.0f };
-
     DirectX::XMFLOAT2 GetLastValidInput() const { return lastValidInput; }
 
     // Health & Invincibility
@@ -105,8 +102,6 @@ public:
     static constexpr float BulletSpawnFwd{ 1.5f };
     static constexpr float BulletSpawnY{ 1.0f };
     static constexpr int   MaxBullets{ 150 };
-    static constexpr float ShootDuration{ 0.15f };
-    static constexpr float DashCooldown{ 1.0f };
 
 private:
     void HandleAimInput(Camera* camera);
