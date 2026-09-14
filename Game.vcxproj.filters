@@ -177,18 +177,6 @@
     <ClCompile Include="Source\Game\Entities\Bullet.cpp">
       <Filter>Source\Game\Entities</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Game\Entities\Character.cpp">
-      <Filter>Source\Game\Entities</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Game\Entities\CharacterMovement.cpp">
-      <Filter>Source\Game\Entities</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Game\Entities\Enemy.cpp">
-      <Filter>Source\Game\Entities</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Game\Entities\EnemyManager.cpp">
-      <Filter>Source\Game\Entities</Filter>
-    </ClCompile>
     <ClCompile Include="Source\Game\Entities\Item.cpp">
       <Filter>Source\Game\Entities</Filter>
     </ClCompile>
@@ -456,18 +444,6 @@
       <Filter>Source\Engine\Graphics</Filter>
     </ClInclude>
     <ClInclude Include="Source\Game\Entities\Bullet.h">
-      <Filter>Source\Game\Entities</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Game\Entities\Character.h">
-      <Filter>Source\Game\Entities</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Game\Entities\CharacterMovement.h">
-      <Filter>Source\Game\Entities</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Game\Entities\Enemy.h">
-      <Filter>Source\Game\Entities</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Game\Entities\EnemyManager.h">
       <Filter>Source\Game\Entities</Filter>
     </ClInclude>
     <ClInclude Include="Source\Game\Entities\Item.h">

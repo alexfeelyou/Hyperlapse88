@@ -179,10 +179,6 @@
     <ClInclude Include="Source\Engine\Windowing\RenderWindow.h" />
     <ClInclude Include="Source\Engine\Windowing\WindowManager.h" />
     <ClInclude Include="Source\Game\Entities\Bullet.h" />
-    <ClInclude Include="Source\Game\Entities\Character.h" />
-    <ClInclude Include="Source\Game\Entities\CharacterMovement.h" />
-    <ClInclude Include="Source\Game\Entities\Enemy.h" />
-    <ClInclude Include="Source\Game\Entities\EnemyManager.h" />
     <ClInclude Include="Source\Game\Entities\Item.h" />
     <ClInclude Include="Source\Game\Entities\ItemManager.h" />
     <ClInclude Include="Source\Game\Entities\Weapon.h" />
@@ -279,10 +275,6 @@
     <ClCompile Include="Source\Engine\Windowing\RenderWindow.cpp" />
     <ClCompile Include="Source\Engine\Windowing\WindowManager.cpp" />
     <ClCompile Include="Source\Game\Entities\Bullet.cpp" />
-    <ClCompile Include="Source\Game\Entities\Character.cpp" />
-    <ClCompile Include="Source\Game\Entities\CharacterMovement.cpp" />
-    <ClCompile Include="Source\Game\Entities\Enemy.cpp" />
-    <ClCompile Include="Source\Game\Entities\EnemyManager.cpp" />
     <ClCompile Include="Source\Game\Entities\Item.cpp" />
     <ClCompile Include="Source\Game\Entities\ItemManager.cpp" />
     <ClCompile Include="Source\Game\Entities\Weapon.cpp" />

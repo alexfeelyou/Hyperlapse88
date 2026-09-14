@@ -42,6 +42,9 @@ void ItemManager::SpawnItem(const ItemSpawnData& data)
         itemNode->transform.rotation = data.Rotation;
         itemNode->transform.scale = data.Scale;
 
+        // Link the item to the GameObject hierarchy node
+        newItem->SetOwnerNode(itemNode.get());
+
         m_parentNode->AddChild(std::move(itemNode));
     }
 

@@ -4,9 +4,7 @@
 #include "System/Graphics.h"
 #include "System/Logger.h"
 #include "ComponentRegistry.h"
-#include "EnemyManager.h"
 #include "GameObject.h"
-#include "ItemManager.h"
 #include "SceneSerializer.h"
 
 namespace
