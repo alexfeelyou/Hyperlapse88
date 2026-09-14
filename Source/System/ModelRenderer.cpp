@@ -213,11 +213,35 @@ void ModelRenderer::ComputeAndUploadSkeleton(
     {
         if (useManual)
         {
-            const DirectX::XMMATRIX nodeGlobalMat{ DirectX::XMLoadFloat4x4(&mesh.node->globalTransform) };
+            // --- FIX 4: Unskinned meshes must track the animated node ---
+            DirectX::XMMATRIX nodeGlobalMat;
+
+            // If the AnimationComponent provided evaluated globals, use them!
+            if (currentNodeGlobals && mesh.nodeIndex >= 0 && static_cast<std::size_t>(mesh.nodeIndex) < currentNodeGlobals->size())
+            {
+                nodeGlobalMat = DirectX::XMLoadFloat4x4(&(*currentNodeGlobals)[mesh.nodeIndex]);
+            }
+            else
+            {
+                // Fallback to static bind pose if no AnimationComponent exists
+                nodeGlobalMat = DirectX::XMLoadFloat4x4(&mesh.node->globalTransform);
+            }
+
             DirectX::XMStoreFloat4x4(&cbCurrent.boneTransforms[0], nodeGlobalMat * manualWorldMat);
+
             if (needsPrevious)
             {
-                DirectX::XMStoreFloat4x4(&cbPrevious.boneTransforms[0], nodeGlobalMat * previousManualWorldMat);
+                DirectX::XMMATRIX prevNodeGlobalMat;
+                if (previousNodeGlobals && mesh.nodeIndex >= 0 && static_cast<std::size_t>(mesh.nodeIndex) < previousNodeGlobals->size())
+                {
+                    prevNodeGlobalMat = DirectX::XMLoadFloat4x4(&(*previousNodeGlobals)[mesh.nodeIndex]);
+                }
+                else
+                {
+                    prevNodeGlobalMat = nodeGlobalMat;
+                }
+
+                DirectX::XMStoreFloat4x4(&cbPrevious.boneTransforms[0], prevNodeGlobalMat * previousManualWorldMat);
             }
         }
         else

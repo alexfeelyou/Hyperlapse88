@@ -146,6 +146,7 @@
     <ClInclude Include="Source\Engine\Camera\Camera.h" />
     <ClInclude Include="Source\Engine\Camera\CameraController.h" />
     <ClInclude Include="Source\Engine\Camera\FreeCameraController.h" />
+    <ClInclude Include="Source\Engine\Components\AnimationComponent.h" />
     <ClInclude Include="Source\Engine\Components\CameraComponent.h" />
     <ClInclude Include="Source\Engine\Components\CapsuleColliderComponent.h" />
     <ClInclude Include="Source\Engine\Components\CharacterMovementComponent.h" />
@@ -254,6 +255,7 @@
     <ClCompile Include="Source\Engine\Camera\Camera.cpp" />
     <ClCompile Include="Source\Engine\Camera\CameraController.cpp" />
     <ClCompile Include="Source\Engine\Camera\FreeCameraController.cpp" />
+    <ClCompile Include="Source\Engine\Components\AnimationComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\CameraComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\CapsuleColliderComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\CharacterMovementComponent.cpp" />
