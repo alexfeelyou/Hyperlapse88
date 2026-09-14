@@ -684,6 +684,9 @@
     <ClInclude Include="Source\Engine\Components\AnimationComponent.h">
       <Filter>Source\Engine\Components</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Engine\Base\StringHash.h">
+      <Filter>Source\Engine\Base</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Shader\Basic.hlsli">

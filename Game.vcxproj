@@ -61,10 +61,10 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>.\Source;.\Source\Engine\Base;.\Source\Engine\Camera;.\Source\Engine\Components;.\Source\Engine\Editor;.\Source\Engine\Graphics;.\Source\Engine\Light;.\Source\Engine\Skybox;.\Source\Engine\UI;.\Source\Engine\VFX;.\Source\Engine\Windowing;.\Source\Game\Entities;.\Source\Game\States;.\Source\Game\Scenes;.\Source\Engine\Helpers;.\Source\Engine\Legacy;.\External\SDL3-3.4.0\include;.\External\imgui;.\External\ImGuizmo;.\External\cereal\include;.\External\tinygltf;.\External\SphereCast\Include;.\External\DirectXTex;.\External\PhysX\physx\include;.\External\Effekseer170e\include\Effekseer;.\External\json;.\External\Effekseer170e\include\EffekseerRendererDX11;.\External\implot;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\Source;.\Source\Engine\Base;.\Source\Engine\Camera;.\Source\Engine\Components;.\Source\Engine\Editor;.\Source\Engine\Graphics;.\Source\Engine\Light;.\Source\Engine\Skybox;.\Source\Engine\UI;.\Source\Engine\VFX;.\Source\Engine\Windowing;.\Source\Game\Entities;.\Source\Game\States;.\Source\Game\Scenes;.\Source\Engine\Helpers;.\Source\Engine\Legacy;.\External\SDL3-3.4.0\include;.\External\imgui;.\External\ImGuizmo;.\External\cereal\include;.\External\tinygltf;.\External\SphereCast\Include;.\External\DirectXTex;.\External\PhysX\physx\include;.\External\Effekseer170e\include\Effekseer;.\External\json;.\External\Effekseer170e\include\EffekseerRendererDX11;.\External\implot;.\External\rapidhash;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
       <IntrinsicFunctions>true</IntrinsicFunctions>
@@ -96,10 +96,10 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>.\Source;.\Source\Engine\Base;.\Source\Engine\Camera;.\Source\Engine\Components;.\Source\Engine\Editor;.\Source\Engine\Graphics;.\Source\Engine\Light;.\Source\Engine\Skybox;.\Source\Engine\UI;.\Source\Engine\VFX;.\Source\Engine\Windowing;.\Source\Game\Entities;.\Source\Game\States;.\Source\Game\Scenes;.\Source\Engine\Helpers;.\Source\Engine\Legacy;.\External\SDL3-3.4.0\include;.\External\imgui;.\External\ImGuizmo;.\External\cereal\include;.\External\tinygltf;.\External\SphereCast\Include;.\External\DirectXTex;.\External\PhysX\physx\include;.\External\Effekseer170e\include\Effekseer;.\External\json;.\External\Effekseer170e\include\EffekseerRendererDX11;.\External\implot;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\Source;.\Source\Engine\Base;.\Source\Engine\Camera;.\Source\Engine\Components;.\Source\Engine\Editor;.\Source\Engine\Graphics;.\Source\Engine\Light;.\Source\Engine\Skybox;.\Source\Engine\UI;.\Source\Engine\VFX;.\Source\Engine\Windowing;.\Source\Game\Entities;.\Source\Game\States;.\Source\Game\Scenes;.\Source\Engine\Helpers;.\Source\Engine\Legacy;.\External\SDL3-3.4.0\include;.\External\imgui;.\External\ImGuizmo;.\External\cereal\include;.\External\tinygltf;.\External\SphereCast\Include;.\External\DirectXTex;.\External\PhysX\physx\include;.\External\Effekseer170e\include\Effekseer;.\External\json;.\External\Effekseer170e\include\EffekseerRendererDX11;.\External\implot;.\External\rapidhash;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
@@ -142,6 +142,7 @@
     <ClInclude Include="Source\Engine\Base\Framework.h" />
     <ClInclude Include="Source\Engine\Base\GameObject.h" />
     <ClInclude Include="Source\Engine\Base\IComponent.h" />
+    <ClInclude Include="Source\Engine\Base\StringHash.h" />
     <ClInclude Include="Source\Engine\Base\Transform.h" />
     <ClInclude Include="Source\Engine\Camera\Camera.h" />
     <ClInclude Include="Source\Engine\Camera\CameraController.h" />
