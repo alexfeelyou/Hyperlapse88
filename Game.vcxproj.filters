@@ -195,9 +195,6 @@
     <ClCompile Include="Source\Game\Entities\ItemManager.cpp">
       <Filter>Source\Game\Entities</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Game\Entities\Player.cpp">
-      <Filter>Source\Game\Entities</Filter>
-    </ClCompile>
     <ClCompile Include="Source\Game\Scenes\SceneGame.cpp">
       <Filter>Source\Game\Scenes</Filter>
     </ClCompile>
@@ -213,14 +210,8 @@
     <ClCompile Include="Source\Engine\VFX\EffectManager.cpp">
       <Filter>Source\Engine\VFX</Filter>
     </ClCompile>
-    <ClCompile Include="Source\Game\Entities\NaviAlly.cpp">
-      <Filter>Source\Game\Entities</Filter>
-    </ClCompile>
     <ClCompile Include="Source\Game\Entities\Weapon.cpp">
       <Filter>Source\Game\Entities</Filter>
-    </ClCompile>
-    <ClCompile Include="Source\Engine\Helpers\CapeSimulator.cpp">
-      <Filter>Source\Engine\Helpers</Filter>
     </ClCompile>
     <ClCompile Include="Source\Engine\UI\UIDialogueBox.cpp">
       <Filter>Source\Engine\UI</Filter>
@@ -483,9 +474,6 @@
       <Filter>Source\Game\Entities</Filter>
     </ClInclude>
     <ClInclude Include="Source\Game\Entities\ItemManager.h">
-      <Filter>Source\Game\Entities</Filter>
-    </ClInclude>
-    <ClInclude Include="Source\Game\Entities\Player.h">
       <Filter>Source\Game\Entities</Filter>
     </ClInclude>
     <ClInclude Include="Source\Game\States\PlayerState.h">

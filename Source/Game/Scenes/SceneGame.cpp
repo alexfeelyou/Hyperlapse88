@@ -50,7 +50,7 @@ namespace
 [[nodiscard]] bool SceneGame::CheckPauseToggleTriggered() const noexcept
 {
     // Do not allow pausing during death, respawn, or boot transitions
-    if (m_isDying || m_isNaviDefeatSequenceActive || m_bootTimer > 0.0f)
+    if (m_isDying || m_bootTimer > 0.0f)
     {
         return false;
     }
@@ -140,7 +140,6 @@ SceneGame::SceneGame()
     m_uiPause->Initialize();
 
     m_fadeSprite = std::make_unique<Sprite>(Graphics::Instance().GetDevice(), "Data/Sprite/Scene Game/Black.png");
-    m_whiteSprite = std::make_unique<Sprite>(Graphics::Instance().GetDevice(), "Data/Sprite/Scene Game/White.png");
     EffectManager::Instance().PreloadEffect("Data/Effect/Hit.efk");
 }
 
@@ -215,7 +214,6 @@ void SceneGame::Update(const float elapsedTime)
             Camera* activeCam{ CameraController::Instance().GetActiveCamera().get() };
             Scene::Update(0.0f);
 
-            m_hasCheckpoint = false;
             m_isPaused = false;
             m_isExitingToTitle = false;
             m_exitToTitleTimer = 0.0f;
@@ -224,7 +222,6 @@ void SceneGame::Update(const float elapsedTime)
             m_bootTimer = 0.0f;
             m_hasBGMStarted = false;
             m_hasIntroDialogueTestStarted = false;
-            m_hasTriggeredMushroomDialogue = false;
 
             m_dialogueBox = std::make_unique<UIDialogueBox>();
             m_dialogueBox->Initialize();
@@ -232,7 +229,6 @@ void SceneGame::Update(const float elapsedTime)
             if (m_uiPause) m_uiPause->ResetSelection();
 
             m_fadeAlpha = 0.0f;
-            m_whiteAlpha = 0.0f;
             if (m_postProcess)
             {
                 m_postProcess->GetVignette().GetData().smoothness = FX_BASE_SMOOTHNESS;
@@ -335,24 +331,7 @@ void SceneGame::Update(const float elapsedTime)
         m_globalTime += elapsedTime;
         if (m_globalTime > Config::TIME_LOOP_MAX) m_globalTime -= Config::TIME_LOOP_MAX;
 
-        if (m_isNaviDefeatSequenceActive)
-        {
-            m_naviDefeatTimer += elapsedTime;
-            const float linearT{ std::clamp(m_naviDefeatTimer / NAVI_DEFEAT_FADE_DURATION, 0.0f, 1.0f) };
-            const float t{ linearT * linearT * (3.0f - 2.0f * linearT) };
-
-            m_postProcess->GetVignette().GetData().smoothness = FX_BASE_SMOOTHNESS + (FX_BLACK_SMOOTHNESS - FX_BASE_SMOOTHNESS) * t;
-            m_postProcess->GetVignette().GetData().intensity = FX_BASE_INTENSITY + (FX_BLACK_INTENSITY - FX_BASE_INTENSITY) * t;
-            m_fadeAlpha = t;
-
-            if (linearT >= 1.0f)
-            {
-                m_isNaviDefeatReadyForNextScene = true;
-                Framework::Instance()->ChangeScene([]() { return std::make_unique<SceneTitle>(); });
-                return;
-            }
-        }
-        else if (m_bootTimer > 0.0f)
+        if (m_bootTimer > 0.0f)
         {
             m_bootTimer -= elapsedTime;
             const float t{ std::clamp(m_bootTimer / 1.1f, 0.0f, 1.0f) };
@@ -405,7 +384,7 @@ void SceneGame::Update(const float elapsedTime)
             if (!m_hasBGMStarted) { AudioManager::Instance().PlayMusic("Data/Sound/BGM_Game.wav", 0.1f, true); m_hasBGMStarted = true; }
         }
 
-        if (!m_hasIntroDialogueTestStarted && m_bootTimer <= 0.0f && m_respawnTimer <= 0.0f && !m_isDying && !m_isNaviDefeatSequenceActive)
+        if (!m_hasIntroDialogueTestStarted && m_bootTimer <= 0.0f && m_respawnTimer <= 0.0f && !m_isDying)
         {
             StartIntroDialogueTest();
         }
@@ -423,14 +402,6 @@ void SceneGame::Update(const float elapsedTime)
     EffectManager::Instance().Update(sceneDt);
 }
 
-void SceneGame::StartNaviDefeatSequence()
-{
-    if (m_isNaviDefeatSequenceActive) return;
-    m_isNaviDefeatSequenceActive = true;
-    m_naviDefeatTimer = 0.0f;
-    AudioManager::Instance().FadeOutMusic(NAVI_DEFEAT_FADE_DURATION);
-}
-
 void SceneGame::StartIntroDialogueTest()
 {
     m_hasIntroDialogueTestStarted = true;
@@ -441,17 +412,6 @@ void SceneGame::StartIntroDialogueTest()
             u8"目を覚まして。戦いの時間が来たわ。\n{ATK}で攻撃よ。遠くの敵は撃ち抜き、\n近づけばその刃で斬り裂くの。",
             u8"そして、よく覚えておいて。\nいずれそのキーは、敵の牙を弾き返す\n「Parry」の要にもなるわ。魂に刻み込んで。",
             u8"次は{DASH}を試して。\n風のように「Dash」して、敵の弾幕をすり抜けるのよ。\n\nさあ、あなたの力を見せて。"
-            });
-    }
-}
-
-void SceneGame::StartMushroomDialogue()
-{
-    if (m_dialogueBox)
-    {
-        m_dialogueBox->StartDialogue({
-            u8"あのキノコを見て。今は大人しく見えるけれど…\n気を抜かないで。",
-            u8"この森の奥は奇妙な薬液で汚染されているわ。\n凶暴化した個体もいるはずよ。"
             });
     }
 }
