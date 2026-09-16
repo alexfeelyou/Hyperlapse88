@@ -1,12 +1,25 @@
 #pragma once
 
+#include <array>           
 #include <DirectXMath.h>
 #include <memory>
 #include "IComponent.h"
 #include "StateMachine.h" 
 
+// Strongly typed enum for state indices
+enum class PlayerStateType : std::size_t
+{
+    Locomotion = 0,
+    Dash,
+    Attack,
+    HitReact,
+    Count
+};
+
 // Forward declarations 
 class CharacterMovementComponent;
+class AnimationComponent; // Added
+class PlayerState;        // Added
 
 struct InputIntent
 {
@@ -36,8 +49,17 @@ public:
     [[nodiscard]] const InputIntent& GetIntent() const noexcept { return m_intent; }
     [[nodiscard]] CharacterMovementComponent* GetMovement() const noexcept { return m_movement; }
 
+    // Animation Component Accessor
+    [[nodiscard]] AnimationComponent* GetAnimation() const noexcept { return m_animation; }
+
     // Exposes the state machine 
     [[nodiscard]] StateMachine* GetStateMachine() const noexcept { return m_stateMachine.get(); }
+
+    // Fast O(1) state retrieval from the preallocated array 
+    [[nodiscard]] PlayerState* GetState(PlayerStateType type) const noexcept
+    {
+        return m_states[static_cast<std::size_t>(type)].get();
+    }
 
     void SetInputEnabled(bool enabled) noexcept { m_inputEnabled = enabled; }
 
@@ -49,7 +71,11 @@ private:
 
     // Component Caches
     CharacterMovementComponent* m_movement{ nullptr };
+    AnimationComponent* m_animation{ nullptr }; 
 
     // Owns the state machine logic
     std::unique_ptr<StateMachine> m_stateMachine{};
+
+    // Preallocated states pool (Zero allocations at runtime) 
+    std::array<std::unique_ptr<PlayerState>, static_cast<std::size_t>(PlayerStateType::Count)> m_states{};
 };

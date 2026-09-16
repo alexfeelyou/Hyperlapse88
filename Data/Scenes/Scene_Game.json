@@ -588,21 +588,18 @@
                     "States": [
                         {
                             "Blend": 0.20000000298023224,
-                            "ClipIndex": 0,
-                            "Events": [
-                                {
-                                    "Id": 1,
-                                    "Payload": 0.0,
-                                    "Time": 0.3499999940395355
-                                },
-                                {
-                                    "Id": 2,
-                                    "Payload": 0.0,
-                                    "Time": 0.6499999761581421
-                                }
-                            ],
+                            "ClipIndex": 13,
+                            "Events": [],
                             "Loop": true,
-                            "Name": "Attack",
+                            "Name": "Idle",
+                            "Speed": 1.0
+                        },
+                        {
+                            "Blend": 0.20000000298023224,
+                            "ClipIndex": 33,
+                            "Events": [],
+                            "Loop": true,
+                            "Name": "Walk",
                             "Speed": 1.0
                         }
                     ],

@@ -68,6 +68,9 @@ public:
     void PlayState(std::size_t stateIndex) noexcept;
     void AddState(AnimationState state) noexcept { m_states.push_back(std::move(state)); }
 
+    // Fast O(N) integer lookup for action states
+    void PlayStateByHash(std::uint64_t stateHash) noexcept;
+
     // Read-only accessors for the MeshComponent and Event consumers
     [[nodiscard]] const std::vector<DirectX::XMFLOAT4X4>& GetCurrentNodeGlobals() const noexcept { return m_currentNodeGlobals; }
     [[nodiscard]] const std::vector<DirectX::XMFLOAT4X4>& GetPreviousNodeGlobals() const noexcept { return m_hasPreviousGlobals ? m_previousNodeGlobals : m_currentNodeGlobals; }
@@ -101,6 +104,9 @@ private:
 
     // Cleared and repopulated every frame; capacity reserved to prevent allocations
     std::vector<std::uint32_t> m_eventQueue{};
+
+    // Caches the 64-bit hash of every state's name for zero-allocation lookups
+    std::vector<std::uint64_t> m_stateHashes{};
 
     // Track if we are forcing time to flow in the editor
     bool m_editorPreview{ false };

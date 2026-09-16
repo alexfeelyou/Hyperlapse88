@@ -1,15 +1,23 @@
 #include <cmath>
 #include <imgui.h>
 #include "System/Input.h"
+#include "AnimationComponent.h"
 #include "CharacterMovementComponent.h"
 #include "ComponentRegistry.h"
+#include "EditorManager.h"
 #include "GameObject.h"
 #include "PlayerControllerComponent.h"
 #include "PlayerStates.h"
 
 PlayerControllerComponent::PlayerControllerComponent() noexcept
     : m_stateMachine{ std::make_unique<StateMachine>() }
-{}
+{
+    // Allocate states exactly once
+    m_states[static_cast<std::size_t>(PlayerStateType::Locomotion)] = std::make_unique<PlayerLocomotion>();
+    m_states[static_cast<std::size_t>(PlayerStateType::Dash)] = std::make_unique<PlayerDash>();
+    m_states[static_cast<std::size_t>(PlayerStateType::Attack)] = std::make_unique<PlayerAttackState>();
+    m_states[static_cast<std::size_t>(PlayerStateType::HitReact)] = std::make_unique<PlayerHitReactState>();
+}
 
 // Destructor is defaulted in header but must be declared here where StateMachine is fully defined
 PlayerControllerComponent::~PlayerControllerComponent() = default;
@@ -20,21 +28,21 @@ void PlayerControllerComponent::OnAttach(GameObject* owner) noexcept
 
     if (m_owner)
     {
-        // Wire up the sibling motor
         m_movement = m_owner->GetComponent<CharacterMovementComponent>();
+        m_animation = m_owner->GetComponent<AnimationComponent>();
 
-        // Initialize the state machine targeting this controller
         if (m_stateMachine)
         {
-            m_stateMachine->Initialize(std::make_unique<PlayerIdle>(), this);
+            // Boot directly into the unified locomotion state
+            m_stateMachine->Initialize(GetState(PlayerStateType::Locomotion), this);
         }
     }
 }
 
 void PlayerControllerComponent::GatherHardwareInput() noexcept
 {
-    // If input is disabled (pause, cutscene, death), wipe the intent clean and return
-    if (!m_inputEnabled)
+    // Fast-Fail: If input is disabled, or we are not actively in Play Mode, wipe intent and exit.
+    if (!m_inputEnabled || EditorManager::Instance().GetEditorMode() != EditorMode::Play)
     {
         m_intent = InputIntent{};
         return;

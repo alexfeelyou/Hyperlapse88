@@ -4,6 +4,7 @@
 #include "ComponentRegistry.h"
 #include "GameObject.h"
 #include "MeshComponent.h"
+#include "StringHash.h"
 
 void AnimationComponent::OnAttach(GameObject* owner) noexcept
 {
@@ -239,6 +240,19 @@ void AnimationComponent::ComputeGlobalTransforms() noexcept
     }
 }
 
+void AnimationComponent::PlayStateByHash(const std::uint64_t stateHash) noexcept
+{
+    // Linear search
+    for (std::size_t i{ 0 }; i < m_stateHashes.size(); ++i)
+    {
+        if (m_stateHashes[i] == stateHash)
+        {
+            PlayState(i);
+            return;
+        }
+    }
+}
+
 void AnimationComponent::DrawInspector()
 {
     ImGui::TextDisabled("Animation Evaluator");
@@ -288,7 +302,10 @@ void AnimationComponent::DrawInspector()
     {
         AnimationState newState{};
         newState.name = "State_" + std::to_string(m_states.size());
-        m_states.push_back(std::move(newState));
+        m_states.push_back(newState); 
+
+        // Sync the cache array instantly
+        m_stateHashes.push_back(Core::RuntimeHash(m_states.back().name));
     }
 
     ImGui::Spacing();
@@ -313,6 +330,9 @@ void AnimationComponent::DrawInspector()
             if (ImGui::InputText("Name", nameBuf, sizeof(nameBuf)))
             {
                 state.name = nameBuf;
+
+                // INSTANT HASH: Re-hash the new string so C++ code can find it immediately
+                m_stateHashes[i] = Core::RuntimeHash(state.name);
             }
 
             // Dropdown: Select which clip from the .glb this state plays
@@ -478,6 +498,9 @@ void AnimationComponent::Deserialize(const nlohmann::json& j)
                 state.events.push_back(ev);
             }
         }
+        // Cache the runtime hash of the loaded name so we never do string comparisons later
+        m_stateHashes.push_back(Core::RuntimeHash(state.name));
+
         m_states.push_back(state);
     }
 }

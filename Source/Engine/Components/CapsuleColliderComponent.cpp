@@ -261,7 +261,8 @@ void CapsuleColliderComponent::DrawGizmo(const GizmoContext& ctx) noexcept
 
     // Grab the authoritative World Matrix from the parent GameObject
     const Transform& t{ m_owner->transform };
-    const DirectX::XMMATRIX objWorld{ DirectX::XMLoadFloat4x4(&t.GetWorldMatrix()) };
+    const DirectX::XMFLOAT4X4 worldFloat4x4{ t.GetWorldMatrix() };
+    const DirectX::XMMATRIX objWorld{ DirectX::XMLoadFloat4x4(&worldFloat4x4) };
 
     // Apply the capsule's local offsets
     const float centerOffsetY{ GetTotalHalfHeight() + m_config.localOffset.y };
@@ -308,8 +309,11 @@ void CapsuleColliderComponent::DrawInspector()
     ImGui::BeginDisabled();
     bool groundedCheck{ m_isGrounded };
     ImGui::Checkbox("Is Grounded", &groundedCheck);
+
     const DirectX::XMFLOAT3 footPos{ GetFootPosition() };
-    ImGui::InputFloat3("Foot Position", const_cast<float*>(&footPos.x), "%.2f");
+    float footPosArray[3] = { footPos.x, footPos.y, footPos.z };
+    ImGui::InputFloat3("Foot Position", footPosArray, "%.2f");
+
     ImGui::EndDisabled();
 }
 

@@ -34,13 +34,13 @@ std::string UIDialogueBox::ParseDialogueTags(const std::string& rawLine)
                     });
 
                 // LEVER 1: Added an extra half-width space (1 Full, 2 Half) to push "で" to the right
-                processedLine += u8"   ";
+                processedLine += "   ";
 
                 // Keep the math tracker in sync with the new string length
                 cursorX += (FULL_WIDTH + (HALF_WIDTH * 2.0f));
             }
             else {
-                std::string kbText = u8"「左クリック」";
+                std::string kbText = reinterpret_cast<const char*>(u8"「左クリック」");
                 processedLine += kbText;
                 cursorX += FULL_WIDTH * 7;
             }
@@ -63,11 +63,11 @@ std::string UIDialogueBox::ParseDialogueTags(const std::string& rawLine)
                     cursorX - LB_X_OFFSET, cursorY + LB_Y_OFFSET, w, h
                     });
 
-                processedLine += u8"   ";
+                processedLine += reinterpret_cast<const char*>(u8"   ");
                 cursorX += (FULL_WIDTH * 2.0f);
             }
             else {
-                std::string kbText = u8"「Shift」";
+                std::string kbText = reinterpret_cast<const char*>(u8"「Shift」");
                 processedLine += kbText;
                 cursorX += (FULL_WIDTH * 2.0f) + (HALF_WIDTH * 5.0f);
             }
