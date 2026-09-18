@@ -38,6 +38,8 @@ struct AnimationState
     float speedMultiplier{ 1.0f };
     float blendDuration{ 0.2f };
     bool isLooping{ true };
+    bool rootMotionLock{ true };
+    int rootBoneIndex{ 0 };
     std::vector<AnimationEvent> events{};
 };
 

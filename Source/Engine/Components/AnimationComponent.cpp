@@ -134,6 +134,17 @@ void AnimationComponent::Update(const float dt)
         }
 
         m_model->ComputeAnimation(targetState.clipIndex, m_currentTimer, m_currentLocalPoses);
+
+		// Root Motion Lock
+        if (targetState.rootMotionLock && !m_currentLocalPoses.empty())
+        {
+            // Safely clamp the index so we don't crash if the bone doesn't exist
+            const int boneIdx = std::clamp(targetState.rootBoneIndex, 0, static_cast<int>(m_currentLocalPoses.size() - 1));
+
+            m_currentLocalPoses[boneIdx].position.x = 0.0f;
+            // We keep Y intact so the character can still bounce vertically (e.g., breathing/bobbing)
+            m_currentLocalPoses[boneIdx].position.z = 0.0f;
+        }
     }
 
     // Crossfade Evaluation (
@@ -161,6 +172,17 @@ void AnimationComponent::Update(const float dt)
                 while (m_previousTimer >= srcDuration) m_previousTimer -= srcDuration;
             }
             m_model->ComputeAnimation(sourceState.clipIndex, m_previousTimer, m_previousLocalPoses);
+
+            // Root Motion Lock
+            if (targetState.rootMotionLock && !m_currentLocalPoses.empty())
+            {
+                // Safely clamp the index so we don't crash if the bone doesn't exist
+                const int boneIdx = std::clamp(targetState.rootBoneIndex, 0, static_cast<int>(m_currentLocalPoses.size() - 1));
+
+                m_currentLocalPoses[boneIdx].position.x = 0.0f;
+                // We keep Y intact so the character can still bounce vertically (e.g., breathing/bobbing)
+                m_currentLocalPoses[boneIdx].position.z = 0.0f;
+            }
         }
 
         // Mathematical Interpolation
@@ -357,6 +379,13 @@ void AnimationComponent::DrawInspector()
             }
 
             // Tuning Parameters
+            ImGui::Checkbox("In-Place (Lock Root)", &state.rootMotionLock);
+            if (state.rootMotionLock)
+            {
+                ImGui::SameLine();
+                ImGui::SetNextItemWidth(100.0f);
+                ImGui::InputInt("Bone Index", &state.rootBoneIndex);
+            }
             ImGui::Checkbox("Looping", &state.isLooping);
             ImGui::SliderFloat("Speed", &state.speedMultiplier, 0.1f, 5.0f);
             ImGui::SliderFloat("Blend Time", &state.blendDuration, 0.0f, 1.0f);
@@ -451,6 +480,8 @@ void AnimationComponent::Serialize(nlohmann::json& j) const
         nlohmann::json stateJson{};
         stateJson["Name"] = state.name;
         stateJson["ClipIndex"] = state.clipIndex;
+        stateJson["RootLock"] = state.rootMotionLock;
+        stateJson["RootBoneIndex"] = state.rootBoneIndex;
         stateJson["Speed"] = state.speedMultiplier;
         stateJson["Blend"] = state.blendDuration;
         stateJson["Loop"] = state.isLooping;
@@ -483,6 +514,8 @@ void AnimationComponent::Deserialize(const nlohmann::json& j)
         AnimationState state{};
         state.name = stateJson.value("Name", "State");
         state.clipIndex = stateJson.value("ClipIndex", -1);
+        state.rootMotionLock = stateJson.value("RootLock", true);
+		state.rootBoneIndex = stateJson.value("RootBoneIndex", 0);
         state.speedMultiplier = stateJson.value("Speed", 1.0f);
         state.blendDuration = stateJson.value("Blend", 0.2f);
         state.isLooping = stateJson.value("Loop", true);
