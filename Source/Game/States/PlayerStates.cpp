@@ -67,7 +67,9 @@ void PlayerLocomotion::Exit(PlayerControllerComponent* controller) {}
 // DASH STATE
 void PlayerDash::Enter(PlayerControllerComponent* controller)
 {
-    m_timer = DASH_DURATION;
+    // A generous 1.0 second fail-safe just in case the JSON event is missing.
+    m_safetyTimer = 1.0f;
+
     const auto& intent{ controller->GetIntent() };
 
     m_dashDir = intent.moveVector;
@@ -78,6 +80,7 @@ void PlayerDash::Enter(PlayerControllerComponent* controller)
 
     if (auto* motor{ controller->GetMovement() })
     {
+        // Instantly launch the capsule. Friction will naturally slow it down.
         motor->AddImpulse({
             m_dashDir.x * DASH_IMPULSE_FORCE,
             0.0f,
@@ -85,18 +88,30 @@ void PlayerDash::Enter(PlayerControllerComponent* controller)
             });
     }
 
-    // Play dodge animation
     if (auto* anim{ controller->GetAnimation() })
     {
-        anim->PlayStateByHash(Core::Hash("Dash")); 
+        anim->PlayStateByHash(Core::Hash("Dash"));
     }
 }
 
 void PlayerDash::Update(PlayerControllerComponent* controller, float dt)
 {
-    m_timer -= dt;
+    m_safetyTimer -= dt;
 
-    if (m_timer <= 0.0f)
+    bool canCancel = false;
+
+    // Read the events fired by the animation this frame
+    for (std::uint32_t eventId : controller->GetAnimation()->GetFiredEvents())
+    {
+        if (eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
+        {
+            canCancel = true;
+            break;
+        }
+    }
+
+    // Now, the state ONLY exits when the animation hits the 80% mark (or 1 full second passes)
+    if (canCancel || m_safetyTimer <= 0.0f)
     {
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
     }

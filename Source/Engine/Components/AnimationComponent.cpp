@@ -147,7 +147,7 @@ void AnimationComponent::Update(const float dt)
         }
     }
 
-    // Crossfade Evaluation (
+    // Crossfade Evaluation 
     if (m_isBlending && m_previousStateIndex < m_states.size())
     {
         m_blendTimer += evalDt;
@@ -173,15 +173,14 @@ void AnimationComponent::Update(const float dt)
             }
             m_model->ComputeAnimation(sourceState.clipIndex, m_previousTimer, m_previousLocalPoses);
 
-            // Root Motion Lock
-            if (targetState.rootMotionLock && !m_currentLocalPoses.empty())
+            // Lock the source animation using the previous local poses 
+            if (sourceState.rootMotionLock && !m_previousLocalPoses.empty())
             {
                 // Safely clamp the index so we don't crash if the bone doesn't exist
-                const int boneIdx = std::clamp(targetState.rootBoneIndex, 0, static_cast<int>(m_currentLocalPoses.size() - 1));
+                const int boneIdx = std::clamp(sourceState.rootBoneIndex, 0, static_cast<int>(m_previousLocalPoses.size() - 1));
 
-                m_currentLocalPoses[boneIdx].position.x = 0.0f;
-                // We keep Y intact so the character can still bounce vertically (e.g., breathing/bobbing)
-                m_currentLocalPoses[boneIdx].position.z = 0.0f;
+                m_previousLocalPoses[boneIdx].position.x = 0.0f;
+                m_previousLocalPoses[boneIdx].position.z = 0.0f;
             }
         }
 

@@ -26,10 +26,9 @@ public:
     void Exit(PlayerControllerComponent* controller) override;
 
 private:
-    static constexpr float DASH_DURATION{ 0.15f };
     static constexpr float DASH_IMPULSE_FORCE{ 45.0f };
 
-    float m_timer{ 0.0f };
+    float m_safetyTimer{ 0.0f };
     DirectX::XMFLOAT2 m_dashDir{ 0.0f, 0.0f };
 };
 

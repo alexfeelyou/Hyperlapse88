@@ -328,7 +328,7 @@
                             "OutlineFadeStart": 12.0,
                             "OutlineWidth": 0.014999999664723873,
                             "Roughness": 0.800000011920929,
-                            "ShaderId": 2,
+                            "ShaderId": 0,
                             "TexBase": "",
                             "TexNormal": ""
                         },
@@ -359,7 +359,7 @@
                             "OutlineFadeStart": 12.0,
                             "OutlineWidth": 0.014999999664723873,
                             "Roughness": 0.800000011920929,
-                            "ShaderId": 2,
+                            "ShaderId": 1,
                             "TexBase": "",
                             "TexNormal": ""
                         },
@@ -388,9 +388,9 @@
                             ],
                             "OutlineFadeEnd": 28.0,
                             "OutlineFadeStart": 12.0,
-                            "OutlineWidth": 0.014999999664723873,
-                            "Roughness": 0.800000011920929,
-                            "ShaderId": 2,
+                            "OutlineWidth": 0.006000000052154064,
+                            "Roughness": 0.08799999952316284,
+                            "ShaderId": 4,
                             "TexBase": "",
                             "TexNormal": ""
                         },
@@ -421,7 +421,7 @@
                             "OutlineFadeStart": 12.0,
                             "OutlineWidth": 0.014999999664723873,
                             "Roughness": 0.800000011920929,
-                            "ShaderId": 2,
+                            "ShaderId": 0,
                             "TexBase": "",
                             "TexNormal": ""
                         },
@@ -452,7 +452,7 @@
                             "OutlineFadeStart": 12.0,
                             "OutlineWidth": 0.014999999664723873,
                             "Roughness": 0.800000011920929,
-                            "ShaderId": 2,
+                            "ShaderId": 0,
                             "TexBase": "",
                             "TexNormal": ""
                         },
@@ -481,9 +481,9 @@
                             ],
                             "OutlineFadeEnd": 28.0,
                             "OutlineFadeStart": 12.0,
-                            "OutlineWidth": 0.014999999664723873,
-                            "Roughness": 0.800000011920929,
-                            "ShaderId": 2,
+                            "OutlineWidth": 0.006000000052154064,
+                            "Roughness": 0.1289999932050705,
+                            "ShaderId": 4,
                             "TexBase": "",
                             "TexNormal": ""
                         },
@@ -514,7 +514,7 @@
                             "OutlineFadeStart": 12.0,
                             "OutlineWidth": 0.014999999664723873,
                             "Roughness": 0.800000011920929,
-                            "ShaderId": 2,
+                            "ShaderId": 0,
                             "TexBase": "",
                             "TexNormal": ""
                         },
@@ -543,9 +543,9 @@
                             ],
                             "OutlineFadeEnd": 28.0,
                             "OutlineFadeStart": 12.0,
-                            "OutlineWidth": 0.014999999664723873,
-                            "Roughness": 0.800000011920929,
-                            "ShaderId": 2,
+                            "OutlineWidth": 0.006000000052154064,
+                            "Roughness": 0.1289999932050705,
+                            "ShaderId": 4,
                             "TexBase": "",
                             "TexNormal": ""
                         },
@@ -574,9 +574,9 @@
                             ],
                             "OutlineFadeEnd": 28.0,
                             "OutlineFadeStart": 12.0,
-                            "OutlineWidth": 0.014999999664723873,
+                            "OutlineWidth": 0.004999999888241291,
                             "Roughness": 0.800000011920929,
-                            "ShaderId": 2,
+                            "ShaderId": 4,
                             "TexBase": "",
                             "TexNormal": ""
                         }
@@ -592,14 +592,34 @@
                             "Events": [],
                             "Loop": true,
                             "Name": "Idle",
+                            "RootBoneIndex": 0,
+                            "RootLock": false,
                             "Speed": 1.0
                         },
                         {
                             "Blend": 0.20000000298023224,
-                            "ClipIndex": 33,
+                            "ClipIndex": 34,
                             "Events": [],
                             "Loop": true,
                             "Name": "Walk",
+                            "RootBoneIndex": 0,
+                            "RootLock": false,
+                            "Speed": 1.0
+                        },
+                        {
+                            "Blend": 0.20000000298023224,
+                            "ClipIndex": 31,
+                            "Events": [
+                                {
+                                    "Id": 3,
+                                    "Payload": 0.0,
+                                    "Time": 0.800000011920929
+                                }
+                            ],
+                            "Loop": false,
+                            "Name": "Dash",
+                            "RootBoneIndex": 3,
+                            "RootLock": true,
                             "Speed": 1.0
                         }
                     ],
