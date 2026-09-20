@@ -8,7 +8,7 @@
 void PlayerLocomotion::Enter(PlayerControllerComponent* controller)
 {
     // Set to None so the first Update() evaluates the WASD keys and transitions
-    // DIRECTLY from Dash to the correct state, preserving the animation history.
+    // Directly from Dash to the correct state, preserving the animation history.
     m_locoState = LocoState::None;
 
     if (auto* motor{ controller->GetMovement() })
@@ -38,7 +38,7 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
         return;
     }
 
-    // 2. Process Locomotion Intent
+    // Process Locomotion Intent
     motor->SetDesiredDirection(intent.moveVector);
 
     // Calculate input magnitude squared to determine speed threshold
@@ -55,7 +55,7 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
         desiredState = LocoState::Walk;
     }
 
-    // 3. Command Crossfade only if the state changed
+    // Command Crossfade only if the state changed
     if (m_locoState != desiredState)
     {
         if (desiredState == LocoState::Idle)
@@ -68,7 +68,7 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
         }
         else
         {
-            anim->PlayStateByHash(Core::Hash("Run")); // Make sure you add "Run" in your Inspector!
+            anim->PlayStateByHash(Core::Hash("Run")); 
         }
 
         m_locoState = desiredState;
@@ -80,6 +80,7 @@ void PlayerLocomotion::Exit(PlayerControllerComponent* controller) {}
 // DASH STATE
 void PlayerDash::Enter(PlayerControllerComponent* controller)
 {
+    m_canCancel = false;
     const auto& intent{ controller->GetIntent() };
 
     m_dashDir = intent.moveVector;
@@ -102,7 +103,7 @@ void PlayerDash::Enter(PlayerControllerComponent* controller)
         const std::uint64_t dashHash{ Core::Hash("Dash") };
         anim->PlayStateByHash(dashHash);
 
-        // DATA-DRIVEN TIMING: Read the exact length of the animation from the JSON data!
+        // DATA-DRIVEN TIMING: Read the exact length of the animation from the JSON data
         m_timer = anim->GetStateDurationByHash(dashHash);
     }
 }
@@ -111,25 +112,22 @@ void PlayerDash::Update(PlayerControllerComponent* controller, float dt)
 {
     m_timer -= dt;
 
-    // Check if the Animation Component fired the Cancel Window event
-    bool cancelWindowOpen = false;
+    // Latch the Cancel Window open permanently once the event fires
     for (std::uint32_t eventId : controller->GetAnimation()->GetFiredEvents())
     {
         if (eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
         {
-            cancelWindowOpen = true;
+            m_canCancel = true;
             break;
         }
     }
 
-    // Check Player Intent (Are they holding WASD?)
     const auto& intent = controller->GetIntent();
     const float inputSq = (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y);
     const bool playerWantsToMove = (inputSq > 0.01f);
 
-    // 3. Dual-Exit Logic
-    // EXIT A (Active Cancel): The window is open AND the player is holding WASD. Transition to Run early!
-    if (cancelWindowOpen && playerWantsToMove)
+    // Dual-Exit Logic
+    if (m_canCancel && playerWantsToMove) 
     {
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
         return;

@@ -534,10 +534,19 @@ void AnimationComponent::DrawInspector()
                 ImGui::PushID(&(*it));
                 char srcBuf[64];
                 strncpy_s(srcBuf, sizeof(srcBuf), it->sourceStateName.c_str(), _TRUNCATE);
-                if (ImGui::InputText("From State", srcBuf, sizeof(srcBuf)))
+                if (ImGui::BeginCombo("From State", it->sourceStateName.c_str()))
                 {
-                    it->sourceStateName = srcBuf;
-                    it->sourceStateHash = Core::RuntimeHash(it->sourceStateName);
+                    for (const auto& availableState : m_states)
+                    {
+                        const bool isSelected = (it->sourceStateName == availableState.name);
+                        if (ImGui::Selectable(availableState.name.c_str(), isSelected))
+                        {
+                            it->sourceStateName = availableState.name;
+                            it->sourceStateHash = Core::RuntimeHash(it->sourceStateName);
+                        }
+                        if (isSelected) ImGui::SetItemDefaultFocus();
+                    }
+                    ImGui::EndCombo();
                 }
                 ImGui::SliderFloat("Blend Time", &it->blendDuration, 0.0f, 1.0f, "%.2f s");
                 ImGui::SliderFloat("Start Offset", &it->targetStartOffset, 0.0f, 2.0f, "%.2f s");

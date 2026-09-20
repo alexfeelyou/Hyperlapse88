@@ -31,6 +31,7 @@ private:
 
     float m_timer{ 0.0f };
     DirectX::XMFLOAT2 m_dashDir{ 0.0f, 0.0f };
+    bool m_canCancel{ false };
 };
 
 // Generic Data-Driven Attack handler (Wiring in Phase 5)
