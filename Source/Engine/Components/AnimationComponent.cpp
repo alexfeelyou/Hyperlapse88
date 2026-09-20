@@ -49,7 +49,7 @@ void AnimationComponent::SetModel(std::shared_ptr<Model> model) noexcept
 
     // Allocate flat buffers exactly once
     m_currentLocalPoses.resize(nodeCount);
-    m_previousLocalPoses.resize(nodeCount);
+    m_snapshotPoses.resize(nodeCount); 
     m_blendedLocalPoses.resize(nodeCount);
 
     m_currentNodeGlobals.resize(nodeCount);
@@ -64,7 +64,7 @@ void AnimationComponent::SetModel(std::shared_ptr<Model> model) noexcept
         m_currentLocalPoses[i].rotation = nodes[i].rotation;
         m_currentLocalPoses[i].scale = nodes[i].scale;
 
-        m_previousLocalPoses[i] = m_currentLocalPoses[i];
+        m_snapshotPoses[i] = m_currentLocalPoses[i]; 
         m_blendedLocalPoses[i] = m_currentLocalPoses[i];
     }
 
@@ -133,12 +133,18 @@ void AnimationComponent::PlayState(const std::size_t stateIndex) noexcept
         m_currentTimer = activeStartOffset;
     }
 
-    // Initiate Crossfade
+    // Initiate Crossfade via Inertial Snapshot
     if (activeBlendDuration > 0.001f)
     {
         m_isBlending = true;
         m_blendTimer = 0.0f;
         m_activeBlendDuration = activeBlendDuration;
+
+        // SNAPSHOT: Capture the exact state of the bones on the screen right now
+        if (!m_blendedLocalPoses.empty())
+        {
+            m_snapshotPoses = m_blendedLocalPoses;
+        }
     }
     else
     {
@@ -213,57 +219,37 @@ void AnimationComponent::Update(const float dt)
         }
     }
 
-    // Crossfade Evaluation 
-    if (m_isBlending && m_previousStateIndex < m_states.size())
+    // Inertial Blending
+    if (m_isBlending)
     {
         m_blendTimer += evalDt;
         const float blendDuration{ m_activeBlendDuration };
 
         float t = (blendDuration > 0.001f) ? (m_blendTimer / blendDuration) : 1.0f;
-
         if (t >= 1.0f)
         {
             t = 1.0f;
             m_isBlending = false;
         }
 
-        const AnimationState& sourceState{ m_states[m_previousStateIndex] };
+        // Cubic Ease-Out: Creates a natural physical "spring" damping effect 
+        // Fast initial snap to the new pose, slowing down organically as it settles.
+        const float decayWeight = 1.0f - ((1.0f - t) * (1.0f - t) * (1.0f - t));
 
-        if (sourceState.clipIndex >= 0 && static_cast<std::size_t>(sourceState.clipIndex) < m_model->GetAnimations().size())
-        {
-            m_previousTimer += (evalDt * sourceState.speedMultiplier);
-            const float srcDuration{ m_model->GetAnimations()[sourceState.clipIndex].secondsLength };
-            if (sourceState.isLooping && srcDuration > 0.001f)
-            {
-                while (m_previousTimer >= srcDuration) m_previousTimer -= srcDuration;
-            }
-            m_model->ComputeAnimation(sourceState.clipIndex, m_previousTimer, m_previousLocalPoses);
-
-            // Lock the source animation using the previous local poses 
-            if (sourceState.rootMotionLock && !m_previousLocalPoses.empty())
-            {
-                // Safely clamp the index so we don't crash if the bone doesn't exist
-                const int boneIdx = std::clamp(sourceState.rootBoneIndex, 0, static_cast<int>(m_previousLocalPoses.size() - 1));
-
-                m_previousLocalPoses[boneIdx].position.x = 0.0f;
-                m_previousLocalPoses[boneIdx].position.z = 0.0f;
-            }
-        }
-
-        // Mathematical Interpolation
+        // Mathematical Interpolation between the frozen Snapshot and the moving Target clip
         for (std::size_t i = 0; i < m_blendedLocalPoses.size(); ++i)
         {
-            const DirectX::XMVECTOR s0{ DirectX::XMLoadFloat3(&m_previousLocalPoses[i].scale) };
-            const DirectX::XMVECTOR r0{ DirectX::XMLoadFloat4(&m_previousLocalPoses[i].rotation) };
-            const DirectX::XMVECTOR t0{ DirectX::XMLoadFloat3(&m_previousLocalPoses[i].position) };
+            const DirectX::XMVECTOR s0{ DirectX::XMLoadFloat3(&m_snapshotPoses[i].scale) };
+            const DirectX::XMVECTOR r0{ DirectX::XMLoadFloat4(&m_snapshotPoses[i].rotation) };
+            const DirectX::XMVECTOR t0{ DirectX::XMLoadFloat3(&m_snapshotPoses[i].position) };
 
             const DirectX::XMVECTOR s1{ DirectX::XMLoadFloat3(&m_currentLocalPoses[i].scale) };
             const DirectX::XMVECTOR r1{ DirectX::XMLoadFloat4(&m_currentLocalPoses[i].rotation) };
             const DirectX::XMVECTOR t1{ DirectX::XMLoadFloat3(&m_currentLocalPoses[i].position) };
 
-            DirectX::XMStoreFloat3(&m_blendedLocalPoses[i].scale, DirectX::XMVectorLerp(s0, s1, t));
-            DirectX::XMStoreFloat4(&m_blendedLocalPoses[i].rotation, DirectX::XMQuaternionSlerp(r0, r1, t));
-            DirectX::XMStoreFloat3(&m_blendedLocalPoses[i].position, DirectX::XMVectorLerp(t0, t1, t));
+            DirectX::XMStoreFloat3(&m_blendedLocalPoses[i].scale, DirectX::XMVectorLerp(s0, s1, decayWeight));
+            DirectX::XMStoreFloat4(&m_blendedLocalPoses[i].rotation, DirectX::XMQuaternionSlerp(r0, r1, decayWeight));
+            DirectX::XMStoreFloat3(&m_blendedLocalPoses[i].position, DirectX::XMVectorLerp(t0, t1, decayWeight));
         }
     }
     else

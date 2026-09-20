@@ -109,8 +109,33 @@ void PlayerDash::Enter(PlayerControllerComponent* controller)
 
 void PlayerDash::Update(PlayerControllerComponent* controller, float dt)
 {
-    // Simplified purely to time-based exiting
     m_timer -= dt;
+
+    // Check if the Animation Component fired the Cancel Window event
+    bool cancelWindowOpen = false;
+    for (std::uint32_t eventId : controller->GetAnimation()->GetFiredEvents())
+    {
+        if (eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
+        {
+            cancelWindowOpen = true;
+            break;
+        }
+    }
+
+    // Check Player Intent (Are they holding WASD?)
+    const auto& intent = controller->GetIntent();
+    const float inputSq = (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y);
+    const bool playerWantsToMove = (inputSq > 0.01f);
+
+    // 3. Dual-Exit Logic
+    // EXIT A (Active Cancel): The window is open AND the player is holding WASD. Transition to Run early!
+    if (cancelWindowOpen && playerWantsToMove)
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+        return;
+    }
+
+    // The player is not touching the keyboard. Wait for the timer to reach 0 to go to Idle.
     if (m_timer <= 0.0f)
     {
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));

@@ -113,7 +113,7 @@ private:
 
     // Fixed-size evaluation buffers (Allocated exactly once in SetModel)
     std::vector<Model::NodePose> m_currentLocalPoses{};
-    std::vector<Model::NodePose> m_previousLocalPoses{};
+    std::vector<Model::NodePose> m_snapshotPoses{};
     std::vector<Model::NodePose> m_blendedLocalPoses{};
 
     std::vector<DirectX::XMFLOAT4X4> m_currentNodeGlobals{};
