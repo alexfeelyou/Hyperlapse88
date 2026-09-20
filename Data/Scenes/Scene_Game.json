@@ -594,7 +594,10 @@
                             "Name": "Idle",
                             "RootBoneIndex": 0,
                             "RootLock": false,
-                            "Speed": 1.0
+                            "Speed": 1.0,
+                            "StartOffset": 0.0,
+                            "SyncPhase": false,
+                            "Transitions": []
                         },
                         {
                             "Blend": 0.20000000298023224,
@@ -604,23 +607,42 @@
                             "Name": "Walk",
                             "RootBoneIndex": 0,
                             "RootLock": false,
-                            "Speed": 1.0
+                            "Speed": 1.0,
+                            "StartOffset": 0.0,
+                            "SyncPhase": false,
+                            "Transitions": []
                         },
                         {
                             "Blend": 0.20000000298023224,
                             "ClipIndex": 31,
-                            "Events": [
-                                {
-                                    "Id": 3,
-                                    "Payload": 0.0,
-                                    "Time": 0.800000011920929
-                                }
-                            ],
+                            "Events": [],
                             "Loop": false,
                             "Name": "Dash",
                             "RootBoneIndex": 3,
                             "RootLock": true,
-                            "Speed": 1.0
+                            "Speed": 1.0,
+                            "StartOffset": 0.0,
+                            "SyncPhase": false,
+                            "Transitions": []
+                        },
+                        {
+                            "Blend": 0.20000000298023224,
+                            "ClipIndex": 29,
+                            "Events": [],
+                            "Loop": true,
+                            "Name": "Run",
+                            "RootBoneIndex": 0,
+                            "RootLock": false,
+                            "Speed": 1.0,
+                            "StartOffset": 0.0,
+                            "SyncPhase": false,
+                            "Transitions": [
+                                {
+                                    "Blend": 0.0,
+                                    "Offset": 0.0,
+                                    "Source": "Dash"
+                                }
+                            ]
                         }
                     ],
                     "Type": "AnimationComponent"

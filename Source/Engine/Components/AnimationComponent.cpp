@@ -6,6 +6,25 @@
 #include "MeshComponent.h"
 #include "StringHash.h"
 
+float AnimationComponent::GetStateDurationByHash(const std::uint64_t stateHash) const noexcept
+{
+    if (!m_model) return 0.0f;
+
+    for (std::size_t i{ 0 }; i < m_stateHashes.size(); ++i)
+    {
+        if (m_stateHashes[i] == stateHash)
+        {
+            const int clipIdx{ m_states[i].clipIndex };
+            if (clipIdx >= 0 && static_cast<std::size_t>(clipIdx) < m_model->GetAnimations().size())
+            {
+                // Actual clip length divided by the Inspector speed multiplier
+                return m_model->GetAnimations()[clipIdx].secondsLength / m_states[i].speedMultiplier;
+            }
+        }
+    }
+    return 0.0f;
+}
+
 void AnimationComponent::OnAttach(GameObject* owner) noexcept
 {
     IComponent::OnAttach(owner);
@@ -60,19 +79,66 @@ void AnimationComponent::SetModel(std::shared_ptr<Model> model) noexcept
 void AnimationComponent::PlayState(const std::size_t stateIndex) noexcept
 {
     if (stateIndex >= m_states.size()) return;
-    if (m_currentStateIndex == stateIndex) return; // Prevent restarting the same state
+    if (m_currentStateIndex == stateIndex) return;
 
     m_previousStateIndex = m_currentStateIndex;
     m_currentStateIndex = stateIndex;
-
     m_previousTimer = m_currentTimer;
-    m_currentTimer = 0.0f; // Reset playhead for the new state
 
-    const float blendTime{ m_states[m_currentStateIndex].blendDuration };
-    if (blendTime > 0.001f)
+    const AnimationState& targetState{ m_states[m_currentStateIndex] };
+
+    // Resolve State-Pair Transition Rule
+    float activeBlendDuration{ targetState.blendDuration };
+    float activeStartOffset{ targetState.startOffset };
+    bool ruleFound{ false };
+
+    if (m_previousStateIndex < m_stateHashes.size())
+    {
+        const std::uint64_t prevHash{ m_stateHashes[m_previousStateIndex] };
+        for (const auto& rule : targetState.transitionRules)
+        {
+            if (rule.sourceStateHash == prevHash)
+            {
+                activeBlendDuration = rule.blendDuration;
+                activeStartOffset = rule.targetStartOffset;
+                ruleFound = true;
+                break;
+            }
+        }
+    }
+
+    // Playhead Evaluation
+    if (!ruleFound && targetState.syncPhase && m_previousStateIndex < m_states.size())
+    {
+        const AnimationState& sourceState{ m_states[m_previousStateIndex] };
+
+        float srcDuration{ 1.0f };
+        if (sourceState.clipIndex >= 0 && static_cast<std::size_t>(sourceState.clipIndex) < m_model->GetAnimations().size())
+            srcDuration = m_model->GetAnimations()[sourceState.clipIndex].secondsLength;
+
+        float targetDuration{ 1.0f };
+        if (targetState.clipIndex >= 0 && static_cast<std::size_t>(targetState.clipIndex) < m_model->GetAnimations().size())
+            targetDuration = m_model->GetAnimations()[targetState.clipIndex].secondsLength;
+
+        if (srcDuration > 0.001f && targetDuration > 0.001f)
+        {
+            float normTime{ m_previousTimer / srcDuration };
+            normTime = normTime - std::floor(normTime);
+            m_currentTimer = normTime * targetDuration;
+        }
+        else { m_currentTimer = activeStartOffset; }
+    }
+    else
+    {
+        m_currentTimer = activeStartOffset;
+    }
+
+    // Initiate Crossfade
+    if (activeBlendDuration > 0.001f)
     {
         m_isBlending = true;
         m_blendTimer = 0.0f;
+        m_activeBlendDuration = activeBlendDuration;
     }
     else
     {
@@ -151,7 +217,7 @@ void AnimationComponent::Update(const float dt)
     if (m_isBlending && m_previousStateIndex < m_states.size())
     {
         m_blendTimer += evalDt;
-        const float blendDuration{ targetState.blendDuration };
+        const float blendDuration{ m_activeBlendDuration };
 
         float t = (blendDuration > 0.001f) ? (m_blendTimer / blendDuration) : 1.0f;
 
@@ -386,6 +452,9 @@ void AnimationComponent::DrawInspector()
                 ImGui::InputInt("Bone Index", &state.rootBoneIndex);
             }
             ImGui::Checkbox("Looping", &state.isLooping);
+            ImGui::SameLine();
+            ImGui::Checkbox("Sync Phase", &state.syncPhase);
+            ImGui::SliderFloat("Start Offset", &state.startOffset, 0.0f, 2.0f, "%.2f s"); 
             ImGui::SliderFloat("Speed", &state.speedMultiplier, 0.1f, 5.0f);
             ImGui::SliderFloat("Blend Time", &state.blendDuration, 0.0f, 1.0f);
 
@@ -464,6 +533,38 @@ void AnimationComponent::DrawInspector()
                 }
             }
 
+            ImGui::Spacing();
+            ImGui::TextDisabled("TRANSITION OVERRIDES");
+            if (ImGui::Button("+ Add Rule"))
+            {
+                state.transitionRules.push_back(TransitionRule{ "Dash", Core::RuntimeHash("Dash"), 0.08f, 0.2f });
+            }
+
+            for (auto it = state.transitionRules.begin(); it != state.transitionRules.end(); )
+            {
+                ImGui::PushID(&(*it));
+                char srcBuf[64];
+                strncpy_s(srcBuf, sizeof(srcBuf), it->sourceStateName.c_str(), _TRUNCATE);
+                if (ImGui::InputText("From State", srcBuf, sizeof(srcBuf)))
+                {
+                    it->sourceStateName = srcBuf;
+                    it->sourceStateHash = Core::RuntimeHash(it->sourceStateName);
+                }
+                ImGui::SliderFloat("Blend Time", &it->blendDuration, 0.0f, 1.0f, "%.2f s");
+                ImGui::SliderFloat("Start Offset", &it->targetStartOffset, 0.0f, 2.0f, "%.2f s");
+
+                if (ImGui::Button("Remove Rule"))
+                {
+                    it = state.transitionRules.erase(it);
+                    ImGui::PopID();
+                }
+                else
+                {
+                    ++it;
+                    ImGui::PopID();
+                }
+            }
+
             ImGui::TreePop();
         }
         ImGui::PopID();
@@ -481,6 +582,8 @@ void AnimationComponent::Serialize(nlohmann::json& j) const
         stateJson["ClipIndex"] = state.clipIndex;
         stateJson["RootLock"] = state.rootMotionLock;
         stateJson["RootBoneIndex"] = state.rootBoneIndex;
+        stateJson["SyncPhase"] = state.syncPhase;
+        stateJson["StartOffset"] = state.startOffset;
         stateJson["Speed"] = state.speedMultiplier;
         stateJson["Blend"] = state.blendDuration;
         stateJson["Loop"] = state.isLooping;
@@ -495,6 +598,17 @@ void AnimationComponent::Serialize(nlohmann::json& j) const
             eventsArray.push_back(evJson);
         }
         stateJson["Events"] = eventsArray;
+
+        nlohmann::json transArray = nlohmann::json::array();
+        for (const auto& rule : state.transitionRules)
+        {
+            nlohmann::json ruleJson{};
+            ruleJson["Source"] = rule.sourceStateName;
+            ruleJson["Blend"] = rule.blendDuration;
+            ruleJson["Offset"] = rule.targetStartOffset;
+            transArray.push_back(ruleJson);
+        }
+        stateJson["Transitions"] = transArray;
 
         statesArray.push_back(stateJson);
     }
@@ -515,6 +629,8 @@ void AnimationComponent::Deserialize(const nlohmann::json& j)
         state.clipIndex = stateJson.value("ClipIndex", -1);
         state.rootMotionLock = stateJson.value("RootLock", true);
 		state.rootBoneIndex = stateJson.value("RootBoneIndex", 0);
+        state.syncPhase = stateJson.value("SyncPhase", false);
+        state.startOffset = stateJson.value("StartOffset", 0.0f);
         state.speedMultiplier = stateJson.value("Speed", 1.0f);
         state.blendDuration = stateJson.value("Blend", 0.2f);
         state.isLooping = stateJson.value("Loop", true);
@@ -530,6 +646,20 @@ void AnimationComponent::Deserialize(const nlohmann::json& j)
                 state.events.push_back(ev);
             }
         }
+
+        if (stateJson.contains("Transitions"))
+        {
+            for (const auto& ruleJson : stateJson["Transitions"])
+            {
+                TransitionRule rule{};
+                rule.sourceStateName = ruleJson.value("Source", "");
+                rule.sourceStateHash = Core::RuntimeHash(rule.sourceStateName);
+                rule.blendDuration = ruleJson.value("Blend", 0.1f);
+                rule.targetStartOffset = ruleJson.value("Offset", 0.0f);
+                state.transitionRules.push_back(rule);
+            }
+        }
+
         // Cache the runtime hash of the loaded name so we never do string comparisons later
         m_stateHashes.push_back(Core::RuntimeHash(state.name));
 

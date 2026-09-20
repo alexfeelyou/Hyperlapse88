@@ -30,16 +30,28 @@ struct AnimationEvent
     float payload{ 0.0f };
 };
 
-// Represents a single, tunable action state in the flat state machine
+// Authored rule overriding default blend parameters for a specific source state
+struct TransitionRule
+{
+    std::string sourceStateName{ "" };
+    std::uint64_t sourceStateHash{ 0 };
+    float blendDuration{ 0.1f };
+    float targetStartOffset{ 0.0f };
+};
+
 struct AnimationState
 {
     std::string name{ "Idle" };
     int clipIndex{ -1 };
     float speedMultiplier{ 1.0f };
-    float blendDuration{ 0.2f };
+    float blendDuration{ 0.2f }; 
     bool isLooping{ true };
     bool rootMotionLock{ true };
     int rootBoneIndex{ 0 };
+    bool syncPhase{ false };
+    float startOffset{ 0.0f };   
+
+    std::vector<TransitionRule> transitionRules{}; // State-pair overrides
     std::vector<AnimationEvent> events{};
 };
 
@@ -73,6 +85,9 @@ public:
     // Fast O(N) integer lookup for action states
     void PlayStateByHash(std::uint64_t stateHash) noexcept;
 
+    // Returns the actual duration of the state in seconds (accounting for speed multipliers)
+    [[nodiscard]] float GetStateDurationByHash(std::uint64_t stateHash) const noexcept;
+
     // Read-only accessors for the MeshComponent and Event consumers
     [[nodiscard]] const std::vector<DirectX::XMFLOAT4X4>& GetCurrentNodeGlobals() const noexcept { return m_currentNodeGlobals; }
     [[nodiscard]] const std::vector<DirectX::XMFLOAT4X4>& GetPreviousNodeGlobals() const noexcept { return m_hasPreviousGlobals ? m_previousNodeGlobals : m_currentNodeGlobals; }
@@ -93,6 +108,7 @@ private:
     float m_currentTimer{ 0.0f };
     float m_previousTimer{ 0.0f };
     float m_blendTimer{ 0.0f };
+    float m_activeBlendDuration{ 0.2f };
     bool m_isBlending{ false };
 
     // Fixed-size evaluation buffers (Allocated exactly once in SetModel)

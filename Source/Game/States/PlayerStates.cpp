@@ -7,13 +7,9 @@
 // UNIFIED LOCOMOTION STATE
 void PlayerLocomotion::Enter(PlayerControllerComponent* controller)
 {
-    m_isWalking = false;
-
-    // Evaluate hash at compile time, request state at O(1) runtime speed
-    if (auto* anim{ controller->GetAnimation() })
-    {
-        anim->PlayStateByHash(Core::Hash("Idle"));
-    }
+    // Set to None so the first Update() evaluates the WASD keys and transitions
+    // DIRECTLY from Dash to the correct state, preserving the animation history.
+    m_locoState = LocoState::None;
 
     if (auto* motor{ controller->GetMovement() })
     {
@@ -29,7 +25,7 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
 
     if (!motor || !anim) return;
 
-    // Action Priorities (Interrupts)
+    // 1. Action Priorities (Interrupts)
     if (intent.bDashTriggered)
     {
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Dash));
@@ -42,23 +38,40 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
         return;
     }
 
-    // Process Locomotion Intent
+    // 2. Process Locomotion Intent
     motor->SetDesiredDirection(intent.moveVector);
 
-    // Calculate input magnitude squared to determine if we are attempting to move
+    // Calculate input magnitude squared to determine speed threshold
     const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
-    const bool wantsToMove{ inputSq > 0.01f };
 
-    // Animation State Blending
-    if (wantsToMove && !m_isWalking)
+    // Evaluate the target state based on analog/dampened stick input
+    LocoState desiredState = LocoState::Idle;
+    if (inputSq > 0.2f) // E.g., WASD is pressed fully (1.0)
     {
-        anim->PlayStateByHash(Core::Hash("Walk"));
-        m_isWalking = true;
+        desiredState = LocoState::Run;
     }
-    else if (!wantsToMove && m_isWalking)
+    else if (inputSq > 0.01f) // E.g., WASD + Alt is pressed (0.35 squared = 0.12)
     {
-        anim->PlayStateByHash(Core::Hash("Idle"));
-        m_isWalking = false;
+        desiredState = LocoState::Walk;
+    }
+
+    // 3. Command Crossfade only if the state changed
+    if (m_locoState != desiredState)
+    {
+        if (desiredState == LocoState::Idle)
+        {
+            anim->PlayStateByHash(Core::Hash("Idle"));
+        }
+        else if (desiredState == LocoState::Walk)
+        {
+            anim->PlayStateByHash(Core::Hash("Walk"));
+        }
+        else
+        {
+            anim->PlayStateByHash(Core::Hash("Run")); // Make sure you add "Run" in your Inspector!
+        }
+
+        m_locoState = desiredState;
     }
 }
 
@@ -67,9 +80,6 @@ void PlayerLocomotion::Exit(PlayerControllerComponent* controller) {}
 // DASH STATE
 void PlayerDash::Enter(PlayerControllerComponent* controller)
 {
-    // A generous 1.0 second fail-safe just in case the JSON event is missing.
-    m_safetyTimer = 1.0f;
-
     const auto& intent{ controller->GetIntent() };
 
     m_dashDir = intent.moveVector;
@@ -80,7 +90,6 @@ void PlayerDash::Enter(PlayerControllerComponent* controller)
 
     if (auto* motor{ controller->GetMovement() })
     {
-        // Instantly launch the capsule. Friction will naturally slow it down.
         motor->AddImpulse({
             m_dashDir.x * DASH_IMPULSE_FORCE,
             0.0f,
@@ -90,28 +99,19 @@ void PlayerDash::Enter(PlayerControllerComponent* controller)
 
     if (auto* anim{ controller->GetAnimation() })
     {
-        anim->PlayStateByHash(Core::Hash("Dash"));
+        const std::uint64_t dashHash{ Core::Hash("Dash") };
+        anim->PlayStateByHash(dashHash);
+
+        // DATA-DRIVEN TIMING: Read the exact length of the animation from the JSON data!
+        m_timer = anim->GetStateDurationByHash(dashHash);
     }
 }
 
 void PlayerDash::Update(PlayerControllerComponent* controller, float dt)
 {
-    m_safetyTimer -= dt;
-
-    bool canCancel = false;
-
-    // Read the events fired by the animation this frame
-    for (std::uint32_t eventId : controller->GetAnimation()->GetFiredEvents())
-    {
-        if (eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
-        {
-            canCancel = true;
-            break;
-        }
-    }
-
-    // Now, the state ONLY exits when the animation hits the 80% mark (or 1 full second passes)
-    if (canCancel || m_safetyTimer <= 0.0f)
+    // Simplified purely to time-based exiting
+    m_timer -= dt;
+    if (m_timer <= 0.0f)
     {
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
     }

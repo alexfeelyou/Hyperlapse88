@@ -14,7 +14,8 @@ public:
     void Exit(PlayerControllerComponent* controller) override;
 
 private:
-    bool m_isWalking{ false }; // Track internal blend state
+    enum class LocoState { None, Idle, Walk, Run }; 
+    LocoState m_locoState{ LocoState::None };
 };
 
 // Unified Dodging/Sliding handler
@@ -28,7 +29,7 @@ public:
 private:
     static constexpr float DASH_IMPULSE_FORCE{ 45.0f };
 
-    float m_safetyTimer{ 0.0f };
+    float m_timer{ 0.0f };
     DirectX::XMFLOAT2 m_dashDir{ 0.0f, 0.0f };
 };
 

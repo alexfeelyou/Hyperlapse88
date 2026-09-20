@@ -67,6 +67,14 @@ void PlayerControllerComponent::GatherHardwareInput() noexcept
         if (input.GetKeyboard().IsPress('A')) targetX -= 1.0f;
     }
 
+    // "Walk" is not a separate button state, it is an input restrictor.
+    // If Left Alt is held, cap the input vector to ~35% magnitude.
+    if (input.GetKeyboard().IsPress(VK_LMENU))
+    {
+        targetX *= 0.35f;
+        targetZ *= 0.35f;
+    }
+
     m_intent.moveVector = { targetX, targetZ };
 
     // Gather Triggers & Buttons
