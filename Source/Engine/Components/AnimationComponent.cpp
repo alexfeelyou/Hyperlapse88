@@ -17,8 +17,11 @@ float AnimationComponent::GetStateDurationByHash(const std::uint64_t stateHash) 
             const int clipIdx{ m_states[i].clipIndex };
             if (clipIdx >= 0 && static_cast<std::size_t>(clipIdx) < m_model->GetAnimations().size())
             {
-                // Actual clip length divided by the Inspector speed multiplier
-                return m_model->GetAnimations()[clipIdx].secondsLength / m_states[i].speedMultiplier;
+                const float totalDuration = m_model->GetAnimations()[clipIdx].secondsLength / m_states[i].speedMultiplier;
+
+                // Subtract start offset so timers match the trimmed length
+                const float remainingDuration = totalDuration - (m_states[i].startOffset / m_states[i].speedMultiplier);
+                return (remainingDuration > 0.0f) ? remainingDuration : 0.0f;
             }
         }
     }

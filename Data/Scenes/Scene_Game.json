@@ -609,7 +609,7 @@
                             "RootLock": false,
                             "Speed": 1.0,
                             "StartOffset": 0.0,
-                            "SyncPhase": false,
+                            "SyncPhase": true,
                             "Transitions": []
                         },
                         {
@@ -621,7 +621,7 @@
                             "RootBoneIndex": 3,
                             "RootLock": true,
                             "Speed": 1.0,
-                            "StartOffset": 0.0,
+                            "StartOffset": 0.15000000596046448,
                             "SyncPhase": false,
                             "Transitions": []
                         },
@@ -635,7 +635,7 @@
                             "RootLock": false,
                             "Speed": 1.0,
                             "StartOffset": 0.0,
-                            "SyncPhase": false,
+                            "SyncPhase": true,
                             "Transitions": [
                                 {
                                     "Blend": 0.0,
