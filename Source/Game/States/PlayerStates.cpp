@@ -25,7 +25,7 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
 
     if (!motor || !anim) return;
 
-    // 1. Action Priorities (Interrupts)
+    // Action Priorities (Interrupts)
     if (intent.bDashTriggered)
     {
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Dash));
@@ -41,38 +41,30 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
     // Process Locomotion Intent
     motor->SetDesiredDirection(intent.moveVector);
 
-    // Calculate input magnitude squared to determine speed threshold
     const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
 
-    // Evaluate the target state based on analog/dampened stick input
     LocoState desiredState = LocoState::Idle;
-    if (inputSq > 0.2f) // E.g., WASD is pressed fully (1.0)
+    if (inputSq > 0.2f) desiredState = LocoState::Run;
+    else if (inputSq > 0.01f) desiredState = LocoState::Walk;
+
+    // Continuous Declaration of Intent 
+    // We send the command every single frame. Because AnimationComponent::PlayState 
+    // has a safety guard (if current == target return;),
+    // This guarantees that the game instantly corrects whatever the Editor was previewing
+    if (desiredState == LocoState::Idle)
     {
-        desiredState = LocoState::Run;
+        anim->PlayStateByHash(Core::Hash("Idle"));
     }
-    else if (inputSq > 0.01f) // E.g., WASD + Alt is pressed (0.35 squared = 0.12)
+    else if (desiredState == LocoState::Walk)
     {
-        desiredState = LocoState::Walk;
+        anim->PlayStateByHash(Core::Hash("Walk"));
+    }
+    else
+    {
+        anim->PlayStateByHash(Core::Hash("Run"));
     }
 
-    // Command Crossfade only if the state changed
-    if (m_locoState != desiredState)
-    {
-        if (desiredState == LocoState::Idle)
-        {
-            anim->PlayStateByHash(Core::Hash("Idle"));
-        }
-        else if (desiredState == LocoState::Walk)
-        {
-            anim->PlayStateByHash(Core::Hash("Walk"));
-        }
-        else
-        {
-            anim->PlayStateByHash(Core::Hash("Run")); 
-        }
-
-        m_locoState = desiredState;
-    }
+    m_locoState = desiredState;
 }
 
 void PlayerLocomotion::Exit(PlayerControllerComponent* controller) {}

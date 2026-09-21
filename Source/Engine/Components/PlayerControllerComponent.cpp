@@ -41,8 +41,8 @@ void PlayerControllerComponent::OnAttach(GameObject* owner) noexcept
 
 void PlayerControllerComponent::GatherHardwareInput() noexcept
 {
-    // Fast-Fail: If input is disabled, or we are not actively in Play Mode, wipe intent and exit.
-    if (!m_inputEnabled || EditorManager::Instance().GetEditorMode() != EditorMode::Play)
+    // Fast-Fail: If input is disabled, wipe intent so the character stands still.
+    if (!m_inputEnabled)
     {
         m_intent = InputIntent{};
         return;
@@ -90,6 +90,12 @@ void PlayerControllerComponent::GatherHardwareInput() noexcept
 
 void PlayerControllerComponent::Update(const float dt)
 {
+    // Freeze the state machine completely if we are in Edit or Pause mode.
+    if (EditorManager::Instance().GetEditorMode() != EditorMode::Play)
+    {
+        return;
+    }
+
     GatherHardwareInput();
 
     // Drive the State Machine.
@@ -99,7 +105,6 @@ void PlayerControllerComponent::Update(const float dt)
         m_stateMachine->Update(this, dt);
     }
 }
-
 void PlayerControllerComponent::DrawInspector()
 {
     ImGui::TextDisabled("Player Input & State Orchestrator");
