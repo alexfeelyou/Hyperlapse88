@@ -78,12 +78,14 @@ void PlayerControllerComponent::GatherHardwareInput() noexcept
     m_intent.moveVector = { targetX, targetZ };
 
     // Gather Triggers & Buttons
+	// Dash: Left Shift or Gamepad B or Gamepad Left Shoulder
     m_intent.bDashTriggered = input.GetKeyboard().IsTriggered(VK_SHIFT) ||
+        ((pad.GetButtonDown() & GamePad::BTN_B) != 0) || 
         ((pad.GetButtonDown() & GamePad::BTN_LEFT_SHOULDER) != 0);
 
-    constexpr float triggerThreshold{ 0.5f };
-    m_intent.bAttackPressed = input.GetKeyboard().IsPress(VK_LBUTTON) ||
-        (pad.GetTriggerR() > triggerThreshold);
+    // Standard Attack: Left Mouse Button or Gamepad X
+    m_intent.bAttackPressed = input.GetKeyboard().IsTriggered(VK_LBUTTON) ||
+        ((pad.GetButtonDown() & GamePad::BTN_X) != 0);
 }
 
 void PlayerControllerComponent::Update(const float dt)

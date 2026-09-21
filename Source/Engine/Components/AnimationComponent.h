@@ -19,7 +19,8 @@ enum class CombatEventId : std::uint32_t
     Invincible_Start,
     Invincible_End,
     Play_SFX,
-    Play_VFX
+    Play_VFX,
+    Lunge_Impulse 
 };
 
 // Authored event embedded within an animation state's timeline
@@ -91,7 +92,7 @@ public:
     // Read-only accessors for the MeshComponent and Event consumers
     [[nodiscard]] const std::vector<DirectX::XMFLOAT4X4>& GetCurrentNodeGlobals() const noexcept { return m_currentNodeGlobals; }
     [[nodiscard]] const std::vector<DirectX::XMFLOAT4X4>& GetPreviousNodeGlobals() const noexcept { return m_hasPreviousGlobals ? m_previousNodeGlobals : m_currentNodeGlobals; }
-    [[nodiscard]] const std::vector<std::uint32_t>& GetFiredEvents() const noexcept { return m_eventQueue; }
+    [[nodiscard]] const std::vector<AnimationEvent>& GetFiredEvents() const noexcept { return m_eventQueue; }
 
 private:
     void ComputeGlobalTransforms() noexcept;
@@ -120,8 +121,8 @@ private:
     std::vector<DirectX::XMFLOAT4X4> m_previousNodeGlobals{};
     bool m_hasPreviousGlobals{ false };
 
-    // Cleared and repopulated every frame; capacity reserved to prevent allocations
-    std::vector<std::uint32_t> m_eventQueue{};
+    // Store the full struct to preserve the payload data
+    std::vector<AnimationEvent> m_eventQueue{};
 
     // Caches the 64-bit hash of every state's name for zero-allocation lookups
     std::vector<std::uint64_t> m_stateHashes{};

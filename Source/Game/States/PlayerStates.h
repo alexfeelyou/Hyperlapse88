@@ -34,13 +34,26 @@ private:
     bool m_canCancel{ false };
 };
 
-// Generic Data-Driven Attack handler (Wiring in Phase 5)
+// Generic Data-Driven Attack handler
 class PlayerAttackState final : public PlayerState
 {
 public:
     void Enter(PlayerControllerComponent* controller) override;
     void Update(PlayerControllerComponent* controller, float dt) override;
     void Exit(PlayerControllerComponent* controller) override;
+
+    // Call this before transitioning to route to the Dash Attack
+    void SetDashAttackNext(bool isDashAttack) noexcept { m_wantsDashAttack = isDashAttack; }
+
+private:
+    void PlayCurrentAttack(PlayerControllerComponent* controller) noexcept;
+
+    int m_comboIndex{ 0 };
+    float m_attackBufferTimer{ 0.0f };
+    float m_exitTimer{ 0.0f };
+    bool m_canCancel{ false };
+    bool m_wantsDashAttack{ false }; 
+    DirectX::XMFLOAT2 m_lungeDirection{ 0.0f, 1.0f };
 };
 
 // Generic Damage Flinch/Knockback handler

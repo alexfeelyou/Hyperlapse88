@@ -273,18 +273,32 @@ void AnimationComponent::ProcessEvents(const float dt, const AnimationState& sta
 {
     if (state.events.empty() || dt <= 0.0001f) return;
 
-    // Detect if the playhead crossed the normalized event marker this frame
     const float duration{ m_model->GetAnimations()[state.clipIndex].secondsLength };
     if (duration <= 0.001f) return;
 
     const float prevNorm{ previousTimer / duration };
     const float currNorm{ currentTimer / duration };
 
+    // Detect if the animation playhead wrapped around (Looping)
+    const bool looped = (currNorm < prevNorm);
+
     for (const auto& ev : state.events)
     {
-        if (prevNorm <= ev.normalizedTime && currNorm > ev.normalizedTime)
+        if (looped)
         {
-            m_eventQueue.push_back(ev.eventId);
+            // If it looped, check both ends of the timeline
+            if (ev.normalizedTime >= prevNorm || ev.normalizedTime <= currNorm)
+            {
+                m_eventQueue.push_back(ev); // Push full struct!
+            }
+        }
+        else
+        {
+            // Standard linear evaluation
+            if (prevNorm <= ev.normalizedTime && currNorm > ev.normalizedTime)
+            {
+                m_eventQueue.push_back(ev); // Push full struct
+            }
         }
     }
 }
@@ -478,9 +492,9 @@ void AnimationComponent::DrawInspector()
             }
 
             static constexpr const char* const s_eventNames[] = {
-                "None", "Hitbox_Active", "Hitbox_Inactive",
-                "CancelWindow_Open", "Invincible_Start", "Invincible_End",
-                "Play_SFX", "Play_VFX"
+                 "None", "Hitbox_Active", "Hitbox_Inactive",
+                 "CancelWindow_Open", "Invincible_Start", "Invincible_End",
+                 "Play_SFX", "Play_VFX", "Lunge_Impulse" 
             };
 
             // Using iterators to allow safe deletion while looping
@@ -500,6 +514,9 @@ void AnimationComponent::DrawInspector()
                 {
                     it->eventId = static_cast<std::uint32_t>(currentEventId);
                 }
+
+				// Payload Slider (Custom float value for the event, e.g., damage amount, force magnitude, etc.)
+                ImGui::DragFloat("Payload", &it->payload, 0.5f, -200.0f, 200.0f, "%.2f");
 
                 // Delete Event Button
                 bool deleteTriggered{ false };
@@ -562,6 +579,23 @@ void AnimationComponent::DrawInspector()
                     ImGui::PopID();
                 }
             }
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            // Use a red button for destructive actions
+            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6f, 0.1f, 0.1f, 1.0f));
+            if (ImGui::Button("Delete Entire State", ImVec2(-1.0f, 0.0f)))
+            {
+                // Erase both the state and its cached hash safely
+                m_states.erase(m_states.begin() + i);
+                m_stateHashes.erase(m_stateHashes.begin() + i);
+
+                ImGui::PopStyleColor();
+                ImGui::TreePop();
+                ImGui::PopID();
+                break; // Break the loop instantly to prevent ImGui iteration crashes
+            }
+            ImGui::PopStyleColor();
 
             ImGui::TreePop();
         }
