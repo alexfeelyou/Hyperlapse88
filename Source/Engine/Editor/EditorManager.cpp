@@ -1100,6 +1100,7 @@ void EditorManager::SaveUserPreferences(Scene* currentScene, Camera* activeCamer
     root["EditorUI"]["ShowProfiler"] = m_showProfiler;
     root["EditorUI"]["ShowPostProcess"] = m_showPostProcess;
     root["EditorUI"]["ShowAnimTimeline"] = m_showAnimTimeline;
+    root["EditorUI"]["ShowAnimGraph"] = m_showAnimGraph;
 
     const std::filesystem::path pathObj{ s_editorPrefsPath };
     if (!std::filesystem::exists(pathObj.parent_path()))
@@ -1153,6 +1154,7 @@ void EditorManager::LoadUserPreferences(Scene* currentScene, Camera* activeCamer
             m_showProfiler = uiData.value("ShowProfiler", false);
             m_showPostProcess = uiData.value("ShowPostProcess", false);
             m_showAnimTimeline = uiData.value("ShowAnimTimeline", false);
+            m_showAnimGraph = uiData.value("ShowAnimGraph", false);
         }
     }
     catch (...)

@@ -11,6 +11,8 @@ void AnimationGraphPanel::SetTarget(AnimationComponent* target) noexcept
     m_targetComponent = target;
     m_selectedStateIndex = 0;
     m_selectedNodeForProps = -1;
+    m_isPreviewingTransition = false;
+    m_transitionPhase = 0;
 }
 
 void AnimationGraphPanel::Draw(bool* pOpen) noexcept

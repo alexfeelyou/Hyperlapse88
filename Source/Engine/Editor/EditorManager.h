@@ -62,6 +62,7 @@ public:
         m_selectedObject = nullptr;
         m_selectedComponent = nullptr;
         m_timelinePanel.SetTarget(nullptr, 0);
+        m_animGraphPanel.SetTarget(nullptr);
     }
 
 	// Accessors for the currently selected GameObject and Component
