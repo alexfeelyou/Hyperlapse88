@@ -468,7 +468,18 @@ void AnimationComponent::DrawInspector()
 
             if (ImGui::Button("Test Play State", ImVec2(halfWidth, 0.0f)))
             {
-                PlayState(i);
+                // Force replay if clicking the already active state
+                if (m_currentStateIndex == static_cast<std::size_t>(i))
+                {
+                    m_currentTimer = state.startOffset; // Rewind to start
+                    m_isBlending = false;               // Kill active crossfades
+                    m_blendTimer = 0.0f;
+                }
+                else
+                {
+                    PlayState(i);
+                }
+
                 m_editorPreview = true; // Force time to flow
             }
 
@@ -515,8 +526,16 @@ void AnimationComponent::DrawInspector()
                     it->eventId = static_cast<std::uint32_t>(currentEventId);
                 }
 
-				// Payload Slider (Custom float value for the event, e.g., damage amount, force magnitude, etc.)
-                ImGui::DragFloat("Payload", &it->payload, 0.5f, -200.0f, 200.0f, "%.2f");
+                // Dynamic Contextual UI for Lunge Force
+                if (it->eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse))
+                {
+                    ImGui::DragFloat("Lunge Force", &it->payload, 0.5f, -200.0f, 200.0f, "%.2f");
+                }
+                else if (it->eventId == static_cast<std::uint32_t>(CombatEventId::Play_SFX) ||
+                    it->eventId == static_cast<std::uint32_t>(CombatEventId::Play_VFX))
+                {
+                    ImGui::DragFloat("Asset ID", &it->payload, 1.0f, 0.0f, 100.0f, "%.0f");
+                }
 
                 // Delete Event Button
                 bool deleteTriggered{ false };
