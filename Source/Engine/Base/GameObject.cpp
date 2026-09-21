@@ -115,7 +115,7 @@ void GameObject::DrawInspector()
     // Delegate to each Component to draw its own specialized UI
     for (const auto& component : m_components)
     {
-        if (ImGui::CollapsingHeader(component->GetTypeName(), ImGuiTreeNodeFlags_DefaultOpen))
+        if (ImGui::CollapsingHeader(component->GetTypeName()))
         {
             component->DrawInspector();
         }
