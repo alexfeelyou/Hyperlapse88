@@ -344,6 +344,24 @@ void AnimationComponent::PlayStateByHash(const std::uint64_t stateHash) noexcept
     }
 }
 
+void AnimationComponent::ScrubToTime(std::size_t stateIndex, float time) noexcept
+{
+    m_currentStateIndex = stateIndex; 
+    m_currentTimer = time;
+    m_isBlending = false;
+
+    if (m_model && m_currentStateIndex < m_states.size())
+    {
+        const AnimationState& state{ m_states[m_currentStateIndex] };
+        if (state.clipIndex >= 0 && static_cast<std::size_t>(state.clipIndex) < m_model->GetAnimations().size())
+        {
+            // Mathematically command the skeleton to evaluating the explicit pose right now
+            m_model->ComputeAnimation(state.clipIndex, m_currentTimer, m_currentLocalPoses);
+            ComputeGlobalTransforms();
+        }
+    }
+}
+
 void AnimationComponent::DrawInspector()
 {
     ImGui::TextDisabled("Animation Evaluator");
@@ -497,69 +515,12 @@ void AnimationComponent::DrawInspector()
 
             ImGui::Spacing();
             ImGui::Separator();
+            ImGui::TextDisabled("EVENT TIMELINE WORKSPACE");
 
-            // The Event Track Editor 
-            ImGui::TextDisabled("EVENTS");
-            ImGui::SameLine(ImGui::GetContentRegionAvail().x - 60.0f);
-            if (ImGui::Button("+ Event"))
+            if (ImGui::Button("Open Timeline Sequencer", ImVec2(-1.0f, 0.0f)))
             {
-                state.events.push_back(AnimationEvent{ 0.0f, 0, 0.0f });
-            }
-
-            static constexpr const char* const s_eventNames[] = {
-                 "None", "Hitbox_Active", "Hitbox_Inactive",
-                 "CancelWindow_Open", "Invincible_Start", "Invincible_End",
-                 "Play_SFX", "Play_VFX", "Lunge_Impulse" 
-            };
-
-            // Using iterators to allow safe deletion while looping
-            for (auto it = state.events.begin(); it != state.events.end(); )
-            {
-                // Unique ID based on memory address so ImGui doesn't mix sliders up
-                ImGui::PushID(&(*it));
-
-                ImGui::BeginGroup();
-
-                // Normalized Time Slider (0.0 = Start of Animation, 1.0 = End)
-                ImGui::SliderFloat("Time", &it->normalizedTime, 0.0f, 1.0f, "%.2f");
-
-                // Event Type Dropdown
-                int currentEventId{ static_cast<int>(it->eventId) };
-                if (ImGui::Combo("Type", &currentEventId, s_eventNames, IM_ARRAYSIZE(s_eventNames)))
-                {
-                    it->eventId = static_cast<std::uint32_t>(currentEventId);
-                }
-
-                // Dynamic Contextual UI for Lunge Force
-                if (it->eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse))
-                {
-                    ImGui::DragFloat("Lunge Force", &it->payload, 0.5f, -200.0f, 200.0f, "%.2f");
-                }
-                else if (it->eventId == static_cast<std::uint32_t>(CombatEventId::Play_SFX) ||
-                    it->eventId == static_cast<std::uint32_t>(CombatEventId::Play_VFX))
-                {
-                    ImGui::DragFloat("Asset ID", &it->payload, 1.0f, 0.0f, 100.0f, "%.0f");
-                }
-
-                // Delete Event Button
-                bool deleteTriggered{ false };
-                if (ImGui::Button("Remove"))
-                {
-                    deleteTriggered = true;
-                }
-
-                ImGui::EndGroup();
-                ImGui::PopID();
-                ImGui::Spacing();
-
-                if (deleteTriggered)
-                {
-                    it = state.events.erase(it);
-                }
-                else
-                {
-                    ++it;
-                }
+                // Pass 'i' (the specific state index) to the Editor Manager
+                EditorManager::Instance().OpenAnimationTimeline(this, i);
             }
 
             ImGui::Spacing();
@@ -650,6 +611,8 @@ void AnimationComponent::Serialize(nlohmann::json& j) const
             evJson["Time"] = ev.normalizedTime;
             evJson["Id"] = ev.eventId;
             evJson["Payload"] = ev.payload;
+            evJson["IsRange"] = ev.isRange;
+            evJson["EndTime"] = ev.normalizedEndTime;
             eventsArray.push_back(evJson);
         }
         stateJson["Events"] = eventsArray;
@@ -698,6 +661,8 @@ void AnimationComponent::Deserialize(const nlohmann::json& j)
                 ev.normalizedTime = evJson.value("Time", 0.0f);
                 ev.eventId = evJson.value("Id", 0u);
                 ev.payload = evJson.value("Payload", 0.0f);
+                ev.isRange = evJson.value("IsRange", false);
+                ev.normalizedEndTime = evJson.value("EndTime", 0.0f);
                 state.events.push_back(ev);
             }
         }

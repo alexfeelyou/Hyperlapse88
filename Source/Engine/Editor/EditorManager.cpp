@@ -173,6 +173,8 @@ void EditorManager::Draw(Scene* currentScene, Camera* activeCamera) noexcept
     DrawPostProcess(currentScene);
     DrawConsole();
 
+    if (m_showAnimTimeline) m_timelinePanel.Draw(&m_showAnimTimeline);
+
     ImGui::End();
 }
 
@@ -255,6 +257,7 @@ void EditorManager::DrawDockSpace(Scene* currentScene) noexcept
         ImGui::DockBuilderDockWindow(s_windowConsole, dockBottom);
         ImGui::DockBuilderDockWindow(s_windowProfiler, dockBottom);
         ImGui::DockBuilderDockWindow(s_windowPostProcess, dockBottom);
+        ImGui::DockBuilderDockWindow("AnimEvent Timeline", dockBottom);
 
         ImGui::DockBuilderFinish(dockspaceId);
     }
@@ -655,6 +658,7 @@ void EditorManager::DrawMenuBar(Scene* currentScene) noexcept
         if (ImGui::BeginMenu("Debug"))
         {
             ImGui::MenuItem("Profiler", nullptr, &m_showProfiler);
+            ImGui::MenuItem("Animation Timeline", nullptr, &m_showAnimTimeline);
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Graphics"))
@@ -1036,6 +1040,13 @@ void EditorManager::DrawPostProcess(Scene* currentScene) noexcept
         }
     }
     ImGui::End();
+}
+
+void EditorManager::OpenAnimationTimeline(AnimationComponent* target, std::size_t stateIndex) noexcept
+{
+    m_timelinePanel.SetTarget(target, stateIndex);
+    m_showAnimTimeline = true;
+    ImGui::SetWindowFocus("AnimEvent Timeline");
 }
 
 void EditorManager::SaveUserPreferences(Scene* currentScene, Camera* activeCamera) const noexcept

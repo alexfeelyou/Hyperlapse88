@@ -9,6 +9,7 @@
 #include <wrl/client.h>
 #include "System/Graphics.h"
 #include "System/Logger.h"
+#include "AnimationTimelinePanel.h"
 #include "Framework.h"
 #include "GameObject.h"
 #include "IComponent.h"
@@ -48,6 +49,9 @@ public:
 
     void BeginSceneRender(ID3D11DeviceContext* context) noexcept;
     void EndSceneRender(ID3D11DeviceContext* context) noexcept;
+
+	// Opens the Animation Timeline Panel for a specific AnimationComponent
+    void OpenAnimationTimeline(AnimationComponent* target, std::size_t stateIndex = 0) noexcept;
 
     // Safely clears the active inspector target to prevent dangling pointers
     void ClearSelection() noexcept {
@@ -97,6 +101,10 @@ private:
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_sceneSRV;
     Microsoft::WRL::ComPtr<ID3D11Texture2D> m_depthTexture;
     Microsoft::WRL::ComPtr<ID3D11DepthStencilView> m_sceneDSV;
+
+	// Animation Timeline Panel
+    AnimationTimelinePanel m_timelinePanel{};
+    bool m_showAnimTimeline{ false };
 
     // Gizmo State
     ImGuizmo::OPERATION m_gizmoOperation{ ImGuizmo::TRANSLATE };

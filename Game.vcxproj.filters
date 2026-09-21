@@ -354,6 +354,9 @@
     <ClCompile Include="Source\Engine\Components\AnimationComponent.cpp">
       <Filter>Source\Engine\Components</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Engine\Editor\AnimationTimelinePanel.cpp">
+      <Filter>Source\Engine\Editor</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\System\BasicShader.h">
@@ -482,9 +485,7 @@
     <ClInclude Include="Source\Engine\Graphics\stb_truetype.h">
       <Filter>Source\Engine\Graphics</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Engine\Helpers\CapeSimulator.h" />
     <ClInclude Include="Source\Engine\VFX\EffectManager.h" />
-    <ClInclude Include="Source\Game\Entities\NaviAlly.h" />
     <ClInclude Include="Source\Game\Entities\Weapon.h" />
     <ClInclude Include="Source\Engine\Graphics\FontTTF.h">
       <Filter>Source\Engine\Graphics</Filter>
@@ -686,6 +687,9 @@
     </ClInclude>
     <ClInclude Include="Source\Engine\Base\StringHash.h">
       <Filter>Source\Engine\Base</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Editor\AnimationTimelinePanel.h">
+      <Filter>Source\Engine\Editor</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

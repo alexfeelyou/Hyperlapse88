@@ -29,6 +29,10 @@ struct AnimationEvent
     float normalizedTime{ 0.0f };
     std::uint32_t eventId{ 0 };
     float payload{ 0.0f };
+
+    // UI Timeline properties (Safe to ignore in standard runtime)
+    bool isRange{ false };
+    float normalizedEndTime{ 0.0f };
 };
 
 // Authored rule overriding default blend parameters for a specific source state
@@ -86,6 +90,9 @@ public:
     // Fast O(N) integer lookup for action states
     void PlayStateByHash(std::uint64_t stateHash) noexcept;
 
+    // Direct pose execution interface for live Editor scrubbing
+    void ScrubToTime(std::size_t stateIndex, float targetTime) noexcept;
+
     // Returns the actual duration of the state in seconds (accounting for speed multipliers)
     [[nodiscard]] float GetStateDurationByHash(std::uint64_t stateHash) const noexcept;
 
@@ -93,6 +100,12 @@ public:
     [[nodiscard]] const std::vector<DirectX::XMFLOAT4X4>& GetCurrentNodeGlobals() const noexcept { return m_currentNodeGlobals; }
     [[nodiscard]] const std::vector<DirectX::XMFLOAT4X4>& GetPreviousNodeGlobals() const noexcept { return m_hasPreviousGlobals ? m_previousNodeGlobals : m_currentNodeGlobals; }
     [[nodiscard]] const std::vector<AnimationEvent>& GetFiredEvents() const noexcept { return m_eventQueue; }
+
+    // Exposes raw data to the specific Editor UI blocks without allocations
+    [[nodiscard]] std::vector<AnimationState>& GetStates() noexcept { return m_states; }
+    [[nodiscard]] std::shared_ptr<Model> GetModel() const noexcept { return m_model; }
+    [[nodiscard]] float GetCurrentTimer() const noexcept { return m_currentTimer; }
+    [[nodiscard]] std::size_t GetCurrentStateIndex() const noexcept { return m_currentStateIndex; }
 
 private:
     void ComputeGlobalTransforms() noexcept;
