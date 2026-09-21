@@ -361,24 +361,27 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
     const float availWidth{ ImGui::GetContentRegionAvail().x };
     ImGui::SetCursorPosX((availWidth * 0.5f) - (totalToolbarWidth * 0.5f));
 
+    static bool s_skipGizmoThisFrame{ false };
+
     if (DrawToolbarIconButton("##PlayBtn", ToolbarIcon::Play, m_editorMode == EditorMode::Play, ImVec4{ 0.2f, 0.7f, 0.2f, 1.0f }, buttonSize))
     {
         SetEditorMode(EditorMode::Play);
-        ClearSelection();
-        m_showGizmos = false; // Auto-hide gizmos for a clean gameplay experience
+        m_showGizmos = false;
+        s_skipGizmoThisFrame = true; 
     }
     ImGui::SameLine();
     if (DrawToolbarIconButton("##PauseBtn", ToolbarIcon::Pause, m_editorMode == EditorMode::Pause, ImVec4{ 0.7f, 0.7f, 0.2f, 1.0f }, buttonSize))
     {
         SetEditorMode(EditorMode::Pause);
-        ClearSelection();
-        m_showGizmos = true; // Auto-show gizmos to inspect the paused state
+        m_showGizmos = true;
+        s_skipGizmoThisFrame = true; 
     }
     ImGui::SameLine();
     if (DrawToolbarIconButton("##StopBtn", ToolbarIcon::Stop, m_editorMode == EditorMode::Edit, ImVec4{ 0.7f, 0.2f, 0.2f, 1.0f }, buttonSize))
     {
         SetEditorMode(EditorMode::Edit);
-        m_showGizmos = true; // Auto-show gizmos for level editing
+        m_showGizmos = true;
+        s_skipGizmoThisFrame = true; 
     }
 
     // Gizmo Category Dropdown aligned to the right
@@ -469,7 +472,12 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
     const bool hasSelection{ m_selectedObject != nullptr };
     const bool isNotRoot{ currentScene && (m_selectedObject != currentScene->GetRootGameObject()) };
 
-    if (activeCamera && hasSelection && isNotRoot && !isPlayMode)
+    // Consume the latch. If true, we skip drawing ImGuizmo entirely this frame.
+    if (s_skipGizmoThisFrame)
+    {
+        s_skipGizmoThisFrame = false;
+    }
+    else if (activeCamera && hasSelection && isNotRoot && !isPlayMode)
     {
         ImGuizmo::SetDrawlist();
         ImGuizmo::SetRect(centeredScreenPos.x, centeredScreenPos.y, renderSize.x, renderSize.y);

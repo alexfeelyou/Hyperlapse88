@@ -242,7 +242,6 @@ void SceneGame::Update(const float elapsedTime)
         {
             if (m_lastEditorMode == EditorMode::Play)
             {
-                EditorManager::Instance().ClearSelection();
                 if (m_sceneRoot)
                 {
                     for (const auto& child : m_sceneRoot->GetChildren())

@@ -617,7 +617,9 @@
                             "ClipIndex": 31,
                             "Events": [
                                 {
+                                    "EndTime": 0.0,
                                     "Id": 3,
+                                    "IsRange": false,
                                     "Payload": 0.0,
                                     "Time": 0.8500000238418579
                                 }
@@ -655,14 +657,18 @@
                             "ClipIndex": 0,
                             "Events": [
                                 {
+                                    "EndTime": 0.0,
                                     "Id": 3,
+                                    "IsRange": false,
                                     "Payload": 0.0,
                                     "Time": 0.6000000238418579
                                 },
                                 {
+                                    "EndTime": 0.0,
                                     "Id": 8,
+                                    "IsRange": false,
                                     "Payload": 15.0,
-                                    "Time": 0.15000000596046448
+                                    "Time": 0.08849938213825226
                                 }
                             ],
                             "Loop": false,
@@ -679,14 +685,18 @@
                             "ClipIndex": 1,
                             "Events": [
                                 {
+                                    "EndTime": 0.0,
                                     "Id": 3,
+                                    "IsRange": false,
                                     "Payload": 0.0,
                                     "Time": 0.6000000238418579
                                 },
                                 {
+                                    "EndTime": 0.0,
                                     "Id": 8,
+                                    "IsRange": false,
                                     "Payload": 15.0,
-                                    "Time": 0.15000000596046448
+                                    "Time": 0.1856703758239746
                                 }
                             ],
                             "Loop": false,
@@ -709,21 +719,25 @@
                             "ClipIndex": 2,
                             "Events": [
                                 {
+                                    "EndTime": 0.0,
                                     "Id": 3,
+                                    "IsRange": false,
                                     "Payload": 0.0,
                                     "Time": 0.6000000238418579
                                 },
                                 {
+                                    "EndTime": 0.0,
                                     "Id": 8,
+                                    "IsRange": false,
                                     "Payload": 15.0,
-                                    "Time": 0.15000000596046448
+                                    "Time": 0.2656210958957672
                                 }
                             ],
                             "Loop": false,
                             "Name": "Attack3",
                             "RootBoneIndex": 3,
                             "RootLock": true,
-                            "Speed": 0.800000011920929,
+                            "Speed": 1.0,
                             "StartOffset": 0.0,
                             "SyncPhase": false,
                             "Transitions": [
@@ -739,14 +753,18 @@
                             "ClipIndex": 3,
                             "Events": [
                                 {
+                                    "EndTime": 0.0,
                                     "Id": 3,
+                                    "IsRange": false,
                                     "Payload": 0.0,
                                     "Time": 0.6000000238418579
                                 },
                                 {
+                                    "EndTime": 0.0,
                                     "Id": 8,
+                                    "IsRange": false,
                                     "Payload": 15.0,
-                                    "Time": 0.15000000596046448
+                                    "Time": 0.3160518407821655
                                 }
                             ],
                             "Loop": false,

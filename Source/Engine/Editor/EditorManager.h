@@ -57,6 +57,7 @@ public:
     void ClearSelection() noexcept {
         m_selectedObject = nullptr;
         m_selectedComponent = nullptr;
+        m_timelinePanel.SetTarget(nullptr, 0);
     }
 
 	// Accessors for the currently selected GameObject and Component
