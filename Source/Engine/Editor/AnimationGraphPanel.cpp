@@ -141,6 +141,17 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
 
         ImGui::SameLine();
 
+        bool isActiveNode = (m_targetComponent->IsPreviewing() || EditorManager::Instance().GetEditorMode() != EditorMode::Edit) &&
+            (m_targetComponent->GetCurrentNodeIndex() == i) &&
+            (m_targetComponent->GetCurrentStateIndex() == m_selectedStateIndex);
+        if (isActiveNode)
+        {
+            ImGui::TextColored(ImVec4(0.2f, 1.0f, 0.2f, 1.0f), " >> ");
+            ImGui::SameLine();
+        }
+
+        ImGui::SameLine();
+
         std::string currentClipName{ "None" };
         if (node.clipIndex >= 0 && static_cast<std::size_t>(node.clipIndex) < animations.size())
         {
@@ -189,15 +200,53 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
     ImGui::Separator();
 
     const bool isGameLive{ EditorManager::Instance().GetEditorMode() != EditorMode::Edit };
+    const bool isPreviewing{ m_targetComponent->IsPreviewing() };
 
     ImGui::BeginDisabled(isGameLive);
-    if (ImGui::SliderFloat("Speed (Mock)", &m_debugSpeed, 0.0f, 10.0f, "%.1f m/s"))
+
+    // MACRO PLAYBACK CONTROLS
+    if (ImGui::Button(isPreviewing ? "Stop Preview" : "Play Macro State", ImVec2(-1.0f, 30.0f)))
     {
-        if (auto* bb = const_cast<Engine::Animation::AnimBlackboard*>(m_targetComponent->GetBlackboard()))
+        if (isPreviewing) m_targetComponent->StopPreview();
+        else m_targetComponent->TestPlayState(m_selectedStateIndex, -1); // -1 = Evaluate full Blend Tree
+    }
+    ImGui::Spacing();
+
+    // DYNAMIC BLACKBOARD UI BASED ON GRAPH TYPE 
+    if (state.type == AnimStateType::Blend1D)
+    {
+        // Negative width tells ImGui to fill available space minus X pixels for the label
+        ImGui::SetNextItemWidth(-120.0f);
+        if (ImGui::SliderFloat("Speed (Mock)", &m_debugSpeed, 0.0f, 10.0f, "%.1f m/s"))
         {
-            bb->groundSpeed = m_debugSpeed;
+            if (auto* bb = const_cast<Engine::Animation::AnimBlackboard*>(m_targetComponent->GetBlackboard()))
+            {
+                bb->groundSpeed = m_debugSpeed;
+            }
+            // Immediately force a pose evaluation so the 3D viewport updates while dragging the slider
+            if (!isPreviewing && !isGameLive) m_targetComponent->Update(0.0f);
         }
     }
+    else if (state.type == AnimStateType::Selector)
+    {
+        const int maxIndex = state.nodes.empty() ? 0 : static_cast<int>(state.nodes.size()) - 1;
+        if (m_debugActionIndex > maxIndex) m_debugActionIndex = maxIndex;
+
+        ImGui::SetNextItemWidth(-150.0f);
+        if (ImGui::SliderInt("Action Index (Mock)", &m_debugActionIndex, 0, maxIndex))
+        {
+            if (auto* bb = const_cast<Engine::Animation::AnimBlackboard*>(m_targetComponent->GetBlackboard()))
+            {
+                bb->actionIndex = m_debugActionIndex;
+            }
+            if (!isPreviewing && !isGameLive) m_targetComponent->Update(0.0f);
+        }
+    }
+    else // Single Clip
+    {
+        ImGui::TextDisabled("No blackboard parameters required for Single Clip.");
+    }
+
     ImGui::EndDisabled();
 
     if (isGameLive)

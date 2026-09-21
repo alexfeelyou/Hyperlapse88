@@ -381,6 +381,12 @@ void AnimationComponent::Update(const float dt)
                 else
                 {
                     m_currentTimer = std::clamp(m_currentTimer, 0.0f, currentDuration);
+
+                    // AUTO-RESET: If a non-looping preview hits the end of the clip, turn off preview mode
+                    if (m_editorPreview && m_currentTimer >= currentDuration)
+                    {
+                        StopPreview();
+                    }
                 }
 
                 if (nodeA == nodeB) m_model->ComputeAnimation(clipA, m_currentTimer, m_currentLocalPoses);

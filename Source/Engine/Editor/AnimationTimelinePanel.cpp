@@ -68,8 +68,12 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
         m_selectedEventIndex = -1;
     }
 
+    // Define both variables so the rest of the UI buttons work
     const bool isGameLive = EditorManager::Instance().GetEditorMode() != EditorMode::Edit;
-    if (isGameLive)
+    const bool isPreviewing = m_targetComponent->IsPreviewing();
+    const bool isEnginePlaying = isGameLive || isPreviewing;
+
+    if (isEnginePlaying)
     {
         const std::size_t runtimeState = m_targetComponent->GetCurrentStateIndex();
         if (runtimeState < states.size() && runtimeState != m_selectedStateIndex)
@@ -80,7 +84,18 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
         }
     }
 
-    ImGui::BeginDisabled(isGameLive);
+    // Move Dynamic Sync OUTSIDE the play check
+    if (m_targetComponent->GetIsolatedNodeIndex() == -1)
+    {
+        const std::size_t runtimeNode = m_targetComponent->GetCurrentNodeIndex();
+        if (runtimeNode < states[m_selectedStateIndex].nodes.size() && runtimeNode != m_selectedNodeIndex)
+        {
+            m_selectedNodeIndex = runtimeNode;
+            m_selectedEventIndex = -1;
+        }
+    }
+
+    ImGui::BeginDisabled(isEnginePlaying && !isPreviewing);
     ImGui::SetNextItemWidth(250.0f);
     if (ImGui::BeginCombo("Active State", states[m_selectedStateIndex].name.c_str()))
     {

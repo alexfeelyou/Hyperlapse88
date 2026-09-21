@@ -116,6 +116,9 @@ public:
     [[nodiscard]] std::shared_ptr<Model> GetModel() const noexcept { return m_model; }
     [[nodiscard]] float GetCurrentTimer() const noexcept { return m_currentTimer; }
     [[nodiscard]] std::size_t GetCurrentStateIndex() const noexcept { return m_currentStateIndex; }
+    [[nodiscard]] std::size_t GetCurrentNodeIndex() const noexcept { return m_currentNodeIndex; }
+    [[nodiscard]] bool IsPreviewing() const noexcept { return m_editorPreview; }
+    [[nodiscard]] int GetIsolatedNodeIndex() const noexcept { return m_isolatedNodeIndex; }
 
 private:
     struct PoseScratchpad
