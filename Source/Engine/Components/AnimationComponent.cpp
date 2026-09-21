@@ -1,6 +1,7 @@
 #include <algorithm>
 #include <imgui.h>
 #include "AnimationComponent.h"
+#include "EditorManager.h"
 #include "ComponentRegistry.h"
 #include "GameObject.h"
 #include "MeshComponent.h"
@@ -466,30 +467,33 @@ void AnimationComponent::DrawInspector()
             // The Test Play Button 
             const float halfWidth = (ImGui::GetContentRegionAvail().x * 0.5f) - 4.0f;
 
+            // Disable preview buttons if we are in Play or Pause mode
+            const bool isGameLive = EditorManager::Instance().GetEditorMode() != EditorMode::Edit;
+            ImGui::BeginDisabled(isGameLive);
+
             if (ImGui::Button("Test Play State", ImVec2(halfWidth, 0.0f)))
             {
-                // Force replay if clicking the already active state
                 if (m_currentStateIndex == static_cast<std::size_t>(i))
                 {
-                    m_currentTimer = state.startOffset; // Rewind to start
-                    m_isBlending = false;               // Kill active crossfades
+                    m_currentTimer = state.startOffset;
+                    m_isBlending = false;
                     m_blendTimer = 0.0f;
                 }
                 else
                 {
                     PlayState(i);
                 }
-
-                m_editorPreview = true; // Force time to flow
+                m_editorPreview = true;
             }
 
             ImGui::SameLine();
 
-            // Split the button row to allow Stop Preview 
             if (ImGui::Button("Stop Preview", ImVec2(halfWidth, 0.0f)))
             {
-                m_editorPreview = false; // Freeze the animation again
+                m_editorPreview = false;
             }
+
+            ImGui::EndDisabled();
 
             ImGui::Spacing();
             ImGui::Separator();
