@@ -22,5 +22,6 @@ public:
 private:
     AnimationComponent* m_targetComponent{ nullptr };
     std::size_t m_selectedStateIndex{ 0 };
-    int m_selectedEventIndex{ -1 }; // -1 indicates no active selection
+    std::size_t m_selectedNodeIndex{ 0 }; 
+    int m_selectedEventIndex{ -1 };
 };

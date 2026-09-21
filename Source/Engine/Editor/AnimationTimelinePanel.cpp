@@ -10,24 +10,22 @@
 
 namespace
 {
-    // Shared compile-time constants for the timeline UI
     inline constexpr const char* s_eventNames[] = {
          "None", "Hitbox_Active", "Hitbox_Inactive",
          "CancelWindow_Open", "Invincible_Start", "Invincible_End",
          "Play_SFX", "Play_VFX", "Lunge_Impulse"
     };
 
-    // Color Palette mappings based on Event ID
     [[nodiscard]] ImU32 GetColorForEvent(std::uint32_t eventId) noexcept
     {
         switch (static_cast<CombatEventId>(eventId))
         {
-        case CombatEventId::Hitbox_Active:     return IM_COL32(250, 80, 80, 255);   // Red
-        case CombatEventId::CancelWindow_Open: return IM_COL32(250, 200, 50, 255);  // Yellow
-        case CombatEventId::Lunge_Impulse:     return IM_COL32(50, 150, 250, 255);  // Blue
+        case CombatEventId::Hitbox_Active:     return IM_COL32(250, 80, 80, 255);
+        case CombatEventId::CancelWindow_Open: return IM_COL32(250, 200, 50, 255);
+        case CombatEventId::Lunge_Impulse:     return IM_COL32(50, 150, 250, 255);
         case CombatEventId::Play_SFX:
-        case CombatEventId::Play_VFX:          return IM_COL32(200, 100, 250, 255); // Purple
-        default:                               return IM_COL32(100, 200, 100, 255); // Green
+        case CombatEventId::Play_VFX:          return IM_COL32(200, 100, 250, 255);
+        default:                               return IM_COL32(100, 200, 100, 255);
         }
     }
 }
@@ -36,6 +34,7 @@ void AnimationTimelinePanel::SetTarget(AnimationComponent* target, std::size_t s
 {
     m_targetComponent = target;
     m_selectedStateIndex = stateIndex;
+    m_selectedNodeIndex = 0;
     m_selectedEventIndex = -1;
 }
 
@@ -50,7 +49,6 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
     if (!m_targetComponent)
     {
         ImGui::TextDisabled("No Animation Component Selected.");
-        ImGui::Text("Click 'Open Timeline Sequencer' in the Inspector to bind an entity.");
         ImGui::End();
         return;
     }
@@ -63,14 +61,13 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
         return;
     }
 
-    // Prevent out-of-bounds crash if a state was deleted from the Inspector!
     if (m_selectedStateIndex >= states.size())
     {
         m_selectedStateIndex = 0;
+        m_selectedNodeIndex = 0;
         m_selectedEventIndex = -1;
     }
 
-    // Live Runtime Synchronization (Tracks live game state)
     const bool isGameLive = EditorManager::Instance().GetEditorMode() != EditorMode::Edit;
     if (isGameLive)
     {
@@ -78,11 +75,11 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
         if (runtimeState < states.size() && runtimeState != m_selectedStateIndex)
         {
             m_selectedStateIndex = runtimeState;
+            m_selectedNodeIndex = 0;
             m_selectedEventIndex = -1;
         }
     }
 
-    // Toolbar
     ImGui::BeginDisabled(isGameLive);
     ImGui::SetNextItemWidth(250.0f);
     if (ImGui::BeginCombo("Active State", states[m_selectedStateIndex].name.c_str()))
@@ -93,6 +90,7 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
             if (ImGui::Selectable(states[i].name.c_str(), isSelected))
             {
                 m_selectedStateIndex = i;
+                m_selectedNodeIndex = 0;
                 m_selectedEventIndex = -1;
             }
             if (isSelected) ImGui::SetItemDefaultFocus();
@@ -102,26 +100,83 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
     ImGui::EndDisabled();
 
     AnimationState& state{ states[m_selectedStateIndex] };
+    if (state.nodes.empty())
+    {
+        ImGui::TextDisabled("This state has no nodes to evaluate.");
+        ImGui::End();
+        return;
+    }
+
+    if (m_selectedNodeIndex >= state.nodes.size()) m_selectedNodeIndex = 0;
+
+    if (state.nodes.size() > 1)
+    {
+        ImGui::SameLine();
+        ImGui::SetNextItemWidth(180.0f);
+
+        std::string comboPreview;
+        if (state.type == AnimStateType::Selector) comboPreview = "Combo Step " + std::to_string(m_selectedNodeIndex);
+        else comboPreview = "Node " + std::to_string(m_selectedNodeIndex) + " (Thr: " + std::to_string(state.nodes[m_selectedNodeIndex].threshold).substr(0, 3) + ")";
+
+        if (ImGui::BeginCombo("Node", comboPreview.c_str()))
+        {
+            for (std::size_t n = 0; n < state.nodes.size(); ++n)
+            {
+                std::string itemName;
+                if (state.type == AnimStateType::Selector) itemName = "Combo Step " + std::to_string(n);
+                else itemName = "Node " + std::to_string(n) + " (Thr: " + std::to_string(state.nodes[n].threshold).substr(0, 3) + ")";
+
+                if (ImGui::Selectable(itemName.c_str(), m_selectedNodeIndex == n))
+                {
+                    m_selectedNodeIndex = n;
+                    m_selectedEventIndex = -1;
+                    m_targetComponent->ScrubNodeToTime(m_selectedStateIndex, m_selectedNodeIndex, 0.0f);
+                }
+            }
+            ImGui::EndCombo();
+        }
+    }
+    else
+    {
+        m_selectedNodeIndex = 0;
+    }
+
+    AnimNode& targetNode{ state.nodes[m_selectedNodeIndex] };
     const auto model{ m_targetComponent->GetModel() };
 
-    // Defensive protection against zero-length or corrupted animations
     float baseDuration{ 1.0f };
-    if (model && state.clipIndex >= 0 && static_cast<std::size_t>(state.clipIndex) < model->GetAnimations().size())
+    if (model)
     {
-        baseDuration = model->GetAnimations()[state.clipIndex].secondsLength;
+        const int clipIdx{ targetNode.clipIndex };
+        if (clipIdx >= 0 && static_cast<std::size_t>(clipIdx) < model->GetAnimations().size())
+        {
+            baseDuration = model->GetAnimations()[clipIdx].secondsLength;
+        }
     }
     if (baseDuration <= 0.001f) baseDuration = 1.0f;
 
     ImGui::SameLine();
     if (ImGui::Button("+ Add Event"))
     {
-        state.events.push_back(AnimationEvent{ 0.0f, 0, 0.0f, false, 0.1f });
-        m_selectedEventIndex = static_cast<int>(state.events.size() - 1);
+        targetNode.events.push_back(AnimationEvent{ 0.0f, 0, 0.0f, false, 0.1f });
+        m_selectedEventIndex = static_cast<int>(targetNode.events.size() - 1);
     }
 
-    // Defensive Toolbar Text Alignment
+    ImGui::SameLine();
+    ImGui::BeginDisabled(isGameLive);
+    if (ImGui::Button("Play"))
+    {
+        m_targetComponent->TestPlayState(m_selectedStateIndex, static_cast<int>(m_selectedNodeIndex));
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Stop"))
+    {
+        m_targetComponent->StopPreview();
+    }
+    ImGui::EndDisabled();
+
     char speedBuf[64];
-    snprintf(speedBuf, sizeof(speedBuf), "Base: %.2fs | Speed: %.1fx", baseDuration, state.speedMultiplier);
+    snprintf(speedBuf, sizeof(speedBuf), "Base: %.2fs | Speed: %.1fx", baseDuration, targetNode.speedMultiplier);
     const float textWidth{ ImGui::CalcTextSize(speedBuf).x };
     const float availX{ ImGui::GetContentRegionAvail().x };
 
@@ -133,13 +188,11 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
 
     ImGui::Separator();
 
-    // Layout math & Split pane
-    const bool showProperties{ m_selectedEventIndex >= 0 && static_cast<std::size_t>(m_selectedEventIndex) < state.events.size() };
+    const bool showProperties{ m_selectedEventIndex >= 0 && static_cast<std::size_t>(m_selectedEventIndex) < targetNode.events.size() };
 
-    // Dynamically shrink canvas width to make room for properties panel
     float canvasWidth{ ImGui::GetContentRegionAvail().x };
     if (showProperties) canvasWidth -= 320.0f;
-    if (canvasWidth < 100.0f) canvasWidth = 100.0f; 
+    if (canvasWidth < 100.0f) canvasWidth = 100.0f;
 
     ImDrawList* drawList{ ImGui::GetWindowDrawList() };
     const ImVec2 canvasPos{ ImGui::GetCursorScreenPos() };
@@ -148,47 +201,39 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
     constexpr float trackHeight{ 30.0f };
     const float trackStartY{ canvasPos.y + headerHeight };
 
-    // Calculate required height to stretch perfectly to the bottom of the window
     const float availableY{ ImGui::GetContentRegionAvail().y };
-    const float minimumContentHeight{ headerHeight + (state.events.size() * trackHeight) + 20.0f };
+    const float minimumContentHeight{ headerHeight + (targetNode.events.size() * trackHeight) + 20.0f };
     const float requiredHeight{ (std::max)(availableY, minimumContentHeight) };
 
-    // Grouping ensures the Dummy reserves the physical ImGui space cleanly
     ImGui::BeginGroup();
     ImGui::Dummy(ImVec2(canvasWidth, requiredHeight));
 
-    // Workspace Background
     drawList->AddRectFilled(canvasPos, ImVec2(canvasPos.x + canvasWidth, canvasPos.y + requiredHeight), IM_COL32(20, 20, 24, 255));
     drawList->AddRectFilled(canvasPos, ImVec2(canvasPos.x + canvasWidth, canvasPos.y + headerHeight), IM_COL32(40, 40, 45, 255));
 
-    // Z-ORDER: TRACK BACKGROUNDS
-    for (std::size_t i{ 0 }; i < state.events.size(); ++i)
+    for (std::size_t i{ 0 }; i < targetNode.events.size(); ++i)
     {
         const float yTop{ trackStartY + (i * trackHeight) };
         const float yBot{ yTop + trackHeight - 2.0f };
         drawList->AddRectFilled(ImVec2(canvasPos.x, yTop), ImVec2(canvasPos.x + canvasWidth, yBot), IM_COL32(30, 30, 35, 255));
     }
 
-    // Z-ORDER: "SKIPPED" START OFFSET VISUALIZER
-    const float offsetNorm{ std::clamp(state.startOffset / baseDuration, 0.0f, 1.0f) };
+    const float offsetNorm{ std::clamp<float>(targetNode.startOffset / baseDuration, 0.0f, 1.0f) };
     if (offsetNorm > 0.001f)
     {
         const float offsetPixelX{ canvasPos.x + (offsetNorm * canvasWidth) };
         const float hatchAreaHeight{ requiredHeight - headerHeight };
 
-        // Draw dark tinted overlay covering the skipped tracks
         drawList->AddRectFilled(
             ImVec2(canvasPos.x, canvasPos.y + headerHeight),
             ImVec2(offsetPixelX, canvasPos.y + requiredHeight),
             IM_COL32(0, 0, 0, 180)
         );
 
-        // PushClipRect perfectly trims the diagonal lines to the exact bounding box!
         const ImVec2 clipMin{ canvasPos.x, canvasPos.y + headerHeight };
         const ImVec2 clipMax{ offsetPixelX, canvasPos.y + requiredHeight };
         drawList->PushClipRect(clipMin, clipMax, true);
 
-        // Draw diagonal hatched warning lines (Starting way out to the right to cover the whole box)
         for (float x = canvasPos.x; x < offsetPixelX + hatchAreaHeight; x += 14.0f)
         {
             drawList->AddLine(
@@ -197,24 +242,21 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
                 IM_COL32(255, 50, 50, 40), 2.0f
             );
         }
-        drawList->PopClipRect(); // End clipping
+        drawList->PopClipRect();
 
-        // Draw the text stacked below the time overlay
         char skipBuf[32];
-        snprintf(skipBuf, sizeof(skipBuf), "SKIPPED (%.2fs)", state.startOffset);
+        snprintf(skipBuf, sizeof(skipBuf), "SKIPPED (%.2fs)", targetNode.startOffset);
         const ImVec2 textSize{ ImGui::CalcTextSize(skipBuf) };
         const float skipWidth{ offsetPixelX - canvasPos.x };
 
-        // Only draw the text if the skipped area is wide enough to actually fit it
         if (skipWidth > textSize.x + 8.0f)
         {
             const float textX{ canvasPos.x + (skipWidth * 0.5f) - (textSize.x * 0.5f) };
-            const float textY{ canvasPos.y + 18.0f }; 
+            const float textY{ canvasPos.y + 18.0f };
             drawList->AddText(ImVec2(textX, textY), IM_COL32(255, 100, 100, 220), skipBuf);
         }
     }
 
-    // Z-ORDER: RULER & TICK MARKS
     const int totalFrames{ static_cast<int>(std::round(baseDuration * 60.0f)) };
     for (int i{ 0 }; i <= totalFrames; ++i)
     {
@@ -222,28 +264,26 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
         const float normT{ t / baseDuration };
         const float xPixel{ canvasPos.x + (normT * canvasWidth) };
 
-        if (i % 10 == 0) // Major Tick (Frames + Time overlay)
+        if (i % 10 == 0)
         {
             drawList->AddLine(ImVec2(xPixel, canvasPos.y + headerHeight - 10.0f), ImVec2(xPixel, canvasPos.y + headerHeight), IM_COL32(200, 200, 200, 255));
             char labelBuf[32];
             snprintf(labelBuf, sizeof(labelBuf), "%df (%.2fs)", i, t);
-
             drawList->AddText(ImVec2(xPixel + 2.0f, canvasPos.y + 2.0f), IM_COL32(150, 150, 150, 255), labelBuf);
         }
-        else if (i % 5 == 0) // Medium Tick
+        else if (i % 5 == 0)
         {
             drawList->AddLine(ImVec2(xPixel, canvasPos.y + headerHeight - 6.0f), ImVec2(xPixel, canvasPos.y + headerHeight), IM_COL32(150, 150, 150, 255));
         }
-        else // Minor Tick
+        else
         {
             drawList->AddLine(ImVec2(xPixel, canvasPos.y + headerHeight - 3.0f), ImVec2(xPixel, canvasPos.y + headerHeight), IM_COL32(100, 100, 100, 255));
         }
     }
 
-    // Z-ORDER: EVENTS & DRAG LOGIC
-    for (std::size_t i{ 0 }; i < state.events.size(); ++i)
+    for (std::size_t i{ 0 }; i < targetNode.events.size(); ++i)
     {
-        auto& ev{ state.events[i] };
+        auto& ev{ targetNode.events[i] };
         const float yTop{ trackStartY + (i * trackHeight) };
         const float yBot{ yTop + trackHeight - 2.0f };
 
@@ -270,13 +310,12 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
             drawList->AddRectFilled(rectBox.Min, rectBox.Max, renderColor);
             if (isSelected) drawList->AddRect(rectBox.Min, rectBox.Max, IM_COL32(255, 255, 255, 255), 0.0f, 0, 2.0f);
 
-            // Defensive Dragging: Preserves width and caps at 1.0f seamlessly
             if (isSelected && ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
             {
                 const float deltaNorm{ ImGui::GetIO().MouseDelta.x / canvasWidth };
                 const float rangeWidth{ ev.normalizedEndTime - ev.normalizedTime };
 
-                ev.normalizedTime = std::clamp(ev.normalizedTime + deltaNorm, 0.0f, 1.0f - rangeWidth);
+                ev.normalizedTime = std::clamp<float>(ev.normalizedTime + deltaNorm, 0.0f, 1.0f - rangeWidth);
                 ev.normalizedEndTime = ev.normalizedTime + rangeWidth;
             }
         }
@@ -297,15 +336,14 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
             if (isSelected && ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
             {
                 const float deltaNorm{ ImGui::GetIO().MouseDelta.x / canvasWidth };
-                ev.normalizedTime = std::clamp(ev.normalizedTime + deltaNorm, 0.0f, 1.0f);
+                ev.normalizedTime = std::clamp<float>(ev.normalizedTime + deltaNorm, 0.0f, 1.0f);
             }
         }
 
         drawList->AddText(ImVec2(canvasPos.x + 10.0f, yTop + 6.0f), IM_COL32(200, 200, 200, 255), s_eventNames[ev.eventId]);
     }
 
-    // Z-ORDER: PLAYHEAD & SCRUBBING
-    const float currentNorm{ std::clamp(m_targetComponent->GetCurrentTimer() / baseDuration, 0.0f, 1.0f) };
+    const float currentNorm{ std::clamp<float>(m_targetComponent->GetCurrentTimer() / baseDuration, 0.0f, 1.0f) };
     const float playheadPixel{ canvasPos.x + (currentNorm * canvasWidth) };
 
     drawList->AddLine(ImVec2(playheadPixel, canvasPos.y), ImVec2(playheadPixel, canvasPos.y + requiredHeight), IM_COL32(250, 50, 50, 255), 2.0f);
@@ -322,36 +360,29 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
     if (!isGameLive && ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
     {
         const float mouseLocalX{ ImGui::GetIO().MousePos.x - canvasPos.x };
-        const float newNorm{ std::clamp(mouseLocalX / canvasWidth, 0.0f, 1.0f) };
-        m_targetComponent->ScrubToTime(m_selectedStateIndex, newNorm * baseDuration);
+        const float newNorm{ std::clamp<float>(mouseLocalX / canvasWidth, 0.0f, 1.0f) };
+
+        m_targetComponent->ScrubNodeToTime(m_selectedStateIndex, m_selectedNodeIndex, newNorm * baseDuration);
     }
 
-    ImGui::EndGroup(); // Close the canvas group
+    ImGui::EndGroup();
 
-    // SIDE-BY-SIDE EVENT PROPERTIES PANE
     if (showProperties)
     {
         ImGui::SameLine();
-
         ImGui::PushStyleColor(ImGuiCol_ChildBg, IM_COL32(25, 25, 30, 255));
-
-        // Stretches perfectly to the bottom of the window
         ImGui::BeginChild("EventPropertiesPane", ImVec2(310.0f, requiredHeight), true, ImGuiWindowFlags_NoScrollbar);
 
         ImGui::TextDisabled("EVENT PROPERTIES");
         ImGui::SameLine(ImGui::GetWindowWidth() - 30.0f);
 
-        if (ImGui::Button("X"))
-        {
-            m_selectedEventIndex = -1;
-        }
+        if (ImGui::Button("X")) m_selectedEventIndex = -1;
 
         ImGui::Separator();
 
-        // Safe bounds rendering
-        if (m_selectedEventIndex != -1 && m_selectedEventIndex < state.events.size())
+        if (m_selectedEventIndex != -1 && m_selectedEventIndex < targetNode.events.size())
         {
-            auto& ev{ state.events[m_selectedEventIndex] };
+            auto& ev{ targetNode.events[m_selectedEventIndex] };
 
             int currentEventId{ static_cast<int>(ev.eventId) };
             ImGui::SetNextItemWidth(180.0f);
@@ -379,7 +410,6 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
                 ImGui::TextColored(ImVec4(0.7f, 0.7f, 0.7f, 1.0f), "End: %df (%.2fs)", endFrame, endSec);
                 ImGui::SliderFloat("##EndTime", &ev.normalizedEndTime, ev.normalizedTime, 1.0f, "Norm: %.3f");
 
-                // Range width can never be zero or negative
                 if (ev.normalizedEndTime <= ev.normalizedTime)
                 {
                     ev.normalizedEndTime = ev.normalizedTime + 0.01f;
@@ -393,28 +423,21 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
                 ev.eventId == static_cast<std::uint32_t>(CombatEventId::Play_VFX))
             {
                 ImGui::Separator();
-                if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse))
-                {
-                    ImGui::DragFloat("Lunge Force", &ev.payload, 0.5f, -200.0f, 200.0f);
-                }
-                else
-                {
-                    ImGui::DragFloat("Asset ID", &ev.payload, 1.0f, 0.0f, 100.0f);
-                }
+                if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse)) ImGui::DragFloat("Lunge Force", &ev.payload, 0.5f, -200.0f, 200.0f);
+                else ImGui::DragFloat("Asset ID", &ev.payload, 1.0f, 0.0f, 100.0f);
                 ImGui::Spacing();
             }
 
             ImGui::Separator();
             ImGui::Spacing();
 
-            // Push bright red colors to denote destructive action
             ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(180, 40, 40, 255));
             ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(220, 50, 50, 255));
             ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(250, 60, 60, 255));
 
             if (ImGui::Button("Delete Event", ImVec2(-1.0f, 30.0f)))
             {
-                state.events.erase(state.events.begin() + m_selectedEventIndex);
+                targetNode.events.erase(targetNode.events.begin() + m_selectedEventIndex);
                 m_selectedEventIndex = -1;
             }
             ImGui::PopStyleColor(3);

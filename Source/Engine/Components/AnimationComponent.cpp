@@ -9,18 +9,13 @@
 
 namespace
 {
-    // Pure mathematical blend primitive (Linear Blend Space Evaluator).
-    // Implemented as a free function to isolate math from component state.
     void BlendPoses(
         const std::vector<Model::NodePose>& sourceA,
         const std::vector<Model::NodePose>& sourceB,
         float weight,
         std::vector<Model::NodePose>& outResult) noexcept
     {
-        // Safety check to prevent out-of-bounds access
         const std::size_t nodeCount{ (std::min)({ sourceA.size(), sourceB.size(), outResult.size() }) };
-
-        // Strict clamping ensures weight cannot extrapolate beyond physical bounds
         const float safeWeight{ std::clamp(weight, 0.0f, 1.0f) };
 
         for (std::size_t i{ 0 }; i < nodeCount; ++i)
@@ -43,20 +38,63 @@ namespace
 float AnimationComponent::GetStateDurationByHash(const std::uint64_t stateHash) const noexcept
 {
     if (!m_model) return 0.0f;
-
     for (std::size_t i{ 0 }; i < m_stateHashes.size(); ++i)
     {
         if (m_stateHashes[i] == stateHash)
         {
-            const int clipIdx{ m_states[i].clipIndex };
-            if (clipIdx >= 0 && static_cast<std::size_t>(clipIdx) < m_model->GetAnimations().size())
-            {
-                const float totalDuration = m_model->GetAnimations()[clipIdx].secondsLength / m_states[i].speedMultiplier;
+            const AnimationState& state{ m_states[i] };
+            if (state.nodes.empty()) return 0.0f;
 
-                // Subtract start offset so timers match the trimmed length
-                const float remainingDuration = totalDuration - (m_states[i].startOffset / m_states[i].speedMultiplier);
+            float totalDuration = 0.0f;
+            std::size_t nodeA = 0, nodeB = 0;
+            float t = 0.0f;
+
+            if (state.type == AnimStateType::Blend1D && state.nodes.size() > 1 && m_blackboard)
+            {
+                const float param{ m_blackboard->groundSpeed };
+                if (param <= state.nodes.front().threshold) { nodeA = 0; nodeB = 0; }
+                else if (param >= state.nodes.back().threshold) { nodeA = state.nodes.size() - 1; nodeB = nodeA; }
+                else
+                {
+                    for (std::size_t j{ 0 }; j < state.nodes.size() - 1; ++j)
+                    {
+                        if (param >= state.nodes[j].threshold && param < state.nodes[j + 1].threshold)
+                        {
+                            nodeA = j; nodeB = j + 1;
+                            const float range = state.nodes[nodeB].threshold - state.nodes[nodeA].threshold;
+                            t = (param - state.nodes[nodeA].threshold) / (range > 0.001f ? range : 1.0f);
+                            break;
+                        }
+                    }
+                }
+            }
+            else if (state.type == AnimStateType::Selector && m_blackboard)
+            {
+                int rawIndex = m_blackboard->actionIndex;
+                if (rawIndex < 0) rawIndex = 0;
+                if (rawIndex >= static_cast<int>(state.nodes.size())) rawIndex = static_cast<int>(state.nodes.size()) - 1;
+                nodeA = static_cast<std::size_t>(rawIndex);
+                nodeB = nodeA;
+            }
+
+            const int clipA = state.nodes[nodeA].clipIndex;
+            const int clipB = state.nodes[nodeB].clipIndex;
+            const auto& animations = m_model->GetAnimations();
+
+            if (clipA >= 0 && static_cast<std::size_t>(clipA) < animations.size() && clipB >= 0 && static_cast<std::size_t>(clipB) < animations.size())
+            {
+                totalDuration = (animations[clipA].secondsLength * (1.0f - t)) + (animations[clipB].secondsLength * t);
+            }
+
+            if (totalDuration > 0.001f)
+            {
+                const float currentSpeed = (state.nodes[nodeA].speedMultiplier * (1.0f - t)) + (state.nodes[nodeB].speedMultiplier * t);
+                const float currentOffset = (state.nodes[nodeA].startOffset * (1.0f - t)) + (state.nodes[nodeB].startOffset * t);
+
+                const float remainingDuration = (totalDuration - currentOffset) / (currentSpeed > 0.01f ? currentSpeed : 1.0f);
                 return (remainingDuration > 0.0f) ? remainingDuration : 0.0f;
             }
+            return 0.0f;
         }
     }
     return 0.0f;
@@ -65,9 +103,7 @@ float AnimationComponent::GetStateDurationByHash(const std::uint64_t stateHash) 
 void AnimationComponent::OnAttach(GameObject* owner) noexcept
 {
     IComponent::OnAttach(owner);
-    m_eventQueue.reserve(16); // Prevent hot-path allocations
-
-    // Lazy fetch if MeshComponent is already attached 
+    m_eventQueue.reserve(16);
     if (m_owner)
     {
         if (auto* meshComp{ m_owner->GetComponent<MeshComponent>() })
@@ -84,9 +120,8 @@ void AnimationComponent::SetModel(std::shared_ptr<Model> model) noexcept
 
     const std::size_t nodeCount{ m_model->GetNodes().size() };
 
-    // Allocate flat buffers exactly once
     m_currentLocalPoses.resize(nodeCount);
-    m_snapshotPoses.resize(nodeCount); 
+    m_snapshotPoses.resize(nodeCount);
     m_blendedLocalPoses.resize(nodeCount);
 
     m_currentNodeGlobals.resize(nodeCount);
@@ -96,49 +131,79 @@ void AnimationComponent::SetModel(std::shared_ptr<Model> model) noexcept
     m_scratchpad.bufferB.resize(nodeCount);
     m_scratchpad.result.resize(nodeCount);
 
-    // Initialize buffers to the model's true bind pose 
-    // If we don't do this, local translations default to (0,0,0), collapsing the mesh to the root
     const auto& nodes{ m_model->GetNodes() };
     for (std::size_t i{ 0 }; i < nodeCount; ++i)
     {
         m_currentLocalPoses[i].position = nodes[i].position;
         m_currentLocalPoses[i].rotation = nodes[i].rotation;
         m_currentLocalPoses[i].scale = nodes[i].scale;
-
-        m_snapshotPoses[i] = m_currentLocalPoses[i]; 
+        m_snapshotPoses[i] = m_currentLocalPoses[i];
         m_blendedLocalPoses[i] = m_currentLocalPoses[i];
     }
 
-    // Pre-calculate the globals 
-    // Guarantees the character renders correctly on frame 1, even if no state is playing yet.
     ComputeGlobalTransforms();
-
     m_previousNodeGlobals = m_currentNodeGlobals;
     m_hasPreviousGlobals = true;
 }
 
-void AnimationComponent::PlayState(const std::size_t stateIndex) noexcept
+void AnimationComponent::PlayState(const std::size_t stateIndex, bool forceRestart) noexcept
 {
     if (stateIndex >= m_states.size()) return;
-    if (m_currentStateIndex == stateIndex) return;
+
+    if (m_currentStateIndex == stateIndex && !forceRestart) return;
 
     m_previousStateIndex = m_currentStateIndex;
+    m_previousNodeIndex = m_currentNodeIndex;
     m_currentStateIndex = stateIndex;
     m_previousTimer = m_currentTimer;
+    m_isolatedNodeIndex = -1;
 
     const AnimationState& targetState{ m_states[m_currentStateIndex] };
 
-    // Resolve State-Pair Transition Rule
-    float activeBlendDuration{ targetState.blendDuration };
-    float activeStartOffset{ targetState.startOffset };
+    // EVALUATE WHICH NODE WE ARE ENTERING FIRST 
+    std::size_t entryNode = 0;
+    if (!targetState.nodes.empty())
+    {
+        if (targetState.type == AnimStateType::Selector && m_blackboard)
+        {
+            const int safeIndex = (std::max)(0, m_blackboard->actionIndex);
+            const int maxIndex = targetState.nodes.empty() ? 0 : static_cast<int>(targetState.nodes.size()) - 1;
+            entryNode = static_cast<std::size_t>(std::clamp(safeIndex, 0, maxIndex));
+        }
+        else if (targetState.type == AnimStateType::Blend1D && targetState.nodes.size() > 1 && m_blackboard)
+        {
+            const float param{ m_blackboard->groundSpeed };
+            if (param <= targetState.nodes.front().threshold) { entryNode = 0; }
+            else if (param >= targetState.nodes.back().threshold) { entryNode = targetState.nodes.size() - 1; }
+            else
+            {
+                for (std::size_t i{ 0 }; i < targetState.nodes.size() - 1; ++i)
+                {
+                    if (param >= targetState.nodes[i].threshold && param < targetState.nodes[i + 1].threshold)
+                    {
+                        const float range = targetState.nodes[i + 1].threshold - targetState.nodes[i].threshold;
+                        const float t = (param - targetState.nodes[i].threshold) / (range > 0.001f ? range : 1.0f);
+                        entryNode = (t <= 0.5f) ? i : i + 1;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    // EXTRACT PROPERTIES FROM THE DOMINANT NODE 
+    float activeBlendDuration = targetState.nodes.empty() ? 0.2f : targetState.nodes[entryNode].blendDuration;
+    float activeStartOffset = targetState.nodes.empty() ? 0.0f : targetState.nodes[entryNode].startOffset;
+    bool doSync = !targetState.nodes.empty() && targetState.nodes[entryNode].syncPhase;
     bool ruleFound{ false };
 
-    if (m_previousStateIndex < m_stateHashes.size())
+    if (m_previousStateIndex < m_stateHashes.size() && !targetState.nodes.empty())
     {
         const std::uint64_t prevHash{ m_stateHashes[m_previousStateIndex] };
-        for (const auto& rule : targetState.transitionRules)
+        for (const auto& rule : targetState.nodes[entryNode].transitionRules)
         {
-            if (rule.sourceStateHash == prevHash)
+            if (rule.sourceStateHash == prevHash &&
+                (rule.sourceNodeIndex == -1 || rule.sourceNodeIndex == static_cast<int>(m_previousNodeIndex)))
             {
                 activeBlendDuration = rule.blendDuration;
                 activeStartOffset = rule.targetStartOffset;
@@ -148,18 +213,27 @@ void AnimationComponent::PlayState(const std::size_t stateIndex) noexcept
         }
     }
 
-    // Playhead Evaluation
-    if (!ruleFound && targetState.syncPhase && m_previousStateIndex < m_states.size())
+    m_currentNodeIndex = entryNode;
+
+    // PHASE SYNC CALCULATIONS (With Memory Bounds Protection)
+    if (!ruleFound && doSync && m_previousStateIndex < m_states.size())
     {
         const AnimationState& sourceState{ m_states[m_previousStateIndex] };
 
+        // BOUNDS CHECK TO PREVENT CRASH
+        std::size_t safePrevNode = 0;
+        if (!sourceState.nodes.empty())
+        {
+            safePrevNode = std::clamp(m_previousNodeIndex, std::size_t(0), sourceState.nodes.size() - 1);
+        }
+
         float srcDuration{ 1.0f };
-        if (sourceState.clipIndex >= 0 && static_cast<std::size_t>(sourceState.clipIndex) < m_model->GetAnimations().size())
-            srcDuration = m_model->GetAnimations()[sourceState.clipIndex].secondsLength;
+        if (!sourceState.nodes.empty() && sourceState.nodes[safePrevNode].clipIndex >= 0)
+            srcDuration = m_model->GetAnimations()[sourceState.nodes[safePrevNode].clipIndex].secondsLength;
 
         float targetDuration{ 1.0f };
-        if (targetState.clipIndex >= 0 && static_cast<std::size_t>(targetState.clipIndex) < m_model->GetAnimations().size())
-            targetDuration = m_model->GetAnimations()[targetState.clipIndex].secondsLength;
+        if (!targetState.nodes.empty() && targetState.nodes[entryNode].clipIndex >= 0)
+            targetDuration = m_model->GetAnimations()[targetState.nodes[entryNode].clipIndex].secondsLength;
 
         if (srcDuration > 0.001f && targetDuration > 0.001f)
         {
@@ -174,23 +248,50 @@ void AnimationComponent::PlayState(const std::size_t stateIndex) noexcept
         m_currentTimer = activeStartOffset;
     }
 
-    // Initiate Crossfade via Inertial Snapshot
     if (activeBlendDuration > 0.001f)
     {
         m_isBlending = true;
         m_blendTimer = 0.0f;
         m_activeBlendDuration = activeBlendDuration;
 
-        // SNAPSHOT: Capture the exact state of the bones on the screen right now
-        if (!m_blendedLocalPoses.empty())
-        {
-            m_snapshotPoses = m_blendedLocalPoses;
-        }
+        if (!m_blendedLocalPoses.empty()) m_snapshotPoses = m_blendedLocalPoses;
     }
     else
     {
         m_isBlending = false;
     }
+}
+
+void AnimationComponent::TestPlayState(std::size_t stateIndex, int isolatedNodeIndex) noexcept
+{
+    if (stateIndex >= m_states.size()) return;
+
+    if (m_currentStateIndex == stateIndex)
+    {
+        float targetOffset = 0.0f;
+        if (!m_states[stateIndex].nodes.empty())
+        {
+            int safeIdx = (std::max)(0, isolatedNodeIndex);
+            if (safeIdx >= m_states[stateIndex].nodes.size()) safeIdx = 0;
+            targetOffset = m_states[stateIndex].nodes[safeIdx].startOffset;
+        }
+
+        m_currentTimer = targetOffset;
+        m_isBlending = false;
+        m_blendTimer = 0.0f;
+    }
+    else
+    {
+        PlayState(stateIndex);
+    }
+
+    m_editorPreview = true;
+    m_isolatedNodeIndex = isolatedNodeIndex;
+}
+
+void AnimationComponent::StopPreview() noexcept
+{
+    m_editorPreview = false;
 }
 
 void AnimationComponent::Update(const float dt)
@@ -199,145 +300,116 @@ void AnimationComponent::Update(const float dt)
 
     if (!m_model) return;
 
-    // Snapshot history for TAA/Motion Blur before calculating the new frame
     if (m_hasPreviousGlobals)
     {
         m_previousNodeGlobals = m_currentNodeGlobals;
     }
 
-    if (m_states.empty() || m_currentStateIndex >= m_states.size())
-    {
-        return;
-    }
+    if (m_states.empty() || m_currentStateIndex >= m_states.size()) return;
 
-    // Editor Preview Time Override 
-    // If the engine is in Edit Mode (dt == 0) but we are previewing, pull ImGui's time.
     float evalDt = dt;
-    if (evalDt <= 0.0001f && m_editorPreview)
-    {
-        evalDt = ImGui::GetIO().DeltaTime;
-    }
-    else if (evalDt > 0.0001f)
-    {
-        m_editorPreview = false; // Auto-disable preview when entering real Play Mode
-    }
+    if (evalDt <= 0.0001f && m_editorPreview) evalDt = ImGui::GetIO().DeltaTime;
+    else if (evalDt > 0.0001f) m_editorPreview = false;
 
     const AnimationState& targetState{ m_states[m_currentStateIndex] };
     const float previousFrameTimer{ m_currentTimer };
 
-    // Evaluation Pipeline
-    if (targetState.isBlendTree && !targetState.blendNodes.empty() && m_blackboard)
+    if (!targetState.nodes.empty())
     {
-        // Read parameter from Blackboard (Assume groundSpeed for 1D Locomotion)
-        const float param{ m_blackboard->groundSpeed };
+        std::size_t nodeA{ 0 }, nodeB{ 0 };
+        float t{ 0.0f };
 
-        // Find the two nodes bounding our parameter
-        std::size_t nodeA = 0;
-        std::size_t nodeB = 0;
-        float t = 0.0f;
-
-        if (param <= targetState.blendNodes.front().threshold)
+        if (m_isolatedNodeIndex >= 0 && m_isolatedNodeIndex < static_cast<int>(targetState.nodes.size()))
         {
-            // Below lowest threshold: clamp to first node
-            nodeA = 0;
-            nodeB = 0;
-        }
-        else if (param >= targetState.blendNodes.back().threshold)
-        {
-            // Above highest threshold: clamp to last node
-            nodeA = targetState.blendNodes.size() - 1;
+            nodeA = static_cast<std::size_t>(m_isolatedNodeIndex);
             nodeB = nodeA;
         }
-        else
+        else if (targetState.type == AnimStateType::Blend1D && targetState.nodes.size() > 1 && m_blackboard)
         {
-            // Interpolate between the two bounding nodes
-            for (std::size_t i{ 0 }; i < targetState.blendNodes.size() - 1; ++i)
+            const float param{ m_blackboard->groundSpeed };
+            if (param <= targetState.nodes.front().threshold) { nodeA = 0; nodeB = 0; }
+            else if (param >= targetState.nodes.back().threshold) { nodeA = targetState.nodes.size() - 1; nodeB = nodeA; }
+            else
             {
-                if (param >= targetState.blendNodes[i].threshold && param < targetState.blendNodes[i + 1].threshold)
+                for (std::size_t i{ 0 }; i < targetState.nodes.size() - 1; ++i)
                 {
-                    nodeA = i;
-                    nodeB = i + 1;
-                    const float range = targetState.blendNodes[nodeB].threshold - targetState.blendNodes[nodeA].threshold;
-                    t = (param - targetState.blendNodes[nodeA].threshold) / (range > 0.001f ? range : 1.0f);
-                    break;
+                    if (param >= targetState.nodes[i].threshold && param < targetState.nodes[i + 1].threshold)
+                    {
+                        nodeA = i; nodeB = i + 1;
+                        const float range = targetState.nodes[nodeB].threshold - targetState.nodes[nodeA].threshold;
+                        t = (param - targetState.nodes[nodeA].threshold) / (range > 0.001f ? range : 1.0f);
+                        break;
+                    }
                 }
             }
         }
+        else if (targetState.type == AnimStateType::Selector && m_blackboard)
+        {
+            int rawIndex = m_blackboard->actionIndex;
+            if (rawIndex < 0) rawIndex = 0;
+            if (rawIndex >= static_cast<int>(targetState.nodes.size())) rawIndex = static_cast<int>(targetState.nodes.size()) - 1;
+            nodeA = static_cast<std::size_t>(rawIndex);
+            nodeB = nodeA;
+        }
 
-        const int clipA = targetState.blendNodes[nodeA].clipIndex;
-        const int clipB = targetState.blendNodes[nodeB].clipIndex;
-        const auto& animations = m_model->GetAnimations();
+        const int clipA{ targetState.nodes[nodeA].clipIndex };
+        const int clipB{ targetState.nodes[nodeB].clipIndex };
+        const auto& animations{ m_model->GetAnimations() };
 
         if (clipA >= 0 && static_cast<std::size_t>(clipA) < animations.size() &&
             clipB >= 0 && static_cast<std::size_t>(clipB) < animations.size())
         {
-            // 3. Phase Synchronization: Calculate Blended Duration
             const float durationA{ animations[clipA].secondsLength };
             const float durationB{ animations[clipB].secondsLength };
-            const float blendedDuration = (durationA * (1.0f - t)) + (durationB * t);
+            const float currentDuration{ (durationA * (1.0f - t)) + (durationB * t) };
 
-            if (blendedDuration > 0.001f)
+            if (currentDuration > 0.001f)
             {
-                m_currentTimer += (evalDt * targetState.speedMultiplier);
+                const float currentSpeed = (targetState.nodes[nodeA].speedMultiplier * (1.0f - t)) + (targetState.nodes[nodeB].speedMultiplier * t);
+                m_currentTimer += (evalDt * currentSpeed);
 
-                // Assuming blend trees loop for locomotion
-                while (m_currentTimer >= blendedDuration) m_currentTimer -= blendedDuration;
-                while (m_currentTimer < 0.0f) m_currentTimer += blendedDuration;
+                const std::size_t dominantNode = (t <= 0.5f) ? nodeA : nodeB;
+                m_currentNodeIndex = dominantNode;
 
-                // Convert Absolute Time to Normalized Phase (0.0 to 1.0)
-                const float normPhase = m_currentTimer / blendedDuration;
+                ProcessEvents(evalDt, targetState.nodes[dominantNode].events, previousFrameTimer, m_currentTimer, currentDuration);
 
-                // Sample both clips into scratchpads using Normalized Phase!
-                m_model->ComputeAnimation(clipA, normPhase * durationA, m_scratchpad.bufferA);
-                m_model->ComputeAnimation(clipB, normPhase * durationB, m_scratchpad.bufferB);
+                if (targetState.nodes[dominantNode].isLooping)
+                {
+                    while (m_currentTimer >= currentDuration) m_currentTimer -= currentDuration;
+                    while (m_currentTimer < 0.0f) m_currentTimer += currentDuration;
+                }
+                else
+                {
+                    m_currentTimer = std::clamp(m_currentTimer, 0.0f, currentDuration);
+                }
 
-                // Blend the two scratchpads into the final output
-                BlendPoses(m_scratchpad.bufferA, m_scratchpad.bufferB, t, m_currentLocalPoses);
+                if (nodeA == nodeB) m_model->ComputeAnimation(clipA, m_currentTimer, m_currentLocalPoses);
+                else
+                {
+                    const float normPhase{ m_currentTimer / currentDuration };
+                    m_model->ComputeAnimation(clipA, normPhase * durationA, m_scratchpad.bufferA);
+                    m_model->ComputeAnimation(clipB, normPhase * durationB, m_scratchpad.bufferB);
+                    BlendPoses(m_scratchpad.bufferA, m_scratchpad.bufferB, t, m_currentLocalPoses);
+                }
+
+                if (targetState.nodes[dominantNode].rootMotionLock && !m_currentLocalPoses.empty())
+                {
+                    const int boneIdx = std::clamp(targetState.nodes[dominantNode].rootBoneIndex, 0, static_cast<int>(m_currentLocalPoses.size() - 1));
+                    m_currentLocalPoses[boneIdx].position.x = 0.0f;
+                    m_currentLocalPoses[boneIdx].position.z = 0.0f;
+                }
             }
         }
     }
-    else if (!targetState.isBlendTree && targetState.clipIndex >= 0 && static_cast<std::size_t>(targetState.clipIndex) < m_model->GetAnimations().size())
-    {
-        // Standard single clip evaluator (For Actions, Combat, Dashes)
-        const float duration{ m_model->GetAnimations()[targetState.clipIndex].secondsLength };
-        if (duration > 0.001f)
-        {
-            m_currentTimer += (evalDt * targetState.speedMultiplier);
 
-            ProcessEvents(evalDt, targetState, previousFrameTimer, m_currentTimer);
-
-            if (targetState.isLooping)
-            {
-                while (m_currentTimer >= duration) m_currentTimer -= duration;
-                while (m_currentTimer < 0.0f) m_currentTimer += duration;
-            }
-            else
-            {
-                m_currentTimer = std::clamp(m_currentTimer, 0.0f, duration);
-            }
-        }
-
-        m_model->ComputeAnimation(targetState.clipIndex, m_currentTimer, m_currentLocalPoses);
-    }
-
-    // Inertial Blending
     if (m_isBlending)
     {
         m_blendTimer += evalDt;
-        const float blendDuration{ m_activeBlendDuration };
+        float t = (m_activeBlendDuration > 0.001f) ? (m_blendTimer / m_activeBlendDuration) : 1.0f;
+        if (t >= 1.0f) { t = 1.0f; m_isBlending = false; }
 
-        float t = (blendDuration > 0.001f) ? (m_blendTimer / blendDuration) : 1.0f;
-        if (t >= 1.0f)
-        {
-            t = 1.0f;
-            m_isBlending = false;
-        }
-
-        // Cubic Ease-Out: Creates a natural physical "spring" damping effect 
-        // Fast initial snap to the new pose, slowing down organically as it settles.
         const float decayWeight = 1.0f - ((1.0f - t) * (1.0f - t) * (1.0f - t));
 
-        // Mathematical Interpolation between the frozen Snapshot and the moving Target clip
         for (std::size_t i = 0; i < m_blendedLocalPoses.size(); ++i)
         {
             const DirectX::XMVECTOR s0{ DirectX::XMLoadFloat3(&m_snapshotPoses[i].scale) };
@@ -367,36 +439,23 @@ void AnimationComponent::Update(const float dt)
     }
 }
 
-void AnimationComponent::ProcessEvents(const float dt, const AnimationState& state, const float previousTimer, const float currentTimer) noexcept
+void AnimationComponent::ProcessEvents(const float dt, const std::vector<AnimationEvent>& events, const float previousTimer, const float currentTimer, const float currentDuration) noexcept
 {
-    if (state.events.empty() || dt <= 0.0001f) return;
+    if (events.empty() || dt <= 0.0001f || currentDuration <= 0.001f) return;
 
-    const float duration{ m_model->GetAnimations()[state.clipIndex].secondsLength };
-    if (duration <= 0.001f) return;
-
-    const float prevNorm{ previousTimer / duration };
-    const float currNorm{ currentTimer / duration };
-
-    // Detect if the animation playhead wrapped around (Looping)
+    const float prevNorm{ previousTimer / currentDuration };
+    const float currNorm{ currentTimer / currentDuration };
     const bool looped = (currNorm < prevNorm);
 
-    for (const auto& ev : state.events)
+    for (const auto& ev : events)
     {
         if (looped)
         {
-            // If it looped, check both ends of the timeline
-            if (ev.normalizedTime >= prevNorm || ev.normalizedTime <= currNorm)
-            {
-                m_eventQueue.push_back(ev); // Push full struct!
-            }
+            if (ev.normalizedTime >= prevNorm || ev.normalizedTime <= currNorm) m_eventQueue.push_back(ev);
         }
         else
         {
-            // Standard linear evaluation
-            if (prevNorm <= ev.normalizedTime && currNorm > ev.normalizedTime)
-            {
-                m_eventQueue.push_back(ev); // Push full struct
-            }
+            if (prevNorm <= ev.normalizedTime && currNorm > ev.normalizedTime) m_eventQueue.push_back(ev);
         }
     }
 }
@@ -428,14 +487,13 @@ void AnimationComponent::ComputeGlobalTransforms() noexcept
     }
 }
 
-void AnimationComponent::PlayStateByHash(const std::uint64_t stateHash) noexcept
+void AnimationComponent::PlayStateByHash(const std::uint64_t stateHash, bool forceRestart) noexcept
 {
-    // Linear search
     for (std::size_t i{ 0 }; i < m_stateHashes.size(); ++i)
     {
         if (m_stateHashes[i] == stateHash)
         {
-            PlayState(i);
+            PlayState(i, forceRestart);
             return;
         }
     }
@@ -443,19 +501,142 @@ void AnimationComponent::PlayStateByHash(const std::uint64_t stateHash) noexcept
 
 void AnimationComponent::ScrubToTime(std::size_t stateIndex, float time) noexcept
 {
-    m_currentStateIndex = stateIndex; 
+    m_currentStateIndex = stateIndex;
     m_currentTimer = time;
     m_isBlending = false;
+    m_editorPreview = false;
+    m_isolatedNodeIndex = -1;
 
-    if (m_model && m_currentStateIndex < m_states.size())
+    if (!m_model || m_currentStateIndex >= m_states.size()) return;
+
+    const AnimationState& state{ m_states[m_currentStateIndex] };
+
+    if (!state.nodes.empty())
     {
-        const AnimationState& state{ m_states[m_currentStateIndex] };
-        if (state.clipIndex >= 0 && static_cast<std::size_t>(state.clipIndex) < m_model->GetAnimations().size())
+        std::size_t nodeA = 0, nodeB = 0;
+        float t = 0.0f;
+
+        if (state.type == AnimStateType::Blend1D && state.nodes.size() > 1 && m_blackboard)
         {
-            // Mathematically command the skeleton to evaluating the explicit pose right now
-            m_model->ComputeAnimation(state.clipIndex, m_currentTimer, m_currentLocalPoses);
-            ComputeGlobalTransforms();
+            const float param{ m_blackboard->groundSpeed };
+            if (param <= state.nodes.front().threshold) { nodeA = 0; nodeB = 0; }
+            else if (param >= state.nodes.back().threshold) { nodeA = state.nodes.size() - 1; nodeB = nodeA; }
+            else
+            {
+                for (std::size_t i{ 0 }; i < state.nodes.size() - 1; ++i)
+                {
+                    if (param >= state.nodes[i].threshold && param < state.nodes[i + 1].threshold)
+                    {
+                        nodeA = i; nodeB = i + 1;
+                        const float range = state.nodes[nodeB].threshold - state.nodes[nodeA].threshold;
+                        t = (param - state.nodes[nodeA].threshold) / (range > 0.001f ? range : 1.0f);
+                        break;
+                    }
+                }
+            }
         }
+        else if (state.type == AnimStateType::Selector && m_blackboard)
+        {
+            int rawIndex = m_blackboard->actionIndex;
+            if (rawIndex < 0) rawIndex = 0;
+            if (rawIndex >= static_cast<int>(state.nodes.size())) rawIndex = static_cast<int>(state.nodes.size()) - 1;
+            nodeA = static_cast<std::size_t>(rawIndex);
+            nodeB = nodeA;
+        }
+
+        const int clipA = state.nodes[nodeA].clipIndex;
+        const int clipB = state.nodes[nodeB].clipIndex;
+        const auto& animations = m_model->GetAnimations();
+
+        if (clipA >= 0 && static_cast<std::size_t>(clipA) < animations.size() && clipB >= 0 && static_cast<std::size_t>(clipB) < animations.size())
+        {
+            const float durationA{ animations[clipA].secondsLength };
+            const float durationB{ animations[clipB].secondsLength };
+            const float currentDuration = (durationA * (1.0f - t)) + (durationB * t);
+
+            if (currentDuration > 0.001f)
+            {
+                if (nodeA == nodeB)
+                {
+                    m_model->ComputeAnimation(clipA, m_currentTimer, m_currentLocalPoses);
+                }
+                else
+                {
+                    const float normPhase = m_currentTimer / currentDuration;
+                    m_model->ComputeAnimation(clipA, normPhase * durationA, m_scratchpad.bufferA);
+                    m_model->ComputeAnimation(clipB, normPhase * durationB, m_scratchpad.bufferB);
+                    BlendPoses(m_scratchpad.bufferA, m_scratchpad.bufferB, t, m_currentLocalPoses);
+                }
+
+                const std::size_t dominantNode = (t <= 0.5f) ? nodeA : nodeB;
+                if (state.nodes[dominantNode].rootMotionLock && !m_currentLocalPoses.empty())
+                {
+                    const int boneIdx = std::clamp(state.nodes[dominantNode].rootBoneIndex, 0, static_cast<int>(m_currentLocalPoses.size() - 1));
+                    m_currentLocalPoses[boneIdx].position.x = 0.0f;
+                    m_currentLocalPoses[boneIdx].position.z = 0.0f;
+                }
+            }
+        }
+    }
+
+    ComputeGlobalTransforms();
+}
+
+void AnimationComponent::ScrubNodeToTime(std::size_t stateIndex, std::size_t nodeIndex, float time) noexcept
+{
+    m_currentStateIndex = stateIndex;
+    m_currentTimer = time;
+    m_isBlending = false;
+    m_editorPreview = false;
+    m_isolatedNodeIndex = static_cast<int>(nodeIndex);
+
+    if (!m_model || m_currentStateIndex >= m_states.size()) return;
+
+    const AnimationState& state{ m_states[m_currentStateIndex] };
+    if (nodeIndex >= state.nodes.size()) return;
+
+    const int clipIdx = state.nodes[nodeIndex].clipIndex;
+    if (clipIdx >= 0 && static_cast<std::size_t>(clipIdx) < m_model->GetAnimations().size())
+    {
+        m_model->ComputeAnimation(clipIdx, m_currentTimer, m_currentLocalPoses);
+    }
+
+    if (state.nodes[nodeIndex].rootMotionLock && !m_currentLocalPoses.empty())
+    {
+        const int boneIdx = std::clamp(state.nodes[nodeIndex].rootBoneIndex, 0, static_cast<int>(m_currentLocalPoses.size() - 1));
+        m_currentLocalPoses[boneIdx].position.x = 0.0f;
+        m_currentLocalPoses[boneIdx].position.z = 0.0f;
+    }
+
+    ComputeGlobalTransforms();
+}
+
+void AnimationComponent::AddState() noexcept
+{
+    AnimationState newState{};
+    newState.name = "State_" + std::to_string(m_states.size());
+    m_states.push_back(newState);
+    m_stateHashes.push_back(Core::RuntimeHash(newState.name));
+}
+
+void AnimationComponent::RemoveState(std::size_t index) noexcept
+{
+    if (index < m_states.size())
+    {
+        m_states.erase(m_states.begin() + index);
+        m_stateHashes.erase(m_stateHashes.begin() + index);
+
+        if (m_currentStateIndex == index) m_currentStateIndex = 0;
+        else if (m_currentStateIndex > index) m_currentStateIndex--;
+    }
+}
+
+void AnimationComponent::RenameState(std::size_t index, const std::string& newName) noexcept
+{
+    if (index < m_states.size())
+    {
+        m_states[index].name = newName;
+        m_stateHashes[index] = Core::RuntimeHash(newName);
     }
 }
 
@@ -464,7 +645,6 @@ void AnimationComponent::DrawInspector()
     ImGui::TextDisabled("Animation Evaluator");
     ImGui::Separator();
 
-    // Fallback lazy-fetch if JSON load order bypassed the other checks 
     if (!m_model && m_owner)
     {
         if (auto* meshComp{ m_owner->GetComponent<MeshComponent>() })
@@ -479,19 +659,20 @@ void AnimationComponent::DrawInspector()
         return;
     }
 
-    // Live Playback HUD
     if (!m_states.empty() && m_currentStateIndex < m_states.size())
     {
         ImGui::Text("Active State: %s", m_states[m_currentStateIndex].name.c_str());
 
         float progress{ 0.0f };
-        const int clipIdx{ m_states[m_currentStateIndex].clipIndex };
-        if (clipIdx >= 0 && static_cast<std::size_t>(clipIdx) < m_model->GetAnimations().size())
+        if (!m_states[m_currentStateIndex].nodes.empty())
         {
-            const float duration{ m_model->GetAnimations()[clipIdx].secondsLength };
-            if (duration > 0.001f) progress = m_currentTimer / duration;
+            const int clipIdx{ m_states[m_currentStateIndex].nodes[0].clipIndex };
+            if (clipIdx >= 0 && static_cast<std::size_t>(clipIdx) < m_model->GetAnimations().size())
+            {
+                const float duration{ m_model->GetAnimations()[clipIdx].secondsLength };
+                if (duration > 0.001f) progress = m_currentTimer / duration;
+            }
         }
-
         ImGui::ProgressBar(progress, ImVec2(-1.0f, 0.0f), "Playback");
     }
     else
@@ -501,285 +682,134 @@ void AnimationComponent::DrawInspector()
 
     ImGui::Spacing();
     ImGui::Separator();
-    ImGui::TextDisabled("STATE MACHINE LIBRARY");
 
-    // Add New State Button 
-    if (ImGui::Button("+ Add State", ImVec2(-1.0f, 0.0f)))
+    if (ImGui::Button("Open Animation Graph Editor", ImVec2(-1.0f, 30.0f)))
     {
-        AnimationState newState{};
-        newState.name = "State_" + std::to_string(m_states.size());
-        m_states.push_back(newState); 
-
-        // Sync the cache array instantly
-        m_stateHashes.push_back(Core::RuntimeHash(m_states.back().name));
+        EditorManager::Instance().OpenAnimationGraph(this);
     }
 
-    ImGui::Spacing();
-
-    // The List-Based Editor
-    const auto& animations{ m_model->GetAnimations() };
-
-    for (std::size_t i{ 0 }; i < m_states.size(); ++i)
+    if (ImGui::Button("Open Timeline Sequencer", ImVec2(-1.0f, 30.0f)))
     {
-        AnimationState& state{ m_states[i] };
-
-        // Push ID ensures ImGui doesn't mix up sliders for states with the same name
-        ImGui::PushID(static_cast<int>(i));
-
-        // Use ### to decouple the visible name from the stable internal ID
-        const std::string nodeLabel{ state.name + "###StateNode_" + std::to_string(i) };
-        if (ImGui::TreeNodeEx(nodeLabel.c_str(), ImGuiTreeNodeFlags_Framed))
-        {
-            // Edit State Name
-            char nameBuf[64];
-            strncpy_s(nameBuf, sizeof(nameBuf), state.name.c_str(), _TRUNCATE);
-            if (ImGui::InputText("Name", nameBuf, sizeof(nameBuf)))
-            {
-                state.name = nameBuf;
-
-                // INSTANT HASH: Re-hash the new string so C++ code can find it immediately
-                m_stateHashes[i] = Core::RuntimeHash(state.name);
-            }
-
-            // Dropdown: Select which clip from the .glb this state plays
-            std::string currentClipName{ "None" };
-            if (state.clipIndex >= 0 && static_cast<std::size_t>(state.clipIndex) < animations.size())
-            {
-                currentClipName = animations[state.clipIndex].name;
-            }
-
-            if (ImGui::BeginCombo("Clip", currentClipName.c_str()))
-            {
-                for (std::size_t a{ 0 }; a < animations.size(); ++a)
-                {
-                    const bool isSelected{ state.clipIndex == static_cast<int>(a) };
-                    if (ImGui::Selectable(animations[a].name.c_str(), isSelected))
-                    {
-                        state.clipIndex = static_cast<int>(a);
-                    }
-                    if (isSelected) ImGui::SetItemDefaultFocus();
-                }
-                ImGui::EndCombo();
-            }
-
-            // Tuning Parameters
-            ImGui::Checkbox("In-Place (Lock Root)", &state.rootMotionLock);
-            if (state.rootMotionLock)
-            {
-                ImGui::SameLine();
-                ImGui::SetNextItemWidth(100.0f);
-                ImGui::InputInt("Bone Index", &state.rootBoneIndex);
-            }
-            ImGui::Checkbox("Looping", &state.isLooping);
-            ImGui::SameLine();
-            ImGui::Checkbox("Sync Phase", &state.syncPhase);
-            ImGui::SliderFloat("Start Offset", &state.startOffset, 0.0f, 2.0f, "%.2f s"); 
-            ImGui::SliderFloat("Speed", &state.speedMultiplier, 0.1f, 5.0f);
-            ImGui::SliderFloat("Blend Time", &state.blendDuration, 0.0f, 1.0f);
-
-            ImGui::Spacing();
-
-            // The Test Play Button 
-            const float halfWidth = (ImGui::GetContentRegionAvail().x * 0.5f) - 4.0f;
-
-            // Disable preview buttons if we are in Play or Pause mode
-            const bool isGameLive = EditorManager::Instance().GetEditorMode() != EditorMode::Edit;
-            ImGui::BeginDisabled(isGameLive);
-
-            if (ImGui::Button("Test Play State", ImVec2(halfWidth, 0.0f)))
-            {
-                if (m_currentStateIndex == static_cast<std::size_t>(i))
-                {
-                    m_currentTimer = state.startOffset;
-                    m_isBlending = false;
-                    m_blendTimer = 0.0f;
-                }
-                else
-                {
-                    PlayState(i);
-                }
-                m_editorPreview = true;
-            }
-
-            ImGui::SameLine();
-
-            if (ImGui::Button("Stop Preview", ImVec2(halfWidth, 0.0f)))
-            {
-                m_editorPreview = false;
-            }
-
-            ImGui::EndDisabled();
-
-            ImGui::Spacing();
-            ImGui::Separator();
-            ImGui::TextDisabled("EVENT TIMELINE WORKSPACE");
-
-            if (ImGui::Button("Open Timeline Sequencer", ImVec2(-1.0f, 0.0f)))
-            {
-                // Pass 'i' (the specific state index) to the Editor Manager
-                EditorManager::Instance().OpenAnimationTimeline(this, i);
-            }
-
-            ImGui::Spacing();
-            ImGui::TextDisabled("TRANSITION OVERRIDES");
-            if (ImGui::Button("+ Add Rule"))
-            {
-                state.transitionRules.push_back(TransitionRule{ "Dash", Core::RuntimeHash("Dash"), 0.08f, 0.2f });
-            }
-
-            for (auto it = state.transitionRules.begin(); it != state.transitionRules.end(); )
-            {
-                ImGui::PushID(&(*it));
-                char srcBuf[64];
-                strncpy_s(srcBuf, sizeof(srcBuf), it->sourceStateName.c_str(), _TRUNCATE);
-                if (ImGui::BeginCombo("From State", it->sourceStateName.c_str()))
-                {
-                    for (const auto& availableState : m_states)
-                    {
-                        const bool isSelected = (it->sourceStateName == availableState.name);
-                        if (ImGui::Selectable(availableState.name.c_str(), isSelected))
-                        {
-                            it->sourceStateName = availableState.name;
-                            it->sourceStateHash = Core::RuntimeHash(it->sourceStateName);
-                        }
-                        if (isSelected) ImGui::SetItemDefaultFocus();
-                    }
-                    ImGui::EndCombo();
-                }
-                ImGui::SliderFloat("Blend Time", &it->blendDuration, 0.0f, 1.0f, "%.2f s");
-                ImGui::SliderFloat("Start Offset", &it->targetStartOffset, 0.0f, 2.0f, "%.2f s");
-
-                if (ImGui::Button("Remove Rule"))
-                {
-                    it = state.transitionRules.erase(it);
-                    ImGui::PopID();
-                }
-                else
-                {
-                    ++it;
-                    ImGui::PopID();
-                }
-            }
-
-            ImGui::Spacing();
-            ImGui::Separator();
-            // Use a red button for destructive actions
-            ImGui::PushStyleColor(ImGuiCol_Button, ImVec4(0.6f, 0.1f, 0.1f, 1.0f));
-            if (ImGui::Button("Delete Entire State", ImVec2(-1.0f, 0.0f)))
-            {
-                // Erase both the state and its cached hash safely
-                m_states.erase(m_states.begin() + i);
-                m_stateHashes.erase(m_stateHashes.begin() + i);
-
-                ImGui::PopStyleColor();
-                ImGui::TreePop();
-                ImGui::PopID();
-                break; // Break the loop instantly to prevent ImGui iteration crashes
-            }
-            ImGui::PopStyleColor();
-
-            ImGui::TreePop();
-        }
-        ImGui::PopID();
+        EditorManager::Instance().OpenAnimationTimeline(this, m_states.empty() ? 0 : m_currentStateIndex);
     }
 }
 
 void AnimationComponent::Serialize(nlohmann::json& j) const
 {
     nlohmann::json statesArray = nlohmann::json::array();
-
     for (const auto& state : m_states)
     {
         nlohmann::json stateJson{};
         stateJson["Name"] = state.name;
-        stateJson["ClipIndex"] = state.clipIndex;
-        stateJson["RootLock"] = state.rootMotionLock;
-        stateJson["RootBoneIndex"] = state.rootBoneIndex;
-        stateJson["SyncPhase"] = state.syncPhase;
-        stateJson["StartOffset"] = state.startOffset;
-        stateJson["Speed"] = state.speedMultiplier;
-        stateJson["Blend"] = state.blendDuration;
-        stateJson["Loop"] = state.isLooping;
+        stateJson["Type"] = static_cast<int>(state.type);
 
-        nlohmann::json eventsArray = nlohmann::json::array();
-        for (const auto& ev : state.events)
+        nlohmann::json nodesArray = nlohmann::json::array();
+        for (const auto& node : state.nodes)
         {
-            nlohmann::json evJson{};
-            evJson["Time"] = ev.normalizedTime;
-            evJson["Id"] = ev.eventId;
-            evJson["Payload"] = ev.payload;
-            evJson["IsRange"] = ev.isRange;
-            evJson["EndTime"] = ev.normalizedEndTime;
-            eventsArray.push_back(evJson);
-        }
-        stateJson["Events"] = eventsArray;
+            nlohmann::json nodeJson{};
+            nodeJson["Threshold"] = node.threshold;
+            nodeJson["ClipIndex"] = node.clipIndex;
+            nodeJson["RootLock"] = node.rootMotionLock;
+            nodeJson["RootBoneIndex"] = node.rootBoneIndex;
+            nodeJson["Loop"] = node.isLooping;
+            nodeJson["SyncPhase"] = node.syncPhase;
+            nodeJson["StartOffset"] = node.startOffset;
+            nodeJson["Speed"] = node.speedMultiplier;
+            nodeJson["Blend"] = node.blendDuration;
 
-        nlohmann::json transArray = nlohmann::json::array();
-        for (const auto& rule : state.transitionRules)
-        {
-            nlohmann::json ruleJson{};
-            ruleJson["Source"] = rule.sourceStateName;
-            ruleJson["Blend"] = rule.blendDuration;
-            ruleJson["Offset"] = rule.targetStartOffset;
-            transArray.push_back(ruleJson);
-        }
-        stateJson["Transitions"] = transArray;
+            nlohmann::json eventsArray = nlohmann::json::array();
+            for (const auto& ev : node.events)
+            {
+                nlohmann::json evJson{};
+                evJson["Time"] = ev.normalizedTime;
+                evJson["Id"] = ev.eventId;
+                evJson["Payload"] = ev.payload;
+                evJson["IsRange"] = ev.isRange;
+                evJson["EndTime"] = ev.normalizedEndTime;
+                eventsArray.push_back(evJson);
+            }
+            nodeJson["Events"] = eventsArray;
 
+            nlohmann::json transArray = nlohmann::json::array();
+            for (const auto& rule : node.transitionRules)
+            {
+                nlohmann::json ruleJson{};
+                ruleJson["Source"] = rule.sourceStateName;
+                ruleJson["NodeIdx"] = rule.sourceNodeIndex;
+                ruleJson["Blend"] = rule.blendDuration;
+                ruleJson["Offset"] = rule.targetStartOffset;
+                transArray.push_back(ruleJson);
+            }
+            nodeJson["Transitions"] = transArray;
+
+            nodesArray.push_back(nodeJson);
+        }
+        stateJson["Nodes"] = nodesArray;
         statesArray.push_back(stateJson);
     }
-
     j["States"] = statesArray;
 }
 
 void AnimationComponent::Deserialize(const nlohmann::json& j)
 {
     m_states.clear();
-
     if (!j.contains("States")) return;
 
     for (const auto& stateJson : j["States"])
     {
         AnimationState state{};
         state.name = stateJson.value("Name", "State");
-        state.clipIndex = stateJson.value("ClipIndex", -1);
-        state.rootMotionLock = stateJson.value("RootLock", true);
-		state.rootBoneIndex = stateJson.value("RootBoneIndex", 0);
-        state.syncPhase = stateJson.value("SyncPhase", false);
-        state.startOffset = stateJson.value("StartOffset", 0.0f);
-        state.speedMultiplier = stateJson.value("Speed", 1.0f);
-        state.blendDuration = stateJson.value("Blend", 0.2f);
-        state.isLooping = stateJson.value("Loop", true);
+        state.type = static_cast<AnimStateType>(stateJson.value("Type", 0));
 
-        if (stateJson.contains("Events"))
+        if (stateJson.contains("Nodes"))
         {
-            for (const auto& evJson : stateJson["Events"])
+            for (const auto& nodeJson : stateJson["Nodes"])
             {
-                AnimationEvent ev{};
-                ev.normalizedTime = evJson.value("Time", 0.0f);
-                ev.eventId = evJson.value("Id", 0u);
-                ev.payload = evJson.value("Payload", 0.0f);
-                ev.isRange = evJson.value("IsRange", false);
-                ev.normalizedEndTime = evJson.value("EndTime", 0.0f);
-                state.events.push_back(ev);
+                AnimNode node{};
+                node.threshold = nodeJson.value("Threshold", 0.0f);
+                node.clipIndex = nodeJson.value("ClipIndex", -1);
+                node.rootMotionLock = nodeJson.value("RootLock", true);
+                node.rootBoneIndex = nodeJson.value("RootBoneIndex", 0);
+                node.isLooping = nodeJson.value("Loop", true);
+                node.syncPhase = nodeJson.value("SyncPhase", false);
+
+                node.startOffset = nodeJson.value("StartOffset", 0.0f);
+                node.speedMultiplier = nodeJson.value("Speed", 1.0f);
+                node.blendDuration = nodeJson.value("Blend", 0.2f);
+
+                if (nodeJson.contains("Events"))
+                {
+                    for (const auto& evJson : nodeJson["Events"])
+                    {
+                        AnimationEvent ev{};
+                        ev.normalizedTime = evJson.value("Time", 0.0f);
+                        ev.eventId = evJson.value("Id", 0u);
+                        ev.payload = evJson.value("Payload", 0.0f);
+                        ev.isRange = evJson.value("IsRange", false);
+                        ev.normalizedEndTime = evJson.value("EndTime", 0.0f);
+                        node.events.push_back(ev);
+                    }
+                }
+
+                if (nodeJson.contains("Transitions"))
+                {
+                    for (const auto& ruleJson : nodeJson["Transitions"])
+                    {
+                        TransitionRule rule{};
+                        rule.sourceStateName = ruleJson.value("Source", "");
+                        rule.sourceStateHash = Core::RuntimeHash(rule.sourceStateName);
+                        rule.sourceNodeIndex = ruleJson.value("NodeIdx", -1);
+                        rule.blendDuration = ruleJson.value("Blend", 0.1f);
+                        rule.targetStartOffset = ruleJson.value("Offset", 0.0f);
+                        node.transitionRules.push_back(rule);
+                    }
+                }
+
+                state.nodes.push_back(node);
             }
         }
 
-        if (stateJson.contains("Transitions"))
-        {
-            for (const auto& ruleJson : stateJson["Transitions"])
-            {
-                TransitionRule rule{};
-                rule.sourceStateName = ruleJson.value("Source", "");
-                rule.sourceStateHash = Core::RuntimeHash(rule.sourceStateName);
-                rule.blendDuration = ruleJson.value("Blend", 0.1f);
-                rule.targetStartOffset = ruleJson.value("Offset", 0.0f);
-                state.transitionRules.push_back(rule);
-            }
-        }
-
-        // Cache the runtime hash of the loaded name so we never do string comparisons later
         m_stateHashes.push_back(Core::RuntimeHash(state.name));
-
         m_states.push_back(state);
     }
 }

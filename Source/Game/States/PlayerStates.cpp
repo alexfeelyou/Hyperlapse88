@@ -17,7 +17,6 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
 {
     const auto& intent{ controller->GetIntent() };
     auto* motor{ controller->GetMovement() };
-
     if (!motor) return;
 
     if (intent.bDashTriggered)
@@ -35,19 +34,15 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
 
     auto& blackboard{ controller->getAnimBlackboard() };
     const DirectX::XMFLOAT3 velocity{ motor->GetTotalVelocity() };
-    const float currentSpeed{ std::sqrt((velocity.x * velocity.x) + (velocity.z * velocity.z)) };
 
     // Write physical truth to the blackboard
-    blackboard.groundSpeed = currentSpeed;
+    blackboard.groundSpeed = std::sqrt((velocity.x * velocity.x) + (velocity.z * velocity.z));
     blackboard.verticalVelocity = velocity.y;
     blackboard.setFlag(Engine::Animation::AnimFlag::is_grounded, motor->isGrounded());
 
-    // Tell the Animation system what Macro-State we are in.
-    // We only call this continuously because PlayStateByHash has a safety guard (if current == target return;)
+    // Trigger the Macro State
     if (auto* anim{ controller->GetAnimation() })
     {
-        // NOTE: In Phase 5, we will create a State named "Locomotion" in ImGui, 
-        // flag it as a Blend Tree, and add 3 nodes to it (Idle, Walk, Run).
         anim->PlayStateByHash(Core::Hash("Locomotion"));
     }
 }
@@ -130,14 +125,6 @@ void PlayerDash::Update(PlayerControllerComponent* controller, float dt)
 void PlayerDash::Exit(PlayerControllerComponent* controller) {}
 
 // ATTACK STATE
-// A static array of hashes defining your 4-hit combo path, plus the dash attack at index 4
-static const std::uint64_t COMBO_CHAIN[5] = {
-    Core::Hash("Attack1"),
-    Core::Hash("Attack2"),
-    Core::Hash("Attack3"),
-    Core::Hash("Attack4"),
-    Core::Hash("DashAttack") // Index 4: Placeholder for when you get the animation
-};
 
 void PlayerAttackState::Enter(PlayerControllerComponent* controller)
 {
@@ -175,10 +162,18 @@ void PlayerAttackState::PlayCurrentAttack(PlayerControllerComponent* controller)
     m_canCancel = false;
     m_attackBufferTimer = 0.0f;
 
+    // Tell the Animator exactly which step of the combo we are on
+    controller->getAnimBlackboard().actionIndex = m_comboIndex;
+
+    // Play the ONE Master State
     if (auto* anim = controller->GetAnimation())
     {
-        anim->PlayStateByHash(COMBO_CHAIN[m_comboIndex]);
-        m_exitTimer = anim->GetStateDurationByHash(COMBO_CHAIN[m_comboIndex]);
+        const std::uint64_t attackHash{ Core::Hash("BasicAttack") };
+
+        anim->PlayStateByHash(attackHash, true);
+
+        // Dynamically get the length of the specific combo node we just selected
+        m_exitTimer = anim->GetStateDurationByHash(attackHash);
     }
 }
 
@@ -217,7 +212,6 @@ void PlayerAttackState::Update(PlayerControllerComponent* controller, float dt)
     }
 
     // PRIORITY HIERARCHY EVALUATION
-
     // Priority A: Evasion Cancel (Highest - always break combos to survive)
     if (m_canCancel && intent.bDashTriggered)
     {
@@ -243,7 +237,7 @@ void PlayerAttackState::Update(PlayerControllerComponent* controller, float dt)
             PlayCurrentAttack(controller);
             return;
         }
-        // Dash Attack Route (Chains seamlessly from DashAttack into Attack2)
+        // Dash Attack Route 
         else if (m_comboIndex == 4)
         {
             m_comboIndex = 1;

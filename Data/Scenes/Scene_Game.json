@@ -587,200 +587,201 @@
                 {
                     "States": [
                         {
-                            "Blend": 0.20000000298023224,
-                            "ClipIndex": 13,
-                            "Events": [],
-                            "Loop": true,
-                            "Name": "Idle",
-                            "RootBoneIndex": 0,
-                            "RootLock": false,
-                            "Speed": 1.0,
-                            "StartOffset": 0.0,
-                            "SyncPhase": false,
-                            "Transitions": []
-                        },
-                        {
-                            "Blend": 0.20000000298023224,
-                            "ClipIndex": 34,
-                            "Events": [],
-                            "Loop": true,
-                            "Name": "Walk",
-                            "RootBoneIndex": 0,
-                            "RootLock": false,
-                            "Speed": 1.0,
-                            "StartOffset": 0.0,
-                            "SyncPhase": true,
-                            "Transitions": []
-                        },
-                        {
-                            "Blend": 0.20000000298023224,
-                            "ClipIndex": 31,
-                            "Events": [
-                                {
-                                    "EndTime": 0.0,
-                                    "Id": 3,
-                                    "IsRange": false,
-                                    "Payload": 0.0,
-                                    "Time": 0.8500000238418579
-                                }
-                            ],
-                            "Loop": false,
                             "Name": "Dash",
-                            "RootBoneIndex": 3,
-                            "RootLock": true,
-                            "Speed": 1.0,
-                            "StartOffset": 0.15000000596046448,
-                            "SyncPhase": false,
-                            "Transitions": []
-                        },
-                        {
-                            "Blend": 0.20000000298023224,
-                            "ClipIndex": 29,
-                            "Events": [],
-                            "Loop": true,
-                            "Name": "Run",
-                            "RootBoneIndex": 0,
-                            "RootLock": false,
-                            "Speed": 1.0,
-                            "StartOffset": 0.0,
-                            "SyncPhase": true,
-                            "Transitions": [
+                            "Nodes": [
                                 {
                                     "Blend": 0.20000000298023224,
-                                    "Offset": 0.44999998807907104,
-                                    "Source": "Dash"
-                                }
-                            ]
-                        },
-                        {
-                            "Blend": 0.20000000298023224,
-                            "ClipIndex": 0,
-                            "Events": [
-                                {
-                                    "EndTime": 0.0,
-                                    "Id": 3,
-                                    "IsRange": false,
-                                    "Payload": 0.0,
-                                    "Time": 0.6000000238418579
-                                },
-                                {
-                                    "EndTime": 0.0,
-                                    "Id": 8,
-                                    "IsRange": false,
-                                    "Payload": 15.0,
-                                    "Time": 0.08849938213825226
+                                    "ClipIndex": 31,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.8560884594917297
+                                        }
+                                    ],
+                                    "Loop": false,
+                                    "RootBoneIndex": 3,
+                                    "RootLock": true,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.15000000596046448,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
                                 }
                             ],
-                            "Loop": false,
-                            "Name": "Attack1",
-                            "RootBoneIndex": 3,
-                            "RootLock": true,
-                            "Speed": 1.0,
-                            "StartOffset": 0.0,
-                            "SyncPhase": false,
-                            "Transitions": []
+                            "Type": 0
                         },
                         {
-                            "Blend": 0.20000000298023224,
-                            "ClipIndex": 1,
-                            "Events": [
+                            "Name": "Locomotion",
+                            "Nodes": [
                                 {
-                                    "EndTime": 0.0,
-                                    "Id": 3,
-                                    "IsRange": false,
-                                    "Payload": 0.0,
-                                    "Time": 0.6000000238418579
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 13,
+                                    "Events": [],
+                                    "Loop": true,
+                                    "RootBoneIndex": 3,
+                                    "RootLock": false,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
                                 },
                                 {
-                                    "EndTime": 0.0,
-                                    "Id": 8,
-                                    "IsRange": false,
-                                    "Payload": 15.0,
-                                    "Time": 0.1856703758239746
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 34,
+                                    "Events": [],
+                                    "Loop": true,
+                                    "RootBoneIndex": 3,
+                                    "RootLock": false,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 3.5,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 29,
+                                    "Events": [],
+                                    "Loop": true,
+                                    "RootBoneIndex": 0,
+                                    "RootLock": false,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 8.5,
+                                    "Transitions": [
+                                        {
+                                            "Blend": 0.05999999865889549,
+                                            "NodeIdx": -1,
+                                            "Offset": 0.44999998807907104,
+                                            "Source": "Dash"
+                                        }
+                                    ]
                                 }
                             ],
-                            "Loop": false,
-                            "Name": "Attack2",
-                            "RootBoneIndex": 3,
-                            "RootLock": true,
-                            "Speed": 1.0,
-                            "StartOffset": 0.0,
-                            "SyncPhase": false,
-                            "Transitions": [
-                                {
-                                    "Blend": 0.05000000074505806,
-                                    "Offset": 0.0,
-                                    "Source": "Attack2"
-                                }
-                            ]
+                            "Type": 1
                         },
                         {
-                            "Blend": 0.20000000298023224,
-                            "ClipIndex": 2,
-                            "Events": [
+                            "Name": "BasicAttack",
+                            "Nodes": [
                                 {
-                                    "EndTime": 0.0,
-                                    "Id": 3,
-                                    "IsRange": false,
-                                    "Payload": 0.0,
-                                    "Time": 0.6000000238418579
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 0,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 8,
+                                            "IsRange": false,
+                                            "Payload": 15.0,
+                                            "Time": 0.0835707038640976
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.5817952752113342
+                                        }
+                                    ],
+                                    "Loop": false,
+                                    "RootBoneIndex": 3,
+                                    "RootLock": true,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
                                 },
                                 {
-                                    "EndTime": 0.0,
-                                    "Id": 8,
-                                    "IsRange": false,
-                                    "Payload": 15.0,
-                                    "Time": 0.2656210958957672
-                                }
-                            ],
-                            "Loop": false,
-                            "Name": "Attack3",
-                            "RootBoneIndex": 3,
-                            "RootLock": true,
-                            "Speed": 1.0,
-                            "StartOffset": 0.0,
-                            "SyncPhase": false,
-                            "Transitions": [
-                                {
-                                    "Blend": 0.05000000074505806,
-                                    "Offset": 0.0,
-                                    "Source": "Attack2"
-                                }
-                            ]
-                        },
-                        {
-                            "Blend": 0.20000000298023224,
-                            "ClipIndex": 3,
-                            "Events": [
-                                {
-                                    "EndTime": 0.0,
-                                    "Id": 3,
-                                    "IsRange": false,
-                                    "Payload": 0.0,
-                                    "Time": 0.6000000238418579
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 1,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 8,
+                                            "IsRange": false,
+                                            "Payload": 15.0,
+                                            "Time": 0.17712175846099854
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.5252152681350708
+                                        }
+                                    ],
+                                    "Loop": false,
+                                    "RootBoneIndex": 3,
+                                    "RootLock": true,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
                                 },
                                 {
-                                    "EndTime": 0.0,
-                                    "Id": 8,
-                                    "IsRange": false,
-                                    "Payload": 15.0,
-                                    "Time": 0.3160518407821655
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 2,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 8,
+                                            "IsRange": false,
+                                            "Payload": 15.0,
+                                            "Time": 0.27921274304389954
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.6014761328697205
+                                        }
+                                    ],
+                                    "Loop": false,
+                                    "RootBoneIndex": 3,
+                                    "RootLock": true,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 3,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 8,
+                                            "IsRange": false,
+                                            "Payload": 15.0,
+                                            "Time": 0.33456331491470337
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.7183269262313843
+                                        }
+                                    ],
+                                    "Loop": false,
+                                    "RootBoneIndex": 3,
+                                    "RootLock": true,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
                                 }
                             ],
-                            "Loop": false,
-                            "Name": "Attack4",
-                            "RootBoneIndex": 3,
-                            "RootLock": true,
-                            "Speed": 1.0,
-                            "StartOffset": 0.0,
-                            "SyncPhase": false,
-                            "Transitions": [
-                                {
-                                    "Blend": 0.05000000074505806,
-                                    "Offset": 0.0,
-                                    "Source": "Attack4"
-                                }
-                            ]
+                            "Type": 2
                         }
                     ],
                     "Type": "AnimationComponent"

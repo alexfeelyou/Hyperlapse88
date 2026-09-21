@@ -357,6 +357,9 @@
     <ClCompile Include="Source\Engine\Editor\AnimationTimelinePanel.cpp">
       <Filter>Source\Engine\Editor</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Engine\Editor\AnimationGraphPanel.cpp">
+      <Filter>Source\Engine\Editor</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\System\BasicShader.h">
@@ -685,8 +688,11 @@
     <ClInclude Include="Source\Engine\Editor\AnimationTimelinePanel.h">
       <Filter>Source\Engine\Editor</Filter>
     </ClInclude>
-    <ClInclude Include="Source\Engine\Animation\AnimBlackboard.h">
-      <Filter>Source\Engine</Filter>
+    <ClInclude Include="Source\Engine\Components\AnimBlackboard.h">
+      <Filter>Source\Engine\Components</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Editor\AnimationGraphPanel.h">
+      <Filter>Source\Engine\Editor</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

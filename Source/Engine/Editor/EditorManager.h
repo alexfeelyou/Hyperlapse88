@@ -9,6 +9,7 @@
 #include <wrl/client.h>
 #include "System/Graphics.h"
 #include "System/Logger.h"
+#include "AnimationGraphPanel.h"
 #include "AnimationTimelinePanel.h"
 #include "Framework.h"
 #include "GameObject.h"
@@ -49,6 +50,9 @@ public:
 
     void BeginSceneRender(ID3D11DeviceContext* context) noexcept;
     void EndSceneRender(ID3D11DeviceContext* context) noexcept;
+
+    // Opens the Animation Graph Panel
+    void OpenAnimationGraph(AnimationComponent* target) noexcept;
 
 	// Opens the Animation Timeline Panel for a specific AnimationComponent
     void OpenAnimationTimeline(AnimationComponent* target, std::size_t stateIndex = 0) noexcept;
@@ -102,6 +106,10 @@ private:
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_sceneSRV;
     Microsoft::WRL::ComPtr<ID3D11Texture2D> m_depthTexture;
     Microsoft::WRL::ComPtr<ID3D11DepthStencilView> m_sceneDSV;
+
+	// Animation Graph Panel
+    AnimationGraphPanel m_animGraphPanel{};
+    bool m_showAnimGraph{ false };
 
 	// Animation Timeline Panel
     AnimationTimelinePanel m_timelinePanel{};

@@ -10,7 +10,6 @@
 #include "AnimBlackboard.h"
 #include "IComponent.h"
 
-// Strongly typed combat event IDs mapped directly to integers
 enum class CombatEventId : std::uint32_t
 {
     None = 0,
@@ -21,64 +20,65 @@ enum class CombatEventId : std::uint32_t
     Invincible_End,
     Play_SFX,
     Play_VFX,
-    Lunge_Impulse 
+    Lunge_Impulse
 };
 
-// Authored event embedded within an animation state's timeline
+enum class AnimStateType : std::uint8_t {
+    Single = 0,
+    Blend1D,
+    Selector
+};
+
 struct AnimationEvent
 {
     float normalizedTime{ 0.0f };
     std::uint32_t eventId{ 0 };
     float payload{ 0.0f };
-
-    // UI Timeline properties (Safe to ignore in standard runtime)
     bool isRange{ false };
     float normalizedEndTime{ 0.0f };
 };
 
-// Authored rule overriding default blend parameters for a specific source state
 struct TransitionRule
 {
     std::string sourceStateName{ "" };
     std::uint64_t sourceStateHash{ 0 };
+    int sourceNodeIndex{ -1 }; // -1 means "Any Node"
     float blendDuration{ 0.1f };
     float targetStartOffset{ 0.0f };
 };
 
-// Authored node inside a Blend Tree
-struct BlendNode1D
+// The Node is the absolute source of truth.
+struct AnimNode
 {
-    float threshold{ 0.0f }; 
+    float threshold{ 0.0f };
     int clipIndex{ -1 };
+
+    bool rootMotionLock{ true };
+    int rootBoneIndex{ 0 };
+    bool isLooping{ true };
+    bool syncPhase{ false };
+
+    float startOffset{ 0.0f };
+    float speedMultiplier{ 1.0f };
+    float blendDuration{ 0.2f };
+
+    std::vector<AnimationEvent> events{};
+    std::vector<TransitionRule> transitionRules{};
 };
 
 struct AnimationState
 {
     std::string name{ "Idle" };
-    int clipIndex{ -1 };
-    float speedMultiplier{ 1.0f };
-    float blendDuration{ 0.2f };
-    bool isLooping{ true };
-    bool rootMotionLock{ true };
-    int rootBoneIndex{ 0 };
-    bool syncPhase{ false };
-    float startOffset{ 0.0f };
-
-    bool isBlendTree{ false };
-    std::vector<BlendNode1D> blendNodes{};
-
-    std::vector<TransitionRule> transitionRules{};
-    std::vector<AnimationEvent> events{};
+    AnimStateType type{ AnimStateType::Single };
+    std::vector<AnimNode> nodes{};
 };
 
-// Data-oriented animation evaluation engine
 class AnimationComponent final : public IComponent
 {
 public:
     AnimationComponent() noexcept = default;
     ~AnimationComponent() override = default;
 
-    // Enforce 1:1 entity mapping by deleting copy/move
     AnimationComponent(const AnimationComponent&) = delete;
     AnimationComponent& operator=(const AnimationComponent&) = delete;
 
@@ -91,39 +91,33 @@ public:
 
     [[nodiscard]] const char* GetTypeName() const noexcept override { return "AnimationComponent"; }
 
-    // Initialization & Rig Binding
     void SetModel(std::shared_ptr<Model> model) noexcept;
-
-	// Blackboard binding for external data-driven animation control
     void SetBlackboard(const Engine::Animation::AnimBlackboard* bb) noexcept { m_blackboard = bb; }
+    [[nodiscard]] const Engine::Animation::AnimBlackboard* GetBlackboard() const noexcept { return m_blackboard; }
 
-    // State Machine Interface
-    void PlayState(std::size_t stateIndex) noexcept;
-    void AddState(AnimationState state) noexcept { m_states.push_back(std::move(state)); }
+    void PlayState(std::size_t stateIndex, bool forceRestart = false) noexcept;
+    void AddState() noexcept;
+    void RemoveState(std::size_t index) noexcept;
+    void RenameState(std::size_t index, const std::string& newName) noexcept;
+    void PlayStateByHash(std::uint64_t stateHash, bool forceRestart = false) noexcept;
 
-    // Fast O(N) integer lookup for action states
-    void PlayStateByHash(std::uint64_t stateHash) noexcept;
-
-    // Direct pose execution interface for live Editor scrubbing
     void ScrubToTime(std::size_t stateIndex, float targetTime) noexcept;
+    void ScrubNodeToTime(std::size_t stateIndex, std::size_t nodeIndex, float targetTime) noexcept;
 
-    // Returns the actual duration of the state in seconds (accounting for speed multipliers)
+    void TestPlayState(std::size_t stateIndex, int isolatedNodeIndex = -1) noexcept;
+    void StopPreview() noexcept;
+
     [[nodiscard]] float GetStateDurationByHash(std::uint64_t stateHash) const noexcept;
-
-    // Read-only accessors for the MeshComponent and Event consumers
     [[nodiscard]] const std::vector<DirectX::XMFLOAT4X4>& GetCurrentNodeGlobals() const noexcept { return m_currentNodeGlobals; }
     [[nodiscard]] const std::vector<DirectX::XMFLOAT4X4>& GetPreviousNodeGlobals() const noexcept { return m_hasPreviousGlobals ? m_previousNodeGlobals : m_currentNodeGlobals; }
     [[nodiscard]] const std::vector<AnimationEvent>& GetFiredEvents() const noexcept { return m_eventQueue; }
 
-    // Exposes raw data to the specific Editor UI blocks without allocations
     [[nodiscard]] std::vector<AnimationState>& GetStates() noexcept { return m_states; }
     [[nodiscard]] std::shared_ptr<Model> GetModel() const noexcept { return m_model; }
     [[nodiscard]] float GetCurrentTimer() const noexcept { return m_currentTimer; }
     [[nodiscard]] std::size_t GetCurrentStateIndex() const noexcept { return m_currentStateIndex; }
 
 private:
-    // Fixed-size evaluation buffers for multi-clip blending
-    // Eliminates dynamic heap allocations during graph evaluation.
     struct PoseScratchpad
     {
         std::vector<Model::NodePose> bufferA{};
@@ -134,26 +128,25 @@ private:
     PoseScratchpad m_scratchpad{};
 
     void ComputeGlobalTransforms() noexcept;
-    void ProcessEvents(float dt, const AnimationState& state, float previousTimer, float currentTimer) noexcept;
+    void ProcessEvents(float dt, const std::vector<AnimationEvent>& events, float previousTimer, float currentTimer, float currentDuration) noexcept;
 
     std::shared_ptr<Model> m_model{};
 
-    // Flat state machine data
     std::vector<AnimationState> m_states{};
+
     std::size_t m_currentStateIndex{ 0 };
     std::size_t m_previousStateIndex{ 0 };
+    std::size_t m_currentNodeIndex{ 0 };
+    std::size_t m_previousNodeIndex{ 0 };
 
-	// Optional blackboard for external data-driven animation control
     const Engine::Animation::AnimBlackboard* m_blackboard{ nullptr };
 
-    // Playhead tracking
     float m_currentTimer{ 0.0f };
     float m_previousTimer{ 0.0f };
     float m_blendTimer{ 0.0f };
     float m_activeBlendDuration{ 0.2f };
     bool m_isBlending{ false };
 
-    // Fixed-size evaluation buffers (Allocated exactly once in SetModel)
     std::vector<Model::NodePose> m_currentLocalPoses{};
     std::vector<Model::NodePose> m_snapshotPoses{};
     std::vector<Model::NodePose> m_blendedLocalPoses{};
@@ -162,12 +155,9 @@ private:
     std::vector<DirectX::XMFLOAT4X4> m_previousNodeGlobals{};
     bool m_hasPreviousGlobals{ false };
 
-    // Store the full struct to preserve the payload data
     std::vector<AnimationEvent> m_eventQueue{};
-
-    // Caches the 64-bit hash of every state's name for zero-allocation lookups
     std::vector<std::uint64_t> m_stateHashes{};
 
-    // Track if we are forcing time to flow in the editor
     bool m_editorPreview{ false };
+    int m_isolatedNodeIndex{ -1 };
 };
