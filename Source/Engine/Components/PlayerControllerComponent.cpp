@@ -31,9 +31,13 @@ void PlayerControllerComponent::OnAttach(GameObject* owner) noexcept
         m_movement = m_owner->GetComponent<CharacterMovementComponent>();
         m_animation = m_owner->GetComponent<AnimationComponent>();
 
+        if (m_animation)
+        {
+            m_animation->SetBlackboard(&m_blackboard);
+        }
+
         if (m_stateMachine)
         {
-            // Boot directly into the unified locomotion state
             m_stateMachine->Initialize(GetState(PlayerStateType::Locomotion), this);
         }
     }

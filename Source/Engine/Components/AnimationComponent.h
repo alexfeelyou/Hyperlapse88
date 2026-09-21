@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include "System/Model.h"
+#include "AnimBlackboard.h"
 #include "IComponent.h"
 
 // Strongly typed combat event IDs mapped directly to integers
@@ -44,19 +45,29 @@ struct TransitionRule
     float targetStartOffset{ 0.0f };
 };
 
+// Authored node inside a Blend Tree
+struct BlendNode1D
+{
+    float threshold{ 0.0f }; 
+    int clipIndex{ -1 };
+};
+
 struct AnimationState
 {
     std::string name{ "Idle" };
     int clipIndex{ -1 };
     float speedMultiplier{ 1.0f };
-    float blendDuration{ 0.2f }; 
+    float blendDuration{ 0.2f };
     bool isLooping{ true };
     bool rootMotionLock{ true };
     int rootBoneIndex{ 0 };
     bool syncPhase{ false };
-    float startOffset{ 0.0f };   
+    float startOffset{ 0.0f };
 
-    std::vector<TransitionRule> transitionRules{}; // State-pair overrides
+    bool isBlendTree{ false };
+    std::vector<BlendNode1D> blendNodes{};
+
+    std::vector<TransitionRule> transitionRules{};
     std::vector<AnimationEvent> events{};
 };
 
@@ -82,6 +93,9 @@ public:
 
     // Initialization & Rig Binding
     void SetModel(std::shared_ptr<Model> model) noexcept;
+
+	// Blackboard binding for external data-driven animation control
+    void SetBlackboard(const Engine::Animation::AnimBlackboard* bb) noexcept { m_blackboard = bb; }
 
     // State Machine Interface
     void PlayState(std::size_t stateIndex) noexcept;
@@ -128,6 +142,9 @@ private:
     std::vector<AnimationState> m_states{};
     std::size_t m_currentStateIndex{ 0 };
     std::size_t m_previousStateIndex{ 0 };
+
+	// Optional blackboard for external data-driven animation control
+    const Engine::Animation::AnimBlackboard* m_blackboard{ nullptr };
 
     // Playhead tracking
     float m_currentTimer{ 0.0f };

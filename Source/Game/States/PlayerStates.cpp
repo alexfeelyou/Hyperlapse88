@@ -18,7 +18,6 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
     const auto& intent{ controller->GetIntent() };
     auto* motor{ controller->GetMovement() };
 
-    // Proactively anticipate null pointers 
     if (!motor) return;
 
     if (intent.bDashTriggered)
@@ -26,7 +25,6 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Dash));
         return;
     }
-
     if (intent.bAttackPressed)
     {
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Attack));
@@ -35,26 +33,22 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
 
     motor->SetDesiredDirection(intent.moveVector);
 
-    // Write to blackboard
     auto& blackboard{ controller->getAnimBlackboard() };
-
-    // Calculate 2D ground speed magnitude from actual physics, not raw input
     const DirectX::XMFLOAT3 velocity{ motor->GetTotalVelocity() };
-    const float speedSq{ (velocity.x * velocity.x) + (velocity.z * velocity.z) };
-    const float currentSpeed{ std::sqrt(speedSq) };
+    const float currentSpeed{ std::sqrt((velocity.x * velocity.x) + (velocity.z * velocity.z)) };
 
+    // Write physical truth to the blackboard
     blackboard.groundSpeed = currentSpeed;
     blackboard.verticalVelocity = velocity.y;
     blackboard.setFlag(Engine::Animation::AnimFlag::is_grounded, motor->isGrounded());
 
-    // TEMPORARY BRIDGE 
-    // We retain PlayStateByHash only to prevent your character from T-posing 
-    // while we prepare the Blend Tree evaluator for the next step.
+    // Tell the Animation system what Macro-State we are in.
+    // We only call this continuously because PlayStateByHash has a safety guard (if current == target return;)
     if (auto* anim{ controller->GetAnimation() })
     {
-        if (currentSpeed > 8.0f) anim->PlayStateByHash(Core::Hash("Run"));
-        else if (currentSpeed > 0.1f) anim->PlayStateByHash(Core::Hash("Walk"));
-        else anim->PlayStateByHash(Core::Hash("Idle"));
+        // NOTE: In Phase 5, we will create a State named "Locomotion" in ImGui, 
+        // flag it as a Blend Tree, and add 3 nodes to it (Idle, Walk, Run).
+        anim->PlayStateByHash(Core::Hash("Locomotion"));
     }
 }
 

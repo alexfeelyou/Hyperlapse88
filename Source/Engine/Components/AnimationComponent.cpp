@@ -225,9 +225,80 @@ void AnimationComponent::Update(const float dt)
     const AnimationState& targetState{ m_states[m_currentStateIndex] };
     const float previousFrameTimer{ m_currentTimer };
 
-    // Advance Target Playhead 
-    if (targetState.clipIndex >= 0 && static_cast<std::size_t>(targetState.clipIndex) < m_model->GetAnimations().size())
+    // Evaluation Pipeline
+    if (targetState.isBlendTree && !targetState.blendNodes.empty() && m_blackboard)
     {
+        // Read parameter from Blackboard (Assume groundSpeed for 1D Locomotion)
+        const float param{ m_blackboard->groundSpeed };
+
+        // Find the two nodes bounding our parameter
+        std::size_t nodeA = 0;
+        std::size_t nodeB = 0;
+        float t = 0.0f;
+
+        if (param <= targetState.blendNodes.front().threshold)
+        {
+            // Below lowest threshold: clamp to first node
+            nodeA = 0;
+            nodeB = 0;
+        }
+        else if (param >= targetState.blendNodes.back().threshold)
+        {
+            // Above highest threshold: clamp to last node
+            nodeA = targetState.blendNodes.size() - 1;
+            nodeB = nodeA;
+        }
+        else
+        {
+            // Interpolate between the two bounding nodes
+            for (std::size_t i{ 0 }; i < targetState.blendNodes.size() - 1; ++i)
+            {
+                if (param >= targetState.blendNodes[i].threshold && param < targetState.blendNodes[i + 1].threshold)
+                {
+                    nodeA = i;
+                    nodeB = i + 1;
+                    const float range = targetState.blendNodes[nodeB].threshold - targetState.blendNodes[nodeA].threshold;
+                    t = (param - targetState.blendNodes[nodeA].threshold) / (range > 0.001f ? range : 1.0f);
+                    break;
+                }
+            }
+        }
+
+        const int clipA = targetState.blendNodes[nodeA].clipIndex;
+        const int clipB = targetState.blendNodes[nodeB].clipIndex;
+        const auto& animations = m_model->GetAnimations();
+
+        if (clipA >= 0 && static_cast<std::size_t>(clipA) < animations.size() &&
+            clipB >= 0 && static_cast<std::size_t>(clipB) < animations.size())
+        {
+            // 3. Phase Synchronization: Calculate Blended Duration
+            const float durationA{ animations[clipA].secondsLength };
+            const float durationB{ animations[clipB].secondsLength };
+            const float blendedDuration = (durationA * (1.0f - t)) + (durationB * t);
+
+            if (blendedDuration > 0.001f)
+            {
+                m_currentTimer += (evalDt * targetState.speedMultiplier);
+
+                // Assuming blend trees loop for locomotion
+                while (m_currentTimer >= blendedDuration) m_currentTimer -= blendedDuration;
+                while (m_currentTimer < 0.0f) m_currentTimer += blendedDuration;
+
+                // Convert Absolute Time to Normalized Phase (0.0 to 1.0)
+                const float normPhase = m_currentTimer / blendedDuration;
+
+                // Sample both clips into scratchpads using Normalized Phase!
+                m_model->ComputeAnimation(clipA, normPhase * durationA, m_scratchpad.bufferA);
+                m_model->ComputeAnimation(clipB, normPhase * durationB, m_scratchpad.bufferB);
+
+                // Blend the two scratchpads into the final output
+                BlendPoses(m_scratchpad.bufferA, m_scratchpad.bufferB, t, m_currentLocalPoses);
+            }
+        }
+    }
+    else if (!targetState.isBlendTree && targetState.clipIndex >= 0 && static_cast<std::size_t>(targetState.clipIndex) < m_model->GetAnimations().size())
+    {
+        // Standard single clip evaluator (For Actions, Combat, Dashes)
         const float duration{ m_model->GetAnimations()[targetState.clipIndex].secondsLength };
         if (duration > 0.001f)
         {
@@ -247,17 +318,6 @@ void AnimationComponent::Update(const float dt)
         }
 
         m_model->ComputeAnimation(targetState.clipIndex, m_currentTimer, m_currentLocalPoses);
-
-		// Root Motion Lock
-        if (targetState.rootMotionLock && !m_currentLocalPoses.empty())
-        {
-            // Safely clamp the index so we don't crash if the bone doesn't exist
-            const int boneIdx = std::clamp(targetState.rootBoneIndex, 0, static_cast<int>(m_currentLocalPoses.size() - 1));
-
-            m_currentLocalPoses[boneIdx].position.x = 0.0f;
-            // We keep Y intact so the character can still bounce vertically (e.g., breathing/bobbing)
-            m_currentLocalPoses[boneIdx].position.z = 0.0f;
-        }
     }
 
     // Inertial Blending
