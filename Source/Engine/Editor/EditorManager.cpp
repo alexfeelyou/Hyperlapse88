@@ -655,10 +655,12 @@ void EditorManager::DrawMenuBar(Scene* currentScene) noexcept
         {
             if (ImGui::MenuItem("Title"))
             {
+                ClearSelection(); 
                 Framework::Instance()->ChangeScene([]() { return std::make_unique<SceneTitle>(); });
             }
             if (ImGui::MenuItem("Game"))
             {
+                ClearSelection(); 
                 Framework::Instance()->ChangeScene([]() { return std::make_unique<SceneGame>(); });
             }
             ImGui::EndMenu();
@@ -722,7 +724,7 @@ void EditorManager::DrawHierarchyNode(GameObject* node) noexcept
             node->Destroy();
             if (m_selectedObject == node)
             {
-                m_selectedObject = nullptr;
+                ClearSelection();
             }
         }
         ImGui::EndPopup();
@@ -1085,6 +1087,10 @@ void EditorManager::SaveUserPreferences(Scene* currentScene, Camera* activeCamer
     root[sceneKey]["CamRotY"] = rot.y;
     root[sceneKey]["CamRotZ"] = rot.z;
 
+    root["EditorUI"]["ShowProfiler"] = m_showProfiler;
+    root["EditorUI"]["ShowPostProcess"] = m_showPostProcess;
+    root["EditorUI"]["ShowAnimTimeline"] = m_showAnimTimeline;
+
     const std::filesystem::path pathObj{ s_editorPrefsPath };
     if (!std::filesystem::exists(pathObj.parent_path()))
     {
@@ -1098,7 +1104,7 @@ void EditorManager::SaveUserPreferences(Scene* currentScene, Camera* activeCamer
     }
 }
 
-void EditorManager::LoadUserPreferences(Scene* currentScene, Camera* activeCamera) const noexcept
+void EditorManager::LoadUserPreferences(Scene* currentScene, Camera* activeCamera) noexcept
 {
     if (!currentScene || !activeCamera || !std::filesystem::exists(s_editorPrefsPath)) return;
 
@@ -1129,6 +1135,14 @@ void EditorManager::LoadUserPreferences(Scene* currentScene, Camera* activeCamer
 
             activeCamera->SetPosition(pos);
             activeCamera->SetRotation(rot);
+        }
+
+        if (root.contains("EditorUI"))
+        {
+            const auto& uiData = root["EditorUI"];
+            m_showProfiler = uiData.value("ShowProfiler", false);
+            m_showPostProcess = uiData.value("ShowPostProcess", false);
+            m_showAnimTimeline = uiData.value("ShowAnimTimeline", false);
         }
     }
     catch (...)

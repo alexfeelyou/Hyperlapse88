@@ -75,7 +75,7 @@ public:
 
     // User Workspace Preferences (Ignored by Git)
     void SaveUserPreferences(Scene* currentScene, Camera* activeCamera) const noexcept;
-    void LoadUserPreferences(Scene* currentScene, Camera* activeCamera) const noexcept;
+    void LoadUserPreferences(Scene* currentScene, Camera* activeCamera) noexcept;
 
 private:
     static constexpr std::string_view s_editorPrefsPath{ "UserSettings/EditorPreferences.json" };
