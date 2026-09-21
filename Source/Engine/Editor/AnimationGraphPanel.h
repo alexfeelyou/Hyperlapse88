@@ -25,4 +25,10 @@ private:
     // Editor-only mock blackboard for live-scrubbing parameters without running the game
     float m_debugSpeed{ 0.0f };
     int m_debugActionIndex{ 0 };
+
+    // Transition Preview Harness
+    bool m_isPreviewingTransition{ false };
+    int m_previewRuleIndex{ -1 };
+    int m_transitionPhase{ 0 };
+    float m_transitionLoopTimer{ 0.0f };
 };

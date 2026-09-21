@@ -21,9 +21,31 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
         return;
     }
 
+    // PREVENTIVE BUG FIX: Directional Mode Safety
+    static bool s_wasGameLive = EditorManager::Instance().GetEditorMode() != EditorMode::Edit;
+    const bool isGameLive = EditorManager::Instance().GetEditorMode() != EditorMode::Edit;
+
+    if (s_wasGameLive && !isGameLive)
+    {
+        // Play -> Stop: Runtime scene is destroyed. Drop dead pointer to prevent crashing.
+        m_targetComponent = nullptr;
+        m_isPreviewingTransition = false;
+    }
+    else if (!s_wasGameLive && isGameLive)
+    {
+        // Stop -> Play: Keep the panel connected! Safely halt preview harness so gameplay takes over cleanly.
+        m_isPreviewingTransition = false;
+        if (m_targetComponent)
+        {
+            m_targetComponent->StopPreview();
+        }
+    }
+    s_wasGameLive = isGameLive;
+
     if (!m_targetComponent)
     {
         ImGui::TextDisabled("No Animation Component Selected.");
+        ImGui::TextDisabled("Please re-select the GameObject in the Inspector.");
         ImGui::End();
         return;
     }
@@ -64,6 +86,10 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
         {
             m_selectedStateIndex = i;
             m_selectedNodeForProps = -1;
+
+            // Kill preview if switching states
+            m_isPreviewingTransition = false;
+            m_targetComponent->StopPreview();
         }
     }
     ImGui::EndChild();
@@ -177,6 +203,10 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
         if (ImGui::Button("Props"))
         {
             m_selectedNodeForProps = static_cast<int>(i);
+
+            // Kill preview if switching nodes
+            m_isPreviewingTransition = false;
+            m_targetComponent->StopPreview();
         }
 
         ImGui::SameLine();
@@ -199,16 +229,23 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
     ImGui::TextDisabled("LIVE BLACKBOARD PREVIEW");
     ImGui::Separator();
 
-    const bool isGameLive{ EditorManager::Instance().GetEditorMode() != EditorMode::Edit };
     const bool isPreviewing{ m_targetComponent->IsPreviewing() };
+
+    // PREVENTIVE BUG FIX: Keep UI perfectly in sync with the Component.
+    // If the game goes live, or if the component hard-reset itself, kill the UI harness loop
+    if ((isGameLive || (!isPreviewing && m_transitionPhase != 0)) && m_isPreviewingTransition)
+    {
+        m_isPreviewingTransition = false;
+    }
 
     ImGui::BeginDisabled(isGameLive);
 
     // MACRO PLAYBACK CONTROLS
     if (ImGui::Button(isPreviewing ? "Stop Preview" : "Play Macro State", ImVec2(-1.0f, 30.0f)))
     {
+        m_isPreviewingTransition = false;
         if (isPreviewing) m_targetComponent->StopPreview();
-        else m_targetComponent->TestPlayState(m_selectedStateIndex, -1); // -1 = Evaluate full Blend Tree
+        else m_targetComponent->TestPlayState(m_selectedStateIndex, -1);
     }
     ImGui::Spacing();
 
@@ -255,6 +292,80 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
     }
 
     ImGui::EndChild();
+
+    // TRANSITION PREVIEW HARNESS LOOP
+    if (m_isPreviewingTransition && !isGameLive)
+    {
+        if (m_selectedNodeForProps >= 0 && m_selectedNodeForProps < state.nodes.size())
+        {
+            auto& targetNode = state.nodes[m_selectedNodeForProps];
+            if (m_previewRuleIndex >= 0 && m_previewRuleIndex < targetNode.transitionRules.size())
+            {
+                auto& rule = targetNode.transitionRules[m_previewRuleIndex];
+
+                std::size_t srcStateIdx = 0;
+                for (std::size_t s = 0; s < states.size(); ++s) {
+                    if (states[s].name == rule.sourceStateName) { srcStateIdx = s; break; }
+                }
+
+                int srcNodeIdx = rule.sourceNodeIndex < 0 ? 0 : rule.sourceNodeIndex;
+
+                // Determine when to trigger the blend (Look for Cancel Window, default to 80%)
+                float srcDuration = 1.0f;
+                float triggerTime = 0.8f;
+                if (srcStateIdx < states.size() && srcNodeIdx < states[srcStateIdx].nodes.size())
+                {
+                    auto& srcNode = states[srcStateIdx].nodes[srcNodeIdx];
+                    if (srcNode.clipIndex >= 0 && m_targetComponent->GetModel())
+                    {
+                        srcDuration = m_targetComponent->GetModel()->GetAnimations()[srcNode.clipIndex].secondsLength;
+                    }
+                    triggerTime = srcDuration * 0.8f;
+
+                    for (const auto& ev : srcNode.events)
+                    {
+                        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
+                        {
+                            triggerTime = ev.normalizedTime * srcDuration;
+                            break;
+                        }
+                    }
+                }
+
+                // STATE 0: Start Source Clip
+                if (m_transitionPhase == 0)
+                {
+                    m_targetComponent->TestPlayState(srcStateIdx, srcNodeIdx);
+
+                    // Instantly start 30% into the animation (Single hardware multiply, zero branching)
+                    m_targetComponent->JumpToPreviewTime(srcDuration * 0.3f);
+
+                    m_transitionPhase = 1;
+                }
+                // STATE 1: Wait for Cancel Window / Threshold
+                else if (m_transitionPhase == 1)
+                {
+                    if (m_targetComponent->GetCurrentTimer() >= triggerTime || m_targetComponent->GetCurrentTimer() >= srcDuration)
+                    {
+                        m_targetComponent->PlayState(m_selectedStateIndex, true, m_selectedNodeForProps);
+                        m_transitionPhase = 2;
+                        m_transitionLoopTimer = 1.0f; // Let the resulting transition play for 1 second
+                    }
+                }
+                // STATE 2: Follow Through & Reset
+                else if (m_transitionPhase == 2)
+                {
+                    m_transitionLoopTimer -= ImGui::GetIO().DeltaTime;
+                    if (m_transitionLoopTimer <= 0.0f)
+                    {
+                        m_transitionPhase = 0; // Loop back to the beginning
+                    }
+                }
+            }
+            else { m_isPreviewingTransition = false; }
+        }
+        else { m_isPreviewingTransition = false; }
+    }
 
     // PROPERTIES PANE
     if (showNodeProps)
@@ -306,6 +417,9 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
 
             for (auto it = targetNode.transitionRules.begin(); it != targetNode.transitionRules.end(); )
             {
+                int currentRuleIdx = static_cast<int>(std::distance(targetNode.transitionRules.begin(), it));
+                bool isRulePreviewing = m_isPreviewingTransition && m_previewRuleIndex == currentRuleIdx;
+
                 ImGui::PushID(&(*it));
                 char srcBuf[64];
                 strncpy_s(srcBuf, sizeof(srcBuf), it->sourceStateName.c_str(), _TRUNCATE);
@@ -334,9 +448,36 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
                 ImGui::SliderFloat("Blend Time", &it->blendDuration, 0.0f, 1.0f, "%.2f s");
                 ImGui::SliderFloat("Start Offset", &it->targetStartOffset, 0.0f, 2.0f, "%.2f s");
 
-                if (ImGui::Button("Remove Rule"))
+                ImGui::BeginDisabled(isGameLive);
+                if (isRulePreviewing)
+                {
+                    if (ImGui::Button("Stop##Rule", ImVec2(50.0f, 0.0f)))
+                    {
+                        m_isPreviewingTransition = false;
+                        m_targetComponent->StopPreview();
+                    }
+                }
+                else
+                {
+                    if (ImGui::Button("Play##Rule", ImVec2(50.0f, 0.0f)))
+                    {
+                        m_isPreviewingTransition = true;
+                        m_previewRuleIndex = currentRuleIdx;
+                        m_transitionPhase = 0; // Start at Phase 0 (Source Clip)
+                    }
+                }
+                ImGui::EndDisabled();
+
+                ImGui::SameLine();
+                if (ImGui::Button("Remove", ImVec2(-1.0f, 0.0f)))
                 {
                     it = targetNode.transitionRules.erase(it);
+
+                    if (isRulePreviewing)
+                    {
+                        m_isPreviewingTransition = false;
+                        m_targetComponent->StopPreview();
+                    }
                     ImGui::PopID();
                 }
                 else

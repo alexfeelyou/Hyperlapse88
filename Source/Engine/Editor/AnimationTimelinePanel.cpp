@@ -46,9 +46,29 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
         return;
     }
 
+    // PREVENTIVE BUG FIX: Directional Mode Safety
+    static bool s_wasGameLive = EditorManager::Instance().GetEditorMode() != EditorMode::Edit;
+    const bool isGameLive = EditorManager::Instance().GetEditorMode() != EditorMode::Edit;
+
+    if (s_wasGameLive && !isGameLive)
+    {
+        // Play -> Stop: Runtime scene is destroyed. Drop pointer to prevent accessing dead memory.
+        m_targetComponent = nullptr;
+    }
+    else if (!s_wasGameLive && isGameLive)
+    {
+        // Stop -> Play: Keep target connected for live debugging, but cancel any isolated previewing.
+        if (m_targetComponent)
+        {
+            m_targetComponent->StopPreview();
+        }
+    }
+    s_wasGameLive = isGameLive;
+
     if (!m_targetComponent)
     {
         ImGui::TextDisabled("No Animation Component Selected.");
+        ImGui::TextDisabled("Please re-select the GameObject in the Inspector.");
         ImGui::End();
         return;
     }
@@ -69,7 +89,6 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
     }
 
     // Define both variables so the rest of the UI buttons work
-    const bool isGameLive = EditorManager::Instance().GetEditorMode() != EditorMode::Edit;
     const bool isPreviewing = m_targetComponent->IsPreviewing();
     const bool isEnginePlaying = isGameLive || isPreviewing;
 

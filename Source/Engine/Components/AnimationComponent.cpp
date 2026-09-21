@@ -146,7 +146,7 @@ void AnimationComponent::SetModel(std::shared_ptr<Model> model) noexcept
     m_hasPreviousGlobals = true;
 }
 
-void AnimationComponent::PlayState(const std::size_t stateIndex, bool forceRestart) noexcept
+void AnimationComponent::PlayState(const std::size_t stateIndex, bool forceRestart, int forceNodeIndex) noexcept
 {
     if (stateIndex >= m_states.size()) return;
 
@@ -156,7 +156,7 @@ void AnimationComponent::PlayState(const std::size_t stateIndex, bool forceResta
     m_previousNodeIndex = m_currentNodeIndex;
     m_currentStateIndex = stateIndex;
     m_previousTimer = m_currentTimer;
-    m_isolatedNodeIndex = -1;
+    m_isolatedNodeIndex = forceNodeIndex;
 
     const AnimationState& targetState{ m_states[m_currentStateIndex] };
 
@@ -164,7 +164,11 @@ void AnimationComponent::PlayState(const std::size_t stateIndex, bool forceResta
     std::size_t entryNode = 0;
     if (!targetState.nodes.empty())
     {
-        if (targetState.type == AnimStateType::Selector && m_blackboard)
+        if (forceNodeIndex >= 0 && forceNodeIndex < static_cast<int>(targetState.nodes.size()))
+        {
+            entryNode = static_cast<std::size_t>(forceNodeIndex);
+        }
+        else if (targetState.type == AnimStateType::Selector && m_blackboard)
         {
             const int safeIndex = (std::max)(0, m_blackboard->actionIndex);
             const int maxIndex = targetState.nodes.empty() ? 0 : static_cast<int>(targetState.nodes.size()) - 1;
@@ -292,6 +296,19 @@ void AnimationComponent::TestPlayState(std::size_t stateIndex, int isolatedNodeI
 void AnimationComponent::StopPreview() noexcept
 {
     m_editorPreview = false;
+    m_isolatedNodeIndex = -1;
+    m_isBlending = false;
+    m_blendTimer = 0.0f;
+    m_currentTimer = 0.0f;
+
+    // Hard reset back to the default state (State 0) so the game starts cleanly
+    if (!m_states.empty())
+    {
+        m_previousStateIndex = 0;
+        m_currentStateIndex = 0;
+        m_previousNodeIndex = 0;
+        m_currentNodeIndex = 0;
+    }
 }
 
 void AnimationComponent::Update(const float dt)
@@ -308,8 +325,20 @@ void AnimationComponent::Update(const float dt)
     if (m_states.empty() || m_currentStateIndex >= m_states.size()) return;
 
     float evalDt = dt;
-    if (evalDt <= 0.0001f && m_editorPreview) evalDt = ImGui::GetIO().DeltaTime;
-    else if (evalDt > 0.0001f) m_editorPreview = false;
+    if (evalDt <= 0.0001f && m_editorPreview)
+    {
+        evalDt = ImGui::GetIO().DeltaTime;
+    }
+    else if (evalDt > 0.0001f && m_editorPreview)
+    {
+        // PREVENTIVE BUG FIX: The Engine just went Live
+        // Nuke the preview instantly so the character doesn't resume a frozen animation.
+        StopPreview();
+    }
+    else if (evalDt > 0.0001f)
+    {
+        m_editorPreview = false;
+    }
 
     const AnimationState& targetState{ m_states[m_currentStateIndex] };
     const float previousFrameTimer{ m_currentTimer };
@@ -493,13 +522,13 @@ void AnimationComponent::ComputeGlobalTransforms() noexcept
     }
 }
 
-void AnimationComponent::PlayStateByHash(const std::uint64_t stateHash, bool forceRestart) noexcept
+void AnimationComponent::PlayStateByHash(const std::uint64_t stateHash, bool forceRestart, int forceNodeIndex) noexcept
 {
     for (std::size_t i{ 0 }; i < m_stateHashes.size(); ++i)
     {
         if (m_stateHashes[i] == stateHash)
         {
-            PlayState(i, forceRestart);
+            PlayState(i, forceRestart, forceNodeIndex);
             return;
         }
     }

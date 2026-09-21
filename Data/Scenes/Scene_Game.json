@@ -656,8 +656,8 @@
                                     "Transitions": [
                                         {
                                             "Blend": 0.05999999865889549,
-                                            "NodeIdx": -1,
-                                            "Offset": 0.44999998807907104,
+                                            "NodeIdx": 0,
+                                            "Offset": 0.4399999976158142,
                                             "Source": "Dash"
                                         }
                                     ]

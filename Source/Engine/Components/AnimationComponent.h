@@ -95,17 +95,18 @@ public:
     void SetBlackboard(const Engine::Animation::AnimBlackboard* bb) noexcept { m_blackboard = bb; }
     [[nodiscard]] const Engine::Animation::AnimBlackboard* GetBlackboard() const noexcept { return m_blackboard; }
 
-    void PlayState(std::size_t stateIndex, bool forceRestart = false) noexcept;
+    void PlayState(std::size_t stateIndex, bool forceRestart = false, int forceNodeIndex = -1) noexcept;
     void AddState() noexcept;
     void RemoveState(std::size_t index) noexcept;
     void RenameState(std::size_t index, const std::string& newName) noexcept;
-    void PlayStateByHash(std::uint64_t stateHash, bool forceRestart = false) noexcept;
+    void PlayStateByHash(std::uint64_t stateHash, bool forceRestart = false, int forceNodeIndex = -1) noexcept;
 
     void ScrubToTime(std::size_t stateIndex, float targetTime) noexcept;
     void ScrubNodeToTime(std::size_t stateIndex, std::size_t nodeIndex, float targetTime) noexcept;
 
     void TestPlayState(std::size_t stateIndex, int isolatedNodeIndex = -1) noexcept;
     void StopPreview() noexcept;
+    void JumpToPreviewTime(float time) noexcept { m_currentTimer = time; }
 
     [[nodiscard]] float GetStateDurationByHash(std::uint64_t stateHash) const noexcept;
     [[nodiscard]] const std::vector<DirectX::XMFLOAT4X4>& GetCurrentNodeGlobals() const noexcept { return m_currentNodeGlobals; }
