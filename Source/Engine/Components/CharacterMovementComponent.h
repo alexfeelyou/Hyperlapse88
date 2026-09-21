@@ -49,6 +49,7 @@ public:
     // State Queries
     [[nodiscard]] DirectX::XMFLOAT3 GetTotalVelocity() const noexcept;
     [[nodiscard]] bool IsMoving() const noexcept;
+    [[nodiscard]] bool isGrounded() const noexcept;
     [[nodiscard]] CharacterMovementConfig& GetConfig() noexcept { return m_config; }
 
 private:

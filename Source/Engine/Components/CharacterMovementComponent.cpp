@@ -59,6 +59,11 @@ bool CharacterMovementComponent::IsMoving() const noexcept
         LengthSq({ m_impulseVelocity.x, m_impulseVelocity.z }) > moveThresholdSq;
 }
 
+bool CharacterMovementComponent::isGrounded() const noexcept
+{
+    return m_capsule ? m_capsule->IsGrounded() : true;
+}
+
 void CharacterMovementComponent::Update(const float dt)
 {
     // Lazy Initialization 

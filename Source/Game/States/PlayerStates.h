@@ -12,10 +12,6 @@ public:
     void Enter(PlayerControllerComponent* controller) override;
     void Update(PlayerControllerComponent* controller, float dt) override;
     void Exit(PlayerControllerComponent* controller) override;
-
-private:
-    enum class LocoState { None, Idle, Walk, Run }; 
-    LocoState m_locoState{ LocoState::None };
 };
 
 // Unified Dodging/Sliding handler

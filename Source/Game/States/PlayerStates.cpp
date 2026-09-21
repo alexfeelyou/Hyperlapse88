@@ -7,10 +7,6 @@
 // UNIFIED LOCOMOTION STATE
 void PlayerLocomotion::Enter(PlayerControllerComponent* controller)
 {
-    // Set to None so the first Update() evaluates the WASD keys and transitions
-    // Directly from Dash to the correct state, preserving the animation history.
-    m_locoState = LocoState::None;
-
     if (auto* motor{ controller->GetMovement() })
     {
         motor->SetDesiredDirection({ 0.0f, 0.0f });
@@ -21,11 +17,10 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
 {
     const auto& intent{ controller->GetIntent() };
     auto* motor{ controller->GetMovement() };
-    auto* anim{ controller->GetAnimation() };
 
-    if (!motor || !anim) return;
+    // Proactively anticipate null pointers 
+    if (!motor) return;
 
-    // Action Priorities (Interrupts)
     if (intent.bDashTriggered)
     {
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Dash));
@@ -38,33 +33,29 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
         return;
     }
 
-    // Process Locomotion Intent
     motor->SetDesiredDirection(intent.moveVector);
 
-    const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
+    // Write to blackboard
+    auto& blackboard{ controller->getAnimBlackboard() };
 
-    LocoState desiredState = LocoState::Idle;
-    if (inputSq > 0.2f) desiredState = LocoState::Run;
-    else if (inputSq > 0.01f) desiredState = LocoState::Walk;
+    // Calculate 2D ground speed magnitude from actual physics, not raw input
+    const DirectX::XMFLOAT3 velocity{ motor->GetTotalVelocity() };
+    const float speedSq{ (velocity.x * velocity.x) + (velocity.z * velocity.z) };
+    const float currentSpeed{ std::sqrt(speedSq) };
 
-    // Continuous Declaration of Intent 
-    // We send the command every single frame. Because AnimationComponent::PlayState 
-    // has a safety guard (if current == target return;),
-    // This guarantees that the game instantly corrects whatever the Editor was previewing
-    if (desiredState == LocoState::Idle)
-    {
-        anim->PlayStateByHash(Core::Hash("Idle"));
-    }
-    else if (desiredState == LocoState::Walk)
-    {
-        anim->PlayStateByHash(Core::Hash("Walk"));
-    }
-    else
-    {
-        anim->PlayStateByHash(Core::Hash("Run"));
-    }
+    blackboard.groundSpeed = currentSpeed;
+    blackboard.verticalVelocity = velocity.y;
+    blackboard.setFlag(Engine::Animation::AnimFlag::is_grounded, motor->isGrounded());
 
-    m_locoState = desiredState;
+    // TEMPORARY BRIDGE 
+    // We retain PlayStateByHash only to prevent your character from T-posing 
+    // while we prepare the Blend Tree evaluator for the next step.
+    if (auto* anim{ controller->GetAnimation() })
+    {
+        if (currentSpeed > 8.0f) anim->PlayStateByHash(Core::Hash("Run"));
+        else if (currentSpeed > 0.1f) anim->PlayStateByHash(Core::Hash("Walk"));
+        else anim->PlayStateByHash(Core::Hash("Idle"));
+    }
 }
 
 void PlayerLocomotion::Exit(PlayerControllerComponent* controller) {}

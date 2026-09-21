@@ -7,6 +7,39 @@
 #include "MeshComponent.h"
 #include "StringHash.h"
 
+namespace
+{
+    // Pure mathematical blend primitive (Linear Blend Space Evaluator).
+    // Implemented as a free function to isolate math from component state.
+    void BlendPoses(
+        const std::vector<Model::NodePose>& sourceA,
+        const std::vector<Model::NodePose>& sourceB,
+        float weight,
+        std::vector<Model::NodePose>& outResult) noexcept
+    {
+        // Safety check to prevent out-of-bounds access
+        const std::size_t nodeCount{ (std::min)({ sourceA.size(), sourceB.size(), outResult.size() }) };
+
+        // Strict clamping ensures weight cannot extrapolate beyond physical bounds
+        const float safeWeight{ std::clamp(weight, 0.0f, 1.0f) };
+
+        for (std::size_t i{ 0 }; i < nodeCount; ++i)
+        {
+            const DirectX::XMVECTOR s0{ DirectX::XMLoadFloat3(&sourceA[i].scale) };
+            const DirectX::XMVECTOR r0{ DirectX::XMLoadFloat4(&sourceA[i].rotation) };
+            const DirectX::XMVECTOR t0{ DirectX::XMLoadFloat3(&sourceA[i].position) };
+
+            const DirectX::XMVECTOR s1{ DirectX::XMLoadFloat3(&sourceB[i].scale) };
+            const DirectX::XMVECTOR r1{ DirectX::XMLoadFloat4(&sourceB[i].rotation) };
+            const DirectX::XMVECTOR t1{ DirectX::XMLoadFloat3(&sourceB[i].position) };
+
+            DirectX::XMStoreFloat3(&outResult[i].scale, DirectX::XMVectorLerp(s0, s1, safeWeight));
+            DirectX::XMStoreFloat4(&outResult[i].rotation, DirectX::XMQuaternionSlerp(r0, r1, safeWeight));
+            DirectX::XMStoreFloat3(&outResult[i].position, DirectX::XMVectorLerp(t0, t1, safeWeight));
+        }
+    }
+}
+
 float AnimationComponent::GetStateDurationByHash(const std::uint64_t stateHash) const noexcept
 {
     if (!m_model) return 0.0f;
@@ -58,6 +91,10 @@ void AnimationComponent::SetModel(std::shared_ptr<Model> model) noexcept
 
     m_currentNodeGlobals.resize(nodeCount);
     m_previousNodeGlobals.resize(nodeCount);
+
+    m_scratchpad.bufferA.resize(nodeCount);
+    m_scratchpad.bufferB.resize(nodeCount);
+    m_scratchpad.result.resize(nodeCount);
 
     // Initialize buffers to the model's true bind pose 
     // If we don't do this, local translations default to (0,0,0), collapsing the mesh to the root

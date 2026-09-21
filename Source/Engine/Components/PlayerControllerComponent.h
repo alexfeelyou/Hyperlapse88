@@ -3,6 +3,7 @@
 #include <array>           
 #include <DirectXMath.h>
 #include <memory>
+#include "AnimBlackboard.h"
 #include "IComponent.h"
 #include "StateMachine.h" 
 
@@ -55,6 +56,10 @@ public:
     // Exposes the state machine 
     [[nodiscard]] StateMachine* GetStateMachine() const noexcept { return m_stateMachine.get(); }
 
+    // Exposes the blackboard for the Animation system to read
+    [[nodiscard]] Engine::Animation::AnimBlackboard& getAnimBlackboard() noexcept { return m_blackboard; }
+    [[nodiscard]] const Engine::Animation::AnimBlackboard& getAnimBlackboard() const noexcept { return m_blackboard; }
+
     // Fast O(1) state retrieval from the preallocated array 
     [[nodiscard]] PlayerState* GetState(PlayerStateType type) const noexcept
     {
@@ -78,4 +83,7 @@ private:
 
     // Preallocated states pool (Zero allocations at runtime) 
     std::array<std::unique_ptr<PlayerState>, static_cast<std::size_t>(PlayerStateType::Count)> m_states{};
+
+	// Shared data contract between gameplay and animation systems
+    Engine::Animation::AnimBlackboard m_blackboard{};
 };

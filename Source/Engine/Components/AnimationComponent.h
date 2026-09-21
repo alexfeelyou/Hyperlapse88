@@ -108,6 +108,17 @@ public:
     [[nodiscard]] std::size_t GetCurrentStateIndex() const noexcept { return m_currentStateIndex; }
 
 private:
+    // Fixed-size evaluation buffers for multi-clip blending
+    // Eliminates dynamic heap allocations during graph evaluation.
+    struct PoseScratchpad
+    {
+        std::vector<Model::NodePose> bufferA{};
+        std::vector<Model::NodePose> bufferB{};
+        std::vector<Model::NodePose> result{};
+    };
+
+    PoseScratchpad m_scratchpad{};
+
     void ComputeGlobalTransforms() noexcept;
     void ProcessEvents(float dt, const AnimationState& state, float previousTimer, float currentTimer) noexcept;
 
