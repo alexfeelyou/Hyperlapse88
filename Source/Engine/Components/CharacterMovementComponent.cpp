@@ -145,10 +145,10 @@ void CharacterMovementComponent::Serialize(nlohmann::json& outJson) const
 
 void CharacterMovementComponent::Deserialize(const nlohmann::json& inJson)
 {
-    m_config.maxWalkSpeed = inJson.value("MaxWalkSpeed", 15.0f);
-    m_config.acceleration = inJson.value("Acceleration", 50.0f);
-    m_config.deceleration = inJson.value("Deceleration", 60.0f);
-    m_config.impulseDrag = inJson.value("ImpulseDrag", 5.0f);
+    m_config.maxWalkSpeed = inJson.value("MaxWalkSpeed", 8.5f);
+    m_config.acceleration = inJson.value("Acceleration", 32.0f);
+    m_config.deceleration = inJson.value("Deceleration", 38.0f);
+    m_config.impulseDrag = inJson.value("ImpulseDrag", 7.5f);
     m_config.useGravity = inJson.value("UseGravity", true);
 }
 

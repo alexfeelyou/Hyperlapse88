@@ -9,10 +9,10 @@ class CapsuleColliderComponent;
 // Data-driven configuration for locomotion mechanics
 struct CharacterMovementConfig
 {
-    float maxWalkSpeed{ 15.0f };
-    float acceleration{ 50.0f };
-    float deceleration{ 60.0f };
-    float impulseDrag{ 5.0f };     // How quickly external forces (dashes/knockbacks) decay
+    float maxWalkSpeed{ 8.5f };    
+    float acceleration{ 32.0f };   
+    float deceleration{ 38.0f };   
+    float impulseDrag{ 7.5f };     
     float gravity{ -9.81f };
     bool  useGravity{ true };
 };

@@ -799,10 +799,10 @@
                     "Type": "CapsuleColliderComponent"
                 },
                 {
-                    "Acceleration": 21.0,
-                    "Deceleration": 23.5,
-                    "ImpulseDrag": 11.899999618530273,
-                    "MaxWalkSpeed": 8.899999618530273,
+                    "Acceleration": 32.0,
+                    "Deceleration": 38.0,
+                    "ImpulseDrag": 7.5,
+                    "MaxWalkSpeed": 8.5,
                     "Type": "CharacterMovementComponent",
                     "UseGravity": true
                 },
