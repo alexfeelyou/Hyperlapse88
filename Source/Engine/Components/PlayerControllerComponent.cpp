@@ -102,10 +102,13 @@ void PlayerControllerComponent::ResolveIntentToWorldSpace() noexcept
     const float inputX{ m_intent.moveVector.x };
     const float inputY{ m_intent.moveVector.y };
 
-    // Projects input-space strafe/forward onto the camera's world-space right/forward basis
+    // Projects input-space strafe/forward onto camera right/front:
+    // right = (cos y, 0, -sin y), front = (sin y, 0, cos y) — the exact same vectors
+    // Camera::UpdateViewMatrix derives, so "forward" always matches the camera's own
+    // idea of forward, not an inverted or offset one.
     m_intent.worldMoveDirection = {
-        (inputX * cosYaw) - (inputY * sinYaw),
-        -(inputX * sinYaw) - (inputY * cosYaw)
+        (inputX * cosYaw) + (inputY * sinYaw),
+        (-inputX * sinYaw) + (inputY * cosYaw)
     };
 }
 

@@ -17,4 +17,9 @@ namespace FacingResolver
     // Immediately sets yaw to face worldDirectionXZ. Same zero-length guard as
     // SmoothFaceDirection.
     void SnapFaceDirection(GameObject* character, const DirectX::XMFLOAT2& worldDirectionXZ) noexcept;
+
+    // Returns rawWorldDirectionXZ unchanged if non-zero-length; otherwise returns the
+    // character's current facing as a world-space XZ direction.
+    [[nodiscard]] DirectX::XMFLOAT2 ResolveDirectionOrCurrentFacing(const GameObject* character,
+        const DirectX::XMFLOAT2& rawWorldDirectionXZ) noexcept;
 }

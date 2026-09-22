@@ -1,5 +1,8 @@
 #include "AnimationComponent.h"
 #include "CharacterMovementComponent.h"
+#include "FacingResolver.h"
+#include "GameObject.h"
+#include "OrbitCameraDriverComponent.h"
 #include "PlayerStates.h"
 #include "StateMachine.h"
 
@@ -41,6 +44,23 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
     blackboard.verticalVelocity = velocity.y;
     blackboard.setFlag(AnimFlag::is_grounded, motor->isGrounded());
 
+    // Facing: continuously re-face every frame while Locomotion is active.
+    //  - Strafing (is_strafing true, currently unset anywhere — dormant until a lock-on
+    //    system sets it): always face the camera's look direction, so the player can
+    //    circle-strafe independent of movement direction.
+    //  - Free (default): face the resolved world-space move direction. No input leaves
+    //    facing untouched (SmoothFaceDirection no-ops on a zero-length direction).
+    constexpr float turnRateDegPerSec{ 720.0f }; 
+
+    DirectX::XMFLOAT2 faceTargetXZ{ intent.worldMoveDirection };
+    if (blackboard.getFlag(AnimFlag::is_strafing))
+    {
+        const float cameraYawRad{ OrbitCameraDriverComponent::GetActiveYawRadians() };
+        faceTargetXZ = { std::sin(cameraYawRad), std::cos(cameraYawRad) };
+    }
+
+    FacingResolver::SmoothFaceDirection(controller->GetOwner(), faceTargetXZ, turnRateDegPerSec, dt);
+
     // O(1) Semantic Execution (Zero String Hashing)
     if (auto* anim{ controller->GetAnimation() })
     {
@@ -58,7 +78,7 @@ void PlayerSlide::Enter(PlayerControllerComponent*) {}
 void PlayerSlide::Update(PlayerControllerComponent*, float) {}
 void PlayerSlide::Exit(PlayerControllerComponent*) {}
 
-// 2. AERIAL & PARKOUR
+// AERIAL & PARKOUR
 
 void PlayerAirTraversal::Enter(PlayerControllerComponent*) {}
 void PlayerAirTraversal::Update(PlayerControllerComponent*, float) {}
@@ -73,11 +93,9 @@ void PlayerDashEvade::Enter(PlayerControllerComponent* controller)
     m_canCancel = false;
     const auto& intent{ controller->GetIntent() };
 
-    m_dashDir = intent.moveVector;
-    if (m_dashDir.x == 0.0f && m_dashDir.y == 0.0f)
-    {
-        m_dashDir = { 0.0f, 1.0f };
-    }
+    // World-space, with fallback to current facing — using raw moveVector here would
+    // fire the dash along a camera-independent axis while locomotion moves camera-relative.
+    m_dashDir = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
 
     if (auto* motor{ controller->GetMovement() })
     {
@@ -87,6 +105,9 @@ void PlayerDashEvade::Enter(PlayerControllerComponent* controller)
             m_dashDir.y * DASH_IMPULSE_FORCE
             });
     }
+
+    // Snap once — facing locks for the whole dash, doesn't re-steer mid-dash.
+    FacingResolver::SnapFaceDirection(controller->GetOwner(), m_dashDir);
 
     if (auto* anim{ controller->GetAnimation() })
     {
@@ -133,17 +154,12 @@ void PlayerDashEvade::Update(PlayerControllerComponent* controller, float dt)
 void PlayerDashEvade::Exit(PlayerControllerComponent* controller) {}
 
 // COMBAT (GROUND)
-
 void PlayerAttackPrimary::Enter(PlayerControllerComponent* controller)
 {
     m_comboIndex = 0;
 
     const auto& intent = controller->GetIntent();
-    m_lungeDirection = intent.moveVector;
-    if (m_lungeDirection.x == 0.0f && m_lungeDirection.y == 0.0f)
-    {
-        m_lungeDirection = { 0.0f, 1.0f };
-    }
+    m_lungeDirection = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
 
     if (auto* motor = controller->GetMovement())
     {
@@ -159,6 +175,11 @@ void PlayerAttackPrimary::PlayCurrentAttack(PlayerControllerComponent* controlle
     m_attackBufferTimer = 0.0f;
 
     controller->getAnimBlackboard().actionIndex = m_comboIndex;
+
+    // Snap once per combo hit — each hit locks facing for its own duration; consecutive
+    // hits can still turn the character between swings since m_lungeDirection is
+    // recomputed per hit below, but never mid-swing.
+    FacingResolver::SnapFaceDirection(controller->GetOwner(), m_lungeDirection);
 
     if (auto* anim = controller->GetAnimation())
     {
@@ -209,13 +230,7 @@ void PlayerAttackPrimary::Update(PlayerControllerComponent* controller, float dt
         if (m_comboIndex < 3)
         {
             m_comboIndex++;
-
-            m_lungeDirection = intent.moveVector;
-            if (m_lungeDirection.x == 0.0f && m_lungeDirection.y == 0.0f)
-            {
-                m_lungeDirection = { 0.0f, 1.0f };
-            }
-
+            m_lungeDirection = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
             PlayCurrentAttack(controller);
             return;
         }

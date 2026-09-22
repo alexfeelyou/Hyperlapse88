@@ -56,4 +56,14 @@ namespace FacingResolver
 
         character->SetRotation({ currentRotation.x, targetYaw, currentRotation.z });
     }
+
+    DirectX::XMFLOAT2 ResolveDirectionOrCurrentFacing(const GameObject* character,
+        const DirectX::XMFLOAT2& rawWorldDirectionXZ) noexcept
+    {
+        if (IsDirectionMeaningful(rawWorldDirectionXZ)) return rawWorldDirectionXZ;
+        if (!character) return { 0.0f, 1.0f };
+
+        const float yawRad{ DirectX::XMConvertToRadians(character->GetRotation().y) };
+        return { std::sin(yawRad), std::cos(yawRad) };
+    }
 }

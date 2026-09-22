@@ -95,7 +95,7 @@ private:
     // Orbit Rig State
     bool m_orbitEnabled{ false };
 
-    float m_orbitYaw{ 0.0f };           // Radians. World-space horizontal angle around the pivot.
+    float m_orbitYaw{ DirectX::XM_PI };
     float m_orbitPitch{ 0.0f };         // Radians. Clamped to [m_orbitMinPitch, m_orbitMaxPitch].
     float m_orbitDistance{ 6.0f };      // Distance from the pivot to the camera eye.
 
