@@ -20,6 +20,7 @@ public:
 
     // Tells the controller if the mouse is safely inside the 3D viewport
     void SetViewportHovered(bool hovered) noexcept { m_isViewportHovered = hovered; }
+    [[nodiscard]] bool IsViewportHovered() const noexcept { return m_isViewportHovered; }
 
     // Syncs the controller's internal Euler angles to the physical camera
     void SyncFromActiveCamera() noexcept;

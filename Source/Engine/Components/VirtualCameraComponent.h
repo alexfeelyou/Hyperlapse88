@@ -62,6 +62,8 @@ public:
     // (e.g. chest height, so the camera doesn't orbit around the character's feet).
     void SetOrbitPivotOffset(const DirectX::XMFLOAT3& offset) noexcept { m_orbitPivotOffset = offset; }
     [[nodiscard]] const DirectX::XMFLOAT3& GetOrbitPivotOffset() const noexcept { return m_orbitPivotOffset; }
+    void SetOrbitShoulderOffset(float offset) noexcept { m_orbitShoulderOffset = offset; }
+    [[nodiscard]] float GetOrbitShoulderOffset() const noexcept { return m_orbitShoulderOffset; }
 
     [[nodiscard]] static const std::vector<VirtualCameraComponent*>& GetRegistry() noexcept { return s_registry; }
 
@@ -105,6 +107,7 @@ private:
     float m_orbitMaxDistance{ 12.0f };
 
     DirectX::XMFLOAT3 m_orbitPivotOffset{ 0.0f, 1.6f, 0.0f };
+    float m_orbitShoulderOffset{ 0.6f };
 
     float m_orbitPositionDamping{ 12.0f };
     float m_orbitRotationDamping{ 20.0f };

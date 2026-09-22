@@ -34,6 +34,7 @@ public:
 
 private:
     VirtualCameraComponent* m_orbitCamera{ nullptr };
+    bool m_isCaptured{ true };
 
     // Non-owning. Set in OnAttach, cleared in the destructor — mirrors
     // VirtualCameraComponent's own s_registry add/remove-on-destroy pattern.

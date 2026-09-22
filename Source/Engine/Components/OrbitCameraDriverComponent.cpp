@@ -1,4 +1,6 @@
+#include <imgui.h>
 #include "System/Input.h"
+#include "CameraController.h"
 #include "CameraInput.h"
 #include "ComponentRegistry.h"
 #include "EditorManager.h"
@@ -38,10 +40,11 @@ float OrbitCameraDriverComponent::GetActiveYawRadians() noexcept
 
 void OrbitCameraDriverComponent::Update(float dt)
 {
-    // Fast fail outside Play: no gameplay camera input, no cursor lock, while editing the scene
+    // Fast fail outside Play: reset capture state so it automatically captures next time we hit Play.
     if (EditorManager::Instance().GetEditorMode() != EditorMode::Play)
     {
         Input::Instance().GetMouse().LockCursor(false);
+        m_isCaptured = true;
         return;
     }
 
@@ -51,15 +54,31 @@ void OrbitCameraDriverComponent::Update(float dt)
         if (!m_orbitCamera) return;
     }
 
-    // The orbit camera needs a hidden, recentering cursor to read continuous mouse deltas
-    // instead of deltas against wherever the OS cursor happens to sit.
-    Input::Instance().GetMouse().LockCursor(true);
+    // Shift + F1 to release the cursor back to the Editor
+    const bool isShiftDown = ImGui::IsKeyDown(ImGuiKey_LeftShift) || ImGui::IsKeyDown(ImGuiKey_RightShift);
+    if (m_isCaptured && isShiftDown && ImGui::IsKeyPressed(ImGuiKey_F1, false))
+    {
+        m_isCaptured = false;
+    }
+    // Left click inside the 3D Viewport to re-capture the mouse
+    else if (!m_isCaptured && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && CameraController::Instance().IsViewportHovered())
+    {
+        m_isCaptured = true;
+    }
 
     m_orbitCamera->SetOrbitEnabled(true);
 
-    const DirectX::XMFLOAT2 delta{ CameraInput::ResolveOrbitDelta(dt) };
-    m_orbitCamera->AddOrbitYaw(delta.x);
-    m_orbitCamera->AddOrbitPitch(delta.y);
+    if (m_isCaptured)
+    {
+        Input::Instance().GetMouse().LockCursor(true);
+        const DirectX::XMFLOAT2 delta{ CameraInput::ResolveOrbitDelta(dt) };
+        m_orbitCamera->AddOrbitYaw(delta.x);
+        m_orbitCamera->AddOrbitPitch(delta.y);
+    }
+    else
+    {
+        Input::Instance().GetMouse().LockCursor(false);
+    }
 }
 
 void OrbitCameraDriverComponent::OnDisable() noexcept

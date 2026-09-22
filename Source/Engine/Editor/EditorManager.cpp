@@ -353,8 +353,6 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
         ImGui::PopStyleVar(3);
     }
 
-    CameraController::Instance().SetViewportHovered(ImGui::IsWindowHovered());
-
     constexpr ImVec2 buttonSize{ 34.0f, 22.0f };
     const float totalToolbarWidth{ (buttonSize.x * 3.0f) + (ImGui::GetStyle().ItemSpacing.x * 2.0f) };
 
@@ -456,9 +454,11 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
     const ImVec2 originalCursorPos{ ImGui::GetCursorPos() };
     ImGui::SetCursorPos(ImVec2{ originalCursorPos.x + cursorOffset.x, originalCursorPos.y + cursorOffset.y });
 
+    bool isImageHovered = false;
     if (m_sceneSRV)
     {
         ImGui::Image(reinterpret_cast<ImTextureID>(m_sceneSRV.Get()), renderSize);
+        isImageHovered = ImGui::IsItemHovered();
     }
 
     const bool isPlayMode{ m_editorMode == EditorMode::Play };
@@ -625,6 +625,11 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
             s_restoreDock = true;
         }
     }
+
+    // Resolve overlapping UI states mathematically at the end of the scope.
+    // Subtract the overlapping Maximize button hover state so it doesn't trigger the camera capture.
+    bool isMaximizeHovered = ImGui::IsItemHovered();
+    CameraController::Instance().SetViewportHovered(isImageHovered && !isMaximizeHovered);
 
     ImGui::End();
 }

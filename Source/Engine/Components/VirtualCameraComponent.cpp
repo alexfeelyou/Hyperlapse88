@@ -130,6 +130,7 @@ std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> VirtualCameraComponent::ResolveO
     const float cy{ std::cos(m_orbitYaw) };
 
     const DirectX::XMVECTOR vFront{ DirectX::XMVectorSet(-cx * sy, -sx, -cx * cy, 0.0f) };
+    const DirectX::XMVECTOR vRight{ DirectX::XMVectorSet(cy, 0.0f, -sy, 0.0f) };
 
     // The pivot is the follow target's position offset upward (or wherever configured),
     // never the target's raw feet/root position — orbiting around the feet looks wrong.
@@ -141,7 +142,10 @@ std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> VirtualCameraComponent::ResolveO
     };
 
     const DirectX::XMVECTOR vPivot{ DirectX::XMLoadFloat3(&pivot) };
-    const DirectX::XMVECTOR vEye{ DirectX::XMVectorSubtract(vPivot, DirectX::XMVectorScale(vFront, m_orbitDistance)) };
+
+    // Push eye back by distance, then shift laterally along vRight by shoulder offset
+    DirectX::XMVECTOR vEye{ DirectX::XMVectorSubtract(vPivot, DirectX::XMVectorScale(vFront, m_orbitDistance)) };
+    vEye = DirectX::XMVectorAdd(vEye, DirectX::XMVectorScale(vRight, m_orbitShoulderOffset));
 
     DirectX::XMFLOAT3 eyePos{};
     DirectX::XMStoreFloat3(&eyePos, vEye);
@@ -312,6 +316,16 @@ void VirtualCameraComponent::DrawInspector()
 
     ImGui::Separator();
 
+    ImGui::TextDisabled("Orbit Rig Settings");
+    if (ImGui::DragFloat("Orbit Distance", &m_orbitDistance, 0.1f, m_orbitMinDistance, m_orbitMaxDistance)) m_isDirty = true;
+    if (ImGui::DragFloat3("Pivot Offset", &m_orbitPivotOffset.x, 0.05f)) m_isDirty = true;
+    if (ImGui::DragFloat("Shoulder Offset", &m_orbitShoulderOffset, 0.05f, -3.0f, 3.0f)) m_isDirty = true;
+    if (ImGui::DragFloat("Min Pitch", &m_orbitMinPitch, 0.01f, -DirectX::XM_PI, 0.0f)) m_isDirty = true;
+    if (ImGui::DragFloat("Max Pitch", &m_orbitMaxPitch, 0.01f, 0.0f, DirectX::XM_PI)) m_isDirty = true;
+    if (m_isDirty) s_globalDirtyFrame++;
+
+    ImGui::Separator();
+
     static char s_lookBuf[64];
     strncpy_s(s_lookBuf, sizeof(s_lookBuf), m_lookAtTargetName.c_str(), _TRUNCATE);
     if (ImGui::InputText("Look-At Target", s_lookBuf, sizeof(s_lookBuf)))
@@ -471,6 +485,13 @@ void VirtualCameraComponent::Serialize(nlohmann::json& outJson) const
     outJson["FovDegrees"] = m_fovDegrees;
     outJson["NearZ"] = m_nearZ;
     outJson["FarZ"] = m_farZ;
+    outJson["OrbitDistance"] = m_orbitDistance;
+    outJson["OrbitPivotOffsetX"] = m_orbitPivotOffset.x;
+    outJson["OrbitPivotOffsetY"] = m_orbitPivotOffset.y;
+    outJson["OrbitPivotOffsetZ"] = m_orbitPivotOffset.z;
+    outJson["OrbitShoulderOffset"] = m_orbitShoulderOffset;
+    outJson["OrbitMinPitch"] = m_orbitMinPitch;
+    outJson["OrbitMaxPitch"] = m_orbitMaxPitch;
 }
 
 void VirtualCameraComponent::Deserialize(const nlohmann::json& inJson)
@@ -486,6 +507,13 @@ void VirtualCameraComponent::Deserialize(const nlohmann::json& inJson)
     m_fovDegrees = inJson.value("FovDegrees", m_fovDegrees);
     m_nearZ = inJson.value("NearZ", m_nearZ);
     m_farZ = inJson.value("FarZ", m_farZ);
+    m_orbitDistance = inJson.value("OrbitDistance", m_orbitDistance);
+    m_orbitPivotOffset.x = inJson.value("OrbitPivotOffsetX", m_orbitPivotOffset.x);
+    m_orbitPivotOffset.y = inJson.value("OrbitPivotOffsetY", m_orbitPivotOffset.y);
+    m_orbitPivotOffset.z = inJson.value("OrbitPivotOffsetZ", m_orbitPivotOffset.z);
+    m_orbitShoulderOffset = inJson.value("OrbitShoulderOffset", m_orbitShoulderOffset);
+    m_orbitMinPitch = inJson.value("OrbitMinPitch", m_orbitMinPitch);
+    m_orbitMaxPitch = inJson.value("OrbitMaxPitch", m_orbitMaxPitch);
 
     ResolveTargets();
 }
