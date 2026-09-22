@@ -6,6 +6,7 @@
 #include "CameraController.h"
 #include "ComponentRegistry.h"
 #include "GameObject.h"
+#include "OrbitCameraDriverComponent.h"
 #include "VirtualCameraComponent.h"
 
 namespace
@@ -291,6 +292,10 @@ void VirtualCameraComponent::DrawInspector()
     ImGui::DragInt("Priority", &m_priority, 1, 0, 999);
     ImGui::Separator();
 
+    // Dynamically check if the Orbit Driver is attached to this exact GameObject
+    const bool hasOrbitDriver = m_owner->GetComponent<OrbitCameraDriverComponent>() != nullptr;
+
+    ImGui::TextDisabled("TARGET SETTINGS");
     static char s_followBuf[64];
     strncpy_s(s_followBuf, sizeof(s_followBuf), m_followTargetName.c_str(), _TRUNCATE);
     if (ImGui::InputText("Follow Target", s_followBuf, sizeof(s_followBuf)))
@@ -302,30 +307,8 @@ void VirtualCameraComponent::DrawInspector()
         ForceSync();
     }
 
-    if (ImGui::DragFloat3("Follow Offset", &m_followOffset.x, 0.1f))
-    {
-        m_isDirty = true;
-        s_globalDirtyFrame++;
-        ForceSync();
-    }
-    if (ImGui::DragFloat("Position Damping", &m_positionDamping, 0.1f, 0.0f, 50.0f))
-    {
-        m_isDirty = true;
-        s_globalDirtyFrame++;
-    }
-
-    ImGui::Separator();
-
-    ImGui::TextDisabled("Orbit Rig Settings");
-    if (ImGui::DragFloat("Orbit Distance", &m_orbitDistance, 0.1f, m_orbitMinDistance, m_orbitMaxDistance)) m_isDirty = true;
-    if (ImGui::DragFloat3("Pivot Offset", &m_orbitPivotOffset.x, 0.05f)) m_isDirty = true;
-    if (ImGui::DragFloat("Shoulder Offset", &m_orbitShoulderOffset, 0.05f, -3.0f, 3.0f)) m_isDirty = true;
-    if (ImGui::DragFloat("Min Pitch", &m_orbitMinPitch, 0.01f, -DirectX::XM_PI, 0.0f)) m_isDirty = true;
-    if (ImGui::DragFloat("Max Pitch", &m_orbitMaxPitch, 0.01f, 0.0f, DirectX::XM_PI)) m_isDirty = true;
-    if (m_isDirty) s_globalDirtyFrame++;
-
-    ImGui::Separator();
-
+    // Standard Look-At is ignored if the Orbit Rig is steering the rotation
+    if (hasOrbitDriver) ImGui::BeginDisabled();
     static char s_lookBuf[64];
     strncpy_s(s_lookBuf, sizeof(s_lookBuf), m_lookAtTargetName.c_str(), _TRUNCATE);
     if (ImGui::InputText("Look-At Target", s_lookBuf, sizeof(s_lookBuf)))
@@ -336,29 +319,38 @@ void VirtualCameraComponent::DrawInspector()
         s_globalDirtyFrame++;
         ForceSync();
     }
-    if (ImGui::DragFloat("Rotation Damping", &m_rotationDamping, 0.1f, 0.0f, 50.0f))
-    {
-        m_isDirty = true;
-        s_globalDirtyFrame++;
-    }
+    if (hasOrbitDriver) ImGui::EndDisabled();
 
+    ImGui::Spacing();
     ImGui::Separator();
 
-    if (ImGui::DragFloat("Field of View", &m_fovDegrees, 0.1f, 1.0f, 179.0f))
+    if (hasOrbitDriver)
     {
-        m_isDirty = true;
-        s_globalDirtyFrame++;
+        ImGui::TextColored(ImVec4(0.2f, 0.8f, 1.0f, 1.0f), "ORBIT RIG SETTINGS (ACTIVE)");
+        if (ImGui::DragFloat("Orbit Distance", &m_orbitDistance, 0.1f, m_orbitMinDistance, m_orbitMaxDistance)) m_isDirty = true;
+        if (ImGui::DragFloat3("Pivot Offset", &m_orbitPivotOffset.x, 0.05f)) m_isDirty = true;
+        if (ImGui::DragFloat("Shoulder Offset", &m_orbitShoulderOffset, 0.05f, -3.0f, 3.0f)) m_isDirty = true;
+        if (ImGui::DragFloat("Position Damping", &m_orbitPositionDamping, 0.1f, 0.0f, 50.0f)) m_isDirty = true;
+        if (ImGui::DragFloat("Rotation Damping", &m_orbitRotationDamping, 0.1f, 0.0f, 50.0f)) m_isDirty = true;
+        if (ImGui::DragFloat("Min Pitch", &m_orbitMinPitch, 0.01f, -DirectX::XM_PI, 0.0f)) m_isDirty = true;
+        if (ImGui::DragFloat("Max Pitch", &m_orbitMaxPitch, 0.01f, 0.0f, DirectX::XM_PI)) m_isDirty = true;
+        if (m_isDirty) s_globalDirtyFrame++;
     }
-    if (ImGui::DragFloat("Near Clip", &m_nearZ, 0.01f, 0.01f, m_farZ - 0.01f))
+    else
     {
-        m_isDirty = true;
-        s_globalDirtyFrame++;
+        ImGui::TextDisabled("STANDARD FOLLOW SETTINGS");
+        if (ImGui::DragFloat3("Follow Offset", &m_followOffset.x, 0.1f)) { m_isDirty = true; s_globalDirtyFrame++; ForceSync(); }
+        if (ImGui::DragFloat("Position Damping", &m_positionDamping, 0.1f, 0.0f, 50.0f)) { m_isDirty = true; s_globalDirtyFrame++; }
+        if (ImGui::DragFloat("Rotation Damping", &m_rotationDamping, 0.1f, 0.0f, 50.0f)) { m_isDirty = true; s_globalDirtyFrame++; }
     }
-    if (ImGui::DragFloat("Far Clip", &m_farZ, 1.0f, m_nearZ + 0.01f, 100000.0f))
-    {
-        m_isDirty = true;
-        s_globalDirtyFrame++;
-    }
+
+    ImGui::Spacing();
+    ImGui::Separator();
+
+    ImGui::TextDisabled("LENS SETTINGS");
+    if (ImGui::DragFloat("Field of View", &m_fovDegrees, 0.1f, 1.0f, 179.0f)) { m_isDirty = true; s_globalDirtyFrame++; }
+    if (ImGui::DragFloat("Near Clip", &m_nearZ, 0.01f, 0.01f, m_farZ - 0.01f)) { m_isDirty = true; s_globalDirtyFrame++; }
+    if (ImGui::DragFloat("Far Clip", &m_farZ, 1.0f, m_nearZ + 0.01f, 100000.0f)) { m_isDirty = true; s_globalDirtyFrame++; }
 
     ImGui::Separator();
     ImGui::DragFloat("Gizmo Draw Distance", &m_gizmoDrawDistance, 0.1f, 0.5f, 100.0f);
