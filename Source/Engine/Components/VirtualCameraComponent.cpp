@@ -1,7 +1,10 @@
 #include <algorithm>
 #include <cmath>
 #include <imgui.h>
+#include <PxPhysicsAPI.h>
+#include "System/CollisionLayer.h"
 #include "System/Graphics.h"
+#include "System/PhysicsManager.h"
 #include "System/ShapeRenderer.h"
 #include "CameraController.h"
 #include "ComponentRegistry.h"
@@ -209,9 +212,71 @@ void VirtualCameraComponent::Update(float dt)
 
     if (m_orbitEnabled && m_followTarget)
     {
-        const auto [desiredPos, desiredRotRad] { ResolveOrbitTransform() };
+        auto orbitResult{ ResolveOrbitTransform() };
+        DirectX::XMFLOAT3 desiredPos = orbitResult.first;
+        const DirectX::XMFLOAT3 desiredRotRad = orbitResult.second;
 
-        // Position: exponential damping toward the orbit-resolved eye position.
+		// Camera collision: if enabled, perform a sphere cast from the pivot to the desired eye position.
+        if (m_cameraCollisionEnabled)
+        {
+            const DirectX::XMFLOAT3 targetPos{ m_followTarget->GetPosition() };
+            const DirectX::XMFLOAT3 pivot{
+                targetPos.x + m_orbitPivotOffset.x,
+                targetPos.y + m_orbitPivotOffset.y,
+                targetPos.z + m_orbitPivotOffset.z
+            };
+
+            const DirectX::XMVECTOR vPivot{ DirectX::XMLoadFloat3(&pivot) };
+            DirectX::XMVECTOR vDesired{ DirectX::XMLoadFloat3(&desiredPos) };
+            const DirectX::XMVECTOR vDir{ DirectX::XMVectorSubtract(vDesired, vPivot) };
+            const DirectX::XMVECTOR vLength{ DirectX::XMVector3Length(vDir) };
+
+            float maxDistance = 0.0f;
+            DirectX::XMStoreFloat(&maxDistance, vLength);
+
+            if (maxDistance > 0.001f)
+            {
+                const DirectX::XMVECTOR vDirNorm{ DirectX::XMVectorScale(vDir, 1.0f / maxDistance) };
+                DirectX::XMFLOAT3 dir{};
+                DirectX::XMStoreFloat3(&dir, vDirNorm);
+
+                float hitDistance = maxDistance;
+                bool hit = false;
+
+                // Zero-allocation PhysX Query
+                auto* scene = PhysicsManager::Instance().GetScene();
+                if (scene)
+                {
+                    const physx::PxSphereGeometry sphereGeom(m_cameraCollisionRadius);
+                    const physx::PxTransform startPose(physx::PxVec3(pivot.x, pivot.y, pivot.z));
+                    const physx::PxVec3 sweepDir(dir.x, dir.y, dir.z);
+
+                    physx::PxSweepBuffer hitBuffer;
+
+                    // Filter: Only hit WorldStatic and WorldDynamic objects (ignore Player and Triggers)
+                    physx::PxQueryFilterData filterData;
+                    filterData.data.word0 = CollisionLayer::WorldStatic | CollisionLayer::WorldDynamic;
+                    filterData.flags = physx::PxQueryFlag::eSTATIC | physx::PxQueryFlag::eDYNAMIC;
+
+                    // Execute the sweep
+                    if (scene->sweep(sphereGeom, startPose, sweepDir, maxDistance, hitBuffer, physx::PxHitFlag::eDEFAULT, filterData))
+                    {
+                        hit = true;
+                        hitDistance = hitBuffer.block.distance;
+                    }
+                }
+
+                if (hit)
+                {
+                    // Pull camera forward to prevent clipping, leaving a tiny physical buffer
+                    hitDistance = (std::max)(0.0f, hitDistance - 0.05f);
+                    vDesired = DirectX::XMVectorAdd(vPivot, DirectX::XMVectorScale(vDirNorm, hitDistance));
+                    DirectX::XMStoreFloat3(&desiredPos, vDesired);
+                }
+            }
+        }
+
+        // Position: exponential damping toward the orbit-resolved (and collision-adjusted) eye position.
         const float tPos{ m_isDirty ? 1.0f : CalculateDampingBlend(m_orbitPositionDamping, dt) };
         currentPos.x += (desiredPos.x - currentPos.x) * tPos;
         currentPos.y += (desiredPos.y - currentPos.y) * tPos;
@@ -334,6 +399,15 @@ void VirtualCameraComponent::DrawInspector()
         if (ImGui::DragFloat("Rotation Damping", &m_orbitRotationDamping, 0.1f, 0.0f, 50.0f)) m_isDirty = true;
         if (ImGui::DragFloat("Min Pitch", &m_orbitMinPitch, 0.01f, -DirectX::XM_PI, 0.0f)) m_isDirty = true;
         if (ImGui::DragFloat("Max Pitch", &m_orbitMaxPitch, 0.01f, 0.0f, DirectX::XM_PI)) m_isDirty = true;
+
+        ImGui::Separator();
+        ImGui::TextColored(ImVec4(0.2f, 0.8f, 1.0f, 1.0f), "CAMERA COLLISION");
+        if (ImGui::Checkbox("Enable Collision", &m_cameraCollisionEnabled)) m_isDirty = true;
+
+        ImGui::BeginDisabled(!m_cameraCollisionEnabled);
+        if (ImGui::DragFloat("Collision Radius", &m_cameraCollisionRadius, 0.01f, 0.01f, 1.0f)) m_isDirty = true;
+        ImGui::EndDisabled();
+
         if (m_isDirty) s_globalDirtyFrame++;
     }
     else
@@ -484,6 +558,8 @@ void VirtualCameraComponent::Serialize(nlohmann::json& outJson) const
     outJson["OrbitShoulderOffset"] = m_orbitShoulderOffset;
     outJson["OrbitMinPitch"] = m_orbitMinPitch;
     outJson["OrbitMaxPitch"] = m_orbitMaxPitch;
+    outJson["CameraCollisionEnabled"] = m_cameraCollisionEnabled;
+    outJson["CameraCollisionRadius"] = m_cameraCollisionRadius;
 }
 
 void VirtualCameraComponent::Deserialize(const nlohmann::json& inJson)
@@ -506,6 +582,8 @@ void VirtualCameraComponent::Deserialize(const nlohmann::json& inJson)
     m_orbitShoulderOffset = inJson.value("OrbitShoulderOffset", m_orbitShoulderOffset);
     m_orbitMinPitch = inJson.value("OrbitMinPitch", m_orbitMinPitch);
     m_orbitMaxPitch = inJson.value("OrbitMaxPitch", m_orbitMaxPitch);
+    m_cameraCollisionEnabled = inJson.value("CameraCollisionEnabled", m_cameraCollisionEnabled);
+    m_cameraCollisionRadius = inJson.value("CameraCollisionRadius", m_cameraCollisionRadius);
 
     ResolveTargets();
 }

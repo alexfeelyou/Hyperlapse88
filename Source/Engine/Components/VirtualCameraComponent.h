@@ -65,6 +65,12 @@ public:
     void SetOrbitShoulderOffset(float offset) noexcept { m_orbitShoulderOffset = offset; }
     [[nodiscard]] float GetOrbitShoulderOffset() const noexcept { return m_orbitShoulderOffset; }
 
+    // Camera Collision (Sphere Sweep)
+    void SetCameraCollisionEnabled(bool enabled) noexcept { m_cameraCollisionEnabled = enabled; }
+    [[nodiscard]] bool IsCameraCollisionEnabled() const noexcept { return m_cameraCollisionEnabled; }
+    void SetCameraCollisionRadius(float radius) noexcept { m_cameraCollisionRadius = radius; }
+    [[nodiscard]] float GetCameraCollisionRadius() const noexcept { return m_cameraCollisionRadius; }
+
     [[nodiscard]] static const std::vector<VirtualCameraComponent*>& GetRegistry() noexcept { return s_registry; }
 
     // Shared Batch Pipeline
@@ -108,6 +114,9 @@ private:
 
     DirectX::XMFLOAT3 m_orbitPivotOffset{ 0.0f, 1.6f, 0.0f };
     float m_orbitShoulderOffset{ 0.6f };
+
+    bool m_cameraCollisionEnabled{ true };
+    float m_cameraCollisionRadius{ 0.15f };
 
     float m_orbitPositionDamping{ 12.0f };
     float m_orbitRotationDamping{ 20.0f };

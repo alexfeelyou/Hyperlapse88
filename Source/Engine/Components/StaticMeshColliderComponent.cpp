@@ -139,6 +139,7 @@ void StaticMeshColliderComponent::ApplyFilterData(physx::PxShape* shape) const n
     filterData.word1 = m_config.collidesWith;
 
     shape->setSimulationFilterData(filterData);
+    shape->setQueryFilterData(filterData); // Allows camera sweeps to read the layer mask
 
     // If marked as a trigger, disable solid collision and flag it for overlap events
     if (m_config.isTrigger)
