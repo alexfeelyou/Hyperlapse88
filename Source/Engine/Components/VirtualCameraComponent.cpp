@@ -146,9 +146,16 @@ std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> VirtualCameraComponent::ResolveO
     DirectX::XMFLOAT3 eyePos{};
     DirectX::XMStoreFloat3(&eyePos, vEye);
 
-    // Rotation is returned in radians (pitch, yaw, 0) — Update() converts to degrees
-    // only at the final write, matching the existing look-at path's convention.
-    const DirectX::XMFLOAT3 rotationRadians{ m_orbitPitch, m_orbitYaw, 0.0f };
+    const DirectX::XMVECTOR vLookDir{ DirectX::XMVector3Normalize(DirectX::XMVectorSubtract(vPivot, vEye)) };
+    DirectX::XMFLOAT3 lookDir{};
+    DirectX::XMStoreFloat3(&lookDir, vLookDir);
+
+    const float horizontalDist{ std::sqrt((lookDir.x * lookDir.x) + (lookDir.z * lookDir.z)) };
+    const DirectX::XMFLOAT3 rotationRadians{
+        std::atan2(-lookDir.y, horizontalDist),     // pitch
+        std::atan2(lookDir.x, lookDir.z),           // yaw
+        0.0f
+    };
 
     return { eyePos, rotationRadians };
 }

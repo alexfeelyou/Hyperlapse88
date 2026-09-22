@@ -172,6 +172,7 @@
     <ClInclude Include="Source\Engine\Graphics\Primitive.h" />
     <ClInclude Include="Source\Engine\Graphics\stb_truetype.h" />
     <ClInclude Include="Source\Engine\Graphics\TemporalAAEffect.h" />
+    <ClInclude Include="Source\Engine\Helpers\FacingResolver.h" />
     <ClInclude Include="Source\Engine\Helpers\Random.h" />
     <ClInclude Include="Source\Engine\Helpers\SceneSerializer.h" />
     <ClInclude Include="Source\Engine\Helpers\UIResizedWindow.h" />
@@ -274,6 +275,7 @@
     <ClCompile Include="Source\Engine\Graphics\PostProcessManager.cpp" />
     <ClCompile Include="Source\Engine\Graphics\Primitive.cpp" />
     <ClCompile Include="Source\Engine\Graphics\TemporalAAEffect.cpp" />
+    <ClCompile Include="Source\Engine\Helpers\FacingResolver.cpp" />
     <ClCompile Include="Source\Engine\Helpers\SceneSerializer.cpp" />
     <ClCompile Include="Source\Engine\Light\Light.cpp" />
     <ClCompile Include="Source\Engine\Skybox\SkyboxRenderer.cpp" />
