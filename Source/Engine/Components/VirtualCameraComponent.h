@@ -4,6 +4,7 @@
 #include <json.hpp>
 #include <memory>
 #include <string>
+#include <utility>
 #include <vector>
 #include "System/Sprite.h"
 #include "IComponent.h"
@@ -39,6 +40,29 @@ public:
     [[nodiscard]] float GetNearZ() const noexcept { return m_nearZ; }
     [[nodiscard]] float GetFarZ() const noexcept { return m_farZ; }
 
+    // Orbit Rig (Third-Person Follow Camera) 
+    void SetOrbitEnabled(bool enabled) noexcept { m_orbitEnabled = enabled; }
+    [[nodiscard]] bool IsOrbitEnabled() const noexcept { return m_orbitEnabled; }
+
+    // Yaw/pitch are stored in radians. Setters wrap/clamp internally so callers never
+    // have to reason about angle limits or the -pi/pi wraparound themselves.
+    void SetOrbitYaw(float yawRadians) noexcept;
+    void AddOrbitYaw(float deltaRadians) noexcept;
+    [[nodiscard]] float GetOrbitYaw() const noexcept { return m_orbitYaw; }
+
+    void SetOrbitPitch(float pitchRadians) noexcept;
+    void AddOrbitPitch(float deltaRadians) noexcept;
+    [[nodiscard]] float GetOrbitPitch() const noexcept { return m_orbitPitch; }
+
+    void SetOrbitDistance(float distance) noexcept;
+    void AddOrbitDistance(float delta) noexcept;
+    [[nodiscard]] float GetOrbitDistance() const noexcept { return m_orbitDistance; }
+
+    // World-space offset added to the follow target's position to find the orbit pivot
+    // (e.g. chest height, so the camera doesn't orbit around the character's feet).
+    void SetOrbitPivotOffset(const DirectX::XMFLOAT3& offset) noexcept { m_orbitPivotOffset = offset; }
+    [[nodiscard]] const DirectX::XMFLOAT3& GetOrbitPivotOffset() const noexcept { return m_orbitPivotOffset; }
+
     [[nodiscard]] static const std::vector<VirtualCameraComponent*>& GetRegistry() noexcept { return s_registry; }
 
     // Shared Batch Pipeline
@@ -68,6 +92,23 @@ private:
     float m_farZ{ 1000.0f };
     float m_gizmoDrawDistance{ 5.0f };
 
+    // Orbit Rig State
+    bool m_orbitEnabled{ false };
+
+    float m_orbitYaw{ 0.0f };           // Radians. World-space horizontal angle around the pivot.
+    float m_orbitPitch{ 0.0f };         // Radians. Clamped to [m_orbitMinPitch, m_orbitMaxPitch].
+    float m_orbitDistance{ 6.0f };      // Distance from the pivot to the camera eye.
+
+    float m_orbitMinPitch{ DirectX::XMConvertToRadians(-80.0f) };
+    float m_orbitMaxPitch{ DirectX::XMConvertToRadians(80.0f) };
+    float m_orbitMinDistance{ 1.5f };
+    float m_orbitMaxDistance{ 12.0f };
+
+    DirectX::XMFLOAT3 m_orbitPivotOffset{ 0.0f, 1.6f, 0.0f };
+
+    float m_orbitPositionDamping{ 12.0f };
+    float m_orbitRotationDamping{ 20.0f };
+
     DirectX::XMFLOAT3 m_cachedPos{ 0.0f, 0.0f, 0.0f };
     DirectX::XMFLOAT3 m_cachedRot{ 0.0f, 0.0f, 0.0f };
 
@@ -78,4 +119,8 @@ private:
 
     [[nodiscard]] class GameObject* FindTargetByName(const std::string& name) const noexcept;
     void ResolveTargets() noexcept;
+
+    // Computes the desired world-space eye position and pitch/yaw rotation (radians) for
+    // the current orbit yaw/pitch/distance around the follow target's pivot.
+    [[nodiscard]] std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> ResolveOrbitTransform() const noexcept;
 };

@@ -100,6 +100,74 @@ void VirtualCameraComponent::ResolveTargets() noexcept
     m_lookAtTarget = FindTargetByName(m_lookAtTargetName);
 }
 
+void VirtualCameraComponent::SetOrbitYaw(float yawRadians) noexcept
+{
+    // Reuses the same wraparound guard already used for look-at yaw, so orbit yaw
+    // never accumulates past +-pi and loses precision over a long play session.
+    m_orbitYaw = WrapAngle(yawRadians);
+}
+
+void VirtualCameraComponent::AddOrbitYaw(float deltaRadians) noexcept
+{
+    SetOrbitYaw(m_orbitYaw + deltaRadians);
+}
+
+void VirtualCameraComponent::SetOrbitPitch(float pitchRadians) noexcept
+{
+    // Pitch is clamped, not wrapped: looking straight up/down and continuing past it
+    // should stop, not flip the camera through the pole.
+    m_orbitPitch = std::clamp(pitchRadians, m_orbitMinPitch, m_orbitMaxPitch);
+}
+
+std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> VirtualCameraComponent::ResolveOrbitTransform() const noexcept
+{
+    // Spherical-to-Cartesian, using the same yaw/pitch -> forward-vector convention as
+    // FreeCameraController's editor orbit cam, so both cameras behave identically for
+    // the same angle inputs.
+    const float sx{ std::sin(m_orbitPitch) };
+    const float cx{ std::cos(m_orbitPitch) };
+    const float sy{ std::sin(m_orbitYaw) };
+    const float cy{ std::cos(m_orbitYaw) };
+
+    const DirectX::XMVECTOR vFront{ DirectX::XMVectorSet(-cx * sy, -sx, -cx * cy, 0.0f) };
+
+    // The pivot is the follow target's position offset upward (or wherever configured),
+    // never the target's raw feet/root position — orbiting around the feet looks wrong.
+    const DirectX::XMFLOAT3 targetPos{ m_followTarget->GetPosition() };
+    const DirectX::XMFLOAT3 pivot{
+        targetPos.x + m_orbitPivotOffset.x,
+        targetPos.y + m_orbitPivotOffset.y,
+        targetPos.z + m_orbitPivotOffset.z
+    };
+
+    const DirectX::XMVECTOR vPivot{ DirectX::XMLoadFloat3(&pivot) };
+    const DirectX::XMVECTOR vEye{ DirectX::XMVectorSubtract(vPivot, DirectX::XMVectorScale(vFront, m_orbitDistance)) };
+
+    DirectX::XMFLOAT3 eyePos{};
+    DirectX::XMStoreFloat3(&eyePos, vEye);
+
+    // Rotation is returned in radians (pitch, yaw, 0) — Update() converts to degrees
+    // only at the final write, matching the existing look-at path's convention.
+    const DirectX::XMFLOAT3 rotationRadians{ m_orbitPitch, m_orbitYaw, 0.0f };
+
+    return { eyePos, rotationRadians };
+}
+
+void VirtualCameraComponent::AddOrbitPitch(float deltaRadians) noexcept
+{
+    SetOrbitPitch(m_orbitPitch + deltaRadians);
+}
+
+void VirtualCameraComponent::SetOrbitDistance(float distance) noexcept
+{
+    m_orbitDistance = std::clamp(distance, m_orbitMinDistance, m_orbitMaxDistance);
+}
+
+void VirtualCameraComponent::AddOrbitDistance(float delta) noexcept
+{
+    SetOrbitDistance(m_orbitDistance + delta);
+}
+
 void VirtualCameraComponent::Update(float dt)
 {
     if (!m_owner) return;
@@ -127,43 +195,70 @@ void VirtualCameraComponent::Update(float dt)
     DirectX::XMFLOAT3 currentPos{ ownerPos };
     DirectX::XMFLOAT3 currentRot{ ownerRot };
 
-    if (m_followTarget)
+    if (m_orbitEnabled && m_followTarget)
     {
-        const DirectX::XMFLOAT3 targetPos{ m_followTarget->GetPosition() };
-        const DirectX::XMFLOAT3 desiredPos{
-            targetPos.x + m_followOffset.x,
-            targetPos.y + m_followOffset.y,
-            targetPos.z + m_followOffset.z
-        };
+        const auto [desiredPos, desiredRotRad] { ResolveOrbitTransform() };
 
-        const float tPos{ m_isDirty ? 1.0f : CalculateDampingBlend(m_positionDamping, dt) };
+        // Position: exponential damping toward the orbit-resolved eye position.
+        const float tPos{ m_isDirty ? 1.0f : CalculateDampingBlend(m_orbitPositionDamping, dt) };
         currentPos.x += (desiredPos.x - currentPos.x) * tPos;
         currentPos.y += (desiredPos.y - currentPos.y) * tPos;
         currentPos.z += (desiredPos.z - currentPos.z) * tPos;
-    }
 
-    if (m_lookAtTarget)
-    {
-        const DirectX::XMFLOAT3 targetPos{ m_lookAtTarget->GetPosition() };
-        const float dx{ targetPos.x - currentPos.x };
-        const float dy{ targetPos.y - currentPos.y };
-        const float dz{ targetPos.z - currentPos.z };
-        const float horizontalDist{ std::sqrt((dx * dx) + (dz * dz)) };
-
-        const float desiredPitch{ std::atan2(-dy, horizontalDist) };
-        const float desiredYaw{ std::atan2(dx, dz) };
-
+        // Rotation: damp in radian space via wrapped angle deltas — same convention as
+        // the look-at path below, so we never snap across the 359->0 degree boundary.
         const float currentPitchRad{ DirectX::XMConvertToRadians(currentRot.x) };
         const float currentYawRad{ DirectX::XMConvertToRadians(currentRot.y) };
 
-        const float pitchDiff{ WrapAngle(desiredPitch - currentPitchRad) };
-        const float yawDiff{ WrapAngle(desiredYaw - currentYawRad) };
+        const float pitchDiff{ WrapAngle(desiredRotRad.x - currentPitchRad) };
+        const float yawDiff{ WrapAngle(desiredRotRad.y - currentYawRad) };
 
-        const float tRot{ m_isDirty ? 1.0f : CalculateDampingBlend(m_rotationDamping, dt) };
+        const float tRot{ m_isDirty ? 1.0f : CalculateDampingBlend(m_orbitRotationDamping, dt) };
 
         currentRot.x = DirectX::XMConvertToDegrees(currentPitchRad + (pitchDiff * tRot));
         currentRot.y = DirectX::XMConvertToDegrees(currentYawRad + (yawDiff * tRot));
         currentRot.z = 0.0f;
+    }
+    else
+    {
+        if (m_followTarget)
+        {
+            const DirectX::XMFLOAT3 targetPos{ m_followTarget->GetPosition() };
+            const DirectX::XMFLOAT3 desiredPos{
+                targetPos.x + m_followOffset.x,
+                targetPos.y + m_followOffset.y,
+                targetPos.z + m_followOffset.z
+            };
+
+            const float tPos{ m_isDirty ? 1.0f : CalculateDampingBlend(m_positionDamping, dt) };
+            currentPos.x += (desiredPos.x - currentPos.x) * tPos;
+            currentPos.y += (desiredPos.y - currentPos.y) * tPos;
+            currentPos.z += (desiredPos.z - currentPos.z) * tPos;
+        }
+
+        if (m_lookAtTarget)
+        {
+            const DirectX::XMFLOAT3 targetPos{ m_lookAtTarget->GetPosition() };
+            const float dx{ targetPos.x - currentPos.x };
+            const float dy{ targetPos.y - currentPos.y };
+            const float dz{ targetPos.z - currentPos.z };
+            const float horizontalDist{ std::sqrt((dx * dx) + (dz * dz)) };
+
+            const float desiredPitch{ std::atan2(-dy, horizontalDist) };
+            const float desiredYaw{ std::atan2(dx, dz) };
+
+            const float currentPitchRad{ DirectX::XMConvertToRadians(currentRot.x) };
+            const float currentYawRad{ DirectX::XMConvertToRadians(currentRot.y) };
+
+            const float pitchDiff{ WrapAngle(desiredPitch - currentPitchRad) };
+            const float yawDiff{ WrapAngle(desiredYaw - currentYawRad) };
+
+            const float tRot{ m_isDirty ? 1.0f : CalculateDampingBlend(m_rotationDamping, dt) };
+
+            currentRot.x = DirectX::XMConvertToDegrees(currentPitchRad + (pitchDiff * tRot));
+            currentRot.y = DirectX::XMConvertToDegrees(currentYawRad + (yawDiff * tRot));
+            currentRot.z = 0.0f;
+        }
     }
 
     if (!IsFloat3Equal(currentPos, m_cachedPos) || m_isDirty)
