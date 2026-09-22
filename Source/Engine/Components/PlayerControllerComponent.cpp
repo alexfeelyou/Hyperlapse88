@@ -12,14 +12,22 @@
 PlayerControllerComponent::PlayerControllerComponent() noexcept
     : m_stateMachine{ std::make_unique<StateMachine>() }
 {
-    // Allocate states exactly once
+    // Allocate the entire moveset pool exactly once (Zero runtime allocations)
     m_states[static_cast<std::size_t>(PlayerStateType::Locomotion)] = std::make_unique<PlayerLocomotion>();
-    m_states[static_cast<std::size_t>(PlayerStateType::Dash)] = std::make_unique<PlayerDash>();
-    m_states[static_cast<std::size_t>(PlayerStateType::Attack)] = std::make_unique<PlayerAttackState>();
-    m_states[static_cast<std::size_t>(PlayerStateType::HitReact)] = std::make_unique<PlayerHitReactState>();
+    m_states[static_cast<std::size_t>(PlayerStateType::PivotTurn)] = std::make_unique<PlayerPivotTurn>();
+    m_states[static_cast<std::size_t>(PlayerStateType::Slide)] = std::make_unique<PlayerSlide>();
+    m_states[static_cast<std::size_t>(PlayerStateType::AirTraversal)] = std::make_unique<PlayerAirTraversal>();
+    m_states[static_cast<std::size_t>(PlayerStateType::ParkourWall)] = std::make_unique<PlayerParkourWall>();
+    m_states[static_cast<std::size_t>(PlayerStateType::DashEvade)] = std::make_unique<PlayerDashEvade>();
+    m_states[static_cast<std::size_t>(PlayerStateType::AttackPrimary)] = std::make_unique<PlayerAttackPrimary>();
+    m_states[static_cast<std::size_t>(PlayerStateType::AttackContextual)] = std::make_unique<PlayerAttackContextual>();
+    m_states[static_cast<std::size_t>(PlayerStateType::AttackDirectional)] = std::make_unique<PlayerAttackDirectional>();
+    m_states[static_cast<std::size_t>(PlayerStateType::AttackCharged)] = std::make_unique<PlayerAttackCharged>();
+    m_states[static_cast<std::size_t>(PlayerStateType::AttackAerial)] = std::make_unique<PlayerAttackAerial>();
+    m_states[static_cast<std::size_t>(PlayerStateType::ParryCounter)] = std::make_unique<PlayerParryCounter>();
+    m_states[static_cast<std::size_t>(PlayerStateType::HitReact)] = std::make_unique<PlayerHitReact>();
 }
 
-// Destructor is defaulted in header but must be declared here where StateMachine is fully defined
 PlayerControllerComponent::~PlayerControllerComponent() = default;
 
 void PlayerControllerComponent::OnAttach(GameObject* owner) noexcept
@@ -45,7 +53,6 @@ void PlayerControllerComponent::OnAttach(GameObject* owner) noexcept
 
 void PlayerControllerComponent::GatherHardwareInput() noexcept
 {
-    // Fast-Fail: If input is disabled, wipe intent so the character stands still.
     if (!m_inputEnabled)
     {
         m_intent = InputIntent{};
@@ -55,11 +62,9 @@ void PlayerControllerComponent::GatherHardwareInput() noexcept
     auto& input{ Input::Instance() };
     const GamePad& pad{ input.GetGamePad() };
 
-    // Gather Movement
     float targetX{ pad.GetAxisLX() };
     float targetZ{ pad.GetAxisLY() };
 
-    // Fallback to keyboard if gamepad is idle
     constexpr float deadzone{ 0.05f };
     if (std::abs(targetX) < deadzone && std::abs(targetZ) < deadzone)
     {
@@ -71,8 +76,6 @@ void PlayerControllerComponent::GatherHardwareInput() noexcept
         if (input.GetKeyboard().IsPress('A')) targetX -= 1.0f;
     }
 
-    // "Walk" is not a separate button state, it is an input restrictor.
-    // If Left Alt is held, cap the input vector to ~35% magnitude.
     if (input.GetKeyboard().IsPress(VK_LMENU))
     {
         targetX *= 0.35f;
@@ -81,20 +84,16 @@ void PlayerControllerComponent::GatherHardwareInput() noexcept
 
     m_intent.moveVector = { targetX, targetZ };
 
-    // Gather Triggers & Buttons
-	// Dash: Left Shift or Gamepad B or Gamepad Left Shoulder
     m_intent.bDashTriggered = input.GetKeyboard().IsTriggered(VK_SHIFT) ||
-        ((pad.GetButtonDown() & GamePad::BTN_B) != 0) || 
+        ((pad.GetButtonDown() & GamePad::BTN_B) != 0) ||
         ((pad.GetButtonDown() & GamePad::BTN_LEFT_SHOULDER) != 0);
 
-    // Standard Attack: Left Mouse Button or Gamepad X
     m_intent.bAttackPressed = input.GetKeyboard().IsTriggered(VK_LBUTTON) ||
         ((pad.GetButtonDown() & GamePad::BTN_X) != 0);
 }
 
 void PlayerControllerComponent::Update(const float dt)
 {
-    // Freeze the state machine completely if we are in Edit or Pause mode.
     if (EditorManager::Instance().GetEditorMode() != EditorMode::Play)
     {
         return;
@@ -102,13 +101,12 @@ void PlayerControllerComponent::Update(const float dt)
 
     GatherHardwareInput();
 
-    // Drive the State Machine.
-    // The state machine reads GetIntent() and fires commands to GetMovement().
     if (m_stateMachine)
     {
         m_stateMachine->Update(this, dt);
     }
 }
+
 void PlayerControllerComponent::DrawInspector()
 {
     ImGui::TextDisabled("Player Input & State Orchestrator");

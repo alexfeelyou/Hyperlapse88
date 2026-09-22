@@ -5,7 +5,7 @@
 #include "PlayerState.h"
 #include "PlayerControllerComponent.h"
 
-// Unified Idle/Walk/Run handler
+// GROUND & LOCOMOTION
 class PlayerLocomotion final : public PlayerState
 {
 public:
@@ -14,8 +14,40 @@ public:
     void Exit(PlayerControllerComponent* controller) override;
 };
 
-// Unified Dodging/Sliding handler
-class PlayerDash final : public PlayerState
+class PlayerPivotTurn final : public PlayerState
+{
+public:
+    void Enter(PlayerControllerComponent* controller) override;
+    void Update(PlayerControllerComponent* controller, float dt) override;
+    void Exit(PlayerControllerComponent* controller) override;
+};
+
+class PlayerSlide final : public PlayerState
+{
+public:
+    void Enter(PlayerControllerComponent* controller) override;
+    void Update(PlayerControllerComponent* controller, float dt) override;
+    void Exit(PlayerControllerComponent* controller) override;
+};
+
+// AERIAL & PARKOUR
+class PlayerAirTraversal final : public PlayerState
+{
+public:
+    void Enter(PlayerControllerComponent* controller) override;
+    void Update(PlayerControllerComponent* controller, float dt) override;
+    void Exit(PlayerControllerComponent* controller) override;
+};
+
+class PlayerParkourWall final : public PlayerState
+{
+public:
+    void Enter(PlayerControllerComponent* controller) override;
+    void Update(PlayerControllerComponent* controller, float dt) override;
+    void Exit(PlayerControllerComponent* controller) override;
+};
+
+class PlayerDashEvade final : public PlayerState
 {
 public:
     void Enter(PlayerControllerComponent* controller) override;
@@ -30,16 +62,13 @@ private:
     bool m_canCancel{ false };
 };
 
-// Generic Data-Driven Attack handler
-class PlayerAttackState final : public PlayerState
+// COMBAT (GROUND)
+class PlayerAttackPrimary final : public PlayerState
 {
 public:
     void Enter(PlayerControllerComponent* controller) override;
     void Update(PlayerControllerComponent* controller, float dt) override;
     void Exit(PlayerControllerComponent* controller) override;
-
-    // Call this before transitioning to route to the Dash Attack
-    void SetDashAttackNext(bool isDashAttack) noexcept { m_wantsDashAttack = isDashAttack; }
 
 private:
     void PlayCurrentAttack(PlayerControllerComponent* controller) noexcept;
@@ -48,12 +77,54 @@ private:
     float m_attackBufferTimer{ 0.0f };
     float m_exitTimer{ 0.0f };
     bool m_canCancel{ false };
-    bool m_wantsDashAttack{ false }; 
     DirectX::XMFLOAT2 m_lungeDirection{ 0.0f, 1.0f };
 };
 
-// Generic Damage Flinch/Knockback handler
-class PlayerHitReactState final : public PlayerState
+class PlayerAttackContextual final : public PlayerState
+{
+public:
+    void Enter(PlayerControllerComponent* controller) override;
+    void Update(PlayerControllerComponent* controller, float dt) override;
+    void Exit(PlayerControllerComponent* controller) override;
+};
+
+class PlayerAttackDirectional final : public PlayerState
+{
+public:
+    void Enter(PlayerControllerComponent* controller) override;
+    void Update(PlayerControllerComponent* controller, float dt) override;
+    void Exit(PlayerControllerComponent* controller) override;
+};
+
+class PlayerAttackCharged final : public PlayerState
+{
+public:
+    void Enter(PlayerControllerComponent* controller) override;
+    void Update(PlayerControllerComponent* controller, float dt) override;
+    void Exit(PlayerControllerComponent* controller) override;
+};
+
+// ---------------------------------------------------------
+// 4. COMBAT (AERIAL)
+// ---------------------------------------------------------
+class PlayerAttackAerial final : public PlayerState
+{
+public:
+    void Enter(PlayerControllerComponent* controller) override;
+    void Update(PlayerControllerComponent* controller, float dt) override;
+    void Exit(PlayerControllerComponent* controller) override;
+};
+
+// DEFENSE & REACTION
+class PlayerParryCounter final : public PlayerState
+{
+public:
+    void Enter(PlayerControllerComponent* controller) override;
+    void Update(PlayerControllerComponent* controller, float dt) override;
+    void Exit(PlayerControllerComponent* controller) override;
+};
+
+class PlayerHitReact final : public PlayerState
 {
 public:
     void Enter(PlayerControllerComponent* controller) override;

@@ -2,9 +2,11 @@
 #include "CharacterMovementComponent.h"
 #include "PlayerStates.h"
 #include "StateMachine.h"
-#include "StringHash.h"
 
-// UNIFIED LOCOMOTION STATE
+using namespace Engine::Animation;
+
+// GROUND & LOCOMOTION
+
 void PlayerLocomotion::Enter(PlayerControllerComponent* controller)
 {
     if (auto* motor{ controller->GetMovement() })
@@ -21,12 +23,12 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
 
     if (intent.bDashTriggered)
     {
-        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Dash));
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
         return;
     }
     if (intent.bAttackPressed)
     {
-        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Attack));
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPrimary));
         return;
     }
 
@@ -35,22 +37,38 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
     auto& blackboard{ controller->getAnimBlackboard() };
     const DirectX::XMFLOAT3 velocity{ motor->GetTotalVelocity() };
 
-    // Write physical truth to the blackboard
     blackboard.groundSpeed = std::sqrt((velocity.x * velocity.x) + (velocity.z * velocity.z));
     blackboard.verticalVelocity = velocity.y;
-    blackboard.setFlag(Engine::Animation::AnimFlag::is_grounded, motor->isGrounded());
+    blackboard.setFlag(AnimFlag::is_grounded, motor->isGrounded());
 
-    // Trigger the Macro State
+    // O(1) Semantic Execution (Zero String Hashing)
     if (auto* anim{ controller->GetAnimation() })
     {
-        anim->PlayStateByHash(Core::Hash("Locomotion"));
+        anim->PlaySlot(AnimSlot::Locomotion);
     }
 }
-
 void PlayerLocomotion::Exit(PlayerControllerComponent* controller) {}
 
-// DASH STATE
-void PlayerDash::Enter(PlayerControllerComponent* controller)
+// Placeholders for expanded movement
+void PlayerPivotTurn::Enter(PlayerControllerComponent*) {}
+void PlayerPivotTurn::Update(PlayerControllerComponent*, float) {}
+void PlayerPivotTurn::Exit(PlayerControllerComponent*) {}
+
+void PlayerSlide::Enter(PlayerControllerComponent*) {}
+void PlayerSlide::Update(PlayerControllerComponent*, float) {}
+void PlayerSlide::Exit(PlayerControllerComponent*) {}
+
+// 2. AERIAL & PARKOUR
+
+void PlayerAirTraversal::Enter(PlayerControllerComponent*) {}
+void PlayerAirTraversal::Update(PlayerControllerComponent*, float) {}
+void PlayerAirTraversal::Exit(PlayerControllerComponent*) {}
+
+void PlayerParkourWall::Enter(PlayerControllerComponent*) {}
+void PlayerParkourWall::Update(PlayerControllerComponent*, float) {}
+void PlayerParkourWall::Exit(PlayerControllerComponent*) {}
+
+void PlayerDashEvade::Enter(PlayerControllerComponent* controller)
 {
     m_canCancel = false;
     const auto& intent{ controller->GetIntent() };
@@ -58,12 +76,12 @@ void PlayerDash::Enter(PlayerControllerComponent* controller)
     m_dashDir = intent.moveVector;
     if (m_dashDir.x == 0.0f && m_dashDir.y == 0.0f)
     {
-        m_dashDir = { 0.0f, 1.0f }; // Default forward dodge
+        m_dashDir = { 0.0f, 1.0f };
     }
 
     if (auto* motor{ controller->GetMovement() })
     {
-        motor->AddImpulse({
+        motor->AddImpulse(DirectX::XMFLOAT3{
             m_dashDir.x * DASH_IMPULSE_FORCE,
             0.0f,
             m_dashDir.y * DASH_IMPULSE_FORCE
@@ -72,19 +90,15 @@ void PlayerDash::Enter(PlayerControllerComponent* controller)
 
     if (auto* anim{ controller->GetAnimation() })
     {
-        const std::uint64_t dashHash{ Core::Hash("Dash") };
-        anim->PlayStateByHash(dashHash);
-
-        // DATA-DRIVEN TIMING: Read the exact length of the animation from the JSON data
-        m_timer = anim->GetStateDurationByHash(dashHash);
+        anim->PlaySlot(AnimSlot::DashEvade);
+        m_timer = anim->GetSlotDuration(AnimSlot::DashEvade);
     }
 }
 
-void PlayerDash::Update(PlayerControllerComponent* controller, float dt)
+void PlayerDashEvade::Update(PlayerControllerComponent* controller, float dt)
 {
     m_timer -= dt;
 
-    // Latch the Cancel Window 
     for (const auto& ev : controller->GetAnimation()->GetFiredEvents())
     {
         if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
@@ -98,57 +112,39 @@ void PlayerDash::Update(PlayerControllerComponent* controller, float dt)
     const float inputSq = (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y);
     const bool playerWantsToMove = (inputSq > 0.01f);
 
-    // Dash Attack Interrupt (Highest Priority)
     if (m_canCancel && intent.bAttackPressed)
     {
-        // Grab the attack state, flag it as a dash attack, and transition
-        auto* attackState = static_cast<PlayerAttackState*>(controller->GetState(PlayerStateType::Attack));
-        attackState->SetDashAttackNext(true);
-        controller->GetStateMachine()->ChangeState(controller, attackState);
+        controller->getAnimBlackboard().actionIndex = 2; // Route to Dash Attack via blackboard
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackContextual));
         return;
     }
 
-    // Standard Dash Cancel
     if (m_canCancel && playerWantsToMove)
     {
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
         return;
     }
 
-    // Natural Exit
     if (m_timer <= 0.0f)
     {
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
     }
 }
+void PlayerDashEvade::Exit(PlayerControllerComponent* controller) {}
 
-void PlayerDash::Exit(PlayerControllerComponent* controller) {}
+// COMBAT (GROUND)
 
-// ATTACK STATE
-
-void PlayerAttackState::Enter(PlayerControllerComponent* controller)
+void PlayerAttackPrimary::Enter(PlayerControllerComponent* controller)
 {
-    // Route to Dash Attack or Standard Combo
-    if (m_wantsDashAttack)
-    {
-        m_comboIndex = 4;
-        m_wantsDashAttack = false; // Reset for next time
-    }
-    else
-    {
-        m_comboIndex = 0;
-    }
+    m_comboIndex = 0;
 
-    // Lock in the Lunge Direction at the start of the attack
     const auto& intent = controller->GetIntent();
     m_lungeDirection = intent.moveVector;
     if (m_lungeDirection.x == 0.0f && m_lungeDirection.y == 0.0f)
     {
-        // Neutral input defaults to a straight forward lunge
         m_lungeDirection = { 0.0f, 1.0f };
     }
 
-    // Hard stop existing locomotion velocity on frame 1 of the attack
     if (auto* motor = controller->GetMovement())
     {
         motor->SetDesiredDirection({ 0.0f, 0.0f });
@@ -157,40 +153,32 @@ void PlayerAttackState::Enter(PlayerControllerComponent* controller)
     PlayCurrentAttack(controller);
 }
 
-void PlayerAttackState::PlayCurrentAttack(PlayerControllerComponent* controller) noexcept
+void PlayerAttackPrimary::PlayCurrentAttack(PlayerControllerComponent* controller) noexcept
 {
     m_canCancel = false;
     m_attackBufferTimer = 0.0f;
 
-    // Tell the Animator exactly which step of the combo we are on
     controller->getAnimBlackboard().actionIndex = m_comboIndex;
 
-    // Play the ONE Master State
     if (auto* anim = controller->GetAnimation())
     {
-        const std::uint64_t attackHash{ Core::Hash("BasicAttack") };
-
-        anim->PlayStateByHash(attackHash, true);
-
-        // Dynamically get the length of the specific combo node we just selected
-        m_exitTimer = anim->GetStateDurationByHash(attackHash);
+        anim->PlaySlot(AnimSlot::Attack_Primary, true);
+        m_exitTimer = anim->GetSlotDuration(AnimSlot::Attack_Primary);
     }
 }
 
-void PlayerAttackState::Update(PlayerControllerComponent* controller, float dt)
+void PlayerAttackPrimary::Update(PlayerControllerComponent* controller, float dt)
 {
     m_exitTimer -= dt;
 
-    // INPUT BUFFERING (Keep player intent alive for 250ms)
     if (m_attackBufferTimer > 0.0f) m_attackBufferTimer -= dt;
 
     const auto& intent = controller->GetIntent();
     if (intent.bAttackPressed)
     {
-        m_attackBufferTimer = 0.25f; // Store attack intent to prevent dropped inputs
+        m_attackBufferTimer = 0.25f;
     }
 
-    // EVENT PARSING (Extracting the Payload)
     for (const auto& ev : controller->GetAnimation()->GetFiredEvents())
     {
         if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
@@ -199,10 +187,9 @@ void PlayerAttackState::Update(PlayerControllerComponent* controller, float dt)
         }
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse))
         {
-            // PROCEDURAL LUNGE: Propel the character physically along the locked attack direction!
             if (auto* motor = controller->GetMovement())
             {
-                motor->AddImpulse({
+                motor->AddImpulse(DirectX::XMFLOAT3{
                     m_lungeDirection.x * ev.payload,
                     0.0f,
                     m_lungeDirection.y * ev.payload
@@ -211,23 +198,18 @@ void PlayerAttackState::Update(PlayerControllerComponent* controller, float dt)
         }
     }
 
-    // PRIORITY HIERARCHY EVALUATION
-    // Priority A: Evasion Cancel (Highest - always break combos to survive)
     if (m_canCancel && intent.bDashTriggered)
     {
-        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Dash));
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
         return;
     }
 
-    // Priority B: Combo Advance
     if (m_canCancel && m_attackBufferTimer > 0.0f)
     {
-        // Standard Combo Chain (Index 0 -> 1 -> 2 -> 3)
         if (m_comboIndex < 3)
         {
             m_comboIndex++;
 
-            // Re-evaluate directional intent so the player can re-aim between combo strikes
             m_lungeDirection = intent.moveVector;
             if (m_lungeDirection.x == 0.0f && m_lungeDirection.y == 0.0f)
             {
@@ -237,25 +219,37 @@ void PlayerAttackState::Update(PlayerControllerComponent* controller, float dt)
             PlayCurrentAttack(controller);
             return;
         }
-        // Dash Attack Route 
-        else if (m_comboIndex == 4)
-        {
-            m_comboIndex = 1;
-            PlayCurrentAttack(controller);
-            return;
-        }
     }
 
-    // Priority C: Natural Exit (Sword returns to resting position)
     if (m_exitTimer <= 0.0f)
     {
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
     }
 }
+void PlayerAttackPrimary::Exit(PlayerControllerComponent* controller) {}
 
-void PlayerAttackState::Exit(PlayerControllerComponent* controller) {}
+// Placeholders for Expanded Combat
+void PlayerAttackContextual::Enter(PlayerControllerComponent*) {}
+void PlayerAttackContextual::Update(PlayerControllerComponent*, float) {}
+void PlayerAttackContextual::Exit(PlayerControllerComponent*) {}
 
-// HIT REACT STATE (Placeholder)
-void PlayerHitReactState::Enter(PlayerControllerComponent* controller) {}
-void PlayerHitReactState::Update(PlayerControllerComponent* controller, float dt) {}
-void PlayerHitReactState::Exit(PlayerControllerComponent* controller) {}
+void PlayerAttackDirectional::Enter(PlayerControllerComponent*) {}
+void PlayerAttackDirectional::Update(PlayerControllerComponent*, float) {}
+void PlayerAttackDirectional::Exit(PlayerControllerComponent*) {}
+
+void PlayerAttackCharged::Enter(PlayerControllerComponent*) {}
+void PlayerAttackCharged::Update(PlayerControllerComponent*, float) {}
+void PlayerAttackCharged::Exit(PlayerControllerComponent*) {}
+
+void PlayerAttackAerial::Enter(PlayerControllerComponent*) {}
+void PlayerAttackAerial::Update(PlayerControllerComponent*, float) {}
+void PlayerAttackAerial::Exit(PlayerControllerComponent*) {}
+
+// DEFENSE & REACTION
+void PlayerParryCounter::Enter(PlayerControllerComponent*) {}
+void PlayerParryCounter::Update(PlayerControllerComponent*, float) {}
+void PlayerParryCounter::Exit(PlayerControllerComponent*) {}
+
+void PlayerHitReact::Enter(PlayerControllerComponent*) {}
+void PlayerHitReact::Update(PlayerControllerComponent*, float) {}
+void PlayerHitReact::Exit(PlayerControllerComponent*) {}

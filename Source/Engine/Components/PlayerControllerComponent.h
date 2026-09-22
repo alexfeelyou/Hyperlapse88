@@ -7,20 +7,30 @@
 #include "IComponent.h"
 #include "StateMachine.h" 
 
-// Strongly typed enum for state indices
-enum class PlayerStateType : std::size_t
+// Strongly typed enum representing discrete gameplay logic layers
+enum class PlayerStateType : std::uint8_t
 {
-    Locomotion = 0,
-    Dash,
-    Attack,
+    None = 0,
+    Locomotion,
+    PivotTurn,
+    Slide,
+    AirTraversal,
+    ParkourWall,
+    DashEvade,
+    AttackPrimary,
+    AttackContextual,
+    AttackDirectional,
+    AttackCharged,
+    AttackAerial,
+    ParryCounter,
     HitReact,
-    Count
+    Count // Automatically handles the pool sizing
 };
 
 // Forward declarations 
 class CharacterMovementComponent;
-class AnimationComponent; // Added
-class PlayerState;        // Added
+class AnimationComponent; 
+class PlayerState;        
 
 struct InputIntent
 {

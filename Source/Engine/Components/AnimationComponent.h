@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <DirectXMath.h>
 #include <json.hpp>
@@ -68,7 +69,8 @@ struct AnimNode
 
 struct AnimationState
 {
-    std::string name{ "Idle" };
+    std::string name{ "State" };
+    Engine::Animation::AnimSlot slot{ Engine::Animation::AnimSlot::None };
     AnimStateType type{ AnimStateType::Single };
     std::vector<AnimNode> nodes{};
 };
@@ -108,6 +110,32 @@ public:
     void StopPreview() noexcept;
     void JumpToPreviewTime(float time) noexcept { m_currentTimer = time; }
 
+    // Called on Deserialize and when Editor Graph changes
+    void RebuildSlotTable() noexcept;
+
+    // O(1) Zero-Overhead Slot Execution (Esoterica Engine Principle)
+    inline void PlaySlot(Engine::Animation::AnimSlot slot, bool forceRestart = false, int forceNodeIndex = -1) noexcept
+    {
+        const auto slotIdx{ static_cast<std::size_t>(slot) };
+        if (slotIdx >= m_slotLookup.size()) return;
+
+        const int16_t stateIdx{ m_slotLookup[slotIdx] };
+        if (stateIdx >= 0)
+        {
+            PlayState(static_cast<std::size_t>(stateIdx), forceRestart, forceNodeIndex);
+        }
+    }
+
+    // Resolves accurate timing for combat logic without hashing
+    [[nodiscard]] inline float GetSlotDuration(Engine::Animation::AnimSlot slot) const noexcept
+    {
+        const auto slotIdx{ static_cast<std::size_t>(slot) };
+        if (slotIdx >= m_slotLookup.size()) return 0.0f;
+
+        const int16_t stateIdx{ m_slotLookup[slotIdx] };
+        return (stateIdx >= 0) ? GetStateDurationByIndex(static_cast<std::size_t>(stateIdx)) : 0.0f;
+    }
+
     [[nodiscard]] float GetStateDurationByHash(std::uint64_t stateHash) const noexcept;
     [[nodiscard]] const std::vector<DirectX::XMFLOAT4X4>& GetCurrentNodeGlobals() const noexcept { return m_currentNodeGlobals; }
     [[nodiscard]] const std::vector<DirectX::XMFLOAT4X4>& GetPreviousNodeGlobals() const noexcept { return m_hasPreviousGlobals ? m_previousNodeGlobals : m_currentNodeGlobals; }
@@ -122,6 +150,13 @@ public:
     [[nodiscard]] int GetIsolatedNodeIndex() const noexcept { return m_isolatedNodeIndex; }
 
 private:
+    // Flat mapping array: maps AnimSlot directly to the m_states index.
+    // -1 means the slot is unbound.
+    std::array<int16_t, static_cast<std::size_t>(Engine::Animation::AnimSlot::Count)> m_slotLookup{};
+
+    // Helper mapped to old hash logic
+    [[nodiscard]] float GetStateDurationByIndex(std::size_t stateIndex) const noexcept;
+
     struct PoseScratchpad
     {
         std::vector<Model::NodePose> bufferA{};

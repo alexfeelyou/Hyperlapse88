@@ -611,6 +611,7 @@
                                     "Transitions": []
                                 }
                             ],
+                            "Slot": 6,
                             "Type": 0
                         },
                         {
@@ -663,10 +664,11 @@
                                     ]
                                 }
                             ],
+                            "Slot": 1,
                             "Type": 1
                         },
                         {
-                            "Name": "BasicAttack",
+                            "Name": "Attack: Primary Combo",
                             "Nodes": [
                                 {
                                     "Blend": 0.20000000298023224,
@@ -781,6 +783,7 @@
                                     "Transitions": []
                                 }
                             ],
+                            "Slot": 7,
                             "Type": 2
                         }
                     ],

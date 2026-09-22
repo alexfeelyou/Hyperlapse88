@@ -142,6 +142,44 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
     {
         state.type = static_cast<AnimStateType>(currentType);
     }
+    static constexpr const char* s_slotNames[] = {
+        "None (Unbound)",
+        "Locomotion",
+        "Pivot Turn",
+        "Slide",
+        "Air Traversal",
+        "Parkour Wall",
+        "Dash / Evade",
+        "Attack: Primary Combo",
+        "Attack: Contextual (Dash/Sprint)",
+        "Attack: Directional (WASD)",
+        "Attack: Charged",
+        "Attack: Aerial",
+        "Parry & Counter",
+        "Hit Reaction"
+    };
+
+    int currentSlot = static_cast<int>(state.slot);
+    if (ImGui::Combo("Semantic Slot", &currentSlot, s_slotNames, IM_ARRAYSIZE(s_slotNames)))
+    {
+        // Enforce 1:1 Mapping: Prevent multiple states from claiming the same functional slot
+        bool slotAlreadyTaken = false;
+        for (std::size_t i = 0; i < states.size(); ++i)
+        {
+            if (i != m_selectedStateIndex && states[i].slot == static_cast<Engine::Animation::AnimSlot>(currentSlot) && currentSlot != 0)
+            {
+                slotAlreadyTaken = true;
+                break;
+            }
+        }
+
+        if (!slotAlreadyTaken)
+        {
+            state.slot = static_cast<Engine::Animation::AnimSlot>(currentSlot);
+            m_targetComponent->RebuildSlotTable(); // Re-bake the O(1) LUT immediately
+        }
+    }
+
     ImGui::Spacing();
     ImGui::Separator();
 

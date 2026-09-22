@@ -737,6 +737,7 @@ void AnimationComponent::Serialize(nlohmann::json& j) const
         nlohmann::json stateJson{};
         stateJson["Name"] = state.name;
         stateJson["Type"] = static_cast<int>(state.type);
+        stateJson["Slot"] = static_cast<int>(state.slot);
 
         nlohmann::json nodesArray = nlohmann::json::array();
         for (const auto& node : state.nodes)
@@ -795,6 +796,7 @@ void AnimationComponent::Deserialize(const nlohmann::json& j)
         AnimationState state{};
         state.name = stateJson.value("Name", "State");
         state.type = static_cast<AnimStateType>(stateJson.value("Type", 0));
+        state.slot = static_cast<Engine::Animation::AnimSlot>(stateJson.value("Slot", 0));
 
         if (stateJson.contains("Nodes"))
         {
@@ -847,6 +849,81 @@ void AnimationComponent::Deserialize(const nlohmann::json& j)
         m_stateHashes.push_back(Core::RuntimeHash(state.name));
         m_states.push_back(state);
     }
+    RebuildSlotTable();
+}
+
+// Rebuilds the O(1) lookup table. Call this after loading JSON or changing slots in the Editor.
+void AnimationComponent::RebuildSlotTable() noexcept
+{
+    m_slotLookup.fill(-1);
+    for (std::size_t i{ 0 }; i < m_states.size(); ++i)
+    {
+        if (m_states[i].slot != Engine::Animation::AnimSlot::None)
+        {
+            m_slotLookup[static_cast<std::size_t>(m_states[i].slot)] = static_cast<int16_t>(i);
+        }
+    }
+}
+
+// Direct index execution
+float AnimationComponent::GetStateDurationByIndex(std::size_t stateIndex) const noexcept
+{
+    if (!m_model || stateIndex >= m_states.size()) return 0.0f;
+
+    const AnimationState& state{ m_states[stateIndex] };
+    if (state.nodes.empty()) return 0.0f;
+
+    float totalDuration = 0.0f;
+    std::size_t nodeA = 0, nodeB = 0;
+    float t = 0.0f;
+
+    if (state.type == AnimStateType::Blend1D && state.nodes.size() > 1 && m_blackboard)
+    {
+        const float param{ m_blackboard->groundSpeed };
+        if (param <= state.nodes.front().threshold) { nodeA = 0; nodeB = 0; }
+        else if (param >= state.nodes.back().threshold) { nodeA = state.nodes.size() - 1; nodeB = nodeA; }
+        else
+        {
+            for (std::size_t j{ 0 }; j < state.nodes.size() - 1; ++j)
+            {
+                if (param >= state.nodes[j].threshold && param < state.nodes[j + 1].threshold)
+                {
+                    nodeA = j; nodeB = j + 1;
+                    const float range = state.nodes[nodeB].threshold - state.nodes[nodeA].threshold;
+                    t = (param - state.nodes[nodeA].threshold) / (range > 0.001f ? range : 1.0f);
+                    break;
+                }
+            }
+        }
+    }
+    else if (state.type == AnimStateType::Selector && m_blackboard)
+    {
+        int rawIndex = m_blackboard->actionIndex;
+        if (rawIndex < 0) rawIndex = 0;
+        if (rawIndex >= static_cast<int>(state.nodes.size())) rawIndex = static_cast<int>(state.nodes.size()) - 1;
+        nodeA = static_cast<std::size_t>(rawIndex);
+        nodeB = nodeA;
+    }
+
+    const int clipA = state.nodes[nodeA].clipIndex;
+    const int clipB = state.nodes[nodeB].clipIndex;
+    const auto& animations = m_model->GetAnimations();
+
+    if (clipA >= 0 && static_cast<std::size_t>(clipA) < animations.size() &&
+        clipB >= 0 && static_cast<std::size_t>(clipB) < animations.size())
+    {
+        totalDuration = (animations[clipA].secondsLength * (1.0f - t)) + (animations[clipB].secondsLength * t);
+    }
+
+    if (totalDuration > 0.001f)
+    {
+        const float currentSpeed = (state.nodes[nodeA].speedMultiplier * (1.0f - t)) + (state.nodes[nodeB].speedMultiplier * t);
+        const float currentOffset = (state.nodes[nodeA].startOffset * (1.0f - t)) + (state.nodes[nodeB].startOffset * t);
+
+        const float remainingDuration = (totalDuration - currentOffset) / (currentSpeed > 0.01f ? currentSpeed : 1.0f);
+        return (remainingDuration > 0.0f) ? remainingDuration : 0.0f;
+    }
+    return 0.0f;
 }
 
 REGISTER_COMPONENT(AnimationComponent)
