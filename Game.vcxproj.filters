@@ -363,6 +363,9 @@
     <ClCompile Include="Source\Engine\Camera\CameraInput.cpp">
       <Filter>Source\Engine\Camera</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Engine\Components\OrbitCameraDriverComponent.cpp">
+      <Filter>Source\Engine\Components</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\System\BasicShader.h">
@@ -699,6 +702,9 @@
     </ClInclude>
     <ClInclude Include="Source\Engine\Camera\CameraInput.h">
       <Filter>Source\Engine\Camera</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Components\OrbitCameraDriverComponent.h">
+      <Filter>Source\Engine\Components</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -156,6 +156,7 @@
     <ClInclude Include="Source\Engine\Components\ComponentRegistry.h" />
     <ClInclude Include="Source\Engine\Components\LightComponent.h" />
     <ClInclude Include="Source\Engine\Components\MeshComponent.h" />
+    <ClInclude Include="Source\Engine\Components\OrbitCameraDriverComponent.h" />
     <ClInclude Include="Source\Engine\Components\PlayerControllerComponent.h" />
     <ClInclude Include="Source\Engine\Components\StaticMeshColliderComponent.h" />
     <ClInclude Include="Source\Engine\Components\VirtualCameraComponent.h" />
@@ -259,6 +260,7 @@
     <ClCompile Include="Source\Engine\Components\CharacterMovementComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\LightComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\MeshComponent.cpp" />
+    <ClCompile Include="Source\Engine\Components\OrbitCameraDriverComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\PlayerControllerComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\StaticMeshColliderComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\VirtualCameraComponent.cpp" />
