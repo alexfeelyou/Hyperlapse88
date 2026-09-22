@@ -13,7 +13,7 @@ class OrbitCameraDriverComponent final : public IComponent
 {
 public:
     OrbitCameraDriverComponent() noexcept = default;
-    ~OrbitCameraDriverComponent() override = default;
+    ~OrbitCameraDriverComponent() override;
 
     OrbitCameraDriverComponent(const OrbitCameraDriverComponent&) = delete;
     OrbitCameraDriverComponent& operator=(const OrbitCameraDriverComponent&) = delete;
@@ -26,11 +26,16 @@ public:
     // rather than leaving the cursor hidden with nothing driving the camera anymore.
     void OnDisable() noexcept override;
 
+    // Global read access to the camera yaw gameplay code should resolve movement/facing
+    // against. Self-registering, single-active-instance pattern
+    [[nodiscard]] static float GetActiveYawRadians() noexcept;
+
     [[nodiscard]] const char* GetTypeName() const noexcept override { return "OrbitCameraDriverComponent"; }
 
 private:
-    // Non-owning: the sibling VirtualCameraComponent's lifetime is managed by the
-    // GameObject's component list, same pattern as PlayerControllerComponent's cached
-    // CharacterMovementComponent*/AnimationComponent* pointers.
     VirtualCameraComponent* m_orbitCamera{ nullptr };
+
+    // Non-owning. Set in OnAttach, cleared in the destructor — mirrors
+    // VirtualCameraComponent's own s_registry add/remove-on-destroy pattern.
+    static inline OrbitCameraDriverComponent* s_activeInstance{ nullptr };
 };

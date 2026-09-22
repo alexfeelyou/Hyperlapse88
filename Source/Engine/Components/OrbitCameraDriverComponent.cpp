@@ -9,14 +9,31 @@
 void OrbitCameraDriverComponent::OnAttach(GameObject* owner) noexcept
 {
     IComponent::OnAttach(owner);
+    s_activeInstance = this;
 
-    // Lazily-tolerant cache: if VirtualCameraComponent hasn't been added yet (component
-    // order in the Inspector isn't guaranteed), Update() re-attempts this every frame
-    // until it succeeds
     if (m_owner)
     {
         m_orbitCamera = m_owner->GetComponent<VirtualCameraComponent>();
     }
+}
+
+OrbitCameraDriverComponent::~OrbitCameraDriverComponent()
+{
+    if (s_activeInstance == this)
+    {
+        s_activeInstance = nullptr;
+    }
+}
+
+float OrbitCameraDriverComponent::GetActiveYawRadians() noexcept
+{
+    if (!s_activeInstance || !s_activeInstance->m_orbitCamera) return 0.0f;
+
+    GameObject* cameraObject{ s_activeInstance->m_orbitCamera->GetOwner() };
+    if (!cameraObject) return 0.0f;
+
+    // Reads the VCam's already-damped GameObject rotation
+    return DirectX::XMConvertToRadians(cameraObject->GetRotation().y);
 }
 
 void OrbitCameraDriverComponent::Update(float dt)

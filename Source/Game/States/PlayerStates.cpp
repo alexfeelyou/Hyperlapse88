@@ -32,7 +32,7 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
         return;
     }
 
-    motor->SetDesiredDirection(intent.moveVector);
+    motor->SetDesiredDirection(intent.worldMoveDirection);
 
     auto& blackboard{ controller->getAnimBlackboard() };
     const DirectX::XMFLOAT3 velocity{ motor->GetTotalVelocity() };

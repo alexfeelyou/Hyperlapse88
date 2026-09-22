@@ -6,6 +6,7 @@
 #include "ComponentRegistry.h"
 #include "EditorManager.h"
 #include "GameObject.h"
+#include "OrbitCameraDriverComponent.h"
 #include "PlayerControllerComponent.h"
 #include "PlayerStates.h"
 
@@ -92,6 +93,22 @@ void PlayerControllerComponent::GatherHardwareInput() noexcept
         ((pad.GetButtonDown() & GamePad::BTN_X) != 0);
 }
 
+void PlayerControllerComponent::ResolveIntentToWorldSpace() noexcept
+{
+    const float yaw{ OrbitCameraDriverComponent::GetActiveYawRadians() };
+    const float sinYaw{ std::sin(yaw) };
+    const float cosYaw{ std::cos(yaw) };
+
+    const float inputX{ m_intent.moveVector.x };
+    const float inputY{ m_intent.moveVector.y };
+
+    // Projects input-space strafe/forward onto the camera's world-space right/forward basis
+    m_intent.worldMoveDirection = {
+        (inputX * cosYaw) - (inputY * sinYaw),
+        -(inputX * sinYaw) - (inputY * cosYaw)
+    };
+}
+
 void PlayerControllerComponent::Update(const float dt)
 {
     if (EditorManager::Instance().GetEditorMode() != EditorMode::Play)
@@ -100,6 +117,7 @@ void PlayerControllerComponent::Update(const float dt)
     }
 
     GatherHardwareInput();
+    ResolveIntentToWorldSpace();
 
     if (m_stateMachine)
     {

@@ -34,7 +34,8 @@ class PlayerState;
 
 struct InputIntent
 {
-    DirectX::XMFLOAT2 moveVector{ 0.0f, 0.0f }; // Left Stick / WASD
+    DirectX::XMFLOAT2 moveVector{ 0.0f, 0.0f }; // Raw input space: x = strafe (D/A, stick X), y = forward (W/S, stick Y)
+    DirectX::XMFLOAT2 worldMoveDirection{ 0.0f, 0.0f }; // moveVector rotated into world-space X/Z by camera yaw
     DirectX::XMFLOAT3 aimWorldTarget{ 0.0f, 0.0f, 0.0f }; // Right Stick / Mouse Raycast
     bool bDashTriggered{ false };
     bool bAttackPressed{ false };
@@ -80,6 +81,7 @@ public:
 
 private:
     void GatherHardwareInput() noexcept;
+    void ResolveIntentToWorldSpace() noexcept;
 
     InputIntent m_intent{};
     bool m_inputEnabled{ true };
