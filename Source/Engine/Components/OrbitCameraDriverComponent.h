@@ -30,6 +30,9 @@ public:
     // against. Self-registering, single-active-instance pattern
     [[nodiscard]] static float GetActiveYawRadians() noexcept;
 
+    // Allows gameplay systems to check if the UI currently owns the mouse
+    [[nodiscard]] static bool IsMouseCaptured() noexcept;
+
     [[nodiscard]] const char* GetTypeName() const noexcept override { return "OrbitCameraDriverComponent"; }
 
 private:

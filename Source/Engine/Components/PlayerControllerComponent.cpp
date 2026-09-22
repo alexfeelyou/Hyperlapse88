@@ -120,6 +120,17 @@ void PlayerControllerComponent::Update(const float dt)
     }
 
     GatherHardwareInput();
+
+    // Input Masking
+    // If the cursor is released (Shift+F1) and interacting with ImGui (Gizmos, Maximize, etc.),
+    // we zero out the hardware intent so the character stops moving and ignores attack clicks.
+    if (!OrbitCameraDriverComponent::IsMouseCaptured())
+    {
+        m_intent.moveVector = { 0.0f, 0.0f };
+        m_intent.bAttackPressed = false;
+        m_intent.bDashTriggered = false;
+    }
+
     ResolveIntentToWorldSpace();
 
     if (m_stateMachine)

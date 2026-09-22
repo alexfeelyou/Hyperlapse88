@@ -38,6 +38,12 @@ float OrbitCameraDriverComponent::GetActiveYawRadians() noexcept
     return DirectX::XMConvertToRadians(cameraObject->GetRotation().y);
 }
 
+bool OrbitCameraDriverComponent::IsMouseCaptured() noexcept
+{
+    // State poll: If the camera doesn't exist, the mouse isn't captured.
+    return s_activeInstance ? s_activeInstance->m_isCaptured : false;
+}
+
 void OrbitCameraDriverComponent::Update(float dt)
 {
     // Fast fail outside Play: reset capture state so it automatically captures next time we hit Play.
