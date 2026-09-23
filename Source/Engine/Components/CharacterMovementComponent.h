@@ -9,7 +9,8 @@ class CapsuleColliderComponent;
 // Data-driven configuration for locomotion mechanics
 struct CharacterMovementConfig
 {
-    float maxWalkSpeed{ 8.5f };
+    float maxRunSpeed{ 6.5f };
+    float sprintSpeed{ 12.0f };
     float acceleration{ 32.0f };
     float deceleration{ 38.0f };
     float impulseDrag{ 7.5f };
@@ -41,6 +42,7 @@ public:
 
     // Locomotion Interface
     void SetDesiredDirection(const DirectX::XMFLOAT2& direction) noexcept;
+    void SetSprinting(bool isSprinting) noexcept { m_isSprinting = isSprinting; }
     void AddImpulse(const DirectX::XMFLOAT3& impulse) noexcept;
 
     // Explicitly drives true ballistic gravity arcs
@@ -70,6 +72,7 @@ private:
 
     float m_verticalVelocity{ 0.0f };
     float m_frictionMultiplier{ 1.0f };
+    bool m_isSprinting{ false };
 
     [[nodiscard]] static constexpr float LengthSq(const DirectX::XMFLOAT2& v) noexcept
     {

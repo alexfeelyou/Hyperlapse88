@@ -75,9 +75,10 @@ void CharacterMovementComponent::Update(const float dt)
     }
 
     // Process Input Locomotion (Accelerate towards desired direction)
+    const float currentMaxSpeed = m_isSprinting ? m_config.sprintSpeed : m_config.maxRunSpeed;
     const DirectX::XMFLOAT2 targetVelocity{
-        m_desiredDirection.x * m_config.maxWalkSpeed,
-        m_desiredDirection.y * m_config.maxWalkSpeed
+        m_desiredDirection.x * currentMaxSpeed,
+        m_desiredDirection.y * currentMaxSpeed
     };
 
     const float accelRate{ (LengthSq(m_desiredDirection) > 0.01f) ? m_config.acceleration : m_config.deceleration };
@@ -125,7 +126,8 @@ void CharacterMovementComponent::DrawInspector()
     ImGui::TextDisabled("Kinematic Locomotion Motor");
     ImGui::Separator();
 
-    ImGui::DragFloat("Max Walk Speed", &m_config.maxWalkSpeed, 0.1f, 1.0f, 100.0f);
+    ImGui::DragFloat("Max Run Speed", &m_config.maxRunSpeed, 0.1f, 1.0f, 100.0f);
+    ImGui::DragFloat("Sprint Speed", &m_config.sprintSpeed, 0.1f, 1.0f, 100.0f);
     ImGui::DragFloat("Acceleration", &m_config.acceleration, 0.5f, 1.0f, 200.0f);
     ImGui::DragFloat("Deceleration", &m_config.deceleration, 0.5f, 1.0f, 200.0f);
     ImGui::DragFloat("Impulse Drag", &m_config.impulseDrag, 0.1f, 0.1f, 50.0f);
@@ -141,7 +143,8 @@ void CharacterMovementComponent::DrawInspector()
 
 void CharacterMovementComponent::Serialize(nlohmann::json& outJson) const
 {
-    outJson["MaxWalkSpeed"] = m_config.maxWalkSpeed;
+    outJson["MaxRunSpeed"] = m_config.maxRunSpeed;
+    outJson["SprintSpeed"] = m_config.sprintSpeed;
     outJson["Acceleration"] = m_config.acceleration;
     outJson["Deceleration"] = m_config.deceleration;
     outJson["ImpulseDrag"] = m_config.impulseDrag;
@@ -150,7 +153,8 @@ void CharacterMovementComponent::Serialize(nlohmann::json& outJson) const
 
 void CharacterMovementComponent::Deserialize(const nlohmann::json& inJson)
 {
-    m_config.maxWalkSpeed = inJson.value("MaxWalkSpeed", 8.5f);
+    m_config.maxRunSpeed = inJson.value("MaxRunSpeed", 6.5f);
+    m_config.sprintSpeed = inJson.value("SprintSpeed", 12.0f);
     m_config.acceleration = inJson.value("Acceleration", 32.0f);
     m_config.deceleration = inJson.value("Deceleration", 38.0f);
     m_config.impulseDrag = inJson.value("ImpulseDrag", 7.5f);

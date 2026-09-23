@@ -85,9 +85,11 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPrimary));
         return;
     }
+    const float inputSq = (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y);
+    const bool isActivelyMoving = (inputSq > 0.01f);
+    motor->SetSprinting(intent.bSprintHeld && isActivelyMoving);
 
     motor->SetDesiredDirection(intent.worldMoveDirection);
-    // ... the rest of the Locomotion logic remains identical ...
 
     auto& blackboard{ controller->getAnimBlackboard() };
     const DirectX::XMFLOAT3 velocity{ motor->GetTotalVelocity() };

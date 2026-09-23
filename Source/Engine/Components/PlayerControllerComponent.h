@@ -41,6 +41,7 @@ struct InputIntent
     bool bDashTriggered{ false };
     bool bAttackPressed{ false };
     bool bJumpTriggered{ false };
+    bool bSprintHeld{ false };
 };
 
 // Translates hardware input into InputIntent and evaluates the State Machine

@@ -271,16 +271,16 @@
                     "FollowOffsetY": 1.100000023841858,
                     "FollowOffsetZ": -4.800000190734863,
                     "FollowTarget": "Unichan",
-                    "FovDegrees": 45.0,
+                    "FovDegrees": 48.0,
                     "LookAtTarget": "",
                     "NearZ": 0.20000000298023224,
-                    "OrbitDistance": 6.0,
+                    "OrbitDistance": 3.299999952316284,
                     "OrbitMaxPitch": 1.3962633609771729,
                     "OrbitMinPitch": -1.3962633609771729,
                     "OrbitPivotOffsetX": 0.0,
-                    "OrbitPivotOffsetY": 1.600000023841858,
+                    "OrbitPivotOffsetY": 1.149999976158142,
                     "OrbitPivotOffsetZ": 0.0,
-                    "OrbitShoulderOffset": 0.6000000238418579,
+                    "OrbitShoulderOffset": 0.5,
                     "PositionDamping": 5.0,
                     "Priority": 10,
                     "RotationDamping": 5.0,
@@ -675,7 +675,7 @@
                                     "Speed": 1.0,
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
-                                    "Threshold": 8.5,
+                                    "Threshold": 6.5,
                                     "Transitions": [
                                         {
                                             "Blend": 0.05999999865889549,
@@ -684,6 +684,21 @@
                                             "Source": "Dash"
                                         }
                                     ]
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 29,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": true,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.25,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 12.0,
+                                    "Transitions": []
                                 }
                             ],
                             "Slot": 1,
@@ -1035,7 +1050,8 @@
                     "Acceleration": 32.0,
                     "Deceleration": 38.0,
                     "ImpulseDrag": 7.5,
-                    "MaxWalkSpeed": 8.5,
+                    "MaxRunSpeed": 6.5,
+                    "SprintSpeed": 12.0,
                     "Type": "CharacterMovementComponent",
                     "UseGravity": true
                 },

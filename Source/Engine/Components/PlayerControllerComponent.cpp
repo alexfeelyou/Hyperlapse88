@@ -91,6 +91,10 @@ void PlayerControllerComponent::GatherHardwareInput() noexcept
         ((pad.GetButtonDown() & GamePad::BTN_B) != 0) ||
         ((pad.GetButtonDown() & GamePad::BTN_LEFT_SHOULDER) != 0);
 
+	// Detect Shift / Gamepad Right Shoulder for Sprint
+    m_intent.bSprintHeld = input.GetKeyboard().IsPress(VK_SHIFT) ||
+        ((pad.GetButton() & GamePad::BTN_RIGHT_SHOULDER) != 0);
+
     // Detect Left Mouse Button / Gamepad X for Attack
     m_intent.bAttackPressed = input.GetKeyboard().IsTriggered(VK_LBUTTON) ||
         ((pad.GetButtonDown() & GamePad::BTN_X) != 0);
