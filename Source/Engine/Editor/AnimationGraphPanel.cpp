@@ -176,7 +176,19 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
         if (!slotAlreadyTaken)
         {
             state.slot = static_cast<Engine::Animation::AnimSlot>(currentSlot);
-            m_targetComponent->RebuildSlotTable(); // Re-bake the O(1) LUT immediately
+            m_targetComponent->RebuildSlotTable(); 
+        }
+    }
+
+    if (state.type == AnimStateType::Blend1D)
+    {
+        ImGui::Spacing();
+        static constexpr const char* s_paramNames[] = { "Ground Speed (m/s)", "Vertical Velocity (m/s)" };
+        int currentParam = static_cast<int>(state.blendParam);
+
+        if (ImGui::Combo("Blend Parameter", &currentParam, s_paramNames, 2))
+        {
+            state.blendParam = static_cast<BlendParamType>(currentParam);
         }
     }
 
@@ -198,7 +210,8 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
         if (state.type == AnimStateType::Blend1D)
         {
             ImGui::SetNextItemWidth(80.0f);
-            ImGui::DragFloat("Threshold", &node.threshold, 0.1f, 0.0f, 100.0f, "%.1f");
+            // Widened limits to allow negative thresholds for vertical velocity
+            ImGui::DragFloat("Threshold", &node.threshold, 0.1f, -100.0f, 100.0f, "%.1f");
         }
         else if (state.type == AnimStateType::Selector)
         {
@@ -292,16 +305,30 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
     // DYNAMIC BLACKBOARD UI BASED ON GRAPH TYPE 
     if (state.type == AnimStateType::Blend1D)
     {
-        // Negative width tells ImGui to fill available space minus X pixels for the label
         ImGui::SetNextItemWidth(-120.0f);
-        if (ImGui::SliderFloat("Speed (Mock)", &m_debugSpeed, 0.0f, 10.0f, "%.1f m/s"))
+
+        if (state.blendParam == BlendParamType::GroundSpeed)
         {
-            if (auto* bb = const_cast<Engine::Animation::AnimBlackboard*>(m_targetComponent->GetBlackboard()))
+            if (ImGui::SliderFloat("Speed (Mock)", &m_debugSpeed, 0.0f, 10.0f, "%.1f m/s"))
             {
-                bb->groundSpeed = m_debugSpeed;
+                if (auto* bb = const_cast<Engine::Animation::AnimBlackboard*>(m_targetComponent->GetBlackboard()))
+                {
+                    bb->groundSpeed = m_debugSpeed;
+                }
+                if (!isPreviewing && !isGameLive) m_targetComponent->Update(0.0f);
             }
-            // Immediately force a pose evaluation so the 3D viewport updates while dragging the slider
-            if (!isPreviewing && !isGameLive) m_targetComponent->Update(0.0f);
+        }
+        else if (state.blendParam == BlendParamType::VerticalVelocity)
+        {
+            static float s_debugVertVel = 0.0f;
+            if (ImGui::SliderFloat("Vert Vel (Mock)", &s_debugVertVel, -20.0f, 20.0f, "%.1f m/s"))
+            {
+                if (auto* bb = const_cast<Engine::Animation::AnimBlackboard*>(m_targetComponent->GetBlackboard()))
+                {
+                    bb->verticalVelocity = s_debugVertVel;
+                }
+                if (!isPreviewing && !isGameLive) m_targetComponent->Update(0.0f);
+            }
         }
     }
     else if (state.type == AnimStateType::Selector)
@@ -440,11 +467,17 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
             ImGui::Separator();
             ImGui::Spacing();
 
-            ImGui::Checkbox("In-Place (Lock Root)", &targetNode.rootMotionLock);
-            if (targetNode.rootMotionLock)
+            ImGui::TextDisabled("ROOT MOTION LOCKS");
+            ImGui::Checkbox("Lock X", &targetNode.lockRootX);
+            ImGui::SameLine();
+            ImGui::Checkbox("Lock Y", &targetNode.lockRootY);
+            ImGui::SameLine();
+            ImGui::Checkbox("Lock Z", &targetNode.lockRootZ);
+
+            if (targetNode.lockRootX || targetNode.lockRootY || targetNode.lockRootZ)
             {
                 ImGui::Spacing();
-                ImGui::InputInt("Bone Index", &targetNode.rootBoneIndex);
+                ImGui::InputInt("Root Bone Index", &targetNode.rootBoneIndex);
             }
 
             ImGui::Spacing();

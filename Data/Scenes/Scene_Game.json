@@ -264,6 +264,8 @@
             "Children": [],
             "Components": [
                 {
+                    "CameraCollisionEnabled": true,
+                    "CameraCollisionRadius": 0.15000000596046448,
                     "FarZ": 1000.0,
                     "FollowOffsetX": 0.10000000149011612,
                     "FollowOffsetY": 1.100000023841858,
@@ -272,10 +274,20 @@
                     "FovDegrees": 45.0,
                     "LookAtTarget": "",
                     "NearZ": 0.20000000298023224,
+                    "OrbitDistance": 6.0,
+                    "OrbitMaxPitch": 1.3962633609771729,
+                    "OrbitMinPitch": -1.3962633609771729,
+                    "OrbitPivotOffsetX": 0.0,
+                    "OrbitPivotOffsetY": 1.600000023841858,
+                    "OrbitPivotOffsetZ": 0.0,
+                    "OrbitShoulderOffset": 0.6000000238418579,
                     "PositionDamping": 5.0,
                     "Priority": 10,
                     "RotationDamping": 5.0,
                     "Type": "VirtualCameraComponent"
+                },
+                {
+                    "Type": "OrbitCameraDriverComponent"
                 }
             ],
             "IsActive": true,
@@ -587,6 +599,7 @@
                 {
                     "States": [
                         {
+                            "BlendParam": 0,
                             "Name": "Dash",
                             "Nodes": [
                                 {
@@ -601,9 +614,11 @@
                                             "Time": 0.8560884594917297
                                         }
                                     ],
+                                    "LockRootX": true,
+                                    "LockRootY": false,
+                                    "LockRootZ": true,
                                     "Loop": false,
                                     "RootBoneIndex": 3,
-                                    "RootLock": true,
                                     "Speed": 1.0,
                                     "StartOffset": 0.15000000596046448,
                                     "SyncPhase": false,
@@ -615,15 +630,18 @@
                             "Type": 0
                         },
                         {
+                            "BlendParam": 0,
                             "Name": "Locomotion",
                             "Nodes": [
                                 {
                                     "Blend": 0.20000000298023224,
                                     "ClipIndex": 13,
                                     "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
                                     "Loop": true,
                                     "RootBoneIndex": 3,
-                                    "RootLock": false,
                                     "Speed": 1.0,
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
@@ -634,9 +652,11 @@
                                     "Blend": 0.20000000298023224,
                                     "ClipIndex": 34,
                                     "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
                                     "Loop": true,
                                     "RootBoneIndex": 3,
-                                    "RootLock": false,
                                     "Speed": 1.0,
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
@@ -647,9 +667,11 @@
                                     "Blend": 0.20000000298023224,
                                     "ClipIndex": 29,
                                     "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
                                     "Loop": true,
                                     "RootBoneIndex": 0,
-                                    "RootLock": false,
                                     "Speed": 1.0,
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
@@ -668,6 +690,7 @@
                             "Type": 1
                         },
                         {
+                            "BlendParam": 0,
                             "Name": "Attack: Primary Combo",
                             "Nodes": [
                                 {
@@ -689,9 +712,11 @@
                                             "Time": 0.5817952752113342
                                         }
                                     ],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": true,
                                     "Loop": false,
                                     "RootBoneIndex": 3,
-                                    "RootLock": true,
                                     "Speed": 1.0,
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
@@ -717,9 +742,11 @@
                                             "Time": 0.5252152681350708
                                         }
                                     ],
+                                    "LockRootX": true,
+                                    "LockRootY": false,
+                                    "LockRootZ": true,
                                     "Loop": false,
                                     "RootBoneIndex": 3,
-                                    "RootLock": true,
                                     "Speed": 1.0,
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
@@ -745,9 +772,11 @@
                                             "Time": 0.6014761328697205
                                         }
                                     ],
+                                    "LockRootX": true,
+                                    "LockRootY": false,
+                                    "LockRootZ": true,
                                     "Loop": false,
                                     "RootBoneIndex": 3,
-                                    "RootLock": true,
                                     "Speed": 1.0,
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
@@ -773,9 +802,11 @@
                                             "Time": 0.7183269262313843
                                         }
                                     ],
+                                    "LockRootX": true,
+                                    "LockRootY": false,
+                                    "LockRootZ": true,
                                     "Loop": false,
                                     "RootBoneIndex": 3,
-                                    "RootLock": true,
                                     "Speed": 1.0,
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
@@ -785,6 +816,104 @@
                             ],
                             "Slot": 7,
                             "Type": 2
+                        },
+                        {
+                            "BlendParam": 1,
+                            "Name": "Air traversal",
+                            "Nodes": [
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 18,
+                                    "Events": [],
+                                    "LockRootX": true,
+                                    "LockRootY": true,
+                                    "LockRootZ": false,
+                                    "Loop": true,
+                                    "RootBoneIndex": 3,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": -4.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 17,
+                                    "Events": [],
+                                    "LockRootX": true,
+                                    "LockRootY": true,
+                                    "LockRootZ": true,
+                                    "Loop": true,
+                                    "RootBoneIndex": 3,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": -2.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 21,
+                                    "Events": [],
+                                    "LockRootX": true,
+                                    "LockRootY": true,
+                                    "LockRootZ": true,
+                                    "Loop": true,
+                                    "RootBoneIndex": 3,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 20,
+                                    "Events": [],
+                                    "LockRootX": true,
+                                    "LockRootY": true,
+                                    "LockRootZ": true,
+                                    "Loop": true,
+                                    "RootBoneIndex": 3,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 2.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 19,
+                                    "Events": [],
+                                    "LockRootX": true,
+                                    "LockRootY": true,
+                                    "LockRootZ": true,
+                                    "Loop": true,
+                                    "RootBoneIndex": 3,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 4.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 22,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": true,
+                                    "LockRootZ": true,
+                                    "Loop": true,
+                                    "RootBoneIndex": 3,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 6.0,
+                                    "Transitions": []
+                                }
+                            ],
+                            "Slot": 4,
+                            "Type": 1
                         }
                     ],
                     "Type": "AnimationComponent"
@@ -819,9 +948,9 @@
             "PosX": 0.0,
             "PosY": 0.0,
             "PosZ": 0.0,
-            "RotX": 0.0,
+            "RotX": -0.0,
             "RotY": 0.0,
-            "RotZ": 0.0,
+            "RotZ": -0.0,
             "ScaleX": 1.0,
             "ScaleY": 1.0,
             "ScaleZ": 1.0

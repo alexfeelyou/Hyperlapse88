@@ -9,10 +9,10 @@ class CapsuleColliderComponent;
 // Data-driven configuration for locomotion mechanics
 struct CharacterMovementConfig
 {
-    float maxWalkSpeed{ 8.5f };    
-    float acceleration{ 32.0f };   
-    float deceleration{ 38.0f };   
-    float impulseDrag{ 7.5f };     
+    float maxWalkSpeed{ 8.5f };
+    float acceleration{ 32.0f };
+    float deceleration{ 38.0f };
+    float impulseDrag{ 7.5f };
     float gravity{ -9.81f };
     bool  useGravity{ true };
 };
@@ -42,6 +42,9 @@ public:
     // Locomotion Interface
     void SetDesiredDirection(const DirectX::XMFLOAT2& direction) noexcept;
     void AddImpulse(const DirectX::XMFLOAT3& impulse) noexcept;
+
+    // Explicitly drives true ballistic gravity arcs
+    void Jump(float jumpForce) noexcept { m_verticalVelocity = jumpForce; }
 
     // Friction Override (e.g., locking the player in place during a sword slash)
     void SetFrictionMultiplier(float multiplier) noexcept { m_frictionMultiplier = multiplier; }

@@ -54,7 +54,9 @@ struct AnimNode
     float threshold{ 0.0f };
     int clipIndex{ -1 };
 
-    bool rootMotionLock{ true };
+    bool lockRootX{ true };
+    bool lockRootY{ true };
+    bool lockRootZ{ true };
     int rootBoneIndex{ 0 };
     bool isLooping{ true };
     bool syncPhase{ false };
@@ -67,11 +69,17 @@ struct AnimNode
     std::vector<TransitionRule> transitionRules{};
 };
 
+enum class BlendParamType : std::uint8_t {
+    GroundSpeed = 0,
+    VerticalVelocity
+};
+
 struct AnimationState
 {
     std::string name{ "State" };
     Engine::Animation::AnimSlot slot{ Engine::Animation::AnimSlot::None };
     AnimStateType type{ AnimStateType::Single };
+    BlendParamType blendParam{ BlendParamType::GroundSpeed }; 
     std::vector<AnimNode> nodes{};
 };
 

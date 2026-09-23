@@ -85,12 +85,18 @@ void PlayerControllerComponent::GatherHardwareInput() noexcept
 
     m_intent.moveVector = { targetX, targetZ };
 
+    // Detect Shift / Gamepad B / Gamepad Left Shoulder for Dash
     m_intent.bDashTriggered = input.GetKeyboard().IsTriggered(VK_SHIFT) ||
         ((pad.GetButtonDown() & GamePad::BTN_B) != 0) ||
         ((pad.GetButtonDown() & GamePad::BTN_LEFT_SHOULDER) != 0);
 
+    // Detect Left Mouse Button / Gamepad X for Attack
     m_intent.bAttackPressed = input.GetKeyboard().IsTriggered(VK_LBUTTON) ||
         ((pad.GetButtonDown() & GamePad::BTN_X) != 0);
+
+    // Detect Spacebar / Gamepad A for Jump
+    m_intent.bJumpTriggered = input.GetKeyboard().IsTriggered(VK_SPACE) ||
+        ((pad.GetButtonDown() & GamePad::BTN_A) != 0);
 }
 
 void PlayerControllerComponent::ResolveIntentToWorldSpace() noexcept

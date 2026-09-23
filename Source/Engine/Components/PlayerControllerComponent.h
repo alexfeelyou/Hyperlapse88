@@ -29,8 +29,8 @@ enum class PlayerStateType : std::uint8_t
 
 // Forward declarations 
 class CharacterMovementComponent;
-class AnimationComponent; 
-class PlayerState;        
+class AnimationComponent;
+class PlayerState;
 
 struct InputIntent
 {
@@ -39,6 +39,7 @@ struct InputIntent
     DirectX::XMFLOAT3 aimWorldTarget{ 0.0f, 0.0f, 0.0f }; // Right Stick / Mouse Raycast
     bool bDashTriggered{ false };
     bool bAttackPressed{ false };
+    bool bJumpTriggered{ false };
 };
 
 // Translates hardware input into InputIntent and evaluates the State Machine
@@ -88,7 +89,7 @@ private:
 
     // Component Caches
     CharacterMovementComponent* m_movement{ nullptr };
-    AnimationComponent* m_animation{ nullptr }; 
+    AnimationComponent* m_animation{ nullptr };
 
     // Owns the state machine logic
     std::unique_ptr<StateMachine> m_stateMachine{};
@@ -96,6 +97,6 @@ private:
     // Preallocated states pool (Zero allocations at runtime) 
     std::array<std::unique_ptr<PlayerState>, static_cast<std::size_t>(PlayerStateType::Count)> m_states{};
 
-	// Shared data contract between gameplay and animation systems
+    // Shared data contract between gameplay and animation systems
     Engine::Animation::AnimBlackboard m_blackboard{};
 };

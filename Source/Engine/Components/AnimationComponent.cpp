@@ -355,7 +355,11 @@ void AnimationComponent::Update(const float dt)
         }
         else if (targetState.type == AnimStateType::Blend1D && targetState.nodes.size() > 1 && m_blackboard)
         {
-            const float param{ m_blackboard->groundSpeed };
+            // Extract the correct parameter dynamically
+            float param = 0.0f;
+            if (targetState.blendParam == BlendParamType::GroundSpeed) param = m_blackboard->groundSpeed;
+            else if (targetState.blendParam == BlendParamType::VerticalVelocity) param = m_blackboard->verticalVelocity;
+
             if (param <= targetState.nodes.front().threshold) { nodeA = 0; nodeB = 0; }
             else if (param >= targetState.nodes.back().threshold) { nodeA = targetState.nodes.size() - 1; nodeB = nodeA; }
             else
@@ -427,11 +431,16 @@ void AnimationComponent::Update(const float dt)
                     BlendPoses(m_scratchpad.bufferA, m_scratchpad.bufferB, t, m_currentLocalPoses);
                 }
 
-                if (targetState.nodes[dominantNode].rootMotionLock && !m_currentLocalPoses.empty())
+                const bool hasRootLock = targetState.nodes[dominantNode].lockRootX ||
+                    targetState.nodes[dominantNode].lockRootY ||
+                    targetState.nodes[dominantNode].lockRootZ;
+
+                if (hasRootLock && !m_currentLocalPoses.empty())
                 {
                     const int boneIdx = std::clamp(targetState.nodes[dominantNode].rootBoneIndex, 0, static_cast<int>(m_currentLocalPoses.size() - 1));
-                    m_currentLocalPoses[boneIdx].position.x = 0.0f;
-                    m_currentLocalPoses[boneIdx].position.z = 0.0f;
+                    if (targetState.nodes[dominantNode].lockRootX) m_currentLocalPoses[boneIdx].position.x = m_model->GetNodes()[boneIdx].position.x;
+                    if (targetState.nodes[dominantNode].lockRootY) m_currentLocalPoses[boneIdx].position.y = m_model->GetNodes()[boneIdx].position.y;
+                    if (targetState.nodes[dominantNode].lockRootZ) m_currentLocalPoses[boneIdx].position.z = m_model->GetNodes()[boneIdx].position.z;
                 }
             }
         }
@@ -604,11 +613,16 @@ void AnimationComponent::ScrubToTime(std::size_t stateIndex, float time) noexcep
                 }
 
                 const std::size_t dominantNode = (t <= 0.5f) ? nodeA : nodeB;
-                if (state.nodes[dominantNode].rootMotionLock && !m_currentLocalPoses.empty())
+                const bool hasRootLock = state.nodes[dominantNode].lockRootX ||
+                    state.nodes[dominantNode].lockRootY ||
+                    state.nodes[dominantNode].lockRootZ;
+
+                if (hasRootLock && !m_currentLocalPoses.empty())
                 {
                     const int boneIdx = std::clamp(state.nodes[dominantNode].rootBoneIndex, 0, static_cast<int>(m_currentLocalPoses.size() - 1));
-                    m_currentLocalPoses[boneIdx].position.x = 0.0f;
-                    m_currentLocalPoses[boneIdx].position.z = 0.0f;
+                    if (state.nodes[dominantNode].lockRootX) m_currentLocalPoses[boneIdx].position.x = m_model->GetNodes()[boneIdx].position.x;
+                    if (state.nodes[dominantNode].lockRootY) m_currentLocalPoses[boneIdx].position.y = m_model->GetNodes()[boneIdx].position.y;
+                    if (state.nodes[dominantNode].lockRootZ) m_currentLocalPoses[boneIdx].position.z = m_model->GetNodes()[boneIdx].position.z;
                 }
             }
         }
@@ -636,11 +650,16 @@ void AnimationComponent::ScrubNodeToTime(std::size_t stateIndex, std::size_t nod
         m_model->ComputeAnimation(clipIdx, m_currentTimer, m_currentLocalPoses);
     }
 
-    if (state.nodes[nodeIndex].rootMotionLock && !m_currentLocalPoses.empty())
+    const bool hasRootLock = state.nodes[nodeIndex].lockRootX ||
+        state.nodes[nodeIndex].lockRootY ||
+        state.nodes[nodeIndex].lockRootZ;
+
+    if (hasRootLock && !m_currentLocalPoses.empty())
     {
         const int boneIdx = std::clamp(state.nodes[nodeIndex].rootBoneIndex, 0, static_cast<int>(m_currentLocalPoses.size() - 1));
-        m_currentLocalPoses[boneIdx].position.x = 0.0f;
-        m_currentLocalPoses[boneIdx].position.z = 0.0f;
+        if (state.nodes[nodeIndex].lockRootX) m_currentLocalPoses[boneIdx].position.x = m_model->GetNodes()[boneIdx].position.x;
+        if (state.nodes[nodeIndex].lockRootY) m_currentLocalPoses[boneIdx].position.y = m_model->GetNodes()[boneIdx].position.y;
+        if (state.nodes[nodeIndex].lockRootZ) m_currentLocalPoses[boneIdx].position.z = m_model->GetNodes()[boneIdx].position.z;
     }
 
     ComputeGlobalTransforms();
@@ -745,13 +764,16 @@ void AnimationComponent::Serialize(nlohmann::json& j) const
             nlohmann::json nodeJson{};
             nodeJson["Threshold"] = node.threshold;
             nodeJson["ClipIndex"] = node.clipIndex;
-            nodeJson["RootLock"] = node.rootMotionLock;
+            nodeJson["LockRootX"] = node.lockRootX;
+            nodeJson["LockRootY"] = node.lockRootY;
+            nodeJson["LockRootZ"] = node.lockRootZ;
             nodeJson["RootBoneIndex"] = node.rootBoneIndex;
             nodeJson["Loop"] = node.isLooping;
             nodeJson["SyncPhase"] = node.syncPhase;
             nodeJson["StartOffset"] = node.startOffset;
             nodeJson["Speed"] = node.speedMultiplier;
             nodeJson["Blend"] = node.blendDuration;
+            stateJson["BlendParam"] = static_cast<int>(state.blendParam);
 
             nlohmann::json eventsArray = nlohmann::json::array();
             for (const auto& ev : node.events)
@@ -797,6 +819,7 @@ void AnimationComponent::Deserialize(const nlohmann::json& j)
         state.name = stateJson.value("Name", "State");
         state.type = static_cast<AnimStateType>(stateJson.value("Type", 0));
         state.slot = static_cast<Engine::Animation::AnimSlot>(stateJson.value("Slot", 0));
+        state.blendParam = static_cast<BlendParamType>(stateJson.value("BlendParam", 0));
 
         if (stateJson.contains("Nodes"))
         {
@@ -805,7 +828,21 @@ void AnimationComponent::Deserialize(const nlohmann::json& j)
                 AnimNode node{};
                 node.threshold = nodeJson.value("Threshold", 0.0f);
                 node.clipIndex = nodeJson.value("ClipIndex", -1);
-                node.rootMotionLock = nodeJson.value("RootLock", true);
+                if (nodeJson.contains("RootLock"))
+                {
+                    // Load old file format
+                    const bool legacyLock = nodeJson.value("RootLock", true);
+                    node.lockRootX = legacyLock;
+                    node.lockRootY = legacyLock;
+                    node.lockRootZ = legacyLock;
+                }
+                else
+                {
+                    // Load new file format
+                    node.lockRootX = nodeJson.value("LockRootX", true);
+                    node.lockRootY = nodeJson.value("LockRootY", true);
+                    node.lockRootZ = nodeJson.value("LockRootZ", true);
+                }
                 node.rootBoneIndex = nodeJson.value("RootBoneIndex", 0);
                 node.isLooping = nodeJson.value("Loop", true);
                 node.syncPhase = nodeJson.value("SyncPhase", false);
@@ -879,7 +916,10 @@ float AnimationComponent::GetStateDurationByIndex(std::size_t stateIndex) const 
 
     if (state.type == AnimStateType::Blend1D && state.nodes.size() > 1 && m_blackboard)
     {
-        const float param{ m_blackboard->groundSpeed };
+        float param = 0.0f;
+        if (state.blendParam == BlendParamType::GroundSpeed) param = m_blackboard->groundSpeed;
+        else if (state.blendParam == BlendParamType::VerticalVelocity) param = m_blackboard->verticalVelocity;
+
         if (param <= state.nodes.front().threshold) { nodeA = 0; nodeB = 0; }
         else if (param >= state.nodes.back().threshold) { nodeA = state.nodes.size() - 1; nodeB = nodeA; }
         else

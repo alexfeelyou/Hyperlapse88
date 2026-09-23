@@ -12,6 +12,9 @@ public:
     void Enter(PlayerControllerComponent* controller) override;
     void Update(PlayerControllerComponent* controller, float dt) override;
     void Exit(PlayerControllerComponent* controller) override;
+
+private:
+    float m_fallTimer{ 0.0f };
 };
 
 class PlayerPivotTurn final : public PlayerState

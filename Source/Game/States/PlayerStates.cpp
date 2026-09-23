@@ -24,6 +24,33 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
     auto* motor{ controller->GetMovement() };
     if (!motor) return;
 
+    // 
+    if (!motor->isGrounded())
+    {
+        m_fallTimer += dt;
+        if (m_fallTimer > 0.15f) // 150ms tolerance for walking down stairs
+        {
+            controller->getAnimBlackboard().actionIndex = 1; // Route directly to Air Fall Loop
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
+            return;
+        }
+    }
+    else
+    {
+        m_fallTimer = 0.0f; // Reset timer while touching ground
+    }
+
+    if (intent.bJumpTriggered && motor->isGrounded())
+    {
+        constexpr float JUMP_FORCE{ 6.5f };
+        motor->Jump(JUMP_FORCE);
+
+        controller->getAnimBlackboard().actionIndex = 0; // Route to Jump Takeoff
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
+        return;
+    }
+
+    // Ground Actions (Dash / Attack)
     if (intent.bDashTriggered)
     {
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
@@ -36,6 +63,7 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
     }
 
     motor->SetDesiredDirection(intent.worldMoveDirection);
+    // ... the rest of the Locomotion logic remains identical ...
 
     auto& blackboard{ controller->getAnimBlackboard() };
     const DirectX::XMFLOAT3 velocity{ motor->GetTotalVelocity() };
@@ -50,7 +78,7 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
     //    circle-strafe independent of movement direction.
     //  - Free (default): face the resolved world-space move direction. No input leaves
     //    facing untouched (SmoothFaceDirection no-ops on a zero-length direction).
-    constexpr float turnRateDegPerSec{ 720.0f }; 
+    constexpr float turnRateDegPerSec{ 720.0f };
 
     DirectX::XMFLOAT2 faceTargetXZ{ intent.worldMoveDirection };
     if (blackboard.getFlag(AnimFlag::is_strafing))
@@ -80,9 +108,50 @@ void PlayerSlide::Exit(PlayerControllerComponent*) {}
 
 // AERIAL & PARKOUR
 
-void PlayerAirTraversal::Enter(PlayerControllerComponent*) {}
-void PlayerAirTraversal::Update(PlayerControllerComponent*, float) {}
-void PlayerAirTraversal::Exit(PlayerControllerComponent*) {}
+void PlayerAirTraversal::Enter(PlayerControllerComponent* controller)
+{
+    if (auto* anim{ controller->GetAnimation() })
+    {
+        anim->PlaySlot(AnimSlot::AirTraversal);
+    }
+}
+
+void PlayerAirTraversal::Update(PlayerControllerComponent* controller, float dt)
+{
+    const auto& intent{ controller->GetIntent() };
+    auto* motor{ controller->GetMovement() };
+    if (!motor) return;
+
+    auto& blackboard{ controller->getAnimBlackboard() };
+    const DirectX::XMFLOAT3 velocity{ motor->GetTotalVelocity() };
+
+    // Update Blackboard (The Blend1D graph will automatically read verticalVelocity from here)
+    blackboard.groundSpeed = std::sqrt((velocity.x * velocity.x) + (velocity.z * velocity.z));
+    blackboard.verticalVelocity = velocity.y;
+    blackboard.setFlag(AnimFlag::is_grounded, motor->isGrounded());
+
+    // Landing Detection
+    if (motor->isGrounded() && velocity.y <= 0.05f)
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+        return;
+    }
+
+    // Mid-Air Steering
+    constexpr float AIR_CONTROL{ 0.35f };
+    motor->SetDesiredDirection({ intent.worldMoveDirection.x * AIR_CONTROL, intent.worldMoveDirection.y * AIR_CONTROL });
+
+    // Mid-Air Facing
+    FacingResolver::SmoothFaceDirection(controller->GetOwner(), intent.worldMoveDirection, 200.0f, dt);
+
+    // Ensure the slot keeps playing (Blend1D automatically evaluates the new verticalVelocity)
+    if (auto* anim{ controller->GetAnimation() })
+    {
+        anim->PlaySlot(AnimSlot::AirTraversal);
+    }
+}
+
+void PlayerAirTraversal::Exit(PlayerControllerComponent* controller) {}
 
 void PlayerParkourWall::Enter(PlayerControllerComponent*) {}
 void PlayerParkourWall::Update(PlayerControllerComponent*, float) {}
