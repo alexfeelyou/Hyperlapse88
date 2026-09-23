@@ -10,12 +10,18 @@
 using namespace Engine::Animation;
 
 // GROUND & LOCOMOTION
-
 void PlayerLocomotion::Enter(PlayerControllerComponent* controller)
 {
     if (auto* motor{ controller->GetMovement() })
     {
         motor->SetDesiredDirection({ 0.0f, 0.0f });
+
+        // SAFE RESET: Only replenish air actions if physically touching the ground
+        if (motor->isGrounded())
+        {
+            controller->getAnimBlackboard().setFlag(AnimFlag::has_air_dashed, false);
+            controller->getAnimBlackboard().currentJumps = 0;
+        }
     }
 }
 
@@ -60,7 +66,10 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
         constexpr float JUMP_FORCE{ 6.5f };
         motor->Jump(JUMP_FORCE);
 
-        controller->getAnimBlackboard().actionIndex = 0; // Route to Jump Takeoff
+        auto& blackboard = controller->getAnimBlackboard();
+        blackboard.actionIndex = 0;     // Route to Jump Takeoff
+        blackboard.currentJumps = 1;    // Register the first jump
+
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
         return;
     }
@@ -122,9 +131,11 @@ void PlayerSlide::Update(PlayerControllerComponent*, float) {}
 void PlayerSlide::Exit(PlayerControllerComponent*) {}
 
 // AERIAL & PARKOUR
-
 void PlayerAirTraversal::Enter(PlayerControllerComponent* controller)
 {
+    m_airTimer = 0.0f;
+    m_isAcrobatic = false;
+
     if (auto* anim{ controller->GetAnimation() })
     {
         anim->PlaySlot(AnimSlot::AirTraversal);
@@ -133,6 +144,8 @@ void PlayerAirTraversal::Enter(PlayerControllerComponent* controller)
 
 void PlayerAirTraversal::Update(PlayerControllerComponent* controller, float dt)
 {
+    m_airTimer += dt; // Tick the air timer
+
     const auto& intent{ controller->GetIntent() };
     auto* motor{ controller->GetMovement() };
     if (!motor) return;
@@ -140,33 +153,141 @@ void PlayerAirTraversal::Update(PlayerControllerComponent* controller, float dt)
     auto& blackboard{ controller->getAnimBlackboard() };
     const DirectX::XMFLOAT3 velocity{ motor->GetTotalVelocity() };
 
-    // Update Blackboard (The Blend1D graph will automatically read verticalVelocity from here)
     blackboard.groundSpeed = std::sqrt((velocity.x * velocity.x) + (velocity.z * velocity.z));
     blackboard.verticalVelocity = velocity.y;
     blackboard.setFlag(AnimFlag::is_grounded, motor->isGrounded());
 
-    // Landing Detection
     if (motor->isGrounded() && velocity.y <= 0.05f)
     {
-        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Landing));
         return;
     }
 
-    // Mid-Air Steering
+    // THE DANGER ZONE LOCKOUT: 
+    // If falling faster than -24 m/s (approaching the -28 m/s hard land), disable panic actions.
+    const bool inDangerZone = (velocity.y < -24.0f);
+
+    // Air Dash (Only allowed if not in danger zone, and has not dashed yet)
+    if (intent.bDashTriggered && !inDangerZone && !blackboard.getFlag(AnimFlag::has_air_dashed))
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
+        return;
+    }
+
+    // Double Jump Trigger (Requires 200ms debounce from previous jump, not in danger zone, max 2 jumps)
+    if (intent.bJumpTriggered && !inDangerZone && blackboard.currentJumps < 2 && m_airTimer > 0.2f)
+    {
+        blackboard.currentJumps++;
+        motor->Jump(7.0f);
+
+        m_isAcrobatic = true;
+        if (auto* anim{ controller->GetAnimation() })
+        {
+            anim->PlaySlot(AnimSlot::Jump_Acrobatic, true);
+        }
+    }
+
     constexpr float AIR_CONTROL{ 0.35f };
     motor->SetDesiredDirection({ intent.worldMoveDirection.x * AIR_CONTROL, intent.worldMoveDirection.y * AIR_CONTROL });
-
-    // Mid-Air Facing
     FacingResolver::SmoothFaceDirection(controller->GetOwner(), intent.worldMoveDirection, 200.0f, dt);
 
-    // Ensure the slot keeps playing (Blend1D automatically evaluates the new verticalVelocity)
     if (auto* anim{ controller->GetAnimation() })
     {
-        anim->PlaySlot(AnimSlot::AirTraversal);
+        if (m_isAcrobatic && anim->GetCurrentTimer() >= anim->GetSlotDuration(AnimSlot::Jump_Acrobatic))
+        {
+            m_isAcrobatic = false;
+        }
+
+        if (!m_isAcrobatic)
+        {
+            anim->PlaySlot(AnimSlot::AirTraversal);
+        }
     }
 }
 
 void PlayerAirTraversal::Exit(PlayerControllerComponent* controller) {}
+
+// LANDING STATE
+void PlayerLanding::Enter(PlayerControllerComponent* controller)
+{
+    m_canCancel = false;
+    auto* motor = controller->GetMovement();
+    auto* anim = controller->GetAnimation();
+    if (!motor || !anim) return;
+
+    // Snapshot the terminal velocity from the exact frame of impact
+    const float terminalVelocity = motor->GetVerticalVelocity();
+    const auto& intent = controller->GetIntent();
+
+    // Check if player is holding directional input (intent to keep moving)
+    const float inputSq = (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y);
+    const bool holdingMove = (inputSq > 0.01f);
+
+    motor->SetDesiredDirection({ 0.0f, 0.0f });
+
+    // Landing Threshold Logic
+    int actionIdx = 0;
+    if (terminalVelocity > -14.0f)
+    {
+        // Soft Land (Small hops / stairs)
+        actionIdx = 0;
+    }
+    else if (terminalVelocity <= -14.0f && terminalVelocity > -28.0f && holdingMove)
+    {
+        // Roll Land (Parkour out of medium falls)
+        actionIdx = 1;
+
+        // Preserve momentum through the roll
+        motor->SetDesiredDirection(intent.worldMoveDirection);
+        FacingResolver::SnapFaceDirection(controller->GetOwner(), intent.worldMoveDirection);
+    }
+    else
+    {
+        // Hard Land (Extreme falls / no input)
+        actionIdx = 2;
+    }
+
+    controller->getAnimBlackboard().actionIndex = actionIdx;
+    anim->PlaySlot(AnimSlot::Landing, true);
+    m_timer = anim->GetSlotDuration(AnimSlot::Landing);
+}
+
+void PlayerLanding::Update(PlayerControllerComponent* controller, float dt)
+{
+    m_timer -= dt;
+
+    for (const auto& ev : controller->GetAnimation()->GetFiredEvents())
+    {
+        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
+        {
+            m_canCancel = true;
+            break;
+        }
+    }
+
+    const auto& intent = controller->GetIntent();
+    const float inputSq = (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y);
+    const bool playerWantsToMove = (inputSq > 0.01f);
+
+    // Evasion or Attack branches out of landing recovery
+    if (m_canCancel && intent.bDashTriggered)
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
+        return;
+    }
+    if (m_canCancel && intent.bAttackPressed)
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPrimary));
+        return;
+    }
+
+    if ((m_canCancel && playerWantsToMove) || m_timer <= 0.0f)
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+    }
+}
+
+void PlayerLanding::Exit(PlayerControllerComponent* controller) {}
 
 void PlayerParkourWall::Enter(PlayerControllerComponent*) {}
 void PlayerParkourWall::Update(PlayerControllerComponent*, float) {}
@@ -177,8 +298,6 @@ void PlayerDashEvade::Enter(PlayerControllerComponent* controller)
     m_canCancel = false;
     const auto& intent{ controller->GetIntent() };
 
-    // World-space, with fallback to current facing — using raw moveVector here would
-    // fire the dash along a camera-independent axis while locomotion moves camera-relative.
     m_dashDir = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
 
     if (auto* motor{ controller->GetMovement() })
@@ -188,14 +307,21 @@ void PlayerDashEvade::Enter(PlayerControllerComponent* controller)
             0.0f,
             m_dashDir.y * DASH_IMPULSE_FORCE
             });
+
+        // Air Dash specific logic
+        if (!motor->isGrounded())
+        {
+            motor->SetVerticalVelocity(0.0f);
+            // Mark that the player has consumed their air dash
+            controller->getAnimBlackboard().setFlag(AnimFlag::has_air_dashed, true);
+        }
     }
 
-    // Snap once — facing locks for the whole dash, doesn't re-steer mid-dash.
     FacingResolver::SnapFaceDirection(controller->GetOwner(), m_dashDir);
 
     if (auto* anim{ controller->GetAnimation() })
     {
-        anim->PlaySlot(AnimSlot::DashEvade);
+        anim->PlaySlot(AnimSlot::DashEvade, true);
         m_timer = anim->GetSlotDuration(AnimSlot::DashEvade);
     }
 }
@@ -214,17 +340,37 @@ void PlayerDashEvade::Update(PlayerControllerComponent* controller, float dt)
     }
 
     const auto& intent = controller->GetIntent();
-    const float inputSq = (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y);
-    const bool playerWantsToMove = (inputSq > 0.01f);
 
-    if (m_canCancel && intent.bAttackPressed)
+    // Dash Jump: Jumping out of a dash transitions immediately to air traversal while keeping momentum
+    if (m_canCancel && intent.bJumpTriggered && controller->GetMovement()->isGrounded())
     {
-        controller->getAnimBlackboard().actionIndex = 2; // Route to Dash Attack via blackboard
-        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackContextual));
+        controller->GetMovement()->Jump(6.5f);
+        controller->getAnimBlackboard().actionIndex = 0; // Jump Takeoff
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
         return;
     }
 
-    if (m_canCancel && playerWantsToMove)
+    const float inputSq = (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y);
+    const bool playerWantsToMove = (inputSq > 0.01f);
+
+    // Dash Attack Cancel
+    if (m_canCancel && intent.bAttackPressed)
+    {
+        if (controller->GetMovement()->isGrounded())
+        {
+            controller->getAnimBlackboard().actionIndex = 2; // Ground Dash Attack
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackContextual));
+        }
+        else
+        {
+            controller->getAnimBlackboard().actionIndex = 4; // Air Dash Attack
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackAerial));
+        }
+        return;
+    }
+
+    // Movement Cancel (ONLY ALLOWED ON GROUND)
+    if (m_canCancel && playerWantsToMove && controller->GetMovement()->isGrounded())
     {
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
         return;
@@ -232,9 +378,19 @@ void PlayerDashEvade::Update(PlayerControllerComponent* controller, float dt)
 
     if (m_timer <= 0.0f)
     {
-        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+        // Re-evaluate ground status to prevent falling into locomotion if an Air Dash finishes mid-air
+        if (!controller->GetMovement()->isGrounded())
+        {
+            controller->getAnimBlackboard().actionIndex = 1; // Fall Loop
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
+        }
+        else
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+        }
     }
 }
+
 void PlayerDashEvade::Exit(PlayerControllerComponent* controller) {}
 
 // COMBAT (GROUND)
@@ -303,12 +459,25 @@ void PlayerAttackPrimary::Update(PlayerControllerComponent* controller, float dt
         }
     }
 
+    // Evasion Cancel (Respect Air Dash Limits)
     if (m_canCancel && intent.bDashTriggered)
     {
-        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
-        return;
+        auto* motor = controller->GetMovement();
+        auto& blackboard = controller->getAnimBlackboard();
+
+        // Block the evasion if airborne and the air dash is already consumed
+        if (!motor->isGrounded() && blackboard.getFlag(AnimFlag::has_air_dashed))
+        {
+            // Do nothing, lockout applies.
+        }
+        else
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
+            return;
+        }
     }
 
+    // Combo Chaining
     if (m_canCancel && m_attackBufferTimer > 0.0f)
     {
         if (m_comboIndex < 3)
@@ -320,17 +489,102 @@ void PlayerAttackPrimary::Update(PlayerControllerComponent* controller, float dt
         }
     }
 
+    // Natural Exit (Context-Aware)
     if (m_exitTimer <= 0.0f)
     {
-        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+        if (controller->GetMovement()->isGrounded())
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+        }
+        else
+        {
+            controller->getAnimBlackboard().actionIndex = 1; // Fall Loop
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
+        }
     }
 }
 void PlayerAttackPrimary::Exit(PlayerControllerComponent* controller) {}
 
 // Placeholders for Expanded Combat
-void PlayerAttackContextual::Enter(PlayerControllerComponent*) {}
-void PlayerAttackContextual::Update(PlayerControllerComponent*, float) {}
-void PlayerAttackContextual::Exit(PlayerControllerComponent*) {}
+void PlayerAttackContextual::Enter(PlayerControllerComponent* controller)
+{
+    const auto& intent = controller->GetIntent();
+    m_lungeDirection = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
+
+    if (auto* motor = controller->GetMovement())
+    {
+        motor->SetDesiredDirection({ 0.0f, 0.0f });
+    }
+
+    PlayCurrentAttack(controller);
+}
+
+void PlayerAttackContextual::PlayCurrentAttack(PlayerControllerComponent* controller) noexcept
+{
+    m_canCancel = false;
+    m_attackBufferTimer = 0.0f;
+
+    FacingResolver::SnapFaceDirection(controller->GetOwner(), m_lungeDirection);
+
+    if (auto* anim = controller->GetAnimation())
+    {
+        anim->PlaySlot(AnimSlot::Attack_Contextual, true);
+        m_exitTimer = anim->GetSlotDuration(AnimSlot::Attack_Contextual);
+    }
+}
+
+void PlayerAttackContextual::Update(PlayerControllerComponent* controller, float dt)
+{
+    m_exitTimer -= dt;
+    if (m_attackBufferTimer > 0.0f) m_attackBufferTimer -= dt;
+
+    const auto& intent = controller->GetIntent();
+    if (intent.bAttackPressed) m_attackBufferTimer = 0.25f;
+
+    for (const auto& ev : controller->GetAnimation()->GetFiredEvents())
+    {
+        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
+        {
+            m_canCancel = true;
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse))
+        {
+            if (auto* motor = controller->GetMovement())
+            {
+                motor->AddImpulse(DirectX::XMFLOAT3{
+                    m_lungeDirection.x * ev.payload, 0.0f, m_lungeDirection.y * ev.payload
+                    });
+            }
+        }
+    }
+
+    // Evasion Cancel (Respect Air Limits)
+    if (m_canCancel && intent.bDashTriggered)
+    {
+        auto* motor = controller->GetMovement();
+        if (motor->isGrounded() || !controller->getAnimBlackboard().getFlag(AnimFlag::has_air_dashed))
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
+            return;
+        }
+    }
+
+    // Natural Exit (Context-Aware)
+    if (m_exitTimer <= 0.0f)
+    {
+        if (controller->GetMovement()->isGrounded())
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+        }
+        else
+        {
+            controller->getAnimBlackboard().actionIndex = 1; // Fall Loop
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
+        }
+    }
+}
+
+void PlayerAttackContextual::Exit(PlayerControllerComponent* controller) {}
 
 void PlayerAttackDirectional::Enter(PlayerControllerComponent*) {}
 void PlayerAttackDirectional::Update(PlayerControllerComponent*, float) {}
@@ -340,9 +594,100 @@ void PlayerAttackCharged::Enter(PlayerControllerComponent*) {}
 void PlayerAttackCharged::Update(PlayerControllerComponent*, float) {}
 void PlayerAttackCharged::Exit(PlayerControllerComponent*) {}
 
-void PlayerAttackAerial::Enter(PlayerControllerComponent*) {}
-void PlayerAttackAerial::Update(PlayerControllerComponent*, float) {}
-void PlayerAttackAerial::Exit(PlayerControllerComponent*) {}
+void PlayerAttackAerial::Enter(PlayerControllerComponent* controller)
+{
+    // The actionIndex (e.g., 4 for Air Dash Attack) was set by DashEvade before transitioning.
+    // We only reset to 0 if it wasn't a contextual entry.
+    auto& blackboard = controller->getAnimBlackboard();
+    m_comboIndex = blackboard.actionIndex;
+
+    const auto& intent = controller->GetIntent();
+    m_lungeDirection = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
+
+    PlayCurrentAttack(controller);
+}
+
+void PlayerAttackAerial::PlayCurrentAttack(PlayerControllerComponent* controller) noexcept
+{
+    m_canCancel = false;
+    m_attackBufferTimer = 0.0f;
+
+    controller->getAnimBlackboard().actionIndex = m_comboIndex;
+    FacingResolver::SnapFaceDirection(controller->GetOwner(), m_lungeDirection);
+
+    if (auto* anim = controller->GetAnimation())
+    {
+        anim->PlaySlot(AnimSlot::Attack_Aerial, true);
+        m_exitTimer = anim->GetSlotDuration(AnimSlot::Attack_Aerial);
+    }
+}
+
+void PlayerAttackAerial::Update(PlayerControllerComponent* controller, float dt)
+{
+    auto* motor = controller->GetMovement();
+    if (!motor) return;
+
+    // AERIAL SPECIFIC: If the player hits the ground mid-swing, abort the attack instantly
+    if (motor->isGrounded())
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+        return;
+    }
+
+    m_exitTimer -= dt;
+    if (m_attackBufferTimer > 0.0f) m_attackBufferTimer -= dt;
+
+    const auto& intent = controller->GetIntent();
+    if (intent.bAttackPressed) m_attackBufferTimer = 0.25f;
+
+    for (const auto& ev : controller->GetAnimation()->GetFiredEvents())
+    {
+        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
+        {
+            m_canCancel = true;
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse))
+        {
+            // Apply horizontal mid-air lunge
+            motor->AddImpulse(DirectX::XMFLOAT3{
+                m_lungeDirection.x * ev.payload, 0.0f, m_lungeDirection.y * ev.payload
+                });
+        }
+    }
+
+    // Evasion Cancel (Respect Air Limits)
+    if (m_canCancel && intent.bDashTriggered)
+    {
+        if (!controller->getAnimBlackboard().getFlag(AnimFlag::has_air_dashed))
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
+            return;
+        }
+    }
+
+    // Aerial Combo Chaining
+    if (m_canCancel && m_attackBufferTimer > 0.0f)
+    {
+        // Standard air combo is usually 2 or 3 hits (Indices 0, 1, 2). 
+        // If we came from a dash attack (Index 4), don't combo further.
+        if (m_comboIndex < 2)
+        {
+            m_comboIndex++;
+            m_lungeDirection = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
+            PlayCurrentAttack(controller);
+            return;
+        }
+    }
+
+    // Natural Exit back to falling
+    if (m_exitTimer <= 0.0f)
+    {
+        controller->getAnimBlackboard().actionIndex = 1; // Fall Loop
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
+    }
+}
+
+void PlayerAttackAerial::Exit(PlayerControllerComponent* controller) {}
 
 // DEFENSE & REACTION
 void PlayerParryCounter::Enter(PlayerControllerComponent*) {}

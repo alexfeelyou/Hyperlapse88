@@ -40,6 +40,22 @@ public:
     void Enter(PlayerControllerComponent* controller) override;
     void Update(PlayerControllerComponent* controller, float dt) override;
     void Exit(PlayerControllerComponent* controller) override;
+
+private:
+    float m_airTimer{ 0.0f }; // Tracks how long we've been in the air
+    bool m_isAcrobatic{ false };
+};
+
+class PlayerLanding final : public PlayerState
+{
+public:
+    void Enter(PlayerControllerComponent* controller) override;
+    void Update(PlayerControllerComponent* controller, float dt) override;
+    void Exit(PlayerControllerComponent* controller) override;
+
+private:
+    float m_timer{ 0.0f };
+    bool m_canCancel{ false };
 };
 
 class PlayerParkourWall final : public PlayerState
@@ -89,6 +105,14 @@ public:
     void Enter(PlayerControllerComponent* controller) override;
     void Update(PlayerControllerComponent* controller, float dt) override;
     void Exit(PlayerControllerComponent* controller) override;
+
+private:
+    void PlayCurrentAttack(PlayerControllerComponent* controller) noexcept;
+
+    float m_attackBufferTimer{ 0.0f };
+    float m_exitTimer{ 0.0f };
+    bool m_canCancel{ false };
+    DirectX::XMFLOAT2 m_lungeDirection{ 0.0f, 1.0f };
 };
 
 class PlayerAttackDirectional final : public PlayerState
@@ -107,15 +131,22 @@ public:
     void Exit(PlayerControllerComponent* controller) override;
 };
 
-// ---------------------------------------------------------
-// 4. COMBAT (AERIAL)
-// ---------------------------------------------------------
+// COMBAT (AERIAL)
 class PlayerAttackAerial final : public PlayerState
 {
 public:
     void Enter(PlayerControllerComponent* controller) override;
     void Update(PlayerControllerComponent* controller, float dt) override;
     void Exit(PlayerControllerComponent* controller) override;
+
+private:
+    void PlayCurrentAttack(PlayerControllerComponent* controller) noexcept;
+
+    int m_comboIndex{ 0 };
+    float m_attackBufferTimer{ 0.0f };
+    float m_exitTimer{ 0.0f };
+    bool m_canCancel{ false };
+    DirectX::XMFLOAT2 m_lungeDirection{ 0.0f, 1.0f };
 };
 
 // DEFENSE & REACTION

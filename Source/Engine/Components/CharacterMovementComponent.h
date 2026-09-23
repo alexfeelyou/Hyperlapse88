@@ -51,6 +51,8 @@ public:
 
     // State Queries
     [[nodiscard]] DirectX::XMFLOAT3 GetTotalVelocity() const noexcept;
+    [[nodiscard]] float GetVerticalVelocity() const noexcept { return m_verticalVelocity; } 
+    void SetVerticalVelocity(float v) noexcept { m_verticalVelocity = v; }                  
     [[nodiscard]] bool IsMoving() const noexcept;
     [[nodiscard]] bool isGrounded() const noexcept;
     [[nodiscard]] CharacterMovementConfig& GetConfig() noexcept { return m_config; }

@@ -148,6 +148,8 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
         "Pivot Turn",
         "Slide",
         "Air Traversal",
+        "Jump: Acrobatic", 
+        "Landing",         
         "Parkour Wall",
         "Dash / Evade",
         "Attack: Primary Combo",

@@ -15,6 +15,7 @@ enum class PlayerStateType : std::uint8_t
     PivotTurn,
     Slide,
     AirTraversal,
+    Landing,
     ParkourWall,
     DashEvade,
     AttackPrimary,

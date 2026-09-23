@@ -14,6 +14,8 @@ namespace Engine::Animation
         PivotTurn,
         Slide,
         AirTraversal,
+        Jump_Acrobatic, 
+        Landing,        
         ParkourWall,
         DashEvade,
         Attack_Primary,
@@ -32,8 +34,9 @@ namespace Engine::Animation
         is_grounded,
         is_strafing,
         is_combat_active,
-        is_wall_running, 
-        is_charging,     
+        is_wall_running,
+        is_charging,
+        has_air_dashed,
         Count
     };
 
@@ -42,9 +45,10 @@ namespace Engine::Animation
     {
         float groundSpeed{ 0.0f };
         float verticalVelocity{ 0.0f };
-        float chargeTimer{ 0.0f };            // Controls Charged Attack progress
+        float chargeTimer{ 0.0f };
 
-        int actionIndex{ 0 };                 // Selects combo step or directional node
+        int actionIndex{ 0 };
+        int currentJumps{ 0 }; 
 
         std::bitset<static_cast<std::size_t>(AnimFlag::Count)> flags{};
 

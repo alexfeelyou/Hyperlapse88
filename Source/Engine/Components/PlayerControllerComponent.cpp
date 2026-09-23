@@ -18,6 +18,7 @@ PlayerControllerComponent::PlayerControllerComponent() noexcept
     m_states[static_cast<std::size_t>(PlayerStateType::PivotTurn)] = std::make_unique<PlayerPivotTurn>();
     m_states[static_cast<std::size_t>(PlayerStateType::Slide)] = std::make_unique<PlayerSlide>();
     m_states[static_cast<std::size_t>(PlayerStateType::AirTraversal)] = std::make_unique<PlayerAirTraversal>();
+    m_states[static_cast<std::size_t>(PlayerStateType::Landing)] = std::make_unique<PlayerLanding>();
     m_states[static_cast<std::size_t>(PlayerStateType::ParkourWall)] = std::make_unique<PlayerParkourWall>();
     m_states[static_cast<std::size_t>(PlayerStateType::DashEvade)] = std::make_unique<PlayerDashEvade>();
     m_states[static_cast<std::size_t>(PlayerStateType::AttackPrimary)] = std::make_unique<PlayerAttackPrimary>();
