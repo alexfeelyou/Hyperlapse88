@@ -1,4 +1,5 @@
 #include "AnimationComponent.h"
+#include "CapsuleColliderComponent.h"
 #include "CharacterMovementComponent.h"
 #include "FacingResolver.h"
 #include "GameObject.h"
@@ -24,15 +25,29 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
     auto* motor{ controller->GetMovement() };
     if (!motor) return;
 
-    // 
     if (!motor->isGrounded())
     {
-        m_fallTimer += dt;
-        if (m_fallTimer > 0.15f) // 150ms tolerance for walking down stairs
+        // Stair/Slope Probing
+        auto* capsule{ controller->GetOwner()->GetComponent<CapsuleColliderComponent>() };
+
+        // Probe distance equals the stair step offset + a 0.3m safety buffer
+        const float probeDistance{ capsule ? (capsule->GetConfig().stepOffset + 0.3f) : 0.4f };
+        const bool isGroundDirectlyBelow{ capsule && capsule->HasGroundBelow(probeDistance) };
+
+        if (!isGroundDirectlyBelow)
         {
-            controller->getAnimBlackboard().actionIndex = 1; // Route directly to Air Fall Loop
-            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
-            return;
+            m_fallTimer += dt;
+            if (m_fallTimer > 0.10f) // A tiny 100ms debounce for jagged geometry seams
+            {
+                controller->getAnimBlackboard().actionIndex = 1; // Route directly to Air Fall Loop
+                controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
+                return;
+            }
+        }
+        else
+        {
+            // We are bounding down stairs. The sweep detected the next step. Suppress the fall
+            m_fallTimer = 0.0f;
         }
     }
     else

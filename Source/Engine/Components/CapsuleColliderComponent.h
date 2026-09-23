@@ -68,6 +68,9 @@ public:
     [[nodiscard]] DirectX::XMFLOAT3 GetCenterPosition() const noexcept;
     [[nodiscard]] float GetTotalHalfHeight() const noexcept;
 
+    // Sweeps a sphere downward to detect stairs/slopes, preventing false fall animations.
+    [[nodiscard]] bool HasGroundBelow(float distance) const noexcept;
+
     // Inspector & Editor Interop
     [[nodiscard]] CapsuleColliderConfig& GetConfig() noexcept { return m_config; }
     [[nodiscard]] const CapsuleColliderConfig& GetConfig() const noexcept { return m_config; }

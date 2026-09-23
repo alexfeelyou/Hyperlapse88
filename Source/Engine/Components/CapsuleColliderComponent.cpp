@@ -353,5 +353,35 @@ void CapsuleColliderComponent::Deserialize(const nlohmann::json& inJson)
     CreateController();
 }
 
+bool CapsuleColliderComponent::HasGroundBelow(float distance) const noexcept
+{
+    if (!m_controller) return false;
+
+    auto* scene = PhysicsManager::Instance().GetScene();
+    if (!scene) return false;
+
+    // Sweep a sphere matching the capsule radius (shrunken by 10% to avoid snagging on walls)
+    const physx::PxSphereGeometry sphereGeom(m_config.radius * 0.9f);
+
+    const physx::PxExtendedVec3 pxPos = m_controller->getPosition();
+
+    // Start the sweep at the bottom hemisphere of the capsule
+    const physx::PxTransform startPose(physx::PxVec3(
+        static_cast<float>(pxPos.x),
+        static_cast<float>(pxPos.y) - (m_config.height * 0.5f),
+        static_cast<float>(pxPos.z)
+    ));
+
+    const physx::PxVec3 sweepDir(0.0f, -1.0f, 0.0f);
+    physx::PxSweepBuffer hitBuffer;
+
+    // Filter: Only probe against static level geometry. Ignore dynamic bodies/triggers.
+    physx::PxQueryFilterData filterData;
+    filterData.data.word0 = CollisionLayer::WorldStatic;
+    filterData.flags = physx::PxQueryFlag::eSTATIC;
+
+    return scene->sweep(sphereGeom, startPose, sweepDir, distance, hitBuffer, physx::PxHitFlag::eDEFAULT, filterData);
+}
+
 // Automatically register component with dynamic Inspector factory
 REGISTER_COMPONENT(CapsuleColliderComponent)
