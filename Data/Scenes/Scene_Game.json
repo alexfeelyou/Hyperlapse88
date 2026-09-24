@@ -13,13 +13,14 @@
         ],
         "SkyIntensity": 0.5,
         "SkyboxPaths": [
-            "",
-            "",
-            "",
-            "",
-            "",
-            ""
+            "Data/Skybox/px.png",
+            "Data/Skybox/nx.png",
+            "Data/Skybox/py.png",
+            "Data/Skybox/ny.png",
+            "Data/Skybox/pz.png",
+            "Data/Skybox/nz.png"
         ]
+
     },
     "SceneObjects": [
         {

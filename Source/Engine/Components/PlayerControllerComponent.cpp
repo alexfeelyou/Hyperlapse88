@@ -53,11 +53,13 @@ void PlayerControllerComponent::OnAttach(GameObject* owner) noexcept
     }
 }
 
-void PlayerControllerComponent::GatherHardwareInput() noexcept
+void PlayerControllerComponent::GatherHardwareInput(const float dt) noexcept
 {
     if (!m_inputEnabled)
     {
         m_intent = InputIntent{};
+        m_shiftHoldTimer = 0.0f;
+        m_wasShiftPressed = false;
         return;
     }
 
@@ -78,28 +80,59 @@ void PlayerControllerComponent::GatherHardwareInput() noexcept
         if (input.GetKeyboard().IsPress('A')) targetX -= 1.0f;
     }
 
-    if (input.GetKeyboard().IsPress(VK_LMENU))
-    {
-        targetX *= 0.35f;
-        targetZ *= 0.35f;
-    }
-
     m_intent.moveVector = { targetX, targetZ };
 
-    // Detect Shift / Gamepad B / Gamepad Left Shoulder for Dash
-    m_intent.bDashTriggered = input.GetKeyboard().IsTriggered(VK_SHIFT) ||
-        ((pad.GetButtonDown() & GamePad::BTN_B) != 0) ||
-        ((pad.GetButtonDown() & GamePad::BTN_LEFT_SHOULDER) != 0);
+    // KEYBOARD SHIFT: TAP-TO-DASH VS HOLD-TO-SPRINT 
+    // Threshold 200ms for discriminates between an intentional tap and a sustained hold
+    constexpr float s_shiftHoldThreshold{ 0.20f };
 
-	// Detect Shift / Gamepad Right Shoulder for Sprint
-    m_intent.bSprintHeld = input.GetKeyboard().IsPress(VK_SHIFT) ||
+    const bool isShiftDown{ input.GetKeyboard().IsPress(VK_SHIFT) };
+    bool isShiftTapDash{ false };
+    bool isShiftHoldingSprint{ false };
+
+    if (isShiftDown)
+    {
+        m_shiftHoldTimer += dt;
+        if (m_shiftHoldTimer >= s_shiftHoldThreshold)
+        {
+            // The key has been held long enough: activate sprinting
+            isShiftHoldingSprint = true;
+        }
+    }
+    else
+    {
+        // Key is not pressed this frame. If it was pressed last frame, the player just released it.
+        if (m_wasShiftPressed)
+        {
+            // Only fire the dash if the key was released before reaching the sprint hold threshold
+            if (m_shiftHoldTimer > 0.0f && m_shiftHoldTimer < s_shiftHoldThreshold)
+            {
+                isShiftTapDash = true;
+            }
+        }
+        m_shiftHoldTimer = 0.0f;
+    }
+    m_wasShiftPressed = isShiftDown;
+
+    // --- INPUT INTENT ASSIGNMENTS ---
+
+    // Dash / Evade:
+    // Keyboard: Quick tap-release on Shift (< 200ms)
+    // Gamepad: Single press on B button 
+    m_intent.bDashTriggered = isShiftTapDash ||
+        ((pad.GetButtonDown() & GamePad::BTN_B) != 0);
+
+    // Sprint:
+    // Keyboard: Sustained hold on Shift (>= 200ms)
+    // Gamepad: Sustained hold on Right Bumper / RB
+    m_intent.bSprintHeld = isShiftHoldingSprint ||
         ((pad.GetButton() & GamePad::BTN_RIGHT_SHOULDER) != 0);
 
-    // Detect Left Mouse Button / Gamepad X for Attack
+    // Attack: Left Mouse Button or Gamepad X
     m_intent.bAttackPressed = input.GetKeyboard().IsTriggered(VK_LBUTTON) ||
         ((pad.GetButtonDown() & GamePad::BTN_X) != 0);
 
-    // Detect Spacebar / Gamepad A for Jump
+    // Jump: Spacebar or Gamepad A
     m_intent.bJumpTriggered = input.GetKeyboard().IsTriggered(VK_SPACE) ||
         ((pad.GetButtonDown() & GamePad::BTN_A) != 0);
 }
@@ -130,7 +163,7 @@ void PlayerControllerComponent::Update(const float dt)
         return;
     }
 
-    GatherHardwareInput();
+    GatherHardwareInput(dt);
 
     // Input Masking
     // If the cursor is released (Shift+F1) and interacting with ImGui (Gizmos, Maximize, etc.),
@@ -140,6 +173,10 @@ void PlayerControllerComponent::Update(const float dt)
         m_intent.moveVector = { 0.0f, 0.0f };
         m_intent.bAttackPressed = false;
         m_intent.bDashTriggered = false;
+        m_intent.bJumpTriggered = false;
+        m_intent.bSprintHeld = false;
+        m_shiftHoldTimer = 0.0f;   
+        m_wasShiftPressed = false; 
     }
 
     ResolveIntentToWorldSpace();

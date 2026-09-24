@@ -83,11 +83,14 @@ public:
     void SetInputEnabled(bool enabled) noexcept { m_inputEnabled = enabled; }
 
 private:
-    void GatherHardwareInput() noexcept;
+    void GatherHardwareInput(float dt) noexcept;
     void ResolveIntentToWorldSpace() noexcept;
 
     InputIntent m_intent{};
     bool m_inputEnabled{ true };
+
+    float m_shiftHoldTimer{ 0.0f };   // Accumulates continuous press duration for the Shift key
+    bool  m_wasShiftPressed{ false }; // Tracks the previous frame's press state to detect key release
 
     // Component Caches
     CharacterMovementComponent* m_movement{ nullptr };
