@@ -145,6 +145,8 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
     static constexpr const char* s_slotNames[] = {
         "None (Unbound)",
         "Locomotion",
+        "Locomotion Start",
+        "Locomotion Stop", 
         "Pivot Turn",
         "Slide",
         "Air Traversal",

@@ -11,6 +11,8 @@ namespace Engine::Animation
     {
         None = 0,
         Locomotion,
+        Locomotion_Start, 
+        Locomotion_Stop,  
         PivotTurn,
         Slide,
         AirTraversal,

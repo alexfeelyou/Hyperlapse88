@@ -12,6 +12,7 @@ enum class PlayerStateType : std::uint8_t
 {
     None = 0,
     Locomotion,
+    Stop,               
     PivotTurn,
     Slide,
     AirTraversal,

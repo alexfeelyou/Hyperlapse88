@@ -15,6 +15,19 @@ public:
 
 private:
     float m_fallTimer{ 0.0f };
+    float m_startTimer{ 0.0f }; 
+};
+
+// Add the PlayerStop class below Locomotion
+class PlayerStop final : public PlayerState
+{
+public:
+    void Enter(PlayerControllerComponent* controller) override;
+    void Update(PlayerControllerComponent* controller, float dt) override;
+    void Exit(PlayerControllerComponent* controller) override;
+
+private:
+    float m_stopTimer{ 0.0f };
 };
 
 class PlayerPivotTurn final : public PlayerState

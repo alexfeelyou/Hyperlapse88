@@ -12,17 +12,23 @@ using namespace Engine::Animation;
 // GROUND & LOCOMOTION
 void PlayerLocomotion::Enter(PlayerControllerComponent* controller)
 {
-    if (auto* motor{ controller->GetMovement() })
-    {
-        motor->SetDesiredDirection({ 0.0f, 0.0f });
+    auto* motor{ controller->GetMovement() };
+    auto* anim{ controller->GetAnimation() };
+    if (!motor || !anim) return;
 
-        // SAFE RESET: Only replenish air actions if physically touching the ground
-        if (motor->isGrounded())
-        {
-            controller->getAnimBlackboard().setFlag(AnimFlag::has_air_dashed, false);
-            controller->getAnimBlackboard().currentJumps = 0;
-        }
+    auto& blackboard{ controller->getAnimBlackboard() };
+
+    // SAFE RESET: Only replenish air actions if physically touching the ground
+    if (motor->isGrounded())
+    {
+        blackboard.setFlag(AnimFlag::has_air_dashed, false);
+        blackboard.currentJumps = 0;
     }
+
+    // BUG FIX: Do NOT trigger start animations here. 
+    // Enter() is only called when landing from a jump or settling back to Idle after a Stop.
+    m_startTimer = 0.0f;
+    anim->PlaySlot(AnimSlot::Locomotion);
 }
 
 void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
@@ -35,8 +41,6 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
     {
         // Stair/Slope Probing
         auto* capsule{ controller->GetOwner()->GetComponent<CapsuleColliderComponent>() };
-
-        // Probe distance equals the stair step offset + a 0.3m safety buffer
         const float probeDistance{ capsule ? (capsule->GetConfig().stepOffset + 0.3f) : 0.4f };
         const bool isGroundDirectlyBelow{ capsule && capsule->HasGroundBelow(probeDistance) };
 
@@ -52,13 +56,12 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
         }
         else
         {
-            // We are bounding down stairs. The sweep detected the next step. Suppress the fall
-            m_fallTimer = 0.0f;
+            m_fallTimer = 0.0f; // Bounding down stairs; suppress the fall
         }
     }
     else
     {
-        m_fallTimer = 0.0f; // Reset timer while touching ground
+        m_fallTimer = 0.0f;
     }
 
     if (intent.bJumpTriggered && motor->isGrounded())
@@ -66,7 +69,7 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
         constexpr float JUMP_FORCE{ 6.5f };
         motor->Jump(JUMP_FORCE);
 
-        auto& blackboard = controller->getAnimBlackboard();
+        auto& blackboard{ controller->getAnimBlackboard() };
         blackboard.actionIndex = 0;     // Route to Jump Takeoff
         blackboard.currentJumps = 1;    // Register the first jump
 
@@ -85,43 +88,183 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPrimary));
         return;
     }
-    const float inputSq = (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y);
-    const bool isActivelyMoving = (inputSq > 0.01f);
-    motor->SetSprinting(intent.bSprintHeld && isActivelyMoving);
 
+    const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
+    const bool isActivelyMoving{ inputSq > 0.01f };
+    auto& blackboard{ controller->getAnimBlackboard() };
+
+    // BRAKING CHECK: Player released the stick while moving fast
+    if (!isActivelyMoving && blackboard.groundSpeed > 1.5f && motor->isGrounded())
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Stop));
+        return;
+    }
+
+    // EDGE TRIGGER BUG FIX: Trigger start transient ONLY when player presses WASD from a standstill
+    if (isActivelyMoving && blackboard.groundSpeed < 0.1f && m_startTimer <= 0.0f)
+    {
+        // Note: Keyboard input pushes inputSq straight to 1.0. Walk animations typically require a gamepad.
+        const bool isWalking{ inputSq < 0.25f };
+
+        int actionIdx{ 1 }; // Default to Run Start
+        if (isWalking) actionIdx = 0;
+        else if (intent.bSprintHeld) actionIdx = 2;
+
+        if (blackboard.getFlag(AnimFlag::is_combat_active))
+        {
+            actionIdx += 3;
+        }
+
+        blackboard.actionIndex = actionIdx;
+        if (auto* anim{ controller->GetAnimation() })
+        {
+            anim->PlaySlot(AnimSlot::Locomotion_Start, true);
+            m_startTimer = anim->GetSlotDuration(AnimSlot::Locomotion_Start);
+        }
+    }
+
+    motor->SetSprinting(intent.bSprintHeld && isActivelyMoving);
     motor->SetDesiredDirection(intent.worldMoveDirection);
 
-    auto& blackboard{ controller->getAnimBlackboard() };
     const DirectX::XMFLOAT3 velocity{ motor->GetTotalVelocity() };
-
     blackboard.groundSpeed = std::sqrt((velocity.x * velocity.x) + (velocity.z * velocity.z));
     blackboard.verticalVelocity = velocity.y;
     blackboard.setFlag(AnimFlag::is_grounded, motor->isGrounded());
 
-    // Facing: continuously re-face every frame while Locomotion is active.
-    //  - Strafing (is_strafing true, currently unset anywhere — dormant until a lock-on
-    //    system sets it): always face the camera's look direction, so the player can
-    //    circle-strafe independent of movement direction.
-    //  - Free (default): face the resolved world-space move direction. No input leaves
-    //    facing untouched (SmoothFaceDirection no-ops on a zero-length direction).
+    // Facing
     constexpr float turnRateDegPerSec{ 720.0f };
-
     DirectX::XMFLOAT2 faceTargetXZ{ intent.worldMoveDirection };
     if (blackboard.getFlag(AnimFlag::is_strafing))
     {
         const float cameraYawRad{ OrbitCameraDriverComponent::GetActiveYawRadians() };
         faceTargetXZ = { std::sin(cameraYawRad), std::cos(cameraYawRad) };
     }
-
     FacingResolver::SmoothFaceDirection(controller->GetOwner(), faceTargetXZ, turnRateDegPerSec, dt);
 
-    // O(1) Semantic Execution (Zero String Hashing)
+    // ANIMATION DISPATCH
     if (auto* anim{ controller->GetAnimation() })
     {
-        anim->PlaySlot(AnimSlot::Locomotion);
+        if (m_startTimer > 0.0f)
+        {
+            m_startTimer -= dt;
+            // Instantly abort start clip if player sharply reverses direction (>90 deg)
+            const float turnDot{ (faceTargetXZ.x * intent.worldMoveDirection.x) + (faceTargetXZ.y * intent.worldMoveDirection.y) };
+            if (turnDot < 0.0f) m_startTimer = 0.0f;
+        }
+
+        // Fall into the 1D loop once the start timer expires or is aborted
+        if (m_startTimer <= 0.0f)
+        {
+            anim->PlaySlot(AnimSlot::Locomotion);
+        }
     }
 }
-void PlayerLocomotion::Exit(PlayerControllerComponent* controller) {}
+
+void PlayerLocomotion::Exit(PlayerControllerComponent* controller)
+{
+    // No explicit cleanup required
+}
+
+// PLAYER STOP (BRAKING & DECELERATION)
+void PlayerStop::Enter(PlayerControllerComponent* controller)
+{
+    auto* motor{ controller->GetMovement() };
+    auto* anim{ controller->GetAnimation() };
+    if (!motor || !anim) return;
+
+    // Cut engine propulsion. CharacterMovementComponent's impulseDrag will naturally slide the capsule to a halt.
+    motor->SetDesiredDirection({ 0.0f, 0.0f });
+
+    auto& blackboard{ controller->getAnimBlackboard() };
+
+    // Threshold mapping 
+    int actionIdx{ 1 }; // Default: Run Stop
+    if (blackboard.groundSpeed < 3.5f) actionIdx = 0;        // Walk Stop
+    else if (blackboard.groundSpeed > 10.0f) actionIdx = 2; // Fast Stop
+
+    // Offset index by 3 if weapons are drawn
+    if (blackboard.getFlag(AnimFlag::is_combat_active))
+    {
+        actionIdx += 3;
+    }
+
+    blackboard.actionIndex = actionIdx;
+    anim->PlaySlot(AnimSlot::Locomotion_Stop, true);
+
+    m_stopTimer = anim->GetSlotDuration(AnimSlot::Locomotion_Stop);
+}
+
+void PlayerStop::Update(PlayerControllerComponent* controller, float dt)
+{
+    m_stopTimer -= dt;
+
+    const auto& intent{ controller->GetIntent() };
+    auto* motor{ controller->GetMovement() };
+    auto& blackboard{ controller->getAnimBlackboard() };
+
+    // Continuously update the Blackboard physics during the Stop.
+    // Without this, groundSpeed remains permanently frozen at your entry sprint speed, 
+    // causing an infinite loop back into PlayerStop when exiting.
+    if (motor)
+    {
+        const DirectX::XMFLOAT3 velocity{ motor->GetTotalVelocity() };
+        blackboard.groundSpeed = std::sqrt((velocity.x * velocity.x) + (velocity.z * velocity.z));
+        blackboard.verticalVelocity = velocity.y;
+        blackboard.setFlag(AnimFlag::is_grounded, motor->isGrounded());
+
+        // Safety Fallback: If you slide off a ledge while braking, transition to falling
+        if (!motor->isGrounded())
+        {
+            blackboard.actionIndex = 1; // Fall Loop
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
+            return;
+        }
+    }
+
+    // PLATINUM-STYLE INTERRUPTS: The player can cancel a stop animation instantly at any time.
+    if (intent.bDashTriggered)
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
+        return;
+    }
+    if (intent.bJumpTriggered)
+    {
+        // Require ground check to prevent jumping off a ledge during a slide
+        if (motor && motor->isGrounded())
+        {
+            motor->Jump(6.5f);
+            blackboard.actionIndex = 0; // Jump Takeoff
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
+            return;
+        }
+    }
+    if (intent.bAttackPressed)
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPrimary));
+        return;
+    }
+
+    // MOVEMENT CANCEL: If the player presses WASD again, instantly snap back into Locomotion.
+    const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
+    if (inputSq > 0.01f)
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+        return;
+    }
+
+    // [CRITICAL FIX 2] NATURAL EXIT
+    // We must wait for BOTH the animation to finish AND the capsule to physically stop sliding.
+    // If we transition out while still sliding at 2.0m/s, Locomotion will re-trigger the Stop state.
+    if (m_stopTimer <= 0.0f && blackboard.groundSpeed < 0.1f)
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+    }
+}
+
+void PlayerStop::Exit(PlayerControllerComponent* controller)
+{
+    // No explicit cleanup required; state overrides handle the transition cleanly.
+}
 
 // Placeholders for expanded movement
 void PlayerPivotTurn::Enter(PlayerControllerComponent*) {}

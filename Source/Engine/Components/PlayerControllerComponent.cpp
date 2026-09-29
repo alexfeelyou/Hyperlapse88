@@ -15,6 +15,7 @@ PlayerControllerComponent::PlayerControllerComponent() noexcept
 {
     // Allocate the entire moveset pool exactly once (Zero runtime allocations)
     m_states[static_cast<std::size_t>(PlayerStateType::Locomotion)] = std::make_unique<PlayerLocomotion>();
+    m_states[static_cast<std::size_t>(PlayerStateType::Stop)] = std::make_unique<PlayerStop>();
     m_states[static_cast<std::size_t>(PlayerStateType::PivotTurn)] = std::make_unique<PlayerPivotTurn>();
     m_states[static_cast<std::size_t>(PlayerStateType::Slide)] = std::make_unique<PlayerSlide>();
     m_states[static_cast<std::size_t>(PlayerStateType::AirTraversal)] = std::make_unique<PlayerAirTraversal>();
