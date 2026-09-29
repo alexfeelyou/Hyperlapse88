@@ -207,5 +207,6 @@ private:
     std::vector<std::uint64_t> m_stateHashes{};
 
     bool m_editorPreview{ false };
+    bool m_previewPaused{ false };
     int m_isolatedNodeIndex{ -1 };
 };

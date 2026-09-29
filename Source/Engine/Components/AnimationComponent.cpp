@@ -291,12 +291,14 @@ void AnimationComponent::TestPlayState(std::size_t stateIndex, int isolatedNodeI
     }
 
     m_editorPreview = true;
+	m_previewPaused = false;
     m_isolatedNodeIndex = isolatedNodeIndex;
 }
 
 void AnimationComponent::StopPreview() noexcept
 {
     m_editorPreview = false;
+	m_previewPaused = false;
     m_isolatedNodeIndex = -1;
     m_isBlending = false;
     m_blendTimer = 0.0f;
@@ -329,7 +331,7 @@ void AnimationComponent::Update(const float dt)
     float evalDt = dt;
     if (evalDt <= 0.0001f && m_editorPreview)
     {
-        evalDt = ImGui::GetIO().DeltaTime;
+		evalDt = m_previewPaused ? 0.0f : ImGui::GetIO().DeltaTime;
     }
     else if (evalDt > 0.0001f && m_editorPreview)
     {
@@ -562,7 +564,8 @@ void AnimationComponent::ScrubToTime(std::size_t stateIndex, float time) noexcep
     m_currentStateIndex = stateIndex;
     m_currentTimer = time;
     m_isBlending = false;
-    m_editorPreview = false;
+    m_editorPreview = true; 
+	m_previewPaused = true;
     m_isolatedNodeIndex = -1;
 
     if (!m_model || m_currentStateIndex >= m_states.size()) return;
@@ -614,6 +617,9 @@ void AnimationComponent::ScrubToTime(std::size_t stateIndex, float time) noexcep
 
             if (currentDuration > 0.001f)
             {
+                // Keep the underlying phase accumulator in perfect sync with the scrubbed time!
+                m_currentPhase = m_currentTimer / currentDuration;
+
                 if (nodeA == nodeB)
                 {
                     m_model->ComputeAnimation(clipA, m_currentTimer, m_currentLocalPoses);
@@ -650,7 +656,8 @@ void AnimationComponent::ScrubNodeToTime(std::size_t stateIndex, std::size_t nod
     m_currentStateIndex = stateIndex;
     m_currentTimer = time;
     m_isBlending = false;
-    m_editorPreview = false;
+    m_editorPreview = true; 
+	m_previewPaused = true;
     m_isolatedNodeIndex = static_cast<int>(nodeIndex);
 
     if (!m_model || m_currentStateIndex >= m_states.size()) return;
@@ -661,6 +668,10 @@ void AnimationComponent::ScrubNodeToTime(std::size_t stateIndex, std::size_t nod
     const int clipIdx = state.nodes[nodeIndex].clipIndex;
     if (clipIdx >= 0 && static_cast<std::size_t>(clipIdx) < m_model->GetAnimations().size())
     {
+        // FIX: Keep the underlying phase accumulator in perfect sync with the scrubbed time!
+        const float duration = m_model->GetAnimations()[clipIdx].secondsLength;
+        if (duration > 0.001f) m_currentPhase = m_currentTimer / duration;
+
         m_model->ComputeAnimation(clipIdx, m_currentTimer, m_currentLocalPoses);
     }
 
