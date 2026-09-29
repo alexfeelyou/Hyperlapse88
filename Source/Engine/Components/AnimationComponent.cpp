@@ -251,6 +251,7 @@ void AnimationComponent::PlayState(const std::size_t stateIndex, bool forceResta
     {
         m_currentTimer = activeStartOffset;
     }
+    m_currentPhase = 0.0f;
 
     if (activeBlendDuration > 0.001f)
     {
@@ -300,6 +301,7 @@ void AnimationComponent::StopPreview() noexcept
     m_isBlending = false;
     m_blendTimer = 0.0f;
     m_currentTimer = 0.0f;
+    m_currentPhase = 0.0f;
 
     // Hard reset back to the default state (State 0) so the game starts cleanly
     if (!m_states.empty())
@@ -394,43 +396,55 @@ void AnimationComponent::Update(const float dt)
         {
             const float durationA{ animations[clipA].secondsLength };
             const float durationB{ animations[clipB].secondsLength };
-            const float currentDuration{ (durationA * (1.0f - t)) + (durationB * t) };
+
+            // FREQUENCY BLENDING 
+            // Blending durations mathematically misaligns footfalls when speeds change.
+            // We must blend the animation frequencies (Hz) to preserve physical stride rates.
+            const float freqA = (durationA > 0.001f) ? (1.0f / durationA) : 1.0f;
+            const float freqB = (durationB > 0.001f) ? (1.0f / durationB) : 1.0f;
+            const float blendedFreq = (freqA * (1.0f - t)) + (freqB * t);
+            const float currentDuration = (blendedFreq > 0.001f) ? (1.0f / blendedFreq) : 1.0f;
 
             if (currentDuration > 0.001f)
             {
                 const float currentSpeed = (targetState.nodes[nodeA].speedMultiplier * (1.0f - t)) + (targetState.nodes[nodeB].speedMultiplier * t);
-                m_currentTimer += (evalDt * currentSpeed);
+
+                // DECOUPLED PHASE ACCUMULATION 
+                // We advance the persistent phase directly
+                const float phaseDelta = (evalDt * currentSpeed) * blendedFreq;
+                m_currentPhase += phaseDelta;
 
                 const std::size_t dominantNode = (t <= 0.5f) ? nodeA : nodeB;
                 m_currentNodeIndex = dominantNode;
 
-                ProcessEvents(evalDt, targetState.nodes[dominantNode].events, previousFrameTimer, m_currentTimer, currentDuration);
-
+                // WRAP OR CLAMP PHASE
                 if (targetState.nodes[dominantNode].isLooping)
                 {
-                    while (m_currentTimer >= currentDuration) m_currentTimer -= currentDuration;
-                    while (m_currentTimer < 0.0f) m_currentTimer += currentDuration;
+                    m_currentPhase -= std::floor(m_currentPhase); // Wrap smoothly 0.0 to 1.0
                 }
                 else
                 {
-                    m_currentTimer = std::clamp(m_currentTimer, 0.0f, currentDuration);
-
-                    // AUTO-RESET: If a non-looping preview hits the end of the clip, turn off preview mode
-                    if (m_editorPreview && m_currentTimer >= currentDuration)
-                    {
-                        StopPreview();
-                    }
+                    m_currentPhase = std::clamp(m_currentPhase, 0.0f, 1.0f);
+                    if (m_editorPreview && m_currentPhase >= 1.0f) StopPreview();
                 }
 
-                if (nodeA == nodeB) m_model->ComputeAnimation(clipA, m_currentTimer, m_currentLocalPoses);
+                // SYNC LEGACY TIMER & EVENTS
+                m_currentTimer = m_currentPhase * currentDuration;
+                ProcessEvents(evalDt, targetState.nodes[dominantNode].events, previousFrameTimer, m_currentTimer, currentDuration);
+
+                // EVALUATE USING PURE PHASE 
+                if (nodeA == nodeB)
+                {
+                    m_model->ComputeAnimation(clipA, m_currentPhase * durationA, m_currentLocalPoses);
+                }
                 else
                 {
-                    const float normPhase{ m_currentTimer / currentDuration };
-                    m_model->ComputeAnimation(clipA, normPhase * durationA, m_scratchpad.bufferA);
-                    m_model->ComputeAnimation(clipB, normPhase * durationB, m_scratchpad.bufferB);
+                    m_model->ComputeAnimation(clipA, m_currentPhase * durationA, m_scratchpad.bufferA);
+                    m_model->ComputeAnimation(clipB, m_currentPhase * durationB, m_scratchpad.bufferB);
                     BlendPoses(m_scratchpad.bufferA, m_scratchpad.bufferB, t, m_currentLocalPoses);
                 }
 
+                // ROOT LOCKS
                 const bool hasRootLock = targetState.nodes[dominantNode].lockRootX ||
                     targetState.nodes[dominantNode].lockRootY ||
                     targetState.nodes[dominantNode].lockRootZ;

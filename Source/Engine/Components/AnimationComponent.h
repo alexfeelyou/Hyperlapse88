@@ -189,6 +189,7 @@ private:
     const Engine::Animation::AnimBlackboard* m_blackboard{ nullptr };
 
     float m_currentTimer{ 0.0f };
+    float m_currentPhase{ 0.0f };
     float m_previousTimer{ 0.0f };
     float m_blendTimer{ 0.0f };
     float m_activeBlendDuration{ 0.2f };
