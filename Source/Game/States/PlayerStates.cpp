@@ -147,6 +147,21 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
         if (m_startTimer > 0.0f)
         {
             m_startTimer -= dt;
+
+            // AAA Input Grace Window (Deferred Action Upgrading):
+            // Allow late sprint inputs to seamlessly upgrade the start animation during the
+            // first 200ms of movement. Prevents strict frame-perfect input frustration.
+            if (intent.bSprintHeld && anim->GetCurrentTimer() <= 0.20f)
+            {
+                const int targetIdx{ blackboard.getFlag(AnimFlag::is_combat_active) ? 5 : 2 };
+                if (blackboard.actionIndex != targetIdx)
+                {
+                    blackboard.actionIndex = targetIdx;
+                    anim->PlaySlot(AnimSlot::Locomotion_Start, true); // Force a smooth blend
+                    m_startTimer = anim->GetSlotDuration(AnimSlot::Locomotion_Start);
+                }
+            }
+
             // Instantly abort start clip if player sharply reverses direction (>90 deg)
             const float turnDot{ (faceTargetXZ.x * intent.worldMoveDirection.x) + (faceTargetXZ.y * intent.worldMoveDirection.y) };
             if (turnDot < 0.0f) m_startTimer = 0.0f;
