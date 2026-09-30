@@ -204,15 +204,30 @@ void PlayerStop::Enter(PlayerControllerComponent* controller)
 
     auto& blackboard{ controller->getAnimBlackboard() };
 
-    // Threshold mapping 
-    int actionIdx{ 1 }; // Default: Run Stop
-    if (blackboard.groundSpeed < 3.5f) actionIdx = 0;        // Walk Stop
-    else if (blackboard.groundSpeed > 10.0f) actionIdx = 2; // Fast Stop
+    // AAA Cycle-Phase Foot-Plant Selector
+    // Assuming standard AAA authoring: 0.0 - 0.5 = Left Foot Forward | 0.5 - 1.0 = Right Foot Forward.
+    // (If FBX cycles start on the Right foot, invert the > to < below).
+    const float phase{ anim->GetCurrentPhase() };
+    const bool isRightFootForward{ phase >= 0.5f };
 
-    // Offset index by 3 if weapons are drawn
+    int actionIdx{ 0 };
+    if (blackboard.groundSpeed < 3.5f)
+    {
+        actionIdx = isRightFootForward ? 1 : 0; // Walk Stop (L/R)
+    }
+    else if (blackboard.groundSpeed > 10.0f)
+    {
+        actionIdx = 4; // Fast Stop (Generic, no L/R variance)
+    }
+    else
+    {
+        actionIdx = isRightFootForward ? 3 : 2; // Run Stop (L/R)
+    }
+
+    // Offset index by 5 if weapons are drawn (Combat block starts at index 5)
     if (blackboard.getFlag(AnimFlag::is_combat_active))
     {
-        actionIdx += 3;
+        actionIdx += 5;
     }
 
     blackboard.actionIndex = actionIdx;
