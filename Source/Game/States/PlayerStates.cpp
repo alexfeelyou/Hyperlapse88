@@ -149,12 +149,24 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
             m_startTimer -= dt;
 
             // AAA Input Grace Window (Deferred Action Upgrading):
-            // Allow late sprint inputs to seamlessly upgrade the start animation during the
-            // first 200ms of movement. Prevents strict frame-perfect input frustration.
-            if (intent.bSprintHeld && anim->GetCurrentTimer() <= 0.20f)
+            // Analog sticks take 3-4 frames to physically travel from center to edge.
+            // We evaluate the stick magnitude and sprint intent during the first 200ms,
+            // seamlessly upgrading Walk -> Run -> Fast Run to prevent getting trapped.
+            if (anim->GetCurrentTimer() <= 0.20f)
             {
-                const int targetIdx{ blackboard.getFlag(AnimFlag::is_combat_active) ? 5 : 2 };
-                if (blackboard.actionIndex != targetIdx)
+                int targetIdx{ blackboard.actionIndex };
+
+                if (intent.bSprintHeld)
+                {
+                    targetIdx = blackboard.getFlag(AnimFlag::is_combat_active) ? 5 : 2; // Fast Run
+                }
+                else if (inputSq >= 0.25f)
+                {
+                    targetIdx = blackboard.getFlag(AnimFlag::is_combat_active) ? 4 : 1; // Standard Run
+                }
+
+                // Only allow upward scaling (prevent downgrading if they briefly fumble the stick)
+                if (targetIdx > blackboard.actionIndex)
                 {
                     blackboard.actionIndex = targetIdx;
                     anim->PlaySlot(AnimSlot::Locomotion_Start, true); // Force a smooth blend
