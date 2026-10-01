@@ -483,7 +483,7 @@
                                     "LockRootZ": false,
                                     "Loop": true,
                                     "RootBoneIndex": 0,
-                                    "Speed": 1.25,
+                                    "Speed": 1.2000000476837158,
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 16.0,
@@ -766,11 +766,11 @@
                     "Type": "CapsuleColliderComponent"
                 },
                 {
-                    "Acceleration": 32.0,
-                    "Deceleration": 38.0,
-                    "ImpulseDrag": 7.5,
+                    "Acceleration": 8.0,
+                    "Deceleration": 3.9000000953674316,
+                    "ImpulseDrag": 8.5,
                     "MaxRunSpeed": 8.0,
-                    "SprintSpeed": 16.5,
+                    "SprintSpeed": 16.0,
                     "Type": "CharacterMovementComponent",
                     "UseGravity": true
                 },

@@ -94,17 +94,23 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
     auto& blackboard{ controller->getAnimBlackboard() };
 
     // BRAKING CHECK: Player released the stick while moving fast
-    if (!isActivelyMoving && blackboard.groundSpeed > 1.5f && motor->isGrounded())
+    // Aligned to 2.5f (Walk Threshold) so walking seamlessly slides to idle, 
+    // and running triggers the heavy stop animations.
+    if (!isActivelyMoving && blackboard.groundSpeed > 2.5f && motor->isGrounded())
     {
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Stop));
         return;
     }
 
-    // EDGE TRIGGER BUG FIX: Trigger start transient ONLY when player presses WASD from a standstill
-    if (isActivelyMoving && blackboard.groundSpeed < 0.1f && m_startTimer <= 0.0f)
+    // Wide-Band Start Trigger
+    // Because Deceleration was lowered to 2.5, velocity decays slowly. 
+    // We widen the tolerance to 2.5f (the Walk threshold) so if the character 
+    // is visually idling or slow-sliding, ANY new input safely triggers a fresh start.
+    if (isActivelyMoving && blackboard.groundSpeed <= 2.5f && m_startTimer <= 0.0f)
     {
-        // Note: Keyboard input pushes inputSq straight to 1.0. Walk animations typically require a gamepad.
-        const bool isWalking{ inputSq < 0.25f };
+        // Digital Sprint Override (Animation):
+        // If the sprint button is held, we unconditionally bypass the analog walk threshold.
+        const bool isWalking{ !intent.bSprintHeld && (inputSq < 0.25f) };
 
         int actionIdx{ 1 }; // Default to Run Start
         if (isWalking) actionIdx = 0;
@@ -123,8 +129,19 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
         }
     }
 
+    // Digital Sprint Override (Physics):
+    // If the sprint button is held, ignore partial analog stick tilts. Force the input 
+    // magnitude to 1.0 (normalized) so the kinematic motor accelerates to full sprint speed.
+    DirectX::XMFLOAT2 appliedDirection{ intent.worldMoveDirection };
+    if (intent.bSprintHeld && isActivelyMoving)
+    {
+        const float mag{ std::sqrt(inputSq) }; // isActivelyMoving guarantees inputSq > 0.01f, preventing div-by-zero
+        appliedDirection.x /= mag;
+        appliedDirection.y /= mag;
+    }
+
     motor->SetSprinting(intent.bSprintHeld && isActivelyMoving);
-    motor->SetDesiredDirection(intent.worldMoveDirection);
+    motor->SetDesiredDirection(appliedDirection);
 
     const DirectX::XMFLOAT3 velocity{ motor->GetTotalVelocity() };
     blackboard.groundSpeed = std::sqrt((velocity.x * velocity.x) + (velocity.z * velocity.z));
@@ -171,6 +188,22 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
                     blackboard.actionIndex = targetIdx;
                     anim->PlaySlot(AnimSlot::Locomotion_Start, true); // Force a smooth blend
                     m_startTimer = anim->GetSlotDuration(AnimSlot::Locomotion_Start);
+                }
+            }
+            else
+            {
+                // Dynamic Early-Out (Post-Grace Window Abort):
+                // If the player drastically ramps up their input (e.g., slamming Sprint) after the 
+                // 200ms grace window, do NOT trap them in a slow Walk_Start while physics accelerate 
+                // to 15m/s. Abort the start transient entirely and drop directly into the Locomotion 
+                // 1D Blend Tree, which perfectly matches continuous animation frames to physical speed.
+                int intentIdx{ blackboard.actionIndex };
+                if (intent.bSprintHeld) intentIdx = blackboard.getFlag(AnimFlag::is_combat_active) ? 5 : 2;
+                else if (inputSq >= 0.25f) intentIdx = blackboard.getFlag(AnimFlag::is_combat_active) ? 4 : 1;
+
+                if (intentIdx > blackboard.actionIndex)
+                {
+                    m_startTimer = 0.0f; // Abort instantly
                 }
             }
 
@@ -294,10 +327,10 @@ void PlayerStop::Update(PlayerControllerComponent* controller, float dt)
         return;
     }
 
-    // [CRITICAL FIX 2] NATURAL EXIT
-    // We must wait for BOTH the animation to finish AND the capsule to physically stop sliding.
-    // If we transition out while still sliding at 2.0m/s, Locomotion will re-trigger the Stop state.
-    if (m_stopTimer <= 0.0f && blackboard.groundSpeed < 0.1f)
+    // NATURAL EXIT
+    // We must wait for BOTH the animation to finish AND the capsule to drop below the Run threshold.
+    // Synced perfectly to 2.5f to prevent the "Double Stop" bug when returning to Locomotion.
+    if (m_stopTimer <= 0.0f && blackboard.groundSpeed <= 2.5f)
     {
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
     }
