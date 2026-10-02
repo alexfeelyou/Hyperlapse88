@@ -250,8 +250,8 @@
             ],
             "IsActive": true,
             "Name": "Main Camera",
-            "PosX": 0.10000000149011612,
-            "PosY": 1.100000023841858,
+            "PosX": -6.545967102050781,
+            "PosY": 47.107688903808594,
             "PosZ": -4.800000190734863,
             "RotX": -0.0,
             "RotY": 0.0,
@@ -292,8 +292,8 @@
             ],
             "IsActive": true,
             "Name": "Vircam",
-            "PosX": 0.10000000149011612,
-            "PosY": 1.100000023841858,
+            "PosX": -6.545967102050781,
+            "PosY": 47.107688903808594,
             "PosZ": -4.800000190734863,
             "RotX": 0.0,
             "RotY": 0.0,
@@ -748,6 +748,340 @@
                             ],
                             "Slot": 3,
                             "Type": 2
+                        },
+                        {
+                            "BlendParam": 0,
+                            "Name": "Pivot Turn",
+                            "Nodes": [
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 10,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.2000000476837158,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 51,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.2000000476837158,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 18,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.2000000476837158,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 19,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.2000000476837158,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                }
+                            ],
+                            "Slot": 4,
+                            "Type": 2
+                        },
+                        {
+                            "BlendParam": 0,
+                            "Name": "Air Traversal",
+                            "Nodes": [
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 44,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 47,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.2000000476837158,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 45,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": true,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 52,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 54,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.2000000476837158,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 53,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": true,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                }
+                            ],
+                            "Slot": 6,
+                            "Type": 2
+                        },
+                        {
+                            "BlendParam": 0,
+                            "Name": "Double Jump",
+                            "Nodes": [
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 50,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.149999976158142,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 55,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.149999976158142,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                }
+                            ],
+                            "Slot": 7,
+                            "Type": 2
+                        },
+                        {
+                            "BlendParam": 0,
+                            "Name": "Landing",
+                            "Nodes": [
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 46,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.12800000607967377
+                                        }
+                                    ],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 97,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.8253375887870789
+                                        }
+                                    ],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.600000023841858,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 46,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 56,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 0,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.1279212385416031
+                                        }
+                                    ],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 98,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.824999988079071
+                                        }
+                                    ],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.600000023841858,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 56,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                }
+                            ],
+                            "Slot": 8,
+                            "Type": 2
                         }
                     ],
                     "Type": "AnimationComponent"
@@ -769,6 +1103,7 @@
                     "Acceleration": 8.0,
                     "Deceleration": 3.9000000953674316,
                     "ImpulseDrag": 8.5,
+                    "JumpForwardImpulse": 1.0,
                     "MaxRunSpeed": 8.0,
                     "SprintSpeed": 16.0,
                     "Type": "CharacterMovementComponent",
@@ -780,12 +1115,12 @@
             ],
             "IsActive": true,
             "Name": "Alex",
-            "PosX": 0.0,
-            "PosY": 0.0,
+            "PosX": -6.64596700668335,
+            "PosY": 46.0076904296875,
             "PosZ": 0.0,
-            "RotX": 0.0,
+            "RotX": -0.0,
             "RotY": 0.0,
-            "RotZ": 0.0,
+            "RotZ": -0.0,
             "ScaleX": 1.0,
             "ScaleY": 1.0,
             "ScaleZ": 1.0

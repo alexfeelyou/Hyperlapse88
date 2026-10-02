@@ -14,6 +14,7 @@ struct CharacterMovementConfig
     float acceleration{ 32.0f };
     float deceleration{ 38.0f };
     float impulseDrag{ 7.5f };
+    float jumpForwardImpulse{ 1.0f };
     float gravity{ -9.81f };
     bool  useGravity{ true };
 };

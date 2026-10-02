@@ -16,6 +16,7 @@ public:
 private:
     float m_fallTimer{ 0.0f };
     float m_startTimer{ 0.0f }; 
+    bool m_wasActivelyMoving{ false };
 };
 
 // Add the PlayerStop class below Locomotion
@@ -57,6 +58,7 @@ public:
 private:
     float m_airTimer{ 0.0f }; // Tracks how long we've been in the air
     bool m_isAcrobatic{ false };
+    bool m_canCancelAcrobatic{ true };
 };
 
 class PlayerLanding final : public PlayerState

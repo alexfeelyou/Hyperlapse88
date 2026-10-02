@@ -131,6 +131,7 @@ void CharacterMovementComponent::DrawInspector()
     ImGui::DragFloat("Acceleration", &m_config.acceleration, 0.5f, 1.0f, 200.0f);
     ImGui::DragFloat("Deceleration", &m_config.deceleration, 0.5f, 1.0f, 200.0f);
     ImGui::DragFloat("Impulse Drag", &m_config.impulseDrag, 0.1f, 0.1f, 50.0f);
+    ImGui::DragFloat("Jump Fwd Impulse", &m_config.jumpForwardImpulse, 0.05f, 0.0f, 5.0f);
     ImGui::Checkbox("Use Gravity", &m_config.useGravity);
 
     ImGui::Spacing();
@@ -148,6 +149,7 @@ void CharacterMovementComponent::Serialize(nlohmann::json& outJson) const
     outJson["Acceleration"] = m_config.acceleration;
     outJson["Deceleration"] = m_config.deceleration;
     outJson["ImpulseDrag"] = m_config.impulseDrag;
+    outJson["JumpForwardImpulse"] = m_config.jumpForwardImpulse;
     outJson["UseGravity"] = m_config.useGravity;
 }
 
@@ -158,6 +160,7 @@ void CharacterMovementComponent::Deserialize(const nlohmann::json& inJson)
     m_config.acceleration = inJson.value("Acceleration", 32.0f);
     m_config.deceleration = inJson.value("Deceleration", 38.0f);
     m_config.impulseDrag = inJson.value("ImpulseDrag", 7.5f);
+    m_config.jumpForwardImpulse = inJson.value("JumpForwardImpulse", 1.0f);
     m_config.useGravity = inJson.value("UseGravity", true);
 }
 

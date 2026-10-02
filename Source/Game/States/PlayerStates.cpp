@@ -25,8 +25,15 @@ void PlayerLocomotion::Enter(PlayerControllerComponent* controller)
         blackboard.currentJumps = 0;
     }
 
-    // BUG FIX: Do NOT trigger start animations here. 
-    // Enter() is only called when landing from a jump or settling back to Idle after a Stop.
+    // Seamless Momentum Sync:
+    // By pulling live velocity the exact frame we enter Locomotion, we prevent 
+    // stale 0.0m/s data from incorrectly triggering the Run_Fast_Start animation
+    // when exiting a high-speed Pivot Turn.
+    const DirectX::XMFLOAT3 vel{ motor->GetTotalVelocity() };
+    blackboard.groundSpeed = std::sqrt((vel.x * vel.x) + (vel.z * vel.z));
+
+    const float inputSq{ (controller->GetIntent().moveVector.x * controller->GetIntent().moveVector.x) + (controller->GetIntent().moveVector.y * controller->GetIntent().moveVector.y) };
+    m_wasActivelyMoving = (inputSq > 0.01f);
     m_startTimer = 0.0f;
     anim->PlaySlot(AnimSlot::Locomotion);
 }
@@ -49,7 +56,10 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
             m_fallTimer += dt;
             if (m_fallTimer > 0.10f) // A tiny 100ms debounce for jagged geometry seams
             {
-                controller->getAnimBlackboard().actionIndex = 1; // Route directly to Air Fall Loop
+                int actionIdx{ 2 }; // Index 2: Jump_Loop
+                if (controller->getAnimBlackboard().getFlag(AnimFlag::is_combat_active)) actionIdx += 3; // Index 5: Combat Loop
+
+                controller->getAnimBlackboard().actionIndex = actionIdx;
                 controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
                 return;
             }
@@ -70,8 +80,21 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
         motor->Jump(JUMP_FORCE);
 
         auto& blackboard{ controller->getAnimBlackboard() };
-        blackboard.actionIndex = 0;     // Route to Jump Takeoff
-        blackboard.currentJumps = 1;    // Register the first jump
+
+        // Momentum Injection:
+        // Convert current locomotion speed into a ballistic impulse upon taking flight.
+        if (blackboard.groundSpeed > 2.5f)
+        {
+            const float boost{ blackboard.groundSpeed * motor->GetConfig().jumpForwardImpulse };
+            motor->AddImpulse({ intent.worldMoveDirection.x * boost, 0.0f, intent.worldMoveDirection.y * boost });
+        }
+
+        // 0 = Idle Jump, 1 = Forward Jump
+        int actionIdx{ blackboard.groundSpeed > 2.5f ? 1 : 0 };
+        if (blackboard.getFlag(AnimFlag::is_combat_active)) actionIdx += 3;
+
+        blackboard.actionIndex = actionIdx;
+        blackboard.currentJumps = 1;
 
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
         return;
@@ -106,7 +129,8 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
     // Because Deceleration was lowered to 2.5, velocity decays slowly. 
     // We widen the tolerance to 2.5f (the Walk threshold) so if the character 
     // is visually idling or slow-sliding, ANY new input safely triggers a fresh start.
-    if (isActivelyMoving && blackboard.groundSpeed <= 2.5f && m_startTimer <= 0.0f)
+    // Explicitly checking !m_wasActivelyMoving prevents jerky re-triggers when simply changing direction.
+    if (isActivelyMoving && !m_wasActivelyMoving && blackboard.groundSpeed <= 2.5f && m_startTimer <= 0.0f)
     {
         // Digital Sprint Override (Animation):
         // If the sprint button is held, we unconditionally bypass the analog walk threshold.
@@ -144,19 +168,43 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
     motor->SetDesiredDirection(appliedDirection);
 
     const DirectX::XMFLOAT3 velocity{ motor->GetTotalVelocity() };
-    blackboard.groundSpeed = std::sqrt((velocity.x * velocity.x) + (velocity.z * velocity.z));
+    const float actualSpeed{ std::sqrt((velocity.x * velocity.x) + (velocity.z * velocity.z)) };
+
+    // Sprint Pivot Turn Trigger
+    // If holding sprint, moving at sprint speeds, and the player yanks the stick backwards (>135 degrees),
+    // trigger the skidding Pivot Turn instead of smoothly circling around.
+    if (intent.bSprintHeld && actualSpeed > motor->GetConfig().maxRunSpeed + 1.0f && inputSq > 0.25f)
+    {
+        const float velNormX{ velocity.x / actualSpeed };
+        const float velNormZ{ velocity.z / actualSpeed };
+        const float turnDot{ (velNormX * intent.worldMoveDirection.x) + (velNormZ * intent.worldMoveDirection.y) };
+
+        if (turnDot < -0.7f) // Approx 135-degree turnaround threshold
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::PivotTurn));
+            return;
+        }
+    }
+
+    blackboard.groundSpeed = actualSpeed;
     blackboard.verticalVelocity = velocity.y;
     blackboard.setFlag(AnimFlag::is_grounded, motor->isGrounded());
 
-    // Facing
-    constexpr float turnRateDegPerSec{ 720.0f };
+    // Facing target calculation 
     DirectX::XMFLOAT2 faceTargetXZ{ intent.worldMoveDirection };
     if (blackboard.getFlag(AnimFlag::is_strafing))
     {
         const float cameraYawRad{ OrbitCameraDriverComponent::GetActiveYawRadians() };
         faceTargetXZ = { std::sin(cameraYawRad), std::cos(cameraYawRad) };
     }
-    FacingResolver::SmoothFaceDirection(controller->GetOwner(), faceTargetXZ, turnRateDegPerSec, dt);
+
+    // Deadzone Facing Lock: Only rotate if the player is actively providing input.
+    // This prevents the character from snapping to a default 0,0 direction when the stick is released.
+    if (isActivelyMoving || blackboard.getFlag(AnimFlag::is_strafing))
+    {
+        constexpr float turnRateDegPerSec{ 720.0f };
+        FacingResolver::SmoothFaceDirection(controller->GetOwner(), faceTargetXZ, turnRateDegPerSec, dt);
+    }
 
     // ANIMATION DISPATCH
     if (auto* anim{ controller->GetAnimation() })
@@ -218,6 +266,7 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
             anim->PlaySlot(AnimSlot::Locomotion);
         }
     }
+    m_wasActivelyMoving = isActivelyMoving;
 }
 
 void PlayerLocomotion::Exit(PlayerControllerComponent* controller)
@@ -323,6 +372,30 @@ void PlayerStop::Update(PlayerControllerComponent* controller, float dt)
     const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
     if (inputSq > 0.01f)
     {
+        // Analog Deadzone Bypass (Pivot Turn Injection):
+        // If the player crossed the deadzone and immediately ripped the stick backward, 
+        // inject the Pivot Turn trigger directly here. This prevents the state machine 
+        // from rapid-firing Stop -> Locomotion -> PivotTurn in 3 frames.
+        if (motor)
+        {
+            const DirectX::XMFLOAT3 vel{ motor->GetTotalVelocity() };
+            const float actualSpeed{ std::sqrt((vel.x * vel.x) + (vel.z * vel.z)) };
+
+            // AAA Sprint-Only Restriction (Deadzone Bypass)
+            if (intent.bSprintHeld && actualSpeed > motor->GetConfig().maxRunSpeed + 1.0f)
+            {
+                const float velNormX{ vel.x / actualSpeed };
+                const float velNormZ{ vel.z / actualSpeed };
+                const float turnDot{ (velNormX * intent.worldMoveDirection.x) + (velNormZ * intent.worldMoveDirection.y) };
+
+                if (turnDot < -0.7f)
+                {
+                    controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::PivotTurn));
+                    return;
+                }
+            }
+        }
+
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
         return;
     }
@@ -341,10 +414,95 @@ void PlayerStop::Exit(PlayerControllerComponent* controller)
     // No explicit cleanup required; state overrides handle the transition cleanly.
 }
 
-// Placeholders for expanded movement
-void PlayerPivotTurn::Enter(PlayerControllerComponent*) {}
-void PlayerPivotTurn::Update(PlayerControllerComponent*, float) {}
-void PlayerPivotTurn::Exit(PlayerControllerComponent*) {}
+// PLAYER PIVOT TURN
+void PlayerPivotTurn::Enter(PlayerControllerComponent* controller)
+{
+    auto* motor{ controller->GetMovement() };
+    auto* anim{ controller->GetAnimation() };
+    if (!motor || !anim) return;
+
+    auto& blackboard{ controller->getAnimBlackboard() };
+    const auto& intent{ controller->GetIntent() };
+
+    const DirectX::XMFLOAT3 vel{ motor->GetTotalVelocity() };
+
+    // Calculate 2D Cross Product to determine if the stick was pulled over the Left or Right shoulder
+    const float cross{ (vel.x * intent.worldMoveDirection.y) - (vel.z * intent.worldMoveDirection.x) };
+
+    // Graph Selector: 0 = Left, 1 = Right, 2 = Combat Left, 3 = Combat Right
+    int actionIdx{ cross > 0.0f ? 0 : 1 };
+    if (blackboard.getFlag(AnimFlag::is_combat_active)) actionIdx += 2;
+
+    blackboard.actionIndex = actionIdx;
+    anim->PlaySlot(AnimSlot::PivotTurn, true);
+
+    // Cut intentional locomotion drive so the player physically "skids" to a halt via drag
+    motor->SetDesiredDirection({ 0.0f, 0.0f });
+}
+
+void PlayerPivotTurn::Update(PlayerControllerComponent* controller, float dt)
+{
+    auto* anim{ controller->GetAnimation() };
+    auto* motor{ controller->GetMovement() };
+    if (!anim || !motor) return;
+
+    bool canCancel{ false };
+    for (const auto& ev : anim->GetFiredEvents())
+    {
+        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open)) canCancel = true;
+    }
+
+    const auto& intent{ controller->GetIntent() };
+    const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
+
+    // A Pivot Turn animation is a mathematically perfect 180-degree flip.
+    // If we snap the capsule to the raw analog stick vector (e.g., 170 degrees), 
+    // the mesh will look dislocated. We must strictly lock the exit facing to 
+    // exactly 180 degrees from the entry capsule yaw to match the model
+    auto ApplyExitFacing = [&]() -> DirectX::XMFLOAT2 {
+        const float backwardYawRad{ DirectX::XMConvertToRadians(controller->GetOwner()->GetRotation().y + 180.0f) };
+        const DirectX::XMFLOAT2 perfectExitDir{ std::sin(backwardYawRad), std::cos(backwardYawRad) };
+        FacingResolver::SnapFaceDirection(controller->GetOwner(), perfectExitDir);
+        return perfectExitDir;
+        };
+
+    // Allow dodging/dashing out of the skid once the animation permits it
+    if (canCancel && intent.bDashTriggered)
+    {
+        ApplyExitFacing();
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
+        anim->Update(0.25f); // Flush Slerp buffer
+        return;
+    }
+
+    // Seamless Momentum Transfer:
+    // Once the skid animation finishes, return control to Locomotion.
+    if (anim->GetCurrentTimer() >= anim->GetSlotDuration(AnimSlot::PivotTurn) - 0.05f)
+    {
+        const DirectX::XMFLOAT2 exitDir{ ApplyExitFacing() };
+
+        // Seamless Momentum Transfer:
+        // If the player holds any movement input at the end of the pivot, inject physical 
+        // momentum perfectly along the 180-degree exit vector. This forces groundSpeed > 2.5f 
+        // on the next frame, explicitly bypassing the Locomotion_Start clip for a fluid exit.
+        if (inputSq > 0.01f)
+        {
+            const float boost{ intent.bSprintHeld ? motor->GetConfig().sprintSpeed : motor->GetConfig().maxRunSpeed };
+            motor->AddImpulse({ exitDir.x * boost, 0.0f, exitDir.y * boost });
+        }
+
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+
+        // Zero-Blend Injection Hack:
+        // Since we mathematically snapped the physical capsule 180 degrees, the AnimationComponent's 
+        // 0.2s local-space spherical blend will clash and cause a 360-degree visual twist pop. 
+        // We forcefully fast-forward the AnimationComponent by 0.25s right now to instantly flush 
+        // the transition buffer, guaranteeing a perfectly seamless 0-frame pop.
+        anim->Update(0.25f);
+    }
+}
+
+void PlayerPivotTurn::Exit(PlayerControllerComponent* controller) {}
 
 void PlayerSlide::Enter(PlayerControllerComponent*) {}
 void PlayerSlide::Update(PlayerControllerComponent*, float) {}
@@ -355,6 +513,22 @@ void PlayerAirTraversal::Enter(PlayerControllerComponent* controller)
 {
     m_airTimer = 0.0f;
     m_isAcrobatic = false;
+    m_canCancelAcrobatic = true; // Unlocked by default for standard falling
+
+    // State-Agnostic Forfeiture: If the player entered the air state without 
+    // spending a jump (e.g., walking or dodging off a cliff), we consume 
+    // their first jump automatically so they are restricted to just one double jump.
+    auto& blackboard{ controller->getAnimBlackboard() };
+    if (blackboard.currentJumps == 0)
+    {
+        blackboard.currentJumps = 1;
+    }
+
+    if (auto* motor{ controller->GetMovement() })
+    {
+        // Drastically reduce drag in the air so jump impulses sail freely
+        motor->SetFrictionMultiplier(0.15f);
+    }
 
     if (auto* anim{ controller->GetAnimation() })
     {
@@ -365,6 +539,14 @@ void PlayerAirTraversal::Enter(PlayerControllerComponent* controller)
 void PlayerAirTraversal::Update(PlayerControllerComponent* controller, float dt)
 {
     m_airTimer += dt; // Tick the air timer
+
+    if (m_isAcrobatic)
+    {
+        for (const auto& ev : controller->GetAnimation()->GetFiredEvents())
+        {
+            if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open)) m_canCancelAcrobatic = true;
+        }
+    }
 
     const auto& intent{ controller->GetIntent() };
     auto* motor{ controller->GetMovement() };
@@ -377,6 +559,16 @@ void PlayerAirTraversal::Update(PlayerControllerComponent* controller, float dt)
     blackboard.verticalVelocity = velocity.y;
     blackboard.setFlag(AnimFlag::is_grounded, motor->isGrounded());
 
+    // Hang-Time Masking: Wait until velocity is definitively downward (-1.5 m/s) 
+    // before triggering the Fall Loop. This allows the Jump_Start_F animation 
+    // to resolve its forward lean and naturally straighten out at the apex,
+    // hiding the posture pop when blending into the static Jump_Loop.
+    if (velocity.y < -1.5f && !m_isAcrobatic)
+    {
+        const int fallIdx{ blackboard.getFlag(AnimFlag::is_combat_active) ? 5 : 2 };
+        if (blackboard.actionIndex != fallIdx) blackboard.actionIndex = fallIdx;
+    }
+
     if (motor->isGrounded() && velocity.y <= 0.05f)
     {
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Landing));
@@ -388,7 +580,8 @@ void PlayerAirTraversal::Update(PlayerControllerComponent* controller, float dt)
     const bool inDangerZone = (velocity.y < -24.0f);
 
     // Air Dash (Only allowed if not in danger zone, and has not dashed yet)
-    if (intent.bDashTriggered && !inDangerZone && !blackboard.getFlag(AnimFlag::has_air_dashed))
+    // If performing an acrobatic double jump, enforce the animation cancel window
+    if (intent.bDashTriggered && !inDangerZone && !blackboard.getFlag(AnimFlag::has_air_dashed) && (!m_isAcrobatic || m_canCancelAcrobatic))
     {
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
         return;
@@ -401,6 +594,9 @@ void PlayerAirTraversal::Update(PlayerControllerComponent* controller, float dt)
         motor->Jump(7.0f);
 
         m_isAcrobatic = true;
+        m_canCancelAcrobatic = false; // Lock out the dash until the CancelWindow_Open event fires
+        blackboard.actionIndex = blackboard.getFlag(AnimFlag::is_combat_active) ? 1 : 0;
+
         if (auto* anim{ controller->GetAnimation() })
         {
             anim->PlaySlot(AnimSlot::Jump_Acrobatic, true);
@@ -413,9 +609,18 @@ void PlayerAirTraversal::Update(PlayerControllerComponent* controller, float dt)
 
     if (auto* anim{ controller->GetAnimation() })
     {
-        if (m_isAcrobatic && anim->GetCurrentTimer() >= anim->GetSlotDuration(AnimSlot::Jump_Acrobatic))
+        // Proportional Blend-Out: Trigger the transition when 90% of the clip has played.
+        // This prevents fast-playing clips (e.g. 2.0x speed) from being abruptly truncated 
+        // by an absolute time margin, while still ensuring a fluid crossfade into the fall loop.
+        const float duration{ anim->GetSlotDuration(AnimSlot::Jump_Acrobatic) };
+        if (m_isAcrobatic && anim->GetCurrentTimer() >= (duration * 0.90f))
         {
             m_isAcrobatic = false;
+
+            // CRITICAL: Force the blackboard into the Fall Loop (Index 2 or 5).
+            // If the flip finishes while still moving upwards, we must not accidentally route 
+            // back to the grounded Jump Takeoff (Index 0 or 1) while mid-air.
+            blackboard.actionIndex = blackboard.getFlag(AnimFlag::is_combat_active) ? 5 : 2;
         }
 
         if (!m_isAcrobatic)
@@ -425,7 +630,14 @@ void PlayerAirTraversal::Update(PlayerControllerComponent* controller, float dt)
     }
 }
 
-void PlayerAirTraversal::Exit(PlayerControllerComponent* controller) {}
+void PlayerAirTraversal::Exit(PlayerControllerComponent* controller)
+{
+    if (auto* motor{ controller->GetMovement() })
+    {
+        // Restore standard friction upon landing
+        motor->SetFrictionMultiplier(1.0f);
+    }
+}
 
 // LANDING STATE
 void PlayerLanding::Enter(PlayerControllerComponent* controller)
@@ -446,26 +658,31 @@ void PlayerLanding::Enter(PlayerControllerComponent* controller)
     motor->SetDesiredDirection({ 0.0f, 0.0f });
 
     // Landing Threshold Logic
-    int actionIdx = 0;
-    if (terminalVelocity > -14.0f)
-    {
-        // Soft Land (Small hops / stairs)
-        actionIdx = 0;
-    }
-    else if (terminalVelocity <= -14.0f && terminalVelocity > -28.0f && holdingMove)
-    {
-        // Roll Land (Parkour out of medium falls)
-        actionIdx = 1;
+    int actionIdx{ 0 };
 
-        // Preserve momentum through the roll
+    // Hard drops always take absolute priority to stagger the player
+    if (terminalVelocity <= -28.0f)
+    {
+        actionIdx = 2; // Hard Land
+    }
+    // High-Momentum Roll: Bypass Y-velocity limits entirely.
+    // If the player lands while actively running/dashing (> 2.5m/s), 
+    // seamlessly transition into a forward roll to maintain combat pacing.
+    else if (holdingMove && controller->getAnimBlackboard().groundSpeed > 2.5f)
+    {
+        actionIdx = 1; // Roll Land
+
+        // Preserve input direction momentum through the roll
         motor->SetDesiredDirection(intent.worldMoveDirection);
         FacingResolver::SnapFaceDirection(controller->GetOwner(), intent.worldMoveDirection);
     }
     else
     {
-        // Hard Land (Extreme falls / no input)
-        actionIdx = 2;
+        // Soft Land (Stationary jumps, slow walking, or no input)
+        actionIdx = 0;
     }
+
+    if (controller->getAnimBlackboard().getFlag(AnimFlag::is_combat_active)) actionIdx += 3;
 
     controller->getAnimBlackboard().actionIndex = actionIdx;
     anim->PlaySlot(AnimSlot::Landing, true);
