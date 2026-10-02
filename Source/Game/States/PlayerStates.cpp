@@ -32,10 +32,27 @@ void PlayerLocomotion::Enter(PlayerControllerComponent* controller)
     const DirectX::XMFLOAT3 vel{ motor->GetTotalVelocity() };
     blackboard.groundSpeed = std::sqrt((vel.x * vel.x) + (vel.z * vel.z));
 
-    const float inputSq{ (controller->GetIntent().moveVector.x * controller->GetIntent().moveVector.x) + (controller->GetIntent().moveVector.y * controller->GetIntent().moveVector.y) };
-    m_wasActivelyMoving = (inputSq > 0.01f);
-    m_startTimer = 0.0f;
-    anim->PlaySlot(AnimSlot::Locomotion);
+    const auto& intent{ controller->GetIntent() };
+    const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
+
+    // Smart Entry Transient
+    // Start animations (Walk_Start, Run_Start) are authored from a static Idle pose.
+    // If the player is already moving fast (> 2.5m/s Walk Threshold) due to 
+    // momentum injected by a PivotTurn or Landing, we bypass the start 
+    // animation entirely to prevent snapping back to an idle-takeoff pose.
+    const bool isStartingFromSlow = blackboard.groundSpeed <= 2.5f;
+
+    if (inputSq > 0.01f && isStartingFromSlow)
+    {
+        m_wasActivelyMoving = false; // Force the Update loop to natively catch the 0->1 transition this frame
+        m_startTimer = 0.0f;
+    }
+    else
+    {
+        m_wasActivelyMoving = (inputSq > 0.01f);
+        m_startTimer = 0.0f;
+        anim->PlaySlot(AnimSlot::Locomotion);
+    }
 }
 
 void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
@@ -125,12 +142,10 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
         return;
     }
 
-    // Wide-Band Start Trigger
-    // Because Deceleration was lowered to 2.5, velocity decays slowly. 
-    // We widen the tolerance to 2.5f (the Walk threshold) so if the character 
-    // is visually idling or slow-sliding, ANY new input safely triggers a fresh start.
-    // Explicitly checking !m_wasActivelyMoving prevents jerky re-triggers when simply changing direction.
-    if (isActivelyMoving && !m_wasActivelyMoving && blackboard.groundSpeed <= 2.5f && m_startTimer <= 0.0f)
+    // Universal Start Trigger
+    // Captures the exact moment input transitions from inactive to active.
+    // Velocity thresholding is now securely handled in the Enter() phase to allow explosive sprint bursts.
+    if (isActivelyMoving && !m_wasActivelyMoving && m_startTimer <= 0.0f)
     {
         // Digital Sprint Override (Animation):
         // If the sprint button is held, we unconditionally bypass the analog walk threshold.
