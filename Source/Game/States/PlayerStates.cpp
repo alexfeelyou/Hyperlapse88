@@ -751,17 +751,39 @@ void PlayerDashEvade::Enter(PlayerControllerComponent* controller)
     const auto& intent{ controller->GetIntent() };
 
     m_dashDir = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
+    FacingResolver::SnapFaceDirection(controller->GetOwner(), m_dashDir);
 
-    if (auto* motor{ controller->GetMovement() })
+    auto* anim{ controller->GetAnimation() };
+    auto* motor{ controller->GetMovement() };
+
+    if (anim)
     {
+        // Route the Selector Graph (0: Normal, 1: Air, 2: Combat, 3: Air Combat)
+        int actionIdx{ (motor && motor->isGrounded()) ? 0 : 1 };
+        if (controller->getAnimBlackboard().getFlag(AnimFlag::is_combat_active))
+        {
+            actionIdx += 2;
+        }
+        controller->getAnimBlackboard().actionIndex = actionIdx;
+
+        anim->PlaySlot(AnimSlot::DashEvade, true);
+        m_timer = anim->GetSlotDuration(AnimSlot::DashEvade);
+    }
+
+    if (motor)
+    {
+        motor->SetDesiredDirection({ 0.0f, 0.0f });
+
         if (motor->isGrounded())
         {
-            const float dashDuration{ motor->GetConfig().dashGroundDuration };
-            
-            // Protect against zero division if slider is dragged to 0
-            const float safeDuration{ dashDuration > 0.001f ? dashDuration : 0.001f };
-            const float dashSpeed{ motor->GetConfig().dashGroundDistance / safeDuration };
-            motor->ApplyKinematicOverride({ m_dashDir.x * dashSpeed, m_dashDir.y * dashSpeed }, dashDuration);
+            // Impulse-Decay: Distance = InitialVelocity / Drag => InitialVelocity = Distance * Drag
+            // This provides an explosive initial burst that perfectly decelerates to the target distance.
+            const float dashImpulse{ motor->GetConfig().dashGroundDistance * motor->GetConfig().impulseDrag };
+            motor->AddImpulse(DirectX::XMFLOAT3{
+                m_dashDir.x * dashImpulse,
+                0.0f,
+                m_dashDir.y * dashImpulse
+                });
         }
         else
         {
@@ -776,22 +798,6 @@ void PlayerDashEvade::Enter(PlayerControllerComponent* controller)
             motor->SetVerticalVelocity(0.0f);
             controller->getAnimBlackboard().setFlag(AnimFlag::has_air_dashed, true);
         }
-
-        // Route the Selector Graph (0: Normal, 1: Air, 2: Combat, 3: Air Combat)
-        int actionIdx{ motor->isGrounded() ? 0 : 1 };
-        if (controller->getAnimBlackboard().getFlag(AnimFlag::is_combat_active))
-        {
-            actionIdx += 2;
-        }
-        controller->getAnimBlackboard().actionIndex = actionIdx;
-    }
-
-    FacingResolver::SnapFaceDirection(controller->GetOwner(), m_dashDir);
-
-    if (auto* anim{ controller->GetAnimation() })
-    {
-        anim->PlaySlot(AnimSlot::DashEvade, true);
-        m_timer = anim->GetSlotDuration(AnimSlot::DashEvade);
     }
 }
 
@@ -804,7 +810,13 @@ void PlayerDashEvade::Update(PlayerControllerComponent* controller, float dt)
         if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
         {
             m_canCancel = true;
-            break;
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt))
+        {
+            if (auto* motor{ controller->GetMovement() })
+            {
+                motor->HaltMomentum(ev.payload);
+            }
         }
     }
 
@@ -841,6 +853,18 @@ void PlayerDashEvade::Update(PlayerControllerComponent* controller, float dt)
     // Movement Cancel (ONLY ALLOWED ON GROUND)
     if (m_canCancel && playerWantsToMove && controller->GetMovement()->isGrounded())
     {
+        // Seamless Momentum Transfer:
+        // Inject immediate physical momentum in the requested direction. This forces 
+        // groundSpeed > 2.5f upon entering Locomotion, explicitly bypassing the 
+        // Locomotion_Start takeoff clip and snapping the pose fluidly into a run.
+        auto* motor = controller->GetMovement();
+        const float boost{ intent.bSprintHeld ? motor->GetConfig().sprintSpeed : motor->GetConfig().maxRunSpeed };
+        motor->AddImpulse(DirectX::XMFLOAT3{
+            intent.worldMoveDirection.x * boost,
+            0.0f,
+            intent.worldMoveDirection.y * boost
+            });
+
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
         return;
     }
@@ -930,6 +954,13 @@ void PlayerAttackPrimary::Update(PlayerControllerComponent* controller, float dt
                     0.0f,
                     m_lungeDirection.y * ev.payload
                     });
+            }
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt))
+        {
+            if (auto* motor = controller->GetMovement())
+            {
+                motor->HaltMomentum(ev.payload);
             }
         }
     }
@@ -1031,6 +1062,13 @@ void PlayerAttackContextual::Update(PlayerControllerComponent* controller, float
                     });
             }
         }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt))
+        {
+            if (auto* motor = controller->GetMovement())
+            {
+                motor->HaltMomentum(ev.payload);
+            }
+        }
     }
 
     // Evasion Cancel (Respect Air Limits)
@@ -1127,6 +1165,10 @@ void PlayerAttackAerial::Update(PlayerControllerComponent* controller, float dt)
             motor->AddImpulse(DirectX::XMFLOAT3{
                 m_lungeDirection.x * ev.payload, 0.0f, m_lungeDirection.y * ev.payload
                 });
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt))
+        {
+            motor->HaltMomentum(ev.payload);
         }
     }
 

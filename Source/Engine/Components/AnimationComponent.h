@@ -21,7 +21,8 @@ enum class CombatEventId : std::uint32_t
     Invincible_End,
     Play_SFX,
     Play_VFX,
-    Lunge_Impulse
+    Lunge_Impulse,
+    Movement_Halt
 };
 
 enum class AnimStateType : std::uint8_t {

@@ -49,6 +49,29 @@ void CharacterMovementComponent::ClearKinematicOverride() noexcept
     m_overrideVelocity = { 0.0f, 0.0f };
 }
 
+void CharacterMovementComponent::HaltMomentum(float brakingFactor) noexcept
+{
+    const float retain{ std::clamp(1.0f - brakingFactor, 0.0f, 1.0f) };
+
+    if (m_overrideTimer > 0.0f)
+    {
+        // Convert strict kinematic override velocity into natural impulse velocity
+        // so it seamlessly decays via standard impulseDrag when retaining partial momentum.
+        m_impulseVelocity.x = m_overrideVelocity.x * retain;
+        m_impulseVelocity.z = m_overrideVelocity.y * retain;
+        m_overrideTimer = 0.0f;
+        m_overrideVelocity = { 0.0f, 0.0f };
+    }
+    else
+    {
+        m_impulseVelocity.x *= retain;
+        m_impulseVelocity.z *= retain;
+    }
+
+    m_locomotionVelocity.x *= retain;
+    m_locomotionVelocity.z *= retain;
+}
+
 void CharacterMovementComponent::AddImpulse(const DirectX::XMFLOAT3& impulse) noexcept
 {
     m_impulseVelocity.x += impulse.x;
@@ -175,7 +198,6 @@ void CharacterMovementComponent::DrawInspector()
     ImGui::Spacing();
     ImGui::TextDisabled("DASH / EVADE TUNING");
     ImGui::DragFloat("Ground Dash Dist", &m_config.dashGroundDistance, 0.1f, 1.0f, 15.0f, "%.2f m");
-    ImGui::DragFloat("Ground Dash Time", &m_config.dashGroundDuration, 0.01f, 0.1f, 1.0f, "%.2f s");
     ImGui::DragFloat("Air Dash Impulse", &m_config.dashAirImpulse, 1.0f, 10.0f, 100.0f);
     ImGui::Spacing();
 
@@ -198,7 +220,6 @@ void CharacterMovementComponent::Serialize(nlohmann::json& outJson) const
     outJson["ImpulseDrag"] = m_config.impulseDrag;
     outJson["JumpForwardImpulse"] = m_config.jumpForwardImpulse;
     outJson["DashGroundDistance"] = m_config.dashGroundDistance;
-    outJson["DashGroundDuration"] = m_config.dashGroundDuration;
     outJson["DashAirImpulse"] = m_config.dashAirImpulse;
     outJson["UseGravity"] = m_config.useGravity;
 }
@@ -212,7 +233,6 @@ void CharacterMovementComponent::Deserialize(const nlohmann::json& inJson)
     m_config.impulseDrag = inJson.value("ImpulseDrag", 7.5f);
     m_config.jumpForwardImpulse = inJson.value("JumpForwardImpulse", 1.0f);
     m_config.dashGroundDistance = inJson.value("DashGroundDistance", 4.5f);
-    m_config.dashGroundDuration = inJson.value("DashGroundDuration", 0.3f);
     m_config.dashAirImpulse = inJson.value("DashAirImpulse", 35.0f);
     m_config.useGravity = inJson.value("UseGravity", true);
 }

@@ -13,7 +13,7 @@ namespace
     inline constexpr const char* s_eventNames[] = {
          "None", "Hitbox_Active", "Hitbox_Inactive",
          "CancelWindow_Open", "Invincible_Start", "Invincible_End",
-         "Play_SFX", "Play_VFX", "Lunge_Impulse"
+         "Play_SFX", "Play_VFX", "Lunge_Impulse", "Movement_Halt"
     };
 
     [[nodiscard]] ImU32 GetColorForEvent(std::uint32_t eventId) noexcept
@@ -23,6 +23,7 @@ namespace
         case CombatEventId::Hitbox_Active:     return IM_COL32(250, 80, 80, 255);
         case CombatEventId::CancelWindow_Open: return IM_COL32(250, 200, 50, 255);
         case CombatEventId::Lunge_Impulse:     return IM_COL32(50, 150, 250, 255);
+        case CombatEventId::Movement_Halt:     return IM_COL32(250, 120, 50, 255);
         case CombatEventId::Play_SFX:
         case CombatEventId::Play_VFX:          return IM_COL32(200, 100, 250, 255);
         default:                               return IM_COL32(100, 200, 100, 255);
@@ -423,6 +424,11 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
             if (ImGui::Combo("Type", &currentEventId, s_eventNames, static_cast<int>(std::size(s_eventNames))))
             {
                 ev.eventId = static_cast<std::uint32_t>(currentEventId);
+                // UX: Default to 1.0 (Full Stop) when newly selecting the Halt event so it works immediately
+                if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt) && ev.payload == 0.0f)
+                {
+                    ev.payload = 1.0f;
+                }
             }
 
             ImGui::Spacing();
@@ -453,11 +459,13 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
             ImGui::Spacing();
 
             if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse) ||
+                ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt) ||
                 ev.eventId == static_cast<std::uint32_t>(CombatEventId::Play_SFX) ||
                 ev.eventId == static_cast<std::uint32_t>(CombatEventId::Play_VFX))
             {
                 ImGui::Separator();
                 if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse)) ImGui::DragFloat("Lunge Force", &ev.payload, 0.5f, -200.0f, 200.0f);
+                else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt)) ImGui::DragFloat("Braking Factor", &ev.payload, 0.05f, 0.0f, 1.0f, "%.2f (1 = Stop)");
                 else ImGui::DragFloat("Asset ID", &ev.payload, 1.0f, 0.0f, 100.0f);
                 ImGui::Spacing();
             }

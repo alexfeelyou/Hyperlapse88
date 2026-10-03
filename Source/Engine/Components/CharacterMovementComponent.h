@@ -15,9 +15,8 @@ struct CharacterMovementConfig
     float deceleration{ 38.0f };
     float impulseDrag{ 7.5f };
     float jumpForwardImpulse{ 1.0f };
-    float dashGroundDistance{ 4.5f }; 
-    float dashGroundDuration{ 0.3f }; 
-    float dashAirImpulse{ 35.0f };    
+    float dashGroundDistance{ 4.5f };
+    float dashAirImpulse{ 35.0f };
     float gravity{ -9.81f };
     bool  useGravity{ true };
 };
@@ -56,6 +55,7 @@ public:
     // Forces deterministic movement while active, suppressing analog locomotion and impulses
     void ApplyKinematicOverride(const DirectX::XMFLOAT2& velocity, float duration) noexcept;
     void ClearKinematicOverride() noexcept;
+    void HaltMomentum(float brakingFactor = 1.0f) noexcept;
     [[nodiscard]] bool IsKinematicOverrideActive() const noexcept { return m_overrideTimer > 0.0f; }
 
     // Friction Override (e.g., locking the player in place during a sword slash)

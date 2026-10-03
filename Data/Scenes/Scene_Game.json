@@ -442,7 +442,20 @@
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
-                                    "Transitions": []
+                                    "Transitions": [
+                                        {
+                                            "Blend": 1.0,
+                                            "NodeIdx": 0,
+                                            "Offset": 0.0,
+                                            "Source": "Dash Evade"
+                                        },
+                                        {
+                                            "Blend": 1.0,
+                                            "NodeIdx": 2,
+                                            "Offset": 0.0,
+                                            "Source": "Dash Evade"
+                                        }
+                                    ]
                                 },
                                 {
                                     "Blend": 0.20000000298023224,
@@ -1097,6 +1110,13 @@
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.36612942814826965
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 9,
+                                            "IsRange": false,
+                                            "Payload": 0.4000000059604645,
+                                            "Time": 0.48216474056243896
                                         }
                                     ],
                                     "LockRootX": false,
@@ -1143,6 +1163,13 @@
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.3659999966621399
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 9,
+                                            "IsRange": false,
+                                            "Payload": 0.4000000059604645,
+                                            "Time": 0.4819999933242798
                                         }
                                     ],
                                     "LockRootX": false,
