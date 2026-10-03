@@ -36,6 +36,19 @@ void CharacterMovementComponent::SetDesiredDirection(const DirectX::XMFLOAT2& di
     }
 }
 
+void CharacterMovementComponent::ApplyKinematicOverride(const DirectX::XMFLOAT2& velocity, float duration) noexcept
+{
+    m_overrideVelocity = velocity;
+    m_overrideTimer = duration;
+    m_locomotionVelocity = { 0.0f, 0.0f, 0.0f }; // Immediately strip lingering sprint momentum
+}
+
+void CharacterMovementComponent::ClearKinematicOverride() noexcept
+{
+    m_overrideTimer = 0.0f;
+    m_overrideVelocity = { 0.0f, 0.0f };
+}
+
 void CharacterMovementComponent::AddImpulse(const DirectX::XMFLOAT3& impulse) noexcept
 {
     m_impulseVelocity.x += impulse.x;
@@ -45,6 +58,15 @@ void CharacterMovementComponent::AddImpulse(const DirectX::XMFLOAT3& impulse) no
 
 DirectX::XMFLOAT3 CharacterMovementComponent::GetTotalVelocity() const noexcept
 {
+    if (m_overrideTimer > 0.0f)
+    {
+        return {
+            m_overrideVelocity.x,
+            m_verticalVelocity + m_impulseVelocity.y, // Maintain gravity & vertical knockbacks
+            m_overrideVelocity.y
+        };
+    }
+
     return {
         m_locomotionVelocity.x + m_impulseVelocity.x,
         m_verticalVelocity + m_impulseVelocity.y,
@@ -55,6 +77,11 @@ DirectX::XMFLOAT3 CharacterMovementComponent::GetTotalVelocity() const noexcept
 bool CharacterMovementComponent::IsMoving() const noexcept
 {
     constexpr float moveThresholdSq{ 0.01f };
+    if (m_overrideTimer > 0.0f)
+    {
+        return LengthSq(m_overrideVelocity) > moveThresholdSq;
+    }
+
     return LengthSq({ m_locomotionVelocity.x, m_locomotionVelocity.z }) > moveThresholdSq ||
         LengthSq({ m_impulseVelocity.x, m_impulseVelocity.z }) > moveThresholdSq;
 }
@@ -75,28 +102,40 @@ void CharacterMovementComponent::Update(const float dt)
     }
 
     // Process Input Locomotion (Accelerate towards desired direction)
-    const float currentMaxSpeed = m_isSprinting ? m_config.sprintSpeed : m_config.maxRunSpeed;
-    const DirectX::XMFLOAT2 targetVelocity{
-        m_desiredDirection.x * currentMaxSpeed,
-        m_desiredDirection.y * currentMaxSpeed
-    };
+    if (m_overrideTimer > 0.0f)
+    {
+        m_overrideTimer -= dt;
+        // Suppress analog input build-up so we don't shoot forward when the override ends
+        m_locomotionVelocity = { 0.0f, 0.0f, 0.0f };
+    }
+    else
+    {
+        // Process Input Locomotion (Accelerate towards desired direction)
+        const float currentMaxSpeed = m_isSprinting ? m_config.sprintSpeed : m_config.maxRunSpeed;
+        const DirectX::XMFLOAT2 targetVelocity{
+            m_desiredDirection.x * currentMaxSpeed,
+            m_desiredDirection.y * currentMaxSpeed
+        };
 
-    const float accelRate{ (LengthSq(m_desiredDirection) > 0.01f) ? m_config.acceleration : m_config.deceleration };
+        const float accelRate{ (LengthSq(m_desiredDirection) > 0.01f) ? m_config.acceleration : m_config.deceleration };
 
-    m_locomotionVelocity.x += (targetVelocity.x - m_locomotionVelocity.x) * accelRate * dt;
-    m_locomotionVelocity.z += (targetVelocity.y - m_locomotionVelocity.z) * accelRate * dt;
+        m_locomotionVelocity.x += (targetVelocity.x - m_locomotionVelocity.x) * accelRate * dt;
+        m_locomotionVelocity.z += (targetVelocity.y - m_locomotionVelocity.z) * accelRate * dt;
+    }
 
     // Process Impulse Decay (Friction)
     // Impulses independently decay to zero over time, allowing dashes to slide smoothly
     const float currentDrag{ m_config.impulseDrag * m_frictionMultiplier };
+    
     m_impulseVelocity.x += (0.0f - m_impulseVelocity.x) * currentDrag * dt;
     m_impulseVelocity.y += (0.0f - m_impulseVelocity.y) * currentDrag * dt;
     m_impulseVelocity.z += (0.0f - m_impulseVelocity.z) * currentDrag * dt;
-
+    
     // Snap tiny impulses to zero to prevent floating point drift
     if (std::abs(m_impulseVelocity.x) < 0.05f) m_impulseVelocity.x = 0.0f;
     if (std::abs(m_impulseVelocity.y) < 0.05f) m_impulseVelocity.y = 0.0f;
     if (std::abs(m_impulseVelocity.z) < 0.05f) m_impulseVelocity.z = 0.0f;
+
 
     // Process Gravity
     if (m_config.useGravity && !m_capsule->IsGrounded())
@@ -132,6 +171,14 @@ void CharacterMovementComponent::DrawInspector()
     ImGui::DragFloat("Deceleration", &m_config.deceleration, 0.5f, 1.0f, 200.0f);
     ImGui::DragFloat("Impulse Drag", &m_config.impulseDrag, 0.1f, 0.1f, 50.0f);
     ImGui::DragFloat("Jump Fwd Impulse", &m_config.jumpForwardImpulse, 0.05f, 0.0f, 5.0f);
+
+    ImGui::Spacing();
+    ImGui::TextDisabled("DASH / EVADE TUNING");
+    ImGui::DragFloat("Ground Dash Dist", &m_config.dashGroundDistance, 0.1f, 1.0f, 15.0f, "%.2f m");
+    ImGui::DragFloat("Ground Dash Time", &m_config.dashGroundDuration, 0.01f, 0.1f, 1.0f, "%.2f s");
+    ImGui::DragFloat("Air Dash Impulse", &m_config.dashAirImpulse, 1.0f, 10.0f, 100.0f);
+    ImGui::Spacing();
+
     ImGui::Checkbox("Use Gravity", &m_config.useGravity);
 
     ImGui::Spacing();
@@ -150,6 +197,9 @@ void CharacterMovementComponent::Serialize(nlohmann::json& outJson) const
     outJson["Deceleration"] = m_config.deceleration;
     outJson["ImpulseDrag"] = m_config.impulseDrag;
     outJson["JumpForwardImpulse"] = m_config.jumpForwardImpulse;
+    outJson["DashGroundDistance"] = m_config.dashGroundDistance;
+    outJson["DashGroundDuration"] = m_config.dashGroundDuration;
+    outJson["DashAirImpulse"] = m_config.dashAirImpulse;
     outJson["UseGravity"] = m_config.useGravity;
 }
 
@@ -161,6 +211,9 @@ void CharacterMovementComponent::Deserialize(const nlohmann::json& inJson)
     m_config.deceleration = inJson.value("Deceleration", 38.0f);
     m_config.impulseDrag = inJson.value("ImpulseDrag", 7.5f);
     m_config.jumpForwardImpulse = inJson.value("JumpForwardImpulse", 1.0f);
+    m_config.dashGroundDistance = inJson.value("DashGroundDistance", 4.5f);
+    m_config.dashGroundDuration = inJson.value("DashGroundDuration", 0.3f);
+    m_config.dashAirImpulse = inJson.value("DashAirImpulse", 35.0f);
     m_config.useGravity = inJson.value("UseGravity", true);
 }
 

@@ -1082,6 +1082,106 @@
                             ],
                             "Slot": 8,
                             "Type": 2
+                        },
+                        {
+                            "BlendParam": 0,
+                            "Name": "Dash Evade",
+                            "Nodes": [
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 91,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.36612942814826965
+                                        }
+                                    ],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.100000023841858,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 93,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.7293972373008728
+                                        }
+                                    ],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.5,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 92,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.3659999966621399
+                                        }
+                                    ],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.100000023841858,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 94,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.7289999723434448
+                                        }
+                                    ],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.5,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                }
+                            ],
+                            "Slot": 10,
+                            "Type": 2
                         }
                     ],
                     "Type": "AnimationComponent"
@@ -1101,8 +1201,11 @@
                 },
                 {
                     "Acceleration": 8.0,
+                    "DashAirImpulse": 35.0,
+                    "DashGroundDistance": 12.0,
+                    "DashGroundDuration": 0.15000000596046448,
                     "Deceleration": 3.9000000953674316,
-                    "ImpulseDrag": 8.5,
+                    "ImpulseDrag": 3.5,
                     "JumpForwardImpulse": 1.0,
                     "MaxRunSpeed": 8.0,
                     "SprintSpeed": 16.0,

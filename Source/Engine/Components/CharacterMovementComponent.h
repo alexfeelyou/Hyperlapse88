@@ -15,6 +15,9 @@ struct CharacterMovementConfig
     float deceleration{ 38.0f };
     float impulseDrag{ 7.5f };
     float jumpForwardImpulse{ 1.0f };
+    float dashGroundDistance{ 4.5f }; 
+    float dashGroundDuration{ 0.3f }; 
+    float dashAirImpulse{ 35.0f };    
     float gravity{ -9.81f };
     bool  useGravity{ true };
 };
@@ -49,6 +52,12 @@ public:
     // Explicitly drives true ballistic gravity arcs
     void Jump(float jumpForce) noexcept { m_verticalVelocity = jumpForce; }
 
+    // Kinematic Action Override 
+    // Forces deterministic movement while active, suppressing analog locomotion and impulses
+    void ApplyKinematicOverride(const DirectX::XMFLOAT2& velocity, float duration) noexcept;
+    void ClearKinematicOverride() noexcept;
+    [[nodiscard]] bool IsKinematicOverrideActive() const noexcept { return m_overrideTimer > 0.0f; }
+
     // Friction Override (e.g., locking the player in place during a sword slash)
     void SetFrictionMultiplier(float multiplier) noexcept { m_frictionMultiplier = multiplier; }
 
@@ -74,6 +83,9 @@ private:
     float m_verticalVelocity{ 0.0f };
     float m_frictionMultiplier{ 1.0f };
     bool m_isSprinting{ false };
+
+    DirectX::XMFLOAT2 m_overrideVelocity{ 0.0f, 0.0f };
+    float m_overrideTimer{ 0.0f };
 
     [[nodiscard]] static constexpr float LengthSq(const DirectX::XMFLOAT2& v) noexcept
     {

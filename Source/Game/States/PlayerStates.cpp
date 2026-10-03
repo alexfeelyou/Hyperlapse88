@@ -754,19 +754,36 @@ void PlayerDashEvade::Enter(PlayerControllerComponent* controller)
 
     if (auto* motor{ controller->GetMovement() })
     {
-        motor->AddImpulse(DirectX::XMFLOAT3{
-            m_dashDir.x * DASH_IMPULSE_FORCE,
-            0.0f,
-            m_dashDir.y * DASH_IMPULSE_FORCE
-            });
-
-        // Air Dash specific logic
-        if (!motor->isGrounded())
+        if (motor->isGrounded())
         {
+            const float dashDuration{ motor->GetConfig().dashGroundDuration };
+            
+            // Protect against zero division if slider is dragged to 0
+            const float safeDuration{ dashDuration > 0.001f ? dashDuration : 0.001f };
+            const float dashSpeed{ motor->GetConfig().dashGroundDistance / safeDuration };
+            motor->ApplyKinematicOverride({ m_dashDir.x * dashSpeed, m_dashDir.y * dashSpeed }, dashDuration);
+        }
+        else
+        {
+            const float airImpulse{ motor->GetConfig().dashAirImpulse };
+            motor->AddImpulse(DirectX::XMFLOAT3{
+                m_dashDir.x * airImpulse,
+                0.0f,
+                m_dashDir.y * airImpulse
+                });
+
+            // Air Dash specific logic
             motor->SetVerticalVelocity(0.0f);
-            // Mark that the player has consumed their air dash
             controller->getAnimBlackboard().setFlag(AnimFlag::has_air_dashed, true);
         }
+
+        // Route the Selector Graph (0: Normal, 1: Air, 2: Combat, 3: Air Combat)
+        int actionIdx{ motor->isGrounded() ? 0 : 1 };
+        if (controller->getAnimBlackboard().getFlag(AnimFlag::is_combat_active))
+        {
+            actionIdx += 2;
+        }
+        controller->getAnimBlackboard().actionIndex = actionIdx;
     }
 
     FacingResolver::SnapFaceDirection(controller->GetOwner(), m_dashDir);
@@ -843,7 +860,13 @@ void PlayerDashEvade::Update(PlayerControllerComponent* controller, float dt)
     }
 }
 
-void PlayerDashEvade::Exit(PlayerControllerComponent* controller) {}
+void PlayerDashEvade::Exit(PlayerControllerComponent* controller)
+{
+    if (auto* motor{ controller->GetMovement() })
+    {
+        motor->ClearKinematicOverride();
+    }
+}
 
 // COMBAT (GROUND)
 void PlayerAttackPrimary::Enter(PlayerControllerComponent* controller)
