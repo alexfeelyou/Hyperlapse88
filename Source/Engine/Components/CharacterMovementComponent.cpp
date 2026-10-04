@@ -170,10 +170,10 @@ void CharacterMovementComponent::Update(const float dt)
         // Downward pressure prevents jittering on staircases and downward slopes
         m_verticalVelocity = -2.0f;
     }
-    else if (!m_config.useGravity)
-    {
-        m_verticalVelocity = 0.0f;
-    }
+    // Anti-Gravity Lockout  
+    // We intentionally removed the explicit m_verticalVelocity = 0.0f clamp when !useGravity.
+    // This allows custom states (like ParkourWall) to sculpt explicit vertical 
+    // kinematics (parabolic lifts and downward fatigue slides) without the motor erasing them.
 
     // Combine and Move
     const DirectX::XMFLOAT3 totalVel{ GetTotalVelocity() };

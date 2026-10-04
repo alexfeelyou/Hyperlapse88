@@ -22,7 +22,12 @@ namespace
         const DirectX::XMFLOAT3 center{ capsule->GetCenterPosition() };
         const float yaw{ DirectX::XMConvertToRadians(controller->GetOwner()->GetRotation().y) };
 
-        const physx::PxVec3 pxPos{ center.x, center.y, center.z };
+        // Anti-Knee-High Geometry Gate (Shoulder-Height Probe):
+        // Shift the ray origin up from the capsule center so we explicitly overshoot 
+        // and ignore obstacles shorter than the player (e.g., crates, low fences).
+        const float shoulderOffsetY{ capsule->GetConfig().height * 0.4f };
+        const physx::PxVec3 pxPos{ center.x, center.y + shoulderOffsetY, center.z };
+
         // Extract local Right vector (X positive relative to current forward)
         const physx::PxVec3 right{ std::cos(yaw), 0.0f, -std::sin(yaw) };
 
@@ -248,6 +253,27 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
         {
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::PivotTurn));
             return;
+        }
+    }
+
+    // Auto-Parkour Wall Entry (From Ground)
+    if (intent.bSprintHeld && actualSpeed > 2.5f)
+    {
+        DirectX::XMFLOAT3 wNorm{};
+        int wSide{ 0 };
+        if (TryDetectWall(controller, wNorm, wSide))
+        {
+            const float inputDot{ (intent.worldMoveDirection.x * wNorm.x) + (intent.worldMoveDirection.y * wNorm.z) };
+            const float yaw{ DirectX::XMConvertToRadians(controller->GetOwner()->GetRotation().y) };
+            const DirectX::XMFLOAT3 fwd{ std::sin(yaw), 0.0f, std::cos(yaw) };
+
+            // Mount wall if glancing along it and not actively pulling the stick away
+            if (inputDot <= 0.25f && std::abs((fwd.x * wNorm.x) + (fwd.z * wNorm.z)) < 0.85f)
+            {
+                motor->SetVerticalVelocity(5.5f); // Upward parabolic lift impulse
+                controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::ParkourWall));
+                return;
+            }
         }
     }
 
@@ -998,11 +1024,24 @@ void PlayerLanding::Exit(PlayerControllerComponent* controller) {}
 void PlayerParkourWall::Enter(PlayerControllerComponent* controller)
 {
     m_wallRunTimer = 0.0f;
+    m_isParabolicMount = false;
+
     if (auto* motor{ controller->GetMovement() })
     {
         m_wasGravityEnabled = motor->GetConfig().useGravity;
         motor->GetConfig().useGravity = false;
-        motor->SetVerticalVelocity(0.0f); // Halt falling instantly
+
+        // Detect if we entered from an auto-ground vault which injected upward momentum
+        if (motor->GetVerticalVelocity() > 0.0f)
+        {
+            m_isParabolicMount = true;
+        }
+        else
+        {
+            // Halt any downward or residual velocity for bulletproof standard mid-air mounts
+            motor->SetVerticalVelocity(0.0f);
+            m_isParabolicMount = false;
+        }
     }
 
     // Cache parameters
@@ -1102,13 +1141,24 @@ void PlayerParkourWall::Update(PlayerControllerComponent* controller, float dt)
     motor->SetSprinting(true);
     motor->SetDesiredDirection(tangent);
 
-    // Smooth Wall Fatigue: Start sliding down after 1.5s instead of violently ejecting
-    float verticalFall{ 0.0f };
-    if (m_wallRunTimer > 1.5f)
+    // Parabolic lift decay & Strict Height Lock
+    float currentVelY{ motor->GetVerticalVelocity() };
+    if (m_isParabolicMount)
     {
-        verticalFall = -6.0f * (m_wallRunTimer - 1.5f);
+        // Apply synthetic gravity to smooth out the initial upward arc
+        currentVelY += motor->GetConfig().gravity * dt;
+        if (currentVelY <= 0.0f)
+        {
+            currentVelY = 0.0f; // Lock perfectly flat at the apex
+            m_isParabolicMount = false; // Transition to locked height
+        }
     }
-    motor->SetVerticalVelocity(verticalFall);
+    else
+    {
+        // Strictly lock the vertical velocity to 0 to prevent any height dropping (no fatigue)
+        currentVelY = 0.0f;
+    }
+    motor->SetVerticalVelocity(currentVelY);
 
     // Aggressive Anti-Drift: Lock the capsule flush against the collision mesh (15.0 overcomes PhysX contact offsets)
     motor->AddImpulse({ -m_wallNormal.x * 15.0f * dt, 0.0f, -m_wallNormal.z * 15.0f * dt });

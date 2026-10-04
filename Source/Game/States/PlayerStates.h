@@ -99,6 +99,7 @@ private:
     int m_wallSide{ 0 };
     float m_wallRunTimer{ 0.0f };
     bool m_wasGravityEnabled{ true };
+    bool m_isParabolicMount{ false };
 };
 
 class PlayerDashEvade final : public PlayerState
