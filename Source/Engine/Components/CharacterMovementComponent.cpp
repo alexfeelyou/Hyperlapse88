@@ -201,6 +201,11 @@ void CharacterMovementComponent::DrawInspector()
     ImGui::DragFloat("Air Dash Impulse", &m_config.dashAirImpulse, 1.0f, 10.0f, 100.0f);
     ImGui::Spacing();
 
+    ImGui::TextDisabled("SLIDE TUNING");
+    ImGui::DragFloat("Slide Impulse", &m_config.slideImpulse, 0.5f, 0.0f, 50.0f);
+    ImGui::DragFloat("Slide Friction", &m_config.slideFrictionMultiplier, 0.01f, 0.01f, 1.0f, "%.2f (Lower = Slippery)");
+    ImGui::Spacing();
+
     ImGui::Checkbox("Use Gravity", &m_config.useGravity);
 
     ImGui::Spacing();
@@ -221,6 +226,8 @@ void CharacterMovementComponent::Serialize(nlohmann::json& outJson) const
     outJson["JumpForwardImpulse"] = m_config.jumpForwardImpulse;
     outJson["DashGroundDistance"] = m_config.dashGroundDistance;
     outJson["DashAirImpulse"] = m_config.dashAirImpulse;
+    outJson["SlideImpulse"] = m_config.slideImpulse;
+    outJson["SlideFriction"] = m_config.slideFrictionMultiplier;
     outJson["UseGravity"] = m_config.useGravity;
 }
 
@@ -234,6 +241,8 @@ void CharacterMovementComponent::Deserialize(const nlohmann::json& inJson)
     m_config.jumpForwardImpulse = inJson.value("JumpForwardImpulse", 1.0f);
     m_config.dashGroundDistance = inJson.value("DashGroundDistance", 4.5f);
     m_config.dashAirImpulse = inJson.value("DashAirImpulse", 35.0f);
+    m_config.slideImpulse = inJson.value("SlideImpulse", 15.0f);
+    m_config.slideFrictionMultiplier = inJson.value("SlideFriction", 0.15f);
     m_config.useGravity = inJson.value("UseGravity", true);
 }
 

@@ -22,7 +22,8 @@ enum class CombatEventId : std::uint32_t
     Play_SFX,
     Play_VFX,
     Lunge_Impulse,
-    Movement_Halt
+    Movement_Halt,
+    Slide_GlidePose
 };
 
 enum class AnimStateType : std::uint8_t {
@@ -159,6 +160,9 @@ public:
     [[nodiscard]] bool IsPreviewing() const noexcept { return m_editorPreview; }
     [[nodiscard]] int GetIsolatedNodeIndex() const noexcept { return m_isolatedNodeIndex; }
 
+    void SetPlaybackSpeed(float speed) noexcept { m_playbackSpeed = speed; }
+    [[nodiscard]] float GetPlaybackSpeed() const noexcept { return m_playbackSpeed; }
+
 private:
     // Flat mapping array: maps AnimSlot directly to the m_states index.
     // -1 means the slot is unbound.
@@ -211,4 +215,6 @@ private:
     bool m_editorPreview{ false };
     bool m_previewPaused{ false };
     int m_isolatedNodeIndex{ -1 };
+
+    float m_playbackSpeed{ 1.0f };
 };

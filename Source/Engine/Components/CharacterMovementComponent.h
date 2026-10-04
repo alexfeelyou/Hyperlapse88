@@ -17,6 +17,8 @@ struct CharacterMovementConfig
     float jumpForwardImpulse{ 1.0f };
     float dashGroundDistance{ 4.5f };
     float dashAirImpulse{ 35.0f };
+    float slideImpulse{ 15.0f };            
+    float slideFrictionMultiplier{ 0.15f }; 
     float gravity{ -9.81f };
     bool  useGravity{ true };
 };

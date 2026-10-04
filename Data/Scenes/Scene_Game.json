@@ -1209,6 +1209,44 @@
                             ],
                             "Slot": 10,
                             "Type": 2
+                        },
+                        {
+                            "BlendParam": 0,
+                            "Name": "Slide",
+                            "Nodes": [
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 101,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 10,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.4747844934463501
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.47355470061302185
+                                        }
+                                    ],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": true,
+                                    "Loop": false,
+                                    "RootBoneIndex": 1,
+                                    "Speed": 1.600000023841858,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                }
+                            ],
+                            "Slot": 5,
+                            "Type": 0
                         }
                     ],
                     "Type": "AnimationComponent"
@@ -1229,12 +1267,13 @@
                 {
                     "Acceleration": 8.0,
                     "DashAirImpulse": 35.0,
-                    "DashGroundDistance": 12.0,
-                    "DashGroundDuration": 0.15000000596046448,
+                    "DashGroundDistance": 8.0,
                     "Deceleration": 3.9000000953674316,
                     "ImpulseDrag": 3.5,
                     "JumpForwardImpulse": 1.0,
                     "MaxRunSpeed": 8.0,
+                    "SlideFriction": 0.15000000596046448,
+                    "SlideImpulse": 19.0,
                     "SprintSpeed": 16.0,
                     "Type": "CharacterMovementComponent",
                     "UseGravity": true

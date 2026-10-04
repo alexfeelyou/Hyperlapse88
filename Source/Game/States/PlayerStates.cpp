@@ -123,6 +123,13 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
         return;
     }
+    // Must be moving fast enough (above walk threshold) to initiate a slide
+    // Uses bSlideTriggered to demand a fresh button press, preventing infinite slide loops
+    if (intent.bSlideTriggered && controller->getAnimBlackboard().groundSpeed > 2.5f)
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Slide));
+        return;
+    }
     if (intent.bAttackPressed)
     {
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPrimary));
@@ -519,9 +526,144 @@ void PlayerPivotTurn::Update(PlayerControllerComponent* controller, float dt)
 
 void PlayerPivotTurn::Exit(PlayerControllerComponent* controller) {}
 
-void PlayerSlide::Enter(PlayerControllerComponent*) {}
-void PlayerSlide::Update(PlayerControllerComponent*, float) {}
-void PlayerSlide::Exit(PlayerControllerComponent*) {}
+void PlayerSlide::Enter(PlayerControllerComponent* controller)
+{
+    auto* motor{ controller->GetMovement() };
+    auto* anim{ controller->GetAnimation() };
+    if (!motor || !anim) return;
+
+    m_canCancel = false;
+    m_phase = SlideSubPhase::Entry_Drop;
+
+    motor->SetDesiredDirection({ 0.0f, 0.0f });
+    motor->HaltMomentum(1.0f); // Strip lingering sprint momentum so the slide impulse has pure authority
+    motor->SetFrictionMultiplier(motor->GetConfig().slideFrictionMultiplier);
+
+    const auto& intent{ controller->GetIntent() };
+    m_slideDir = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
+    FacingResolver::SnapFaceDirection(controller->GetOwner(), m_slideDir);
+
+    const float impulse = motor->GetConfig().slideImpulse;
+    motor->AddImpulse({ m_slideDir.x * impulse, 0.0f, m_slideDir.y * impulse });
+
+    anim->SetPlaybackSpeed(1.0f); // Playback starts normally
+    anim->PlaySlot(Engine::Animation::AnimSlot::Slide, true);
+}
+
+void PlayerSlide::Update(PlayerControllerComponent* controller, float dt)
+{
+    const auto& intent{ controller->GetIntent() };
+    auto* motor{ controller->GetMovement() };
+    auto* anim{ controller->GetAnimation() };
+    if (!motor || !anim) return;
+
+    auto& blackboard{ controller->getAnimBlackboard() };
+    const DirectX::XMFLOAT3 vel{ motor->GetTotalVelocity() };
+    blackboard.groundSpeed = std::sqrt((vel.x * vel.x) + (vel.z * vel.z));
+    blackboard.verticalVelocity = vel.y;
+    blackboard.setFlag(AnimFlag::is_grounded, motor->isGrounded());
+
+    // EVENT LISTENER 
+    for (const auto& ev : anim->GetFiredEvents())
+    {
+        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
+        {
+            m_canCancel = true;
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Slide_GlidePose) && m_phase == SlideSubPhase::Entry_Drop)
+        {
+            m_phase = SlideSubPhase::Sustain_Glide;
+        }
+    }
+
+    // JUMP / EDGE CANCELS 
+    // Allowed absolutely anytime before the slow Exit_Recovery phase, but must respect the Entry Drop commitment
+    if (m_canCancel && intent.bJumpTriggered && motor->isGrounded() && m_phase != SlideSubPhase::Exit_Recovery)
+    {
+        motor->Jump(6.5f);
+        if (blackboard.groundSpeed > 2.5f)
+        {
+            const float boost{ blackboard.groundSpeed * motor->GetConfig().jumpForwardImpulse };
+            DirectX::XMFLOAT2 faceDir = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
+            motor->AddImpulse({ faceDir.x * boost, 0.0f, faceDir.y * boost });
+        }
+
+        blackboard.actionIndex = 1;
+        blackboard.currentJumps = 1;
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
+        return;
+    }
+
+    if (!motor->isGrounded() && vel.y < -1.5f)
+    {
+        blackboard.actionIndex = 1;
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
+        return;
+    }
+
+
+	// Cancel Slide into Locomotion
+    const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
+    if (m_canCancel && !intent.bSlideHeld && blackboard.groundSpeed > 2.5f && m_phase != SlideSubPhase::Exit_Recovery)
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+        return;
+    }
+
+    // STEERING (Visual Facing & Physical Trajectory)
+    // Smoothly rotates character facing and redirects the physical sliding impulse
+    // to match directional input, providing turning authority identical to Locomotion
+    motor->SetDesiredDirection({ 0.0f, 0.0f });
+
+    if (inputSq > 0.01f && m_phase != SlideSubPhase::Exit_Recovery)
+    {
+        constexpr float turnRateDegPerSec{ 720.0f }; // Identical turn rate to Locomotion
+        FacingResolver::SmoothFaceDirection(controller->GetOwner(), intent.worldMoveDirection, turnRateDegPerSec, dt);
+
+        const float yawRad{ DirectX::XMConvertToRadians(controller->GetOwner()->GetRotation().y) };
+        m_slideDir = { std::sin(yawRad), std::cos(yawRad) };
+
+        // Redirect the active slide velocity along the updated facing vector.
+        // Maintains exact physical velocity decay from slideFrictionMultiplier while carving.
+        if (blackboard.groundSpeed > 0.05f)
+        {
+            motor->HaltMomentum(1.0f);
+            motor->AddImpulse({ m_slideDir.x * blackboard.groundSpeed, 0.0f, m_slideDir.y * blackboard.groundSpeed });
+        }
+    }
+
+    // BEHAVIOR
+    if (m_phase == SlideSubPhase::Sustain_Glide)
+    {
+        // As long as the player holds the button and has momentum, freeze the animation at the low posture
+        if (intent.bSlideHeld && blackboard.groundSpeed > 1.5f)
+        {
+            anim->SetPlaybackSpeed(0.0f); // CLAMP POSE (0 updates per frame)
+        }
+        else
+        {
+            // Friction killed our speed OR we released the button while moving slow -> Fall into recovery
+            m_phase = SlideSubPhase::Exit_Recovery;
+            anim->SetPlaybackSpeed(1.0f); // UNFREEZE
+            motor->SetFrictionMultiplier(1.0f); // Restore natural friction to stop cleanly
+        }
+    }
+    else if (m_phase == SlideSubPhase::Exit_Recovery)
+    {
+        // Wait for the GetUp animation to naturally conclude
+        if (anim->GetCurrentTimer() >= anim->GetSlotDuration(Engine::Animation::AnimSlot::Slide) - 0.05f)
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+            return;
+        }
+    }
+}
+
+void PlayerSlide::Exit(PlayerControllerComponent* controller)
+{
+    if (auto* motor{ controller->GetMovement() }) motor->SetFrictionMultiplier(1.0f);
+    if (auto* anim{ controller->GetAnimation() }) anim->SetPlaybackSpeed(1.0f);
+}
 
 // AERIAL & PARKOUR
 void PlayerAirTraversal::Enter(PlayerControllerComponent* controller)
@@ -586,6 +728,17 @@ void PlayerAirTraversal::Update(PlayerControllerComponent* controller, float dt)
 
     if (motor->isGrounded() && velocity.y <= 0.05f)
     {
+        const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
+
+        // Slide Intercept: If the player lands with high momentum and is holding or tapping slide,
+        // completely bypass the Roll Landing and seamlessly transition into a Slide.
+        // (-28.0f check ensures Hard Landings still take absolute priority).
+        if (inputSq > 0.01f && blackboard.groundSpeed > 2.5f && velocity.y > -28.0f && (intent.bSlideHeld || intent.bSlideTriggered))
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Slide));
+            return;
+        }
+
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Landing));
         return;
     }

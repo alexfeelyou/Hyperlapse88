@@ -39,12 +39,24 @@ public:
     void Exit(PlayerControllerComponent* controller) override;
 };
 
+enum class SlideSubPhase : std::uint8_t
+{
+    Entry_Drop = 0,    // Uncancellable drop to the ground
+    Sustain_Glide,     // Animation playback clamped; coasting with low friction
+    Exit_Recovery      // Unfrozen animation; standing back up
+};
+
 class PlayerSlide final : public PlayerState
 {
 public:
     void Enter(PlayerControllerComponent* controller) override;
     void Update(PlayerControllerComponent* controller, float dt) override;
     void Exit(PlayerControllerComponent* controller) override;
+
+private:
+    SlideSubPhase m_phase{ SlideSubPhase::Entry_Drop };
+    DirectX::XMFLOAT2 m_slideDir{ 0.0f, 0.0f };
+    bool m_canCancel{ false };
 };
 
 // AERIAL & PARKOUR

@@ -40,6 +40,8 @@ struct InputIntent
     DirectX::XMFLOAT2 worldMoveDirection{ 0.0f, 0.0f }; // moveVector rotated into world-space X/Z by camera yaw
     DirectX::XMFLOAT3 aimWorldTarget{ 0.0f, 0.0f, 0.0f }; // Right Stick / Mouse Raycast
     bool bDashTriggered{ false };
+    bool bSlideHeld{ false };
+    bool bSlideTriggered{ false };
     bool bAttackPressed{ false };
     bool bJumpTriggered{ false };
     bool bSprintHeld{ false };

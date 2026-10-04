@@ -412,8 +412,8 @@ void AnimationComponent::Update(const float dt)
                 const float currentSpeed = (targetState.nodes[nodeA].speedMultiplier * (1.0f - t)) + (targetState.nodes[nodeB].speedMultiplier * t);
 
                 // DECOUPLED PHASE ACCUMULATION 
-                // We advance the persistent phase directly
-                const float phaseDelta = (evalDt * currentSpeed) * blendedFreq;
+                 // We advance the persistent phase directly (m_playbackSpeed allows external state machines to pause/clamp)
+                const float phaseDelta = (evalDt * currentSpeed * m_playbackSpeed) * blendedFreq;
                 m_currentPhase += phaseDelta;
 
                 const std::size_t dominantNode = (t <= 0.5f) ? nodeA : nodeB;

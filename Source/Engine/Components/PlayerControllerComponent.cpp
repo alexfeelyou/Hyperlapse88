@@ -123,6 +123,15 @@ void PlayerControllerComponent::GatherHardwareInput(const float dt) noexcept
     m_intent.bDashTriggered = isShiftTapDash ||
         ((pad.GetButtonDown() & GamePad::BTN_B) != 0);
 
+    // Slide:
+    // Keyboard: Sustained hold on Left Control
+    // Gamepad: Sustained hold on Left Bumper / LB
+    m_intent.bSlideHeld = input.GetKeyboard().IsPress(VK_CONTROL) ||
+        ((pad.GetButton() & GamePad::BTN_LEFT_SHOULDER) != 0);
+
+    m_intent.bSlideTriggered = input.GetKeyboard().IsTriggered(VK_CONTROL) ||
+        ((pad.GetButtonDown() & GamePad::BTN_LEFT_SHOULDER) != 0);
+
     // Sprint:
     // Keyboard: Sustained hold on Shift (>= 200ms)
     // Gamepad: Sustained hold on Right Bumper / RB
