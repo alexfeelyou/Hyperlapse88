@@ -1,3 +1,5 @@
+#include "System/CollisionLayer.h"
+#include "System/PhysicsManager.h"
 #include "AnimationComponent.h"
 #include "CapsuleColliderComponent.h"
 #include "CharacterMovementComponent.h"
@@ -8,6 +10,47 @@
 #include "StateMachine.h"
 
 using namespace Engine::Animation;
+
+namespace
+{
+    [[nodiscard]] bool TryDetectWall(PlayerControllerComponent* controller, DirectX::XMFLOAT3& outNormal, int& outSide) noexcept
+    {
+        auto* capsule{ controller->GetOwner()->GetComponent<CapsuleColliderComponent>() };
+        auto* scene{ PhysicsManager::Instance().GetScene() };
+        if (!capsule || !scene) return false;
+
+        const DirectX::XMFLOAT3 center{ capsule->GetCenterPosition() };
+        const float yaw{ DirectX::XMConvertToRadians(controller->GetOwner()->GetRotation().y) };
+
+        const physx::PxVec3 pxPos{ center.x, center.y, center.z };
+        // Extract local Right vector (X positive relative to current forward)
+        const physx::PxVec3 right{ std::cos(yaw), 0.0f, -std::sin(yaw) };
+
+        physx::PxRaycastBuffer hitL{};
+        physx::PxRaycastBuffer hitR{};
+        physx::PxQueryFilterData filterData{};
+        filterData.data.word0 = CollisionLayer::WorldStatic;
+        filterData.flags = physx::PxQueryFlag::eSTATIC;
+
+        const float probeDist{ capsule->GetConfig().radius + 0.65f }; // Slight reach over capsule skin
+
+        // Probe Left 
+        if (scene->raycast(pxPos, -right, probeDist, hitL, physx::PxHitFlag::eNORMAL, filterData))
+        {
+            outNormal = { hitL.block.normal.x, hitL.block.normal.y, hitL.block.normal.z };
+            outSide = -1; // Left Wall
+            return true;
+        }
+        // Probe Right
+        if (scene->raycast(pxPos, right, probeDist, hitR, physx::PxHitFlag::eNORMAL, filterData))
+        {
+            outNormal = { hitR.block.normal.x, hitR.block.normal.y, hitR.block.normal.z };
+            outSide = 1; // Right Wall
+            return true;
+        }
+        return false;
+    }
+}
 
 // GROUND & LOCOMOTION
 void PlayerLocomotion::Enter(PlayerControllerComponent* controller)
@@ -774,6 +817,33 @@ void PlayerAirTraversal::Update(PlayerControllerComponent* controller, float dt)
         return;
     }
 
+    // Wall Run Entry Trigger
+    if (intent.bSprintHeld && m_airTimer > 0.15f && (intent.moveVector.x != 0.0f || intent.moveVector.y != 0.0f))
+    {
+        DirectX::XMFLOAT3 wNorm{};
+        int wSide{ 0 };
+        if (TryDetectWall(controller, wNorm, wSide))
+        {
+            // Only mount if glancing along the wall plane, AND the user is NOT actively pulling the stick away
+            const float inputDot{ (intent.worldMoveDirection.x * wNorm.x) + (intent.worldMoveDirection.y * wNorm.z) };
+
+            const float yaw{ DirectX::XMConvertToRadians(controller->GetOwner()->GetRotation().y) };
+            const DirectX::XMFLOAT3 fwd{ std::sin(yaw), 0.0f, std::cos(yaw) };
+
+            // Anti-Spam Physics Gate:
+            // Prevent infinite climbing on the same wall. If the player just wall-jumped, 
+            // their velocity along the wall's normal will be strongly positive (e.g., +12m/s).
+            // We physically reject the remount until outward momentum is killed (velDot <= 0.1f).
+            const float velDot{ (velocity.x * wNorm.x) + (velocity.z * wNorm.z) };
+
+            if (velDot <= 0.1f && inputDot <= 0.25f && std::abs((fwd.x * wNorm.x) + (fwd.z * wNorm.z)) < 0.85f)
+            {
+                controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::ParkourWall));
+                return;
+            }
+        }
+    }
+
     // THE DANGER ZONE LOCKOUT: 
     // If falling faster than -24 m/s (approaching the -28 m/s hard land), disable panic actions.
     const bool inDangerZone = (velocity.y < -24.0f);
@@ -925,9 +995,136 @@ void PlayerLanding::Update(PlayerControllerComponent* controller, float dt)
 
 void PlayerLanding::Exit(PlayerControllerComponent* controller) {}
 
-void PlayerParkourWall::Enter(PlayerControllerComponent*) {}
-void PlayerParkourWall::Update(PlayerControllerComponent*, float) {}
-void PlayerParkourWall::Exit(PlayerControllerComponent*) {}
+void PlayerParkourWall::Enter(PlayerControllerComponent* controller)
+{
+    m_wallRunTimer = 0.0f;
+    if (auto* motor{ controller->GetMovement() })
+    {
+        m_wasGravityEnabled = motor->GetConfig().useGravity;
+        motor->GetConfig().useGravity = false;
+        motor->SetVerticalVelocity(0.0f); // Halt falling instantly
+    }
+
+    // Cache parameters
+    TryDetectWall(controller, m_wallNormal, m_wallSide);
+
+    auto& bb{ controller->getAnimBlackboard() };
+    // Graph Routing: Index 1 = Lean Left (Right Wall), Index 0 = Lean Right (Left Wall)
+    bb.actionIndex = (m_wallSide == -1) ? 1 : 0;
+    bb.setFlag(AnimFlag::is_wall_running, true);
+
+    if (auto* anim{ controller->GetAnimation() })
+    {
+        anim->PlaySlot(AnimSlot::ParkourWall, true);
+    }
+}
+
+void PlayerParkourWall::Update(PlayerControllerComponent* controller, float dt)
+{
+    m_wallRunTimer += dt;
+    auto* motor{ controller->GetMovement() };
+    const auto& intent{ controller->GetIntent() };
+    if (!motor) return;
+
+    // Wall Jump Cancel
+    if (intent.bJumpTriggered)
+    {
+        motor->Jump(7.5f); // Vertical kick
+
+        // Project the input vector to remove any inward component.
+        // This prevents the player from nullifying the outward escape impulse 
+        // by aggressively steering back into the wall, breaking the infinite climb exploit.
+        DirectX::XMFLOAT2 escapeDir{ intent.worldMoveDirection };
+        const float inwardDot{ (escapeDir.x * m_wallNormal.x) + (escapeDir.y * m_wallNormal.z) };
+        if (inwardDot < 0.0f)
+        {
+            escapeDir.x -= inwardDot * m_wallNormal.x;
+            escapeDir.y -= inwardDot * m_wallNormal.z;
+        }
+
+        // Outward kick away from wall + forward momentum preservation
+        const float boost{ motor->GetConfig().sprintSpeed * 0.8f };
+        motor->AddImpulse({ (m_wallNormal.x * 12.0f) + (escapeDir.x * boost),
+                            0.0f,
+                            (m_wallNormal.z * 12.0f) + (escapeDir.y * boost) });
+
+        auto& blackboard{ controller->getAnimBlackboard() };
+        blackboard.currentJumps = 1; // Mark jump usage
+        blackboard.actionIndex = blackboard.getFlag(AnimFlag::is_combat_active) ? 4 : 1; // Forward Jump Takeoff
+
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
+        return;
+    }
+
+    // Validate continued wall proximity
+    DirectX::XMFLOAT3 currentNormal{};
+    int currentSide{};
+    const bool stillOnWall{ TryDetectWall(controller, currentNormal, currentSide) };
+    const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
+
+    // Natural Exits (ran out of wall, slowed down, or released Sprint)
+    if (!intent.bSprintHeld || inputSq < 0.01f || !stillOnWall)
+    {
+        auto& blackboard{ controller->getAnimBlackboard() };
+        blackboard.actionIndex = blackboard.getFlag(AnimFlag::is_combat_active) ? 5 : 2; // Fall Loop
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
+        return;
+    }
+
+    m_wallNormal = currentNormal; // Track curving geometry updates
+
+    // Compute Forward Tangent using Input Direction (Prevents steering-drift)
+    const float inputDotNormal{ (intent.worldMoveDirection.x * m_wallNormal.x) + (intent.worldMoveDirection.y * m_wallNormal.z) };
+
+    // Explicit Detach: If the user deliberately yanks the stick away from the wall (> 45 degrees outward)
+    if (inputDotNormal > 0.5f)
+    {
+        auto& blackboard{ controller->getAnimBlackboard() };
+        blackboard.actionIndex = blackboard.getFlag(AnimFlag::is_combat_active) ? 5 : 2; // Fall Loop
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
+        return;
+    }
+
+    DirectX::XMFLOAT2 tangent{
+        intent.worldMoveDirection.x - (inputDotNormal * m_wallNormal.x),
+        intent.worldMoveDirection.y - (inputDotNormal * m_wallNormal.z)
+    };
+
+    const float magSq{ (tangent.x * tangent.x) + (tangent.y * tangent.y) };
+    if (magSq > 0.0001f)
+    {
+        const float invMag{ 1.0f / std::sqrt(magSq) };
+        tangent.x *= invMag;
+        tangent.y *= invMag;
+    }
+
+    // Drive the Kinematic Motor
+    motor->SetSprinting(true);
+    motor->SetDesiredDirection(tangent);
+
+    // Smooth Wall Fatigue: Start sliding down after 1.5s instead of violently ejecting
+    float verticalFall{ 0.0f };
+    if (m_wallRunTimer > 1.5f)
+    {
+        verticalFall = -6.0f * (m_wallRunTimer - 1.5f);
+    }
+    motor->SetVerticalVelocity(verticalFall);
+
+    // Aggressive Anti-Drift: Lock the capsule flush against the collision mesh (15.0 overcomes PhysX contact offsets)
+    motor->AddImpulse({ -m_wallNormal.x * 15.0f * dt, 0.0f, -m_wallNormal.z * 15.0f * dt });
+
+    // 6. Visual Steering along Tangent
+    FacingResolver::SmoothFaceDirection(controller->GetOwner(), tangent, 720.0f, dt);
+}
+
+void PlayerParkourWall::Exit(PlayerControllerComponent* controller)
+{
+    if (auto* motor{ controller->GetMovement() })
+    {
+        motor->GetConfig().useGravity = m_wasGravityEnabled;
+    }
+    controller->getAnimBlackboard().setFlag(AnimFlag::is_wall_running, false);
+}
 
 void PlayerDashEvade::Enter(PlayerControllerComponent* controller)
 {

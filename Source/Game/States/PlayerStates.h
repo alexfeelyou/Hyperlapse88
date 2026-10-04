@@ -93,6 +93,12 @@ public:
     void Enter(PlayerControllerComponent* controller) override;
     void Update(PlayerControllerComponent* controller, float dt) override;
     void Exit(PlayerControllerComponent* controller) override;
+
+private:
+    DirectX::XMFLOAT3 m_wallNormal{ 0.0f, 0.0f, 0.0f };
+    int m_wallSide{ 0 };
+    float m_wallRunTimer{ 0.0f };
+    bool m_wasGravityEnabled{ true };
 };
 
 class PlayerDashEvade final : public PlayerState

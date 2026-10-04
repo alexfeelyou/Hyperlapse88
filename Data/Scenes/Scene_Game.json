@@ -250,8 +250,8 @@
             ],
             "IsActive": true,
             "Name": "Main Camera",
-            "PosX": -6.545967102050781,
-            "PosY": 47.107688903808594,
+            "PosX": 0.10000000149011612,
+            "PosY": 1.100000023841858,
             "PosZ": -4.800000190734863,
             "RotX": -0.0,
             "RotY": 0.0,
@@ -292,8 +292,8 @@
             ],
             "IsActive": true,
             "Name": "Vircam",
-            "PosX": -6.545967102050781,
-            "PosY": 47.107688903808594,
+            "PosX": 0.10000000149011612,
+            "PosY": 1.100000023841858,
             "PosZ": -4.800000190734863,
             "RotX": 0.0,
             "RotY": 0.0,
@@ -1247,6 +1247,44 @@
                             ],
                             "Slot": 5,
                             "Type": 0
+                        },
+                        {
+                            "BlendParam": 0,
+                            "Name": "Wall Run",
+                            "Nodes": [
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 8,
+                                    "Events": [],
+                                    "LockRootX": true,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": true,
+                                    "RootBoneIndex": 2,
+                                    "Speed": 1.2000000476837158,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 9,
+                                    "Events": [],
+                                    "LockRootX": true,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": true,
+                                    "RootBoneIndex": 2,
+                                    "Speed": 1.2000000476837158,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                }
+                            ],
+                            "Slot": 9,
+                            "Type": 2
                         }
                     ],
                     "Type": "AnimationComponent"
@@ -1284,8 +1322,8 @@
             ],
             "IsActive": true,
             "Name": "Alex",
-            "PosX": -6.64596700668335,
-            "PosY": 46.0076904296875,
+            "PosX": 0.0,
+            "PosY": 0.0,
             "PosZ": 0.0,
             "RotX": -0.0,
             "RotY": 0.0,
