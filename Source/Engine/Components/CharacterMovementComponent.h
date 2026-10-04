@@ -63,10 +63,13 @@ public:
     // Friction Override (e.g., locking the player in place during a sword slash)
     void SetFrictionMultiplier(float multiplier) noexcept { m_frictionMultiplier = multiplier; }
 
+    // Environment Probing
+    [[nodiscard]] bool DetectFlankingWall(DirectX::XMFLOAT3& outNormal, int& outSide) const noexcept;
+
     // State Queries
     [[nodiscard]] DirectX::XMFLOAT3 GetTotalVelocity() const noexcept;
-    [[nodiscard]] float GetVerticalVelocity() const noexcept { return m_verticalVelocity; } 
-    void SetVerticalVelocity(float v) noexcept { m_verticalVelocity = v; }                  
+    [[nodiscard]] float GetVerticalVelocity() const noexcept { return m_verticalVelocity; }
+    void SetVerticalVelocity(float v) noexcept { m_verticalVelocity = v; }
     [[nodiscard]] bool IsMoving() const noexcept;
     [[nodiscard]] bool isGrounded() const noexcept;
     [[nodiscard]] CharacterMovementConfig& GetConfig() noexcept { return m_config; }

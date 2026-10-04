@@ -1,5 +1,3 @@
-#include "System/CollisionLayer.h"
-#include "System/PhysicsManager.h"
 #include "AnimationComponent.h"
 #include "CapsuleColliderComponent.h"
 #include "CharacterMovementComponent.h"
@@ -10,52 +8,6 @@
 #include "StateMachine.h"
 
 using namespace Engine::Animation;
-
-namespace
-{
-    [[nodiscard]] bool TryDetectWall(PlayerControllerComponent* controller, DirectX::XMFLOAT3& outNormal, int& outSide) noexcept
-    {
-        auto* capsule{ controller->GetOwner()->GetComponent<CapsuleColliderComponent>() };
-        auto* scene{ PhysicsManager::Instance().GetScene() };
-        if (!capsule || !scene) return false;
-
-        const DirectX::XMFLOAT3 center{ capsule->GetCenterPosition() };
-        const float yaw{ DirectX::XMConvertToRadians(controller->GetOwner()->GetRotation().y) };
-
-        // Anti-Knee-High Geometry Gate (Shoulder-Height Probe):
-        // Shift the ray origin up from the capsule center so we explicitly overshoot 
-        // and ignore obstacles shorter than the player (e.g., crates, low fences).
-        const float shoulderOffsetY{ capsule->GetConfig().height * 0.4f };
-        const physx::PxVec3 pxPos{ center.x, center.y + shoulderOffsetY, center.z };
-
-        // Extract local Right vector (X positive relative to current forward)
-        const physx::PxVec3 right{ std::cos(yaw), 0.0f, -std::sin(yaw) };
-
-        physx::PxRaycastBuffer hitL{};
-        physx::PxRaycastBuffer hitR{};
-        physx::PxQueryFilterData filterData{};
-        filterData.data.word0 = CollisionLayer::WorldStatic;
-        filterData.flags = physx::PxQueryFlag::eSTATIC;
-
-        const float probeDist{ capsule->GetConfig().radius + 0.65f }; // Slight reach over capsule skin
-
-        // Probe Left 
-        if (scene->raycast(pxPos, -right, probeDist, hitL, physx::PxHitFlag::eNORMAL, filterData))
-        {
-            outNormal = { hitL.block.normal.x, hitL.block.normal.y, hitL.block.normal.z };
-            outSide = -1; // Left Wall
-            return true;
-        }
-        // Probe Right
-        if (scene->raycast(pxPos, right, probeDist, hitR, physx::PxHitFlag::eNORMAL, filterData))
-        {
-            outNormal = { hitR.block.normal.x, hitR.block.normal.y, hitR.block.normal.z };
-            outSide = 1; // Right Wall
-            return true;
-        }
-        return false;
-    }
-}
 
 // GROUND & LOCOMOTION
 void PlayerLocomotion::Enter(PlayerControllerComponent* controller)
@@ -261,7 +213,7 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
     {
         DirectX::XMFLOAT3 wNorm{};
         int wSide{ 0 };
-        if (TryDetectWall(controller, wNorm, wSide))
+        if (motor->DetectFlankingWall(wNorm, wSide))
         {
             const float inputDot{ (intent.worldMoveDirection.x * wNorm.x) + (intent.worldMoveDirection.y * wNorm.z) };
             const float yaw{ DirectX::XMConvertToRadians(controller->GetOwner()->GetRotation().y) };
@@ -848,7 +800,7 @@ void PlayerAirTraversal::Update(PlayerControllerComponent* controller, float dt)
     {
         DirectX::XMFLOAT3 wNorm{};
         int wSide{ 0 };
-        if (TryDetectWall(controller, wNorm, wSide))
+        if (motor->DetectFlankingWall(wNorm, wSide))
         {
             // Only mount if glancing along the wall plane, AND the user is NOT actively pulling the stick away
             const float inputDot{ (intent.worldMoveDirection.x * wNorm.x) + (intent.worldMoveDirection.y * wNorm.z) };
@@ -1045,7 +997,10 @@ void PlayerParkourWall::Enter(PlayerControllerComponent* controller)
     }
 
     // Cache parameters
-    TryDetectWall(controller, m_wallNormal, m_wallSide);
+    if (auto* motor{ controller->GetMovement() })
+    {
+        motor->DetectFlankingWall(m_wallNormal, m_wallSide);
+    }
 
     auto& bb{ controller->getAnimBlackboard() };
     // Graph Routing: Index 1 = Lean Left (Right Wall), Index 0 = Lean Right (Left Wall)
@@ -1098,7 +1053,7 @@ void PlayerParkourWall::Update(PlayerControllerComponent* controller, float dt)
     // Validate continued wall proximity
     DirectX::XMFLOAT3 currentNormal{};
     int currentSide{};
-    const bool stillOnWall{ TryDetectWall(controller, currentNormal, currentSide) };
+    const bool stillOnWall{ motor->DetectFlankingWall(currentNormal, currentSide) };
     const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
 
     // Natural Exits (ran out of wall, slowed down, or released Sprint)

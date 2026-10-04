@@ -1,6 +1,8 @@
 #include <algorithm>
 #include <cmath>
 #include <imgui.h>
+#include "System/CollisionLayer.h"
+#include "System/PhysicsManager.h"
 #include "CapsuleColliderComponent.h"
 #include "CharacterMovementComponent.h"
 #include "ComponentRegistry.h"
@@ -95,6 +97,47 @@ DirectX::XMFLOAT3 CharacterMovementComponent::GetTotalVelocity() const noexcept
         m_verticalVelocity + m_impulseVelocity.y,
         m_locomotionVelocity.z + m_impulseVelocity.z
     };
+}
+
+bool CharacterMovementComponent::DetectFlankingWall(DirectX::XMFLOAT3& outNormal, int& outSide) const noexcept
+{
+    auto* scene{ PhysicsManager::Instance().GetScene() };
+    if (!m_capsule || !scene) return false;
+
+    const DirectX::XMFLOAT3 center{ m_capsule->GetCenterPosition() };
+    const float yaw{ DirectX::XMConvertToRadians(m_owner->GetRotation().y) };
+
+    // Anti-Knee-High Geometry Gate (Shoulder-Height Probe):
+    // Shift the ray origin up from the capsule center so we explicitly overshoot 
+    // and ignore obstacles shorter than the player (e.g., crates, low fences).
+    const float shoulderOffsetY{ m_capsule->GetConfig().height * 0.4f };
+    const physx::PxVec3 pxPos{ center.x, center.y + shoulderOffsetY, center.z };
+
+    const physx::PxVec3 right{ std::cos(yaw), 0.0f, -std::sin(yaw) };
+
+    physx::PxRaycastBuffer hitL{};
+    physx::PxRaycastBuffer hitR{};
+    physx::PxQueryFilterData filterData{};
+    filterData.data.word0 = CollisionLayer::WorldStatic;
+    filterData.flags = physx::PxQueryFlag::eSTATIC;
+
+    const float probeDist{ m_capsule->GetConfig().radius + 0.65f };
+
+    if (scene->raycast(pxPos, -right, probeDist, hitL, physx::PxHitFlag::eNORMAL, filterData))
+    {
+        outNormal = { hitL.block.normal.x, hitL.block.normal.y, hitL.block.normal.z };
+        outSide = -1;
+        return true;
+    }
+
+    if (scene->raycast(pxPos, right, probeDist, hitR, physx::PxHitFlag::eNORMAL, filterData))
+    {
+        outNormal = { hitR.block.normal.x, hitR.block.normal.y, hitR.block.normal.z };
+        outSide = 1;
+        return true;
+    }
+
+    return false;
 }
 
 bool CharacterMovementComponent::IsMoving() const noexcept
