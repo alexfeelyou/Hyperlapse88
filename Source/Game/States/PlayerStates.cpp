@@ -535,6 +535,15 @@ void PlayerSlide::Enter(PlayerControllerComponent* controller)
     m_canCancel = false;
     m_phase = SlideSubPhase::Entry_Drop;
 
+    if (auto* capsule = controller->GetOwner()->GetComponent<CapsuleColliderComponent>())
+    {
+        m_standingHeight = capsule->GetConfig().height;
+        m_standingRadius = capsule->GetConfig().radius;
+
+        // Squash to a compact 0.1m cylinder to slide under obstacles
+        capsule->ResizeFootAnchored(m_standingRadius, 0.1f);
+    }
+
     motor->SetDesiredDirection({ 0.0f, 0.0f });
     motor->HaltMomentum(1.0f); // Strip lingering sprint momentum so the slide impulse has pure authority
     motor->SetFrictionMultiplier(motor->GetConfig().slideFrictionMultiplier);
@@ -576,10 +585,14 @@ void PlayerSlide::Update(PlayerControllerComponent* controller, float dt)
         }
     }
 
+    auto* capsule = controller->GetOwner()->GetComponent<CapsuleColliderComponent>();
+    const bool hasClearance = capsule ? capsule->HasCeilingClearance(m_standingHeight) : true;
+
     // JUMP / EDGE CANCELS 
     // Allowed absolutely anytime before the slow Exit_Recovery phase, but must respect the Entry Drop commitment
-    if (m_canCancel && intent.bJumpTriggered && motor->isGrounded() && m_phase != SlideSubPhase::Exit_Recovery)
+    if (m_canCancel && intent.bJumpTriggered && motor->isGrounded() && m_phase != SlideSubPhase::Exit_Recovery && hasClearance)
     {
+        if (capsule) capsule->ResizeFootAnchored(m_standingRadius, m_standingHeight);
         motor->Jump(6.5f);
         if (blackboard.groundSpeed > 2.5f)
         {
@@ -596,16 +609,17 @@ void PlayerSlide::Update(PlayerControllerComponent* controller, float dt)
 
     if (!motor->isGrounded() && vel.y < -1.5f)
     {
+        if (capsule) capsule->ResizeFootAnchored(m_standingRadius, m_standingHeight);
         blackboard.actionIndex = 1;
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
         return;
     }
 
-
-	// Cancel Slide into Locomotion
+    // Cancel Slide into Locomotion
     const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
-    if (m_canCancel && !intent.bSlideHeld && blackboard.groundSpeed > 2.5f && m_phase != SlideSubPhase::Exit_Recovery)
+    if (m_canCancel && !intent.bSlideHeld && blackboard.groundSpeed > 2.5f && m_phase != SlideSubPhase::Exit_Recovery && hasClearance)
     {
+        if (capsule) capsule->ResizeFootAnchored(m_standingRadius, m_standingHeight);
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
         return;
     }
@@ -636,9 +650,16 @@ void PlayerSlide::Update(PlayerControllerComponent* controller, float dt)
     if (m_phase == SlideSubPhase::Sustain_Glide)
     {
         // As long as the player holds the button and has momentum, freeze the animation at the low posture
-        if (intent.bSlideHeld && blackboard.groundSpeed > 1.5f)
+        if ((intent.bSlideHeld && blackboard.groundSpeed > 1.5f) || !hasClearance)
         {
             anim->SetPlaybackSpeed(0.0f); // CLAMP POSE (0 updates per frame)
+
+            // Anti-stuck safety: if they run out of speed completely but are trapped beneath a ceiling
+            if (!hasClearance && blackboard.groundSpeed < 1.0f)
+            {
+                motor->HaltMomentum(1.0f);
+                motor->AddImpulse({ m_slideDir.x * 2.0f, 0.0f, m_slideDir.y * 2.0f });
+            }
         }
         else
         {
@@ -653,6 +674,7 @@ void PlayerSlide::Update(PlayerControllerComponent* controller, float dt)
         // Wait for the GetUp animation to naturally conclude
         if (anim->GetCurrentTimer() >= anim->GetSlotDuration(Engine::Animation::AnimSlot::Slide) - 0.05f)
         {
+            if (capsule) capsule->ResizeFootAnchored(m_standingRadius, m_standingHeight);
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
             return;
         }
@@ -663,6 +685,15 @@ void PlayerSlide::Exit(PlayerControllerComponent* controller)
 {
     if (auto* motor{ controller->GetMovement() }) motor->SetFrictionMultiplier(1.0f);
     if (auto* anim{ controller->GetAnimation() }) anim->SetPlaybackSpeed(1.0f);
+
+    // Safety fallback: if violently interrupted (e.g., getting hit or falling), guarantee restore
+    if (auto* capsule = controller->GetOwner()->GetComponent<CapsuleColliderComponent>())
+    {
+        if (capsule->GetConfig().height < m_standingHeight)
+        {
+            capsule->ResizeFootAnchored(m_standingRadius, m_standingHeight);
+        }
+    }
 }
 
 // AERIAL & PARKOUR

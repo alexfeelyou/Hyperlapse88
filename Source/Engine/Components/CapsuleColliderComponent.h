@@ -62,6 +62,12 @@ public:
     // Runtime resize (e.g., crouching or state swaps) preserving simulation integrity
     void Resize(float radius, float height) noexcept;
 
+    // Modifies dimensions while actively shifting the physical center to keep the bottom hemisphere planted
+    void ResizeFootAnchored(float newRadius, float newHeight) noexcept;
+
+    // Sweeps upward to detect low hanging ceilings/ducts before allowing the player to stand up
+    [[nodiscard]] bool HasCeilingClearance(float targetHeight) const noexcept;
+
     // Queries
     [[nodiscard]] bool IsGrounded() const noexcept { return m_isGrounded; }
     [[nodiscard]] DirectX::XMFLOAT3 GetFootPosition() const noexcept;

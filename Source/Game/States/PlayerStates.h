@@ -57,6 +57,8 @@ private:
     SlideSubPhase m_phase{ SlideSubPhase::Entry_Drop };
     DirectX::XMFLOAT2 m_slideDir{ 0.0f, 0.0f };
     bool m_canCancel{ false };
+    float m_standingHeight{ 1.0f };
+    float m_standingRadius{ 0.5f };
 };
 
 // AERIAL & PARKOUR
