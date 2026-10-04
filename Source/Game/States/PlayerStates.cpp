@@ -1029,31 +1029,31 @@ void PlayerParkourWall::Update(PlayerControllerComponent* controller, float dt)
     // Wall Jump Cancel
     if (intent.bJumpTriggered)
     {
-        motor->Jump(7.5f); // Vertical kick
+        // Measure whether the player is attempting to steer into the wall
+        const float inwardDot{ (intent.worldMoveDirection.x * m_wallNormal.x) + (intent.worldMoveDirection.y * m_wallNormal.z) };
 
-        // Project the input vector to remove any inward component.
-        // This prevents the player from nullifying the outward escape impulse 
-        // by aggressively steering back into the wall, breaking the infinite climb exploit.
-        DirectX::XMFLOAT2 escapeDir{ intent.worldMoveDirection };
-        const float inwardDot{ (escapeDir.x * m_wallNormal.x) + (escapeDir.y * m_wallNormal.z) };
-        if (inwardDot < 0.0f)
+        // Anti-Spam Gate: Reject the jump if steering heavily inward into the wall
+        if (inwardDot >= -0.2f)
         {
-            escapeDir.x -= inwardDot * m_wallNormal.x;
-            escapeDir.y -= inwardDot * m_wallNormal.z;
+            motor->Jump(7.5f); // Vertical kick
+
+            // Outward kick away from wall + forward momentum preservation
+            const float boost{ motor->GetConfig().sprintSpeed * 0.8f };
+            motor->AddImpulse({ (m_wallNormal.x * 12.0f) + (intent.worldMoveDirection.x * boost),
+                                0.0f,
+                                (m_wallNormal.z * 12.0f) + (intent.worldMoveDirection.y * boost) });
+
+            auto& blackboard{ controller->getAnimBlackboard() };
+            blackboard.currentJumps = 1; // Mark jump usage
+
+            // Directional Jump Takeoff Mapping:
+            // Node 6: Jump_Start_L (Wall is on Right, m_wallSide == 1 -> Kick Left)
+            // Node 7: Jump_Start_R (Wall is on Left,  m_wallSide == -1 -> Kick Right)
+            blackboard.actionIndex = (m_wallSide == 1) ? 6 : 7;
+
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
+            return;
         }
-
-        // Outward kick away from wall + forward momentum preservation
-        const float boost{ motor->GetConfig().sprintSpeed * 0.8f };
-        motor->AddImpulse({ (m_wallNormal.x * 12.0f) + (escapeDir.x * boost),
-                            0.0f,
-                            (m_wallNormal.z * 12.0f) + (escapeDir.y * boost) });
-
-        auto& blackboard{ controller->getAnimBlackboard() };
-        blackboard.currentJumps = 1; // Mark jump usage
-        blackboard.actionIndex = blackboard.getFlag(AnimFlag::is_combat_active) ? 4 : 1; // Forward Jump Takeoff
-
-        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
-        return;
     }
 
     // Validate continued wall proximity

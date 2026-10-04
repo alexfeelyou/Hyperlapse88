@@ -923,6 +923,36 @@
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
                                     "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 48,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 49,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
                                 }
                             ],
                             "Slot": 6,
