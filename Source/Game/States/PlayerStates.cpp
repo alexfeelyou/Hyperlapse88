@@ -65,17 +65,19 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
     {
         // Stair/Slope Probing
         auto* capsule{ controller->GetOwner()->GetComponent<CapsuleColliderComponent>() };
-        const float probeDistance{ capsule ? (capsule->GetConfig().stepOffset + 0.3f) : 0.4f };
+        const float probeDistance{ capsule ? (capsule->GetConfig().stepOffset + 0.1f) : 0.4f };
         const bool isGroundDirectlyBelow{ capsule && capsule->HasGroundBelow(probeDistance) };
 
-        if (!isGroundDirectlyBelow)
-        {
-            m_fallTimer += dt;
-            if (m_fallTimer > 0.10f) // A tiny 100ms debounce for jagged geometry seams
-            {
-                int actionIdx{ 2 }; // Index 2: Jump_Loop
-                if (controller->getAnimBlackboard().getFlag(AnimFlag::is_combat_active)) actionIdx += 3; // Index 5: Combat Loop
+        m_fallTimer += dt;
 
+        // Animation Debounce Bypass:
+        // If there is no ground directly below, OR if the Kinematic Motor injected a definitive 
+        // edge-drop ballistic velocity (< -1.5m/s), transition instantly.
+        if (!isGroundDirectlyBelow || motor->GetVerticalVelocity() < -1.5f)
+        {
+            if (m_fallTimer > 0.10f || motor->GetVerticalVelocity() < -1.5f)
+            {
+                int actionIdx{ controller->getAnimBlackboard().getFlag(AnimFlag::is_combat_active) ? 5 : 2 };
                 controller->getAnimBlackboard().actionIndex = actionIdx;
                 controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
                 return;

@@ -204,14 +204,42 @@ void CharacterMovementComponent::Update(const float dt)
 
 
     // Process Gravity
+    float transientSlopeAdhesion{ 0.0f };
+
     if (m_config.useGravity && !m_capsule->IsGrounded())
     {
         m_verticalVelocity += m_config.gravity * dt;
     }
-    else if (m_config.useGravity && m_capsule->IsGrounded() && m_verticalVelocity < 0.0f)
+    else if (m_config.useGravity && m_capsule->IsGrounded() && m_verticalVelocity <= 0.0f)
     {
-        // Downward pressure prevents jittering on staircases and downward slopes
-        m_verticalVelocity = -2.0f;
+        const DirectX::XMFLOAT3 currentTotalVel{ GetTotalVelocity() };
+        const float hSpeedSq{ (currentTotalVel.x * currentTotalVel.x) + (currentTotalVel.z * currentTotalVel.z) };
+
+        if (hSpeedSq > 0.01f)
+        {
+            const float hSpeed{ std::sqrt(hSpeedSq) };
+
+			// Transient Slope Adhesion
+            transientSlopeAdhesion = -(hSpeed + 2.0f);
+
+            const float probeDist{ m_capsule->GetConfig().stepOffset + 0.1f };
+            if (m_capsule->HasGroundBelow(probeDist))
+            {
+                m_verticalVelocity = 0.0f;
+            }
+            else
+            {
+                // Edge Detected (Hemisphere is rolling off the corner).
+                // Inject baseline downward momentum into the true ballistic integrator 
+                // so the parabolic arc connects seamlessly when detachment completes next frame.
+                m_verticalVelocity = -4.0f;
+            }
+        }
+        else
+        {
+            m_verticalVelocity = 0.0f;
+            transientSlopeAdhesion = -2.0f;
+        }
     }
     // Anti-Gravity Lockout  
     // We intentionally removed the explicit m_verticalVelocity = 0.0f clamp when !useGravity.
@@ -220,7 +248,11 @@ void CharacterMovementComponent::Update(const float dt)
 
     // Combine and Move
     const DirectX::XMFLOAT3 totalVel{ GetTotalVelocity() };
-    const DirectX::XMFLOAT3 displacement{ totalVel.x * dt, totalVel.y * dt, totalVel.z * dt };
+    const DirectX::XMFLOAT3 displacement{
+        totalVel.x * dt,
+        (totalVel.y + transientSlopeAdhesion) * dt,
+        totalVel.z * dt
+    };
 
     // The CapsuleColliderComponent directly pushes the solved PhysX position back to the Transform
     m_capsule->Move(displacement, dt);
