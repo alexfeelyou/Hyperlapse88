@@ -139,6 +139,7 @@ void StaticMeshColliderComponent::ApplyFilterData(physx::PxShape* shape) const n
     filterData.word1 = m_config.collidesWith;
 
     shape->setSimulationFilterData(filterData);
+    shape->setQueryFilterData(filterData); // Allows camera sweeps to read the layer mask
 
     // If marked as a trigger, disable solid collision and flag it for overlap events
     if (m_config.isTrigger)
@@ -301,7 +302,8 @@ void StaticMeshColliderComponent::DrawGizmo(const GizmoContext& ctx) noexcept
 
     constexpr DirectX::XMFLOAT4 debugColor{ 0.2f, 1.0f, 0.2f, 0.4f };
 
-    const DirectX::XMMATRIX objWorld{ DirectX::XMLoadFloat4x4(&t.GetWorldMatrix()) };
+    const DirectX::XMFLOAT4X4 worldFloat4x4{ t.GetWorldMatrix() };
+    const DirectX::XMMATRIX objWorld{ DirectX::XMLoadFloat4x4(&worldFloat4x4) };
 
     const bool isTriangleMesh{ m_config.shapeType == ColliderShapeType::TriangleMesh };
 

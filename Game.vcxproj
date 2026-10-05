@@ -61,10 +61,10 @@
       <Optimization>Disabled</Optimization>
       <PreprocessorDefinitions>_DEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>.\Source;.\Source\Engine\Base;.\Source\Engine\Camera;.\Source\Engine\Components;.\Source\Engine\Editor;.\Source\Engine\Graphics;.\Source\Engine\Light;.\Source\Engine\Skybox;.\Source\Engine\UI;.\Source\Engine\VFX;.\Source\Engine\Windowing;.\Source\Game\Entities;.\Source\Game\States;.\Source\Game\Scenes;.\Source\Engine\Helpers;.\Source\Engine\Legacy;.\External\SDL3-3.4.0\include;.\External\imgui;.\External\ImGuizmo;.\External\cereal\include;.\External\tinygltf;.\External\SphereCast\Include;.\External\DirectXTex;.\External\PhysX\physx\include;.\External\Effekseer170e\include\Effekseer;.\External\json;.\External\Effekseer170e\include\EffekseerRendererDX11;.\External\implot;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\Source;.\Source\Engine\Base;.\Source\Engine\Camera;.\Source\Engine\Components;.\Source\Engine\Editor;.\Source\Engine\Graphics;.\Source\Engine\Light;.\Source\Engine\Skybox;.\Source\Engine\UI;.\Source\Engine\VFX;.\Source\Engine\Windowing;.\Source\Game\Entities;.\Source\Game\States;.\Source\Game\Scenes;.\Source\Engine\Helpers;.\Source\Engine\Legacy;.\External\SDL3-3.4.0\include;.\External\imgui;.\External\ImGuizmo;.\External\cereal\include;.\External\tinygltf;.\External\SphereCast\Include;.\External\DirectXTex;.\External\PhysX\physx\include;.\External\Effekseer170e\include\Effekseer;.\External\json;.\External\Effekseer170e\include\EffekseerRendererDX11;.\External\implot;.\External\rapidhash;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
       <IntrinsicFunctions>true</IntrinsicFunctions>
@@ -96,10 +96,10 @@
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <PreprocessorDefinitions>NDEBUG;_WINDOWS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>.\Source;.\Source\Engine\Base;.\Source\Engine\Camera;.\Source\Engine\Components;.\Source\Engine\Editor;.\Source\Engine\Graphics;.\Source\Engine\Light;.\Source\Engine\Skybox;.\Source\Engine\UI;.\Source\Engine\VFX;.\Source\Engine\Windowing;.\Source\Game\Entities;.\Source\Game\States;.\Source\Game\Scenes;.\Source\Engine\Helpers;.\Source\Engine\Legacy;.\External\SDL3-3.4.0\include;.\External\imgui;.\External\ImGuizmo;.\External\cereal\include;.\External\tinygltf;.\External\SphereCast\Include;.\External\DirectXTex;.\External\PhysX\physx\include;.\External\Effekseer170e\include\Effekseer;.\External\json;.\External\Effekseer170e\include\EffekseerRendererDX11;.\External\implot;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>.\Source;.\Source\Engine\Base;.\Source\Engine\Camera;.\Source\Engine\Components;.\Source\Engine\Editor;.\Source\Engine\Graphics;.\Source\Engine\Light;.\Source\Engine\Skybox;.\Source\Engine\UI;.\Source\Engine\VFX;.\Source\Engine\Windowing;.\Source\Game\Entities;.\Source\Game\States;.\Source\Game\Scenes;.\Source\Engine\Helpers;.\Source\Engine\Legacy;.\External\SDL3-3.4.0\include;.\External\imgui;.\External\ImGuizmo;.\External\cereal\include;.\External\tinygltf;.\External\SphereCast\Include;.\External\DirectXTex;.\External\PhysX\physx\include;.\External\Effekseer170e\include\Effekseer;.\External\json;.\External\Effekseer170e\include\EffekseerRendererDX11;.\External\implot;.\External\rapidhash;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <LanguageStandard>stdcpp17</LanguageStandard>
+      <LanguageStandard>stdcpp20</LanguageStandard>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
     </ClCompile>
     <Link>
@@ -142,19 +142,26 @@
     <ClInclude Include="Source\Engine\Base\Framework.h" />
     <ClInclude Include="Source\Engine\Base\GameObject.h" />
     <ClInclude Include="Source\Engine\Base\IComponent.h" />
+    <ClInclude Include="Source\Engine\Base\StringHash.h" />
     <ClInclude Include="Source\Engine\Base\Transform.h" />
     <ClInclude Include="Source\Engine\Camera\Camera.h" />
     <ClInclude Include="Source\Engine\Camera\CameraController.h" />
+    <ClInclude Include="Source\Engine\Camera\CameraInput.h" />
     <ClInclude Include="Source\Engine\Camera\FreeCameraController.h" />
+    <ClInclude Include="Source\Engine\Components\AnimationComponent.h" />
+    <ClInclude Include="Source\Engine\Components\AnimBlackboard.h" />
     <ClInclude Include="Source\Engine\Components\CameraComponent.h" />
     <ClInclude Include="Source\Engine\Components\CapsuleColliderComponent.h" />
     <ClInclude Include="Source\Engine\Components\CharacterMovementComponent.h" />
     <ClInclude Include="Source\Engine\Components\ComponentRegistry.h" />
     <ClInclude Include="Source\Engine\Components\LightComponent.h" />
     <ClInclude Include="Source\Engine\Components\MeshComponent.h" />
+    <ClInclude Include="Source\Engine\Components\OrbitCameraDriverComponent.h" />
     <ClInclude Include="Source\Engine\Components\PlayerControllerComponent.h" />
     <ClInclude Include="Source\Engine\Components\StaticMeshColliderComponent.h" />
     <ClInclude Include="Source\Engine\Components\VirtualCameraComponent.h" />
+    <ClInclude Include="Source\Engine\Editor\AnimationGraphPanel.h" />
+    <ClInclude Include="Source\Engine\Editor\AnimationTimelinePanel.h" />
     <ClInclude Include="Source\Engine\Editor\EditorManager.h" />
     <ClInclude Include="Source\Engine\Editor\ProfilerManager.h" />
     <ClInclude Include="Source\Engine\Graphics\DepthFogEffect.h" />
@@ -165,7 +172,7 @@
     <ClInclude Include="Source\Engine\Graphics\Primitive.h" />
     <ClInclude Include="Source\Engine\Graphics\stb_truetype.h" />
     <ClInclude Include="Source\Engine\Graphics\TemporalAAEffect.h" />
-    <ClInclude Include="Source\Engine\Helpers\CapeSimulator.h" />
+    <ClInclude Include="Source\Engine\Helpers\FacingResolver.h" />
     <ClInclude Include="Source\Engine\Helpers\Random.h" />
     <ClInclude Include="Source\Engine\Helpers\SceneSerializer.h" />
     <ClInclude Include="Source\Engine\Helpers\UIResizedWindow.h" />
@@ -179,15 +186,8 @@
     <ClInclude Include="Source\Engine\Windowing\RenderWindow.h" />
     <ClInclude Include="Source\Engine\Windowing\WindowManager.h" />
     <ClInclude Include="Source\Game\Entities\Bullet.h" />
-    <ClInclude Include="Source\Game\Entities\Character.h" />
-    <ClInclude Include="Source\Game\Entities\CharacterMovement.h" />
-    <ClInclude Include="Source\Game\Entities\Enemy.h" />
-    <ClInclude Include="Source\Game\Entities\EnemyManager.h" />
     <ClInclude Include="Source\Game\Entities\Item.h" />
     <ClInclude Include="Source\Game\Entities\ItemManager.h" />
-    <ClInclude Include="Source\Game\Entities\LegacyCharacterComponent.h" />
-    <ClInclude Include="Source\Game\Entities\NaviAlly.h" />
-    <ClInclude Include="Source\Game\Entities\Player.h" />
     <ClInclude Include="Source\Game\Entities\Weapon.h" />
     <ClInclude Include="Source\Game\Scenes\Scene.h" />
     <ClInclude Include="Source\Game\Scenes\SceneGame.h" />
@@ -253,15 +253,20 @@
     <ClCompile Include="Source\Engine\Base\Transform.cpp" />
     <ClCompile Include="Source\Engine\Camera\Camera.cpp" />
     <ClCompile Include="Source\Engine\Camera\CameraController.cpp" />
+    <ClCompile Include="Source\Engine\Camera\CameraInput.cpp" />
     <ClCompile Include="Source\Engine\Camera\FreeCameraController.cpp" />
+    <ClCompile Include="Source\Engine\Components\AnimationComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\CameraComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\CapsuleColliderComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\CharacterMovementComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\LightComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\MeshComponent.cpp" />
+    <ClCompile Include="Source\Engine\Components\OrbitCameraDriverComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\PlayerControllerComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\StaticMeshColliderComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\VirtualCameraComponent.cpp" />
+    <ClCompile Include="Source\Engine\Editor\AnimationGraphPanel.cpp" />
+    <ClCompile Include="Source\Engine\Editor\AnimationTimelinePanel.cpp" />
     <ClCompile Include="Source\Engine\Editor\EditorManager.cpp" />
     <ClCompile Include="Source\Engine\Editor\ProfilerManager.cpp" />
     <ClCompile Include="Source\Engine\Graphics\DepthFogEffect.cpp" />
@@ -270,7 +275,7 @@
     <ClCompile Include="Source\Engine\Graphics\PostProcessManager.cpp" />
     <ClCompile Include="Source\Engine\Graphics\Primitive.cpp" />
     <ClCompile Include="Source\Engine\Graphics\TemporalAAEffect.cpp" />
-    <ClCompile Include="Source\Engine\Helpers\CapeSimulator.cpp" />
+    <ClCompile Include="Source\Engine\Helpers\FacingResolver.cpp" />
     <ClCompile Include="Source\Engine\Helpers\SceneSerializer.cpp" />
     <ClCompile Include="Source\Engine\Light\Light.cpp" />
     <ClCompile Include="Source\Engine\Skybox\SkyboxRenderer.cpp" />
@@ -282,15 +287,8 @@
     <ClCompile Include="Source\Engine\Windowing\RenderWindow.cpp" />
     <ClCompile Include="Source\Engine\Windowing\WindowManager.cpp" />
     <ClCompile Include="Source\Game\Entities\Bullet.cpp" />
-    <ClCompile Include="Source\Game\Entities\Character.cpp" />
-    <ClCompile Include="Source\Game\Entities\CharacterMovement.cpp" />
-    <ClCompile Include="Source\Game\Entities\Enemy.cpp" />
-    <ClCompile Include="Source\Game\Entities\EnemyManager.cpp" />
     <ClCompile Include="Source\Game\Entities\Item.cpp" />
     <ClCompile Include="Source\Game\Entities\ItemManager.cpp" />
-    <ClCompile Include="Source\Game\Entities\LegacyCharacterComponent.cpp" />
-    <ClCompile Include="Source\Game\Entities\NaviAlly.cpp" />
-    <ClCompile Include="Source\Game\Entities\Player.cpp" />
     <ClCompile Include="Source\Game\Entities\Weapon.cpp" />
     <ClCompile Include="Source\Game\Scenes\SceneGame.cpp" />
     <ClCompile Include="Source\Game\Scenes\SceneTitle.cpp" />

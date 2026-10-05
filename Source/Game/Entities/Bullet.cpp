@@ -1,64 +1,41 @@
-#include "Bullet.h"
-#include "EffectManager.h"
 #include "System/AssetManager.h"
-#include <cmath>
+#include "System/Graphics.h"
+#include "Bullet.h"
 
-using namespace DirectX;
-
-Bullet::Bullet()
+Bullet::Bullet() noexcept
 {
-    ID3D11Device* device = Graphics::Instance().GetDevice();
-
-    model = Engine::System::AssetManager::Instance().GetOrLoadModel(device, "Data/Model/Character/PLACEHOLDER_mdl_Ball.glb");
-
+    ID3D11Device* device{ Graphics::Instance().GetDevice() };
+    m_model = Engine::System::AssetManager::Instance().GetOrLoadModel(device, "Data/Model/Character/PLACEHOLDER_mdl_Ball.glb");
     scale = { 0.01f, 0.01f, 0.01f };
-
-    isActive = false;
-    velocity = { 0, 0, 0 };
-    movement->SetRotationY(0.0f);
-    SyncData();
+    m_isActive = false;
+    m_velocity = { 0.0f, 0.0f, 0.0f };
 }
 
-void Bullet::Fire(const DirectX::XMFLOAT3& startPos, const DirectX::XMFLOAT3& direction, float projectileSpeed)
+void Bullet::Fire(const DirectX::XMFLOAT3& startPos, const DirectX::XMFLOAT3& direction, float projectileSpeed) noexcept
 {
-    isActive = true;
+    m_isActive = true;
     m_lifeTime = 0.0f;
-    movement->SetPosition(startPos);
+    m_position = startPos;
 
-    XMVECTOR vDir = XMLoadFloat3(&direction);
-    vDir = XMVector3Normalize(vDir);
-    XMVECTOR vVel = vDir * projectileSpeed;
-    XMStoreFloat3(&velocity, vVel);
-
-    SyncData();
+    DirectX::XMVECTOR vDir{ DirectX::XMLoadFloat3(&direction) };
+    vDir = DirectX::XMVector3Normalize(vDir);
+    const DirectX::XMVECTOR vVel{ DirectX::XMVectorScale(vDir, projectileSpeed) };
+    DirectX::XMStoreFloat3(&m_velocity, vVel);
 }
 
-void Bullet::Update(float elapsedTime, Camera* camera)
+void Bullet::Update(float elapsedTime, Camera* /*camera*/) noexcept
 {
-    if (!isActive) return;
+    if (!m_isActive) return;
 
     m_lifeTime += elapsedTime;
 
-    XMFLOAT3 pos = movement->GetPosition();
-
-    // Apply full 3D velocity
-    pos.x += velocity.x * elapsedTime;
-    pos.y += velocity.y * elapsedTime;
-    pos.z += velocity.z * elapsedTime;
-
-    movement->SetPosition(pos);
-    SyncData();
-
+    m_position.x += m_velocity.x * elapsedTime;
+    m_position.y += m_velocity.y * elapsedTime;
+    m_position.z += m_velocity.z * elapsedTime;
 }
 
-void Bullet::ApplyMovement(const DirectX::XMFLOAT3& newPos, const DirectX::XMFLOAT3& newVel)
+void Bullet::ApplyMovement(const DirectX::XMFLOAT3& newPos, const DirectX::XMFLOAT3& newVel) noexcept
 {
-    movement->SetPosition(newPos);
-    velocity = newVel;
-    SyncData();
-}
-
-void Bullet::SetActive(bool active)
-{
-    isActive = active;
+    m_position = newPos;
+    m_velocity = newVel;
 }

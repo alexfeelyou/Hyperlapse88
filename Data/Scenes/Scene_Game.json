@@ -13,58 +13,15 @@
         ],
         "SkyIntensity": 0.5,
         "SkyboxPaths": [
-            "",
-            "",
-            "",
-            "",
-            "",
-            ""
+            "Data/Skybox/px.png",
+            "Data/Skybox/nx.png",
+            "Data/Skybox/py.png",
+            "Data/Skybox/ny.png",
+            "Data/Skybox/pz.png",
+            "Data/Skybox/nz.png"
         ]
     },
     "SceneObjects": [
-        {
-            "Children": [],
-            "Components": [
-                {
-                    "Type": "LegacyCharacterComponent"
-                },
-                {
-                    "CollidesWith": 126,
-                    "ContactOffset": 0.019999999552965164,
-                    "Height": 0.8100000023841858,
-                    "Layer": 4,
-                    "LocalOffsetX": 0.0,
-                    "LocalOffsetY": 0.0,
-                    "LocalOffsetZ": 0.0,
-                    "Radius": 0.5,
-                    "SlopeLimitDeg": 45.0,
-                    "StepOffset": 0.30000001192092896,
-                    "Type": "CapsuleColliderComponent"
-                },
-                {
-                    "Acceleration": 7.0,
-                    "Deceleration": 6.0,
-                    "ImpulseDrag": 11.0,
-                    "MaxWalkSpeed": 9.5,
-                    "Type": "CharacterMovementComponent",
-                    "UseGravity": true
-                },
-                {
-                    "Type": "PlayerControllerComponent"
-                }
-            ],
-            "IsActive": true,
-            "Name": "Player",
-            "PosX": 0.0,
-            "PosY": 0.0,
-            "PosZ": 0.0,
-            "RotX": 0.0,
-            "RotY": 180.0,
-            "RotZ": 0.0,
-            "ScaleX": 1.0,
-            "ScaleY": 1.0,
-            "ScaleZ": 1.0
-        },
         {
             "Children": [],
             "Components": [
@@ -307,22 +264,34 @@
             "Children": [],
             "Components": [
                 {
+                    "CameraCollisionEnabled": true,
+                    "CameraCollisionRadius": 0.15000000596046448,
                     "FarZ": 1000.0,
                     "FollowOffsetX": 0.10000000149011612,
                     "FollowOffsetY": 1.100000023841858,
                     "FollowOffsetZ": -4.800000190734863,
-                    "FollowTarget": "Player",
-                    "FovDegrees": 45.0,
+                    "FollowTarget": "Alex",
+                    "FovDegrees": 48.0,
                     "LookAtTarget": "",
                     "NearZ": 0.20000000298023224,
+                    "OrbitDistance": 3.299999952316284,
+                    "OrbitMaxPitch": 1.3962633609771729,
+                    "OrbitMinPitch": -1.3962633609771729,
+                    "OrbitPivotOffsetX": 0.0,
+                    "OrbitPivotOffsetY": 1.149999976158142,
+                    "OrbitPivotOffsetZ": 0.0,
+                    "OrbitShoulderOffset": 0.5,
                     "PositionDamping": 5.0,
                     "Priority": 10,
                     "RotationDamping": 5.0,
                     "Type": "VirtualCameraComponent"
+                },
+                {
+                    "Type": "OrbitCameraDriverComponent"
                 }
             ],
             "IsActive": true,
-            "Name": "Virtual Camera",
+            "Name": "Vircam",
             "PosX": 0.10000000149011612,
             "PosY": 1.100000023841858,
             "PosZ": -4.800000190734863,
@@ -332,6 +301,1141 @@
             "ScaleX": 1.0,
             "ScaleY": 1.0,
             "ScaleZ": 1.0
+        },
+        {
+            "Children": [],
+            "Components": [
+                {
+                    "Color": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Materials": [
+                        {
+                            "AlphaCutoff": 0.5,
+                            "AlphaMode": 0,
+                            "BaseColor": [
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0
+                            ],
+                            "Emissive": [
+                                0.0,
+                                0.0,
+                                0.0
+                            ],
+                            "EnableOutline": true,
+                            "Metalness": 0.4000000059604645,
+                            "Name": "Texture.004",
+                            "OutlineColor": [
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                1.0
+                            ],
+                            "OutlineFadeEnd": 28.0,
+                            "OutlineFadeStart": 12.0,
+                            "OutlineWidth": 0.014999999664723873,
+                            "Roughness": 0.33701401948928833,
+                            "ShaderId": 2,
+                            "TexBase": "",
+                            "TexNormal": ""
+                        }
+                    ],
+                    "ModelPath": "C:\\Users\\2240823\\Documents\\School\\GameDev\\Hyperlapse 88\\Data\\Model\\Character\\ENEMY_mdl_EnemyNone.glb",
+                    "Type": "MeshComponent"
+                },
+                {
+                    "CollidesWith": 4294967295,
+                    "IsTrigger": false,
+                    "Layer": 1,
+                    "LocalOffsetX": -0.00022343918681144714,
+                    "LocalOffsetY": 0.0013952208682894707,
+                    "LocalOffsetZ": 0.026610039174556732,
+                    "LocalRotX": 0.0,
+                    "LocalRotY": 0.0,
+                    "LocalRotZ": 0.0,
+                    "ProxyExtX": 0.01510247215628624,
+                    "ProxyExtY": 0.03020494431257248,
+                    "ProxyExtZ": 0.03020494431257248,
+                    "ShapeType": 3,
+                    "Type": "StaticMeshColliderComponent"
+                }
+            ],
+            "IsActive": true,
+            "Name": "Mushroom",
+            "PosX": 5.243218421936035,
+            "PosY": 0.0,
+            "PosZ": 0.0,
+            "RotX": -0.0,
+            "RotY": 0.0,
+            "RotZ": -0.0,
+            "ScaleX": 4.459000110626221,
+            "ScaleY": 15.409000396728516,
+            "ScaleZ": 4.408999919891357
+        },
+        {
+            "Children": [],
+            "Components": [
+                {
+                    "Color": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Materials": [
+                        {
+                            "AlphaCutoff": 0.5,
+                            "AlphaMode": 0,
+                            "BaseColor": [
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0
+                            ],
+                            "Emissive": [
+                                0.0,
+                                0.0,
+                                0.0
+                            ],
+                            "EnableOutline": true,
+                            "Metalness": 0.4000000059604645,
+                            "Name": "Base_Material",
+                            "OutlineColor": [
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                1.0
+                            ],
+                            "OutlineFadeEnd": 32.0,
+                            "OutlineFadeStart": 1.5,
+                            "OutlineWidth": 0.003000000026077032,
+                            "Roughness": 0.3499999940395355,
+                            "ShaderId": 4,
+                            "TexBase": "",
+                            "TexNormal": ""
+                        }
+                    ],
+                    "ModelPath": "C:\\Users\\2240823\\Documents\\School\\GameDev\\Hyperlapse 88\\Data\\Model\\Character\\PlayerFix2.glb",
+                    "Type": "MeshComponent"
+                },
+                {
+                    "States": [
+                        {
+                            "BlendParam": 0,
+                            "Name": "Locomotion",
+                            "Nodes": [
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 0,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": true,
+                                    "RootBoneIndex": 2,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": [
+                                        {
+                                            "Blend": 1.0,
+                                            "NodeIdx": 0,
+                                            "Offset": 0.0,
+                                            "Source": "Dash Evade"
+                                        },
+                                        {
+                                            "Blend": 1.0,
+                                            "NodeIdx": 2,
+                                            "Offset": 0.0,
+                                            "Source": "Dash Evade"
+                                        }
+                                    ]
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 1,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": true,
+                                    "RootBoneIndex": 2,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 2.5,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 3,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": true,
+                                    "RootBoneIndex": 2,
+                                    "Speed": 1.100000023841858,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 8.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 5,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": true,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.2000000476837158,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 16.0,
+                                    "Transitions": []
+                                }
+                            ],
+                            "Slot": 1,
+                            "Type": 1
+                        },
+                        {
+                            "BlendParam": 0,
+                            "Name": "Locomotion Start",
+                            "Nodes": [
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 2,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 4,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 6,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 13,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 14,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 16,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                }
+                            ],
+                            "Slot": 2,
+                            "Type": 2
+                        },
+                        {
+                            "BlendParam": 0,
+                            "Name": "Locomotion Stop",
+                            "Nodes": [
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 106,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 107,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 108,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 109,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 7,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 110,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 111,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 112,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 113,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 17,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                }
+                            ],
+                            "Slot": 3,
+                            "Type": 2
+                        },
+                        {
+                            "BlendParam": 0,
+                            "Name": "Pivot Turn",
+                            "Nodes": [
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 10,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.2000000476837158,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 51,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.2000000476837158,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 18,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.2000000476837158,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 19,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.2000000476837158,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                }
+                            ],
+                            "Slot": 4,
+                            "Type": 2
+                        },
+                        {
+                            "BlendParam": 0,
+                            "Name": "Air Traversal",
+                            "Nodes": [
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 44,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 47,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.2000000476837158,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 45,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": true,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 52,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 54,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.2000000476837158,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 53,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": true,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 48,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 49,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                }
+                            ],
+                            "Slot": 6,
+                            "Type": 2
+                        },
+                        {
+                            "BlendParam": 0,
+                            "Name": "Double Jump",
+                            "Nodes": [
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 50,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.149999976158142,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 55,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.149999976158142,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                }
+                            ],
+                            "Slot": 7,
+                            "Type": 2
+                        },
+                        {
+                            "BlendParam": 0,
+                            "Name": "Landing",
+                            "Nodes": [
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 46,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.12800000607967377
+                                        }
+                                    ],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 97,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.8253375887870789
+                                        }
+                                    ],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.600000023841858,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 46,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 56,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 0,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.1279212385416031
+                                        }
+                                    ],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 98,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.824999988079071
+                                        }
+                                    ],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.600000023841858,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 56,
+                                    "Events": [],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                }
+                            ],
+                            "Slot": 8,
+                            "Type": 2
+                        },
+                        {
+                            "BlendParam": 0,
+                            "Name": "Dash Evade",
+                            "Nodes": [
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 91,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.36612942814826965
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 9,
+                                            "IsRange": false,
+                                            "Payload": 0.4000000059604645,
+                                            "Time": 0.48216474056243896
+                                        }
+                                    ],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.100000023841858,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 93,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.7293972373008728
+                                        }
+                                    ],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.5,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 92,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.3659999966621399
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 9,
+                                            "IsRange": false,
+                                            "Payload": 0.4000000059604645,
+                                            "Time": 0.4819999933242798
+                                        }
+                                    ],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.100000023841858,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 94,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.7289999723434448
+                                        }
+                                    ],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.5,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                }
+                            ],
+                            "Slot": 10,
+                            "Type": 2
+                        },
+                        {
+                            "BlendParam": 0,
+                            "Name": "Slide",
+                            "Nodes": [
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 101,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 10,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.4747844934463501
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.47355470061302185
+                                        }
+                                    ],
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": true,
+                                    "Loop": false,
+                                    "RootBoneIndex": 1,
+                                    "Speed": 1.600000023841858,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                }
+                            ],
+                            "Slot": 5,
+                            "Type": 0
+                        },
+                        {
+                            "BlendParam": 0,
+                            "Name": "Wall Run",
+                            "Nodes": [
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 8,
+                                    "Events": [],
+                                    "LockRootX": true,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": true,
+                                    "RootBoneIndex": 2,
+                                    "Speed": 1.2000000476837158,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 9,
+                                    "Events": [],
+                                    "LockRootX": true,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": true,
+                                    "RootBoneIndex": 2,
+                                    "Speed": 1.2000000476837158,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                }
+                            ],
+                            "Slot": 9,
+                            "Type": 2
+                        }
+                    ],
+                    "Type": "AnimationComponent"
+                },
+                {
+                    "CollidesWith": 126,
+                    "ContactOffset": 0.019999999552965164,
+                    "Height": 1.0299999713897705,
+                    "Layer": 4,
+                    "LocalOffsetX": 0.0,
+                    "LocalOffsetY": 0.0,
+                    "LocalOffsetZ": 0.0,
+                    "Radius": 0.3700000047683716,
+                    "SlopeLimitDeg": 45.0,
+                    "StepOffset": 0.30000001192092896,
+                    "Type": "CapsuleColliderComponent"
+                },
+                {
+                    "Acceleration": 8.0,
+                    "DashAirImpulse": 35.0,
+                    "DashGroundDistance": 8.0,
+                    "Deceleration": 3.9000000953674316,
+                    "ImpulseDrag": 3.5,
+                    "JumpForwardImpulse": 1.0,
+                    "MaxRunSpeed": 8.0,
+                    "SlideFriction": 0.15000000596046448,
+                    "SlideImpulse": 19.0,
+                    "SprintSpeed": 16.0,
+                    "Type": "CharacterMovementComponent",
+                    "UseGravity": true
+                },
+                {
+                    "Type": "PlayerControllerComponent"
+                }
+            ],
+            "IsActive": true,
+            "Name": "Alex",
+            "PosX": 0.0,
+            "PosY": 0.0,
+            "PosZ": 0.0,
+            "RotX": -0.0,
+            "RotY": 0.0,
+            "RotZ": -0.0,
+            "ScaleX": 1.0,
+            "ScaleY": 1.0,
+            "ScaleZ": 1.0
+        },
+        {
+            "Children": [],
+            "Components": [
+                {
+                    "Color": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Materials": [
+                        {
+                            "AlphaCutoff": 0.5,
+                            "AlphaMode": 0,
+                            "BaseColor": [
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0
+                            ],
+                            "Emissive": [
+                                0.0,
+                                0.0,
+                                0.0
+                            ],
+                            "EnableOutline": true,
+                            "Metalness": 0.20000000298023224,
+                            "Name": "ProBuilderDefault",
+                            "OutlineColor": [
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                1.0
+                            ],
+                            "OutlineFadeEnd": 28.0,
+                            "OutlineFadeStart": 12.0,
+                            "OutlineWidth": 0.014999999664723873,
+                            "Roughness": 0.0560000017285347,
+                            "ShaderId": 2,
+                            "TexBase": "",
+                            "TexNormal": ""
+                        }
+                    ],
+                    "ModelPath": "C:\\Users\\2240823\\Documents\\School\\GameDev\\Hyperlapse 88\\Data\\Model\\Stage\\ExampleStage.glb",
+                    "Type": "MeshComponent"
+                },
+                {
+                    "CollidesWith": 4294967295,
+                    "IsTrigger": false,
+                    "Layer": 1,
+                    "LocalOffsetX": 30.000001907348633,
+                    "LocalOffsetY": 1.2832409143447876,
+                    "LocalOffsetZ": 1.9073486328125e-06,
+                    "LocalRotX": 0.0,
+                    "LocalRotY": 0.0,
+                    "LocalRotZ": 0.0,
+                    "ProxyExtX": 75.47509765625,
+                    "ProxyExtY": 75.47509765625,
+                    "ProxyExtZ": 75.47509765625,
+                    "ShapeType": 3,
+                    "Type": "StaticMeshColliderComponent"
+                }
+            ],
+            "IsActive": true,
+            "Name": "Playground",
+            "PosX": 0.0,
+            "PosY": 0.0,
+            "PosZ": -189.4677276611328,
+            "RotX": -0.0,
+            "RotY": 0.0,
+            "RotZ": -0.0,
+            "ScaleX": 3.3499999046325684,
+            "ScaleY": 2.799999952316284,
+            "ScaleZ": 4.699999809265137
         }
     ]
 }

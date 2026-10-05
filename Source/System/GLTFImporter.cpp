@@ -67,13 +67,17 @@ GLTFImporter::GLTFImporter(const char* filename)
 
 	std::string error, warning;
 	bool result = false;
+
+	// tiny_gltf explicitly requires this UTF-8 formatting to load Japanese paths safely on Windows.
+	const std::string utf8FilePath{ reinterpret_cast<const char*>(filepath.u8string().c_str()) };
+
 	if (extension == ".glb")
 	{
-		result = gltf.LoadBinaryFromFile(&gltfModel, &error, &warning, filepath.u8string());
+		result = gltf.LoadBinaryFromFile(&gltfModel, &error, &warning, utf8FilePath);
 	}
 	else if (extension == ".gltf")
 	{
-		result = gltf.LoadASCIIFromFile(&gltfModel, &error, &warning, filepath.u8string());
+		result = gltf.LoadASCIIFromFile(&gltfModel, &error, &warning, utf8FilePath);
 	}
 	if (!warning.empty())
 	{
@@ -880,7 +884,7 @@ void GLTFImporter::ComputeTangents(std::vector<Model::Vertex>& vertices, const s
 		const float t1 = v2.texcoord.y - v1.texcoord.y;
 		const float t2 = v3.texcoord.y - v1.texcoord.y;
 
-		// ---> BUG PREVENTION: The Divide-By-Zero Guard <---
+		// BUG PREVENTION: The Divide-By-Zero Guard 
 		float det = (s1 * t2 - s2 * t1);
 		float r = 0.0f;
 
@@ -912,7 +916,7 @@ void GLTFImporter::ComputeTangents(std::vector<Model::Vertex>& vertices, const s
 		// Gram-Schmidt orthogonalize        
 		DirectX::XMVECTOR T = DirectX::XMVectorSubtract(T1, DirectX::XMVectorScale(N, DirectX::XMVectorGetX(DirectX::XMVector3Dot(N, T1))));
 
-		// ---> BUG PREVENTION: Zero Vector Guard <---
+		// BUG PREVENTION: Zero Vector Guard 
 		// If the tangent is a zero vector, normalizing it will cause another NaN crash!
 		if (DirectX::XMVectorGetX(DirectX::XMVector3LengthSq(T)) > 0.0001f)
 		{

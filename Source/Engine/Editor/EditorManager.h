@@ -9,6 +9,8 @@
 #include <wrl/client.h>
 #include "System/Graphics.h"
 #include "System/Logger.h"
+#include "AnimationGraphPanel.h"
+#include "AnimationTimelinePanel.h"
 #include "Framework.h"
 #include "GameObject.h"
 #include "IComponent.h"
@@ -49,10 +51,18 @@ public:
     void BeginSceneRender(ID3D11DeviceContext* context) noexcept;
     void EndSceneRender(ID3D11DeviceContext* context) noexcept;
 
+    // Opens the Animation Graph Panel
+    void OpenAnimationGraph(AnimationComponent* target) noexcept;
+
+	// Opens the Animation Timeline Panel for a specific AnimationComponent
+    void OpenAnimationTimeline(AnimationComponent* target, std::size_t stateIndex = 0) noexcept;
+
     // Safely clears the active inspector target to prevent dangling pointers
     void ClearSelection() noexcept {
         m_selectedObject = nullptr;
         m_selectedComponent = nullptr;
+        m_timelinePanel.SetTarget(nullptr, 0);
+        m_animGraphPanel.SetTarget(nullptr);
     }
 
 	// Accessors for the currently selected GameObject and Component
@@ -70,7 +80,7 @@ public:
 
     // User Workspace Preferences (Ignored by Git)
     void SaveUserPreferences(Scene* currentScene, Camera* activeCamera) const noexcept;
-    void LoadUserPreferences(Scene* currentScene, Camera* activeCamera) const noexcept;
+    void LoadUserPreferences(Scene* currentScene, Camera* activeCamera) noexcept;
 
 private:
     static constexpr std::string_view s_editorPrefsPath{ "UserSettings/EditorPreferences.json" };
@@ -97,6 +107,14 @@ private:
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_sceneSRV;
     Microsoft::WRL::ComPtr<ID3D11Texture2D> m_depthTexture;
     Microsoft::WRL::ComPtr<ID3D11DepthStencilView> m_sceneDSV;
+
+	// Animation Graph Panel
+    AnimationGraphPanel m_animGraphPanel{};
+    bool m_showAnimGraph{ false };
+
+	// Animation Timeline Panel
+    AnimationTimelinePanel m_timelinePanel{};
+    bool m_showAnimTimeline{ false };
 
     // Gizmo State
     ImGuizmo::OPERATION m_gizmoOperation{ ImGuizmo::TRANSLATE };

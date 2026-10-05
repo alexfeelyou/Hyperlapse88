@@ -1,6 +1,7 @@
 #include <imgui.h>
 #include "System/AssetManager.h"
 #include "System/Graphics.h"
+#include "AnimationComponent.h"
 #include "ComponentRegistry.h"
 #include "MeshComponent.h"
 #include "StaticMeshColliderComponent.h"
@@ -82,6 +83,15 @@ void MeshComponent::SetModel(std::shared_ptr<Model> model, std::string_view path
     {
         m_modelPath = path;
     }
+
+    // Sync with AnimationComponent if it exists 
+    if (m_owner)
+    {
+        if (auto* animComp{ m_owner->GetComponent<AnimationComponent>() })
+        {
+            animComp->SetModel(m_model);
+        }
+    }
 }
 
 void MeshComponent::Render(ModelRenderer* renderer)
@@ -96,7 +106,18 @@ void MeshComponent::Render(ModelRenderer* renderer)
     // velocity instead of a huge false spike from an uninitialized matrix
     const DirectX::XMFLOAT4X4& previousWorldMatrix{ m_hasPreviousWorldMatrix ? m_previousWorldMatrix : worldMatrix };
 
-    renderer->Draw(m_model, m_color, worldMatrix, previousWorldMatrix);
+    // Fetch global matrices from AnimationComponent if present
+    const std::vector<DirectX::XMFLOAT4X4>* currentGlobals{ nullptr };
+    const std::vector<DirectX::XMFLOAT4X4>* previousGlobals{ nullptr };
+
+    if (auto* animComp{ m_owner->GetComponent<AnimationComponent>() })
+    {
+        currentGlobals = &animComp->GetCurrentNodeGlobals();
+        previousGlobals = &animComp->GetPreviousNodeGlobals();
+    }
+
+    // Pass the retrieved matrices to ModelRenderer to process hardware skinning
+    renderer->Draw(m_model, m_color, worldMatrix, previousWorldMatrix, currentGlobals, previousGlobals);
 
     // Cache after submission, or this frame's data is lost before the velocity pass reads it next frame
     m_previousWorldMatrix = worldMatrix;

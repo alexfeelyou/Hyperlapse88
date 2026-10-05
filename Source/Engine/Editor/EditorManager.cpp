@@ -173,6 +173,9 @@ void EditorManager::Draw(Scene* currentScene, Camera* activeCamera) noexcept
     DrawPostProcess(currentScene);
     DrawConsole();
 
+    if (m_showAnimGraph) m_animGraphPanel.Draw(&m_showAnimGraph);
+    if (m_showAnimTimeline) m_timelinePanel.Draw(&m_showAnimTimeline);
+
     ImGui::End();
 }
 
@@ -255,6 +258,8 @@ void EditorManager::DrawDockSpace(Scene* currentScene) noexcept
         ImGui::DockBuilderDockWindow(s_windowConsole, dockBottom);
         ImGui::DockBuilderDockWindow(s_windowProfiler, dockBottom);
         ImGui::DockBuilderDockWindow(s_windowPostProcess, dockBottom);
+        ImGui::DockBuilderDockWindow("Animation Graph", dockBottom);
+        ImGui::DockBuilderDockWindow("AnimEvent Timeline", dockBottom);
 
         ImGui::DockBuilderFinish(dockspaceId);
     }
@@ -348,8 +353,6 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
         ImGui::PopStyleVar(3);
     }
 
-    CameraController::Instance().SetViewportHovered(ImGui::IsWindowHovered());
-
     constexpr ImVec2 buttonSize{ 34.0f, 22.0f };
     const float totalToolbarWidth{ (buttonSize.x * 3.0f) + (ImGui::GetStyle().ItemSpacing.x * 2.0f) };
 
@@ -358,24 +361,27 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
     const float availWidth{ ImGui::GetContentRegionAvail().x };
     ImGui::SetCursorPosX((availWidth * 0.5f) - (totalToolbarWidth * 0.5f));
 
+    static bool s_skipGizmoThisFrame{ false };
+
     if (DrawToolbarIconButton("##PlayBtn", ToolbarIcon::Play, m_editorMode == EditorMode::Play, ImVec4{ 0.2f, 0.7f, 0.2f, 1.0f }, buttonSize))
     {
         SetEditorMode(EditorMode::Play);
-        ClearSelection();
-        m_showGizmos = false; // Auto-hide gizmos for a clean gameplay experience
+        m_showGizmos = false;
+        s_skipGizmoThisFrame = true; 
     }
     ImGui::SameLine();
     if (DrawToolbarIconButton("##PauseBtn", ToolbarIcon::Pause, m_editorMode == EditorMode::Pause, ImVec4{ 0.7f, 0.7f, 0.2f, 1.0f }, buttonSize))
     {
         SetEditorMode(EditorMode::Pause);
-        ClearSelection();
-        m_showGizmos = true; // Auto-show gizmos to inspect the paused state
+        m_showGizmos = true;
+        s_skipGizmoThisFrame = true; 
     }
     ImGui::SameLine();
     if (DrawToolbarIconButton("##StopBtn", ToolbarIcon::Stop, m_editorMode == EditorMode::Edit, ImVec4{ 0.7f, 0.2f, 0.2f, 1.0f }, buttonSize))
     {
         SetEditorMode(EditorMode::Edit);
-        m_showGizmos = true; // Auto-show gizmos for level editing
+        m_showGizmos = true;
+        s_skipGizmoThisFrame = true; 
     }
 
     // Gizmo Category Dropdown aligned to the right
@@ -448,9 +454,11 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
     const ImVec2 originalCursorPos{ ImGui::GetCursorPos() };
     ImGui::SetCursorPos(ImVec2{ originalCursorPos.x + cursorOffset.x, originalCursorPos.y + cursorOffset.y });
 
+    bool isImageHovered = false;
     if (m_sceneSRV)
     {
         ImGui::Image(reinterpret_cast<ImTextureID>(m_sceneSRV.Get()), renderSize);
+        isImageHovered = ImGui::IsItemHovered();
     }
 
     const bool isPlayMode{ m_editorMode == EditorMode::Play };
@@ -466,7 +474,12 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
     const bool hasSelection{ m_selectedObject != nullptr };
     const bool isNotRoot{ currentScene && (m_selectedObject != currentScene->GetRootGameObject()) };
 
-    if (activeCamera && hasSelection && isNotRoot && !isPlayMode)
+    // Consume the latch. If true, we skip drawing ImGuizmo entirely this frame.
+    if (s_skipGizmoThisFrame)
+    {
+        s_skipGizmoThisFrame = false;
+    }
+    else if (activeCamera && hasSelection && isNotRoot && !isPlayMode)
     {
         ImGuizmo::SetDrawlist();
         ImGuizmo::SetRect(centeredScreenPos.x, centeredScreenPos.y, renderSize.x, renderSize.y);
@@ -613,6 +626,11 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
         }
     }
 
+    // Resolve overlapping UI states mathematically at the end of the scope.
+    // Subtract the overlapping Maximize button hover state so it doesn't trigger the camera capture.
+    bool isMaximizeHovered = ImGui::IsItemHovered();
+    CameraController::Instance().SetViewportHovered(isImageHovered && !isMaximizeHovered);
+
     ImGui::End();
 }
 
@@ -644,10 +662,12 @@ void EditorManager::DrawMenuBar(Scene* currentScene) noexcept
         {
             if (ImGui::MenuItem("Title"))
             {
+                ClearSelection(); 
                 Framework::Instance()->ChangeScene([]() { return std::make_unique<SceneTitle>(); });
             }
             if (ImGui::MenuItem("Game"))
             {
+                ClearSelection(); 
                 Framework::Instance()->ChangeScene([]() { return std::make_unique<SceneGame>(); });
             }
             ImGui::EndMenu();
@@ -655,6 +675,8 @@ void EditorManager::DrawMenuBar(Scene* currentScene) noexcept
         if (ImGui::BeginMenu("Debug"))
         {
             ImGui::MenuItem("Profiler", nullptr, &m_showProfiler);
+            ImGui::MenuItem("Animation Timeline", nullptr, &m_showAnimTimeline);
+            ImGui::MenuItem("Animation Graph", nullptr, &m_showAnimGraph);
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Graphics"))
@@ -710,7 +732,7 @@ void EditorManager::DrawHierarchyNode(GameObject* node) noexcept
             node->Destroy();
             if (m_selectedObject == node)
             {
-                m_selectedObject = nullptr;
+                ClearSelection();
             }
         }
         ImGui::EndPopup();
@@ -1038,6 +1060,20 @@ void EditorManager::DrawPostProcess(Scene* currentScene) noexcept
     ImGui::End();
 }
 
+void EditorManager::OpenAnimationGraph(AnimationComponent* target) noexcept
+{
+    m_animGraphPanel.SetTarget(target);
+    m_showAnimGraph = true;
+    ImGui::SetWindowFocus("Animation Graph");
+}
+
+void EditorManager::OpenAnimationTimeline(AnimationComponent* target, std::size_t stateIndex) noexcept
+{
+    m_timelinePanel.SetTarget(target, stateIndex);
+    m_showAnimTimeline = true;
+    ImGui::SetWindowFocus("AnimEvent Timeline");
+}
+
 void EditorManager::SaveUserPreferences(Scene* currentScene, Camera* activeCamera) const noexcept
 {
     if (!currentScene || !activeCamera) return;
@@ -1066,6 +1102,11 @@ void EditorManager::SaveUserPreferences(Scene* currentScene, Camera* activeCamer
     root[sceneKey]["CamRotY"] = rot.y;
     root[sceneKey]["CamRotZ"] = rot.z;
 
+    root["EditorUI"]["ShowProfiler"] = m_showProfiler;
+    root["EditorUI"]["ShowPostProcess"] = m_showPostProcess;
+    root["EditorUI"]["ShowAnimTimeline"] = m_showAnimTimeline;
+    root["EditorUI"]["ShowAnimGraph"] = m_showAnimGraph;
+
     const std::filesystem::path pathObj{ s_editorPrefsPath };
     if (!std::filesystem::exists(pathObj.parent_path()))
     {
@@ -1079,7 +1120,7 @@ void EditorManager::SaveUserPreferences(Scene* currentScene, Camera* activeCamer
     }
 }
 
-void EditorManager::LoadUserPreferences(Scene* currentScene, Camera* activeCamera) const noexcept
+void EditorManager::LoadUserPreferences(Scene* currentScene, Camera* activeCamera) noexcept
 {
     if (!currentScene || !activeCamera || !std::filesystem::exists(s_editorPrefsPath)) return;
 
@@ -1110,6 +1151,15 @@ void EditorManager::LoadUserPreferences(Scene* currentScene, Camera* activeCamer
 
             activeCamera->SetPosition(pos);
             activeCamera->SetRotation(rot);
+        }
+
+        if (root.contains("EditorUI"))
+        {
+            const auto& uiData = root["EditorUI"];
+            m_showProfiler = uiData.value("ShowProfiler", false);
+            m_showPostProcess = uiData.value("ShowPostProcess", false);
+            m_showAnimTimeline = uiData.value("ShowAnimTimeline", false);
+            m_showAnimGraph = uiData.value("ShowAnimGraph", false);
         }
     }
     catch (...)

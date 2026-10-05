@@ -68,8 +68,6 @@ public:
     [[nodiscard]] const std::vector<std::unique_ptr<IComponent>>& GetComponents() const noexcept { return m_components; }
     [[nodiscard]] GameObject* GetParent() const noexcept { return m_parent; }
 
-    // Component Operations 
-
     // Variadic template function to forward arguments perfectly to the component constructor
     template<typename T, typename... Args>
     T* AddComponent(Args&&... args);
@@ -96,19 +94,16 @@ public:
     void SetPosition(const DirectX::XMFLOAT3& pos) noexcept
     {
         transform.position = pos;
-        BroadcastTransformUpdate();
     }
 
     void SetRotation(const DirectX::XMFLOAT3& rot) noexcept
     {
         transform.rotation = rot;
-        BroadcastTransformUpdate();
     }
 
     void SetScale(const DirectX::XMFLOAT3& scl) noexcept
     {
         transform.scale = scl;
-        BroadcastTransformUpdate();
     }
 
     // Marks this object to be destroyed and erased at the start of the next frame
@@ -123,9 +118,6 @@ private:
 
     std::vector<std::unique_ptr<GameObject>> m_children{};
     std::vector<std::unique_ptr<IComponent>> m_components{};
-
-    // Dispatches the updated transform to all attached components
-    void BroadcastTransformUpdate() noexcept;
 };
 
 // Template Implementations 

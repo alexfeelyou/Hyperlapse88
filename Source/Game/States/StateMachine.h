@@ -1,9 +1,8 @@
 #pragma once
 
-#include <memory>
 #include "PlayerState.h"
 
-// Forward declaration of the new Brain component
+// Forward declaration 
 class PlayerControllerComponent;
 
 class StateMachine
@@ -12,31 +11,27 @@ public:
     StateMachine() noexcept = default;
     ~StateMachine() = default;
 
-    // Delete copy/move to enforce strict ownership
     StateMachine(const StateMachine&) = delete;
     StateMachine& operator=(const StateMachine&) = delete;
 
-    // Takes ownership of startState and immediately enters it
-    void Initialize(std::unique_ptr<PlayerState> startState, PlayerControllerComponent* controller) noexcept
+    // Use raw pointers. The Controller owns the memory, we just point to it.
+    void Initialize(PlayerState* startState, PlayerControllerComponent* controller) noexcept
     {
-        m_currentState = std::move(startState);
+        m_currentState = startState;
         if (m_currentState)
         {
             m_currentState->Enter(controller);
         }
     }
 
-    // Exits current state, takes ownership of newState, enters it
-    void ChangeState(PlayerControllerComponent* controller, std::unique_ptr<PlayerState> newState) noexcept
+    void ChangeState(PlayerControllerComponent* controller, PlayerState* newState) noexcept
     {
-        // Move to temporary to prevent recursive dangling pointers if Exit() triggers a state change
-        std::unique_ptr<PlayerState> oldState{ std::move(m_currentState) };
-        if (oldState)
+        if (m_currentState)
         {
-            oldState->Exit(controller);
+            m_currentState->Exit(controller);
         }
 
-        m_currentState = std::move(newState);
+        m_currentState = newState;
         if (m_currentState)
         {
             m_currentState->Enter(controller);
@@ -52,5 +47,6 @@ public:
     }
 
 private:
-    std::unique_ptr<PlayerState> m_currentState{};
+    // Only pointing to active state, memory is safely managed in Controller component
+    PlayerState* m_currentState{ nullptr };
 };

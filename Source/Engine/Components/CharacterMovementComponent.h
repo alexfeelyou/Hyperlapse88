@@ -9,10 +9,16 @@ class CapsuleColliderComponent;
 // Data-driven configuration for locomotion mechanics
 struct CharacterMovementConfig
 {
-    float maxWalkSpeed{ 15.0f };
-    float acceleration{ 50.0f };
-    float deceleration{ 60.0f };
-    float impulseDrag{ 5.0f };     // How quickly external forces (dashes/knockbacks) decay
+    float maxRunSpeed{ 6.5f };
+    float sprintSpeed{ 12.0f };
+    float acceleration{ 32.0f };
+    float deceleration{ 38.0f };
+    float impulseDrag{ 7.5f };
+    float jumpForwardImpulse{ 1.0f };
+    float dashGroundDistance{ 4.5f };
+    float dashAirImpulse{ 35.0f };
+    float slideImpulse{ 15.0f };            
+    float slideFrictionMultiplier{ 0.15f }; 
     float gravity{ -9.81f };
     bool  useGravity{ true };
 };
@@ -41,14 +47,31 @@ public:
 
     // Locomotion Interface
     void SetDesiredDirection(const DirectX::XMFLOAT2& direction) noexcept;
+    void SetSprinting(bool isSprinting) noexcept { m_isSprinting = isSprinting; }
     void AddImpulse(const DirectX::XMFLOAT3& impulse) noexcept;
+
+    // Explicitly drives true ballistic gravity arcs
+    void Jump(float jumpForce) noexcept { m_verticalVelocity = jumpForce; }
+
+    // Kinematic Action Override 
+    // Forces deterministic movement while active, suppressing analog locomotion and impulses
+    void ApplyKinematicOverride(const DirectX::XMFLOAT2& velocity, float duration) noexcept;
+    void ClearKinematicOverride() noexcept;
+    void HaltMomentum(float brakingFactor = 1.0f) noexcept;
+    [[nodiscard]] bool IsKinematicOverrideActive() const noexcept { return m_overrideTimer > 0.0f; }
 
     // Friction Override (e.g., locking the player in place during a sword slash)
     void SetFrictionMultiplier(float multiplier) noexcept { m_frictionMultiplier = multiplier; }
 
+    // Environment Probing
+    [[nodiscard]] bool DetectFlankingWall(DirectX::XMFLOAT3& outNormal, int& outSide) const noexcept;
+
     // State Queries
     [[nodiscard]] DirectX::XMFLOAT3 GetTotalVelocity() const noexcept;
+    [[nodiscard]] float GetVerticalVelocity() const noexcept { return m_verticalVelocity; }
+    void SetVerticalVelocity(float v) noexcept { m_verticalVelocity = v; }
     [[nodiscard]] bool IsMoving() const noexcept;
+    [[nodiscard]] bool isGrounded() const noexcept;
     [[nodiscard]] CharacterMovementConfig& GetConfig() noexcept { return m_config; }
 
 private:
@@ -64,6 +87,10 @@ private:
 
     float m_verticalVelocity{ 0.0f };
     float m_frictionMultiplier{ 1.0f };
+    bool m_isSprinting{ false };
+
+    DirectX::XMFLOAT2 m_overrideVelocity{ 0.0f, 0.0f };
+    float m_overrideTimer{ 0.0f };
 
     [[nodiscard]] static constexpr float LengthSq(const DirectX::XMFLOAT2& v) noexcept
     {

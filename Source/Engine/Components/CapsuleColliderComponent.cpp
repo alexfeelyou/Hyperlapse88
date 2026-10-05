@@ -135,6 +135,65 @@ void CapsuleColliderComponent::Resize(const float radius, const float height) no
     }
 }
 
+void CapsuleColliderComponent::ResizeFootAnchored(const float newRadius, const float newHeight) noexcept
+{
+    if (!m_controller) return;
+
+    // Snapshot the EXACT foot position before any internal PhysX shifts
+    const DirectX::XMFLOAT3 targetFootPos{ GetFootPosition() };
+
+    m_config.radius = (std::max)(0.01f, newRadius);
+    m_config.height = (std::max)(0.01f, newHeight);
+
+    auto* capsuleCtrl = static_cast<physx::PxCapsuleController*>(m_controller);
+
+    // PxCapsuleController::resize() implicitly shifts the center to keep the bottom fixed, 
+    // while setRadius() keeps the center fixed. Mixing them causes unpredictable floating offsets.
+    capsuleCtrl->setRadius(m_config.radius);
+    capsuleCtrl->resize(m_config.height);
+
+    // Override implicit shifts: explicitly snap the new center perfectly above the planted foot
+    const float newCenterOffsetY{ GetTotalHalfHeight() + m_config.localOffset.y };
+
+    const physx::PxExtendedVec3 newPos{
+        static_cast<physx::PxExtended>(targetFootPos.x + m_config.localOffset.x),
+        static_cast<physx::PxExtended>(targetFootPos.y + newCenterOffsetY),
+        static_cast<physx::PxExtended>(targetFootPos.z + m_config.localOffset.z)
+    };
+
+    m_controller->setPosition(newPos);
+}
+
+bool CapsuleColliderComponent::HasCeilingClearance(const float targetHeight) const noexcept
+{
+    if (!m_controller) return false;
+    auto* scene = PhysicsManager::Instance().GetScene();
+    if (!scene) return false;
+
+    const float heightDiff = targetHeight - m_config.height;
+    if (heightDiff <= 0.001f) return true;
+
+    const physx::PxSphereGeometry sphereGeom(m_config.radius * 0.9f);
+    const physx::PxExtendedVec3 pxPos = m_controller->getPosition();
+
+    // Start the sweep exactly at the top of the cylindrical trunk
+    const physx::PxTransform startPose(physx::PxVec3(
+        static_cast<float>(pxPos.x),
+        static_cast<float>(pxPos.y) + (m_config.height * 0.5f),
+        static_cast<float>(pxPos.z)
+    ));
+
+    const physx::PxVec3 sweepDir(0.0f, 1.0f, 0.0f);
+    physx::PxSweepBuffer hitBuffer;
+
+    physx::PxQueryFilterData filterData;
+    filterData.data.word0 = CollisionLayer::WorldStatic | CollisionLayer::WorldDynamic;
+    filterData.flags = physx::PxQueryFlag::eSTATIC | physx::PxQueryFlag::eDYNAMIC;
+
+    // True if clear (sweep returns false when empty)
+    return !scene->sweep(sphereGeom, startPose, sweepDir, heightDiff, hitBuffer, physx::PxHitFlag::eDEFAULT, filterData);
+}
+
 DirectX::XMFLOAT3 CapsuleColliderComponent::GetFootPosition() const noexcept
 {
     if (!m_controller)
@@ -261,7 +320,8 @@ void CapsuleColliderComponent::DrawGizmo(const GizmoContext& ctx) noexcept
 
     // Grab the authoritative World Matrix from the parent GameObject
     const Transform& t{ m_owner->transform };
-    const DirectX::XMMATRIX objWorld{ DirectX::XMLoadFloat4x4(&t.GetWorldMatrix()) };
+    const DirectX::XMFLOAT4X4 worldFloat4x4{ t.GetWorldMatrix() };
+    const DirectX::XMMATRIX objWorld{ DirectX::XMLoadFloat4x4(&worldFloat4x4) };
 
     // Apply the capsule's local offsets
     const float centerOffsetY{ GetTotalHalfHeight() + m_config.localOffset.y };
@@ -308,8 +368,11 @@ void CapsuleColliderComponent::DrawInspector()
     ImGui::BeginDisabled();
     bool groundedCheck{ m_isGrounded };
     ImGui::Checkbox("Is Grounded", &groundedCheck);
+
     const DirectX::XMFLOAT3 footPos{ GetFootPosition() };
-    ImGui::InputFloat3("Foot Position", const_cast<float*>(&footPos.x), "%.2f");
+    float footPosArray[3] = { footPos.x, footPos.y, footPos.z };
+    ImGui::InputFloat3("Foot Position", footPosArray, "%.2f");
+
     ImGui::EndDisabled();
 }
 
@@ -347,6 +410,36 @@ void CapsuleColliderComponent::Deserialize(const nlohmann::json& inJson)
     m_config.collidesWith = inJson.value("CollidesWith", CollisionLayer::Mask::Player);
 
     CreateController();
+}
+
+bool CapsuleColliderComponent::HasGroundBelow(float distance) const noexcept
+{
+    if (!m_controller) return false;
+
+    auto* scene = PhysicsManager::Instance().GetScene();
+    if (!scene) return false;
+
+    // Sweep a sphere matching the capsule radius (shrunken by 10% to avoid snagging on walls)
+    const physx::PxSphereGeometry sphereGeom(m_config.radius * 0.9f);
+
+    const physx::PxExtendedVec3 pxPos = m_controller->getPosition();
+
+    // Start the sweep at the bottom hemisphere of the capsule
+    const physx::PxTransform startPose(physx::PxVec3(
+        static_cast<float>(pxPos.x),
+        static_cast<float>(pxPos.y) - (m_config.height * 0.5f),
+        static_cast<float>(pxPos.z)
+    ));
+
+    const physx::PxVec3 sweepDir(0.0f, -1.0f, 0.0f);
+    physx::PxSweepBuffer hitBuffer;
+
+    // Filter: Only probe against static level geometry. Ignore dynamic bodies/triggers.
+    physx::PxQueryFilterData filterData;
+    filterData.data.word0 = CollisionLayer::WorldStatic;
+    filterData.flags = physx::PxQueryFlag::eSTATIC;
+
+    return scene->sweep(sphereGeom, startPose, sweepDir, distance, hitBuffer, physx::PxHitFlag::eDEFAULT, filterData);
 }
 
 // Automatically register component with dynamic Inspector factory
