@@ -378,7 +378,80 @@
             "ScaleZ": 4.408999919891357
         },
         {
-            "Children": [],
+            "Children": [
+                {
+                    "Children": [],
+                    "Components": [
+                        {
+                            "Color": [
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0
+                            ],
+                            "Materials": [
+                                {
+                                    "AlphaCutoff": 0.5,
+                                    "AlphaMode": 0,
+                                    "BaseColor": [
+                                        1.0,
+                                        1.0,
+                                        1.0,
+                                        1.0
+                                    ],
+                                    "Emissive": [
+                                        0.0,
+                                        0.0,
+                                        0.0
+                                    ],
+                                    "EnableOutline": true,
+                                    "Metalness": 0.0,
+                                    "Name": "Base_Material",
+                                    "OutlineColor": [
+                                        0.05000000074505806,
+                                        0.05000000074505806,
+                                        0.05000000074505806,
+                                        1.0
+                                    ],
+                                    "OutlineFadeEnd": 32.0,
+                                    "OutlineFadeStart": 1.5,
+                                    "OutlineWidth": 0.017999999225139618,
+                                    "Roughness": 0.550000011920929,
+                                    "ShaderId": 4,
+                                    "TexBase": "",
+                                    "TexNormal": ""
+                                }
+                            ],
+                            "ModelPath": "C:\\Users\\2240823\\Documents\\School\\GameDev\\Hyperlapse 88\\Data\\Model\\Weapon\\WPN_SCYTHE_PLAYER.glb",
+                            "Type": "MeshComponent"
+                        },
+                        {
+                            "BoneName": "spine_05",
+                            "LocalPosX": 0.7300000190734863,
+                            "LocalPosY": -0.05000000074505806,
+                            "LocalPosZ": -0.38999998569488525,
+                            "LocalRotX": -70.0,
+                            "LocalRotY": 90.0,
+                            "LocalRotZ": 32.0,
+                            "LocalSclX": 1.309999942779541,
+                            "LocalSclY": 1.5099999904632568,
+                            "LocalSclZ": 0.9100000262260437,
+                            "Type": "SocketComponent"
+                        }
+                    ],
+                    "IsActive": true,
+                    "Name": "Socket_Weapon_Back",
+                    "PosX": -0.34191668033599854,
+                    "PosY": 0.6327419281005859,
+                    "PosZ": 0.20960372686386108,
+                    "RotX": 4.234799861907959,
+                    "RotY": -131.75721740722656,
+                    "RotZ": 31.10491180419922,
+                    "ScaleX": 1.309999942779541,
+                    "ScaleY": 1.5099996328353882,
+                    "ScaleZ": 0.9099999666213989
+                }
+            ],
             "Components": [
                 {
                     "Color": [
