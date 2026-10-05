@@ -160,7 +160,6 @@ bool CharacterMovementComponent::isGrounded() const noexcept
 void CharacterMovementComponent::Update(const float dt)
 {
     // Lazy Initialization 
-    // Guarantees the motor finds the capsule regardless of JSON load order
     if (!m_capsule)
     {
         m_capsule = m_owner->GetComponent<CapsuleColliderComponent>();
