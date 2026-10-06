@@ -244,14 +244,74 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
         ImGui::SetNextItemWidth(200.0f);
         if (ImGui::BeginCombo("Clip", currentClipName.c_str()))
         {
+            static char searchBuffer[128] = "";
+
+            if (ImGui::IsWindowAppearing())
+            {
+                searchBuffer[0] = '\0';
+                ImGui::SetKeyboardFocusHere();
+            }
+
+            ImGui::InputText("##ClipSearch", searchBuffer, sizeof(searchBuffer));
+            ImGui::Separator();
+
+            const std::string_view filterView{ searchBuffer };
+            constexpr auto toLowerFast = [](const char c) constexpr -> char { return (c >= 'A' && c <= 'Z') ? (c + ('a' - 'A')) : c; };
+
             for (std::size_t a{ 0 }; a < animations.size(); ++a)
             {
+                const std::string& clipName{ animations[a].name };
+                bool matches{ true };
+
+                std::size_t start{ 0 };
+                while (start < filterView.length())
+                {
+                    std::size_t end{ filterView.find(' ', start) };
+                    if (end == std::string_view::npos) end = filterView.length();
+
+                    const std::string_view word{ filterView.substr(start, end - start) };
+                    if (!word.empty())
+                    {
+                        bool wordFound{ false };
+                        if (clipName.length() >= word.length())
+                        {
+                            for (std::size_t i{ 0 }; i <= clipName.length() - word.length(); ++i)
+                            {
+                                bool matchAtPos{ true };
+                                for (std::size_t j{ 0 }; j < word.length(); ++j)
+                                {
+                                    if (toLowerFast(clipName[i + j]) != toLowerFast(word[j]))
+                                    {
+                                        matchAtPos = false;
+                                        break;
+                                    }
+                                }
+                                if (matchAtPos)
+                                {
+                                    wordFound = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (!wordFound)
+                        {
+                            matches = false;
+                            break;
+                        }
+                    }
+                    start = end + 1;
+                }
+
+                if (!matches) continue;
+
                 const bool isClipSelected{ node.clipIndex == static_cast<int>(a) };
-                if (ImGui::Selectable(animations[a].name.c_str(), isClipSelected))
+                if (ImGui::Selectable(clipName.c_str(), isClipSelected))
                 {
                     node.clipIndex = static_cast<int>(a);
                 }
-                if (isClipSelected) ImGui::SetItemDefaultFocus();
+
+                // Only snap to the active item if the user hasn't typed anything, avoiding scroll-fighting.
+                if (isClipSelected && searchBuffer[0] == '\0') ImGui::SetItemDefaultFocus();
             }
             ImGui::EndCombo();
         }
