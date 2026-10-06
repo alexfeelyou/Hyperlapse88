@@ -1855,6 +1855,95 @@
                             ],
                             "Slot": 11,
                             "Type": 2
+                        },
+                        {
+                            "BlendParam": 0,
+                            "Name": "Attack Contextual",
+                            "Nodes": [
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 42,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 8,
+                                            "IsRange": false,
+                                            "Payload": 25.0,
+                                            "Time": 0.004920049104839563
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.4477245509624481
+                                        }
+                                    ],
+                                    "GripPosX": 0.0,
+                                    "GripPosY": 0.0,
+                                    "GripPosZ": 0.0,
+                                    "GripRotX": 0.0,
+                                    "GripRotY": 0.0,
+                                    "GripRotZ": 0.0,
+                                    "HasGripOverride": false,
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": true,
+                                    "Loop": false,
+                                    "RootBoneIndex": 1,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 43,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 8,
+                                            "IsRange": false,
+                                            "Payload": 45.0,
+                                            "Time": 0.004920049104839563
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.6322265863418579
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 8,
+                                            "IsRange": false,
+                                            "Payload": 25.0,
+                                            "Time": 0.21889954805374146
+                                        }
+                                    ],
+                                    "GripPosX": 0.0,
+                                    "GripPosY": 0.0,
+                                    "GripPosZ": 0.0,
+                                    "GripRotX": 0.0,
+                                    "GripRotY": 0.0,
+                                    "GripRotZ": 0.0,
+                                    "HasGripOverride": false,
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": true,
+                                    "Loop": false,
+                                    "RootBoneIndex": 1,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                }
+                            ],
+                            "Slot": 12,
+                            "Type": 2
                         }
                     ],
                     "Type": "AnimationComponent"

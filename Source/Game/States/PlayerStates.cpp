@@ -140,7 +140,16 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
     }
     if (intent.bAttackPressed)
     {
-        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPrimary));
+        // 2.5f ensures walking doesn't trigger the heavy gap-closer
+        if (controller->getAnimBlackboard().groundSpeed > 2.5f && intent.bSprintHeld)
+        {
+            controller->getAnimBlackboard().actionIndex = -1; // -1 triggers the Contextual Ping-Pong Arbiter
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackContextual));
+        }
+        else
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPrimary));
+        }
         return;
     }
 
@@ -1233,7 +1242,8 @@ void PlayerDashEvade::Update(PlayerControllerComponent* controller, float dt)
     {
         if (controller->GetMovement()->isGrounded())
         {
-            controller->getAnimBlackboard().actionIndex = 2; // Ground Dash Attack
+            // Directly route to Sprint Attacks since there is no dedicated ground dash attack clip
+            controller->getAnimBlackboard().actionIndex = -1;
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackContextual));
         }
         else
@@ -1289,10 +1299,12 @@ void PlayerDashEvade::Exit(PlayerControllerComponent* controller)
 // COMBAT (GROUND)
 void PlayerAttackPrimary::Enter(PlayerControllerComponent* controller)
 {
-    m_comboIndex = 0;
+    auto& blackboard{ controller->getAnimBlackboard() };
+    // Read pipeline injection: if Contextual set index to 1, start at Hit 2. Otherwise default to 0.
+    m_comboIndex = (blackboard.actionIndex > 0 && blackboard.actionIndex < 4) ? blackboard.actionIndex : 0;
 
     // Force combat stance active so SocketComponent switches to Profile 1 (Combat) and evaluates grip overrides.
-    controller->getAnimBlackboard().setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
+    blackboard.setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
 
     const auto& intent = controller->GetIntent();
     m_lungeDirection = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
@@ -1411,8 +1423,15 @@ void PlayerAttackPrimary::Exit(PlayerControllerComponent* controller) {}
 // Placeholders for Expanded Combat
 void PlayerAttackContextual::Enter(PlayerControllerComponent* controller)
 {
-    // Force combat stance active
-    controller->getAnimBlackboard().setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
+    auto& blackboard{ controller->getAnimBlackboard() };
+    blackboard.setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
+
+    // Arbiter: -1 implies dynamic generation (Sprint or Ground Dash attack request)
+    if (blackboard.actionIndex == -1)
+    {
+        blackboard.actionIndex = m_runAttackToggle;
+        m_runAttackToggle ^= 1; // Strict DOD Ping-Pong: 0 -> 1 -> 0 -> 1
+    }
 
     const auto& intent = controller->GetIntent();
     m_lungeDirection = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
@@ -1480,6 +1499,15 @@ void PlayerAttackContextual::Update(PlayerControllerComponent* controller, float
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
             return;
         }
+    }
+
+    // Seamless Combo Linking: Hand off to Primary Attack State
+    if (m_canCancel && m_attackBufferTimer > 0.0f && controller->GetMovement()->isGrounded())
+    {
+        // Inject index 1 so PlayerAttackPrimary skips the poke and starts directly at Hit 2 (Cross Slash)
+        controller->getAnimBlackboard().actionIndex = 1;
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPrimary));
+        return;
     }
 
     // Natural Exit (Context-Aware)

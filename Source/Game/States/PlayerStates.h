@@ -145,6 +145,7 @@ public:
 private:
     void PlayCurrentAttack(PlayerControllerComponent* controller) noexcept;
 
+    int m_runAttackToggle{ 0 }; // DOD Ping-Pong Flag
     float m_attackBufferTimer{ 0.0f };
     float m_exitTimer{ 0.0f };
     bool m_canCancel{ false };
