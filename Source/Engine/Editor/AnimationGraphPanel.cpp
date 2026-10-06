@@ -257,13 +257,18 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
         }
 
         ImGui::SameLine();
+        ImGui::SameLine();
         if (ImGui::Button("Props"))
         {
             m_selectedNodeForProps = static_cast<int>(i);
-
-            // Kill preview if switching nodes
             m_isPreviewingTransition = false;
-            m_targetComponent->StopPreview();
+
+            // When editing weapon grips or node properties, 
+            // automatically snap the 3D model to the exact pose of this animation
+            if (EditorManager::Instance().GetEditorMode() != EditorMode::Play)
+            {
+                m_targetComponent->ScrubNodeToTime(m_selectedStateIndex, i, 0.0f);
+            }
         }
 
         ImGui::SameLine();
@@ -304,6 +309,19 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
         if (isPreviewing) m_targetComponent->StopPreview();
         else m_targetComponent->TestPlayState(m_selectedStateIndex, -1);
     }
+
+    ImGui::Spacing();
+
+    // STANCE TOGGLE (Drives Dual-Profile Sockets and Combat Tree Paths)
+    if (ImGui::Checkbox("Combat Active (Stance)", &m_debugCombatActive))
+    {
+        if (auto* bb = const_cast<Engine::Animation::AnimBlackboard*>(m_targetComponent->GetBlackboard()))
+        {
+            bb->setFlag(Engine::Animation::AnimFlag::is_combat_active, m_debugCombatActive);
+        }
+        if (!isPreviewing && !isGameLive) m_targetComponent->Update(0.0f);
+    }
+
     ImGui::Spacing();
 
     // DYNAMIC BLACKBOARD UI BASED ON GRAPH TYPE 
@@ -482,6 +500,16 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
             {
                 ImGui::Spacing();
                 ImGui::InputInt("Root Bone Index", &targetNode.rootBoneIndex);
+            }
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::TextDisabled("WEAPON GRIP OVERRIDE (Attack Sync)");
+            ImGui::Checkbox("Override Weapon Grip##NodeGrip", &targetNode.hasGripOverride);
+            if (targetNode.hasGripOverride)
+            {
+                ImGui::DragFloat3("Grip Pos Delta##NodeGripPos", &targetNode.gripPosition.x, 0.01f);
+                ImGui::DragFloat3("Grip Rot Delta##NodeGripRot", &targetNode.gripRotation.x, 1.0f);
             }
 
             ImGui::Spacing();

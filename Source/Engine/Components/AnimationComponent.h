@@ -67,6 +67,11 @@ struct AnimNode
     float speedMultiplier{ 1.0f };
     float blendDuration{ 0.2f };
 
+    // Additive Weapon Grip Deltas (Node/Attack Specific Pivot Adjustment)
+    bool hasGripOverride{ false };
+    DirectX::XMFLOAT3 gripPosition{ 0.0f, 0.0f, 0.0f };
+    DirectX::XMFLOAT3 gripRotation{ 0.0f, 0.0f, 0.0f };
+
     std::vector<AnimationEvent> events{};
     std::vector<TransitionRule> transitionRules{};
 };
@@ -159,6 +164,7 @@ public:
     [[nodiscard]] std::size_t GetCurrentNodeIndex() const noexcept { return m_currentNodeIndex; }
     [[nodiscard]] bool IsPreviewing() const noexcept { return m_editorPreview; }
     [[nodiscard]] int GetIsolatedNodeIndex() const noexcept { return m_isolatedNodeIndex; }
+    [[nodiscard]] const AnimNode* GetActiveAnimNode() const noexcept;
 
     void SetPlaybackSpeed(float speed) noexcept { m_playbackSpeed = speed; }
     [[nodiscard]] float GetPlaybackSpeed() const noexcept { return m_playbackSpeed; }

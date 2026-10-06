@@ -51,6 +51,12 @@ void PlayerLocomotion::Enter(PlayerControllerComponent* controller)
     {
         m_wasActivelyMoving = (inputSq > 0.01f);
         m_startTimer = 0.0f;
+
+        // PREVENTIVE BUG: Sync the startup idle clip identically to the Combat stance
+        int actionIdx = 0;
+        if (blackboard.getFlag(AnimFlag::is_combat_active)) actionIdx += 3;
+        blackboard.actionIndex = actionIdx;
+
         anim->PlaySlot(AnimSlot::Locomotion);
     }
 }
@@ -1285,6 +1291,9 @@ void PlayerAttackPrimary::Enter(PlayerControllerComponent* controller)
 {
     m_comboIndex = 0;
 
+    // Force combat stance active so SocketComponent switches to Profile 1 (Combat) and evaluates grip overrides.
+    controller->getAnimBlackboard().setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
+
     const auto& intent = controller->GetIntent();
     m_lungeDirection = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
 
@@ -1402,6 +1411,9 @@ void PlayerAttackPrimary::Exit(PlayerControllerComponent* controller) {}
 // Placeholders for Expanded Combat
 void PlayerAttackContextual::Enter(PlayerControllerComponent* controller)
 {
+    // Force combat stance active
+    controller->getAnimBlackboard().setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
+
     const auto& intent = controller->GetIntent();
     m_lungeDirection = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
 
@@ -1487,12 +1499,36 @@ void PlayerAttackContextual::Update(PlayerControllerComponent* controller, float
 
 void PlayerAttackContextual::Exit(PlayerControllerComponent* controller) {}
 
-void PlayerAttackDirectional::Enter(PlayerControllerComponent*) {}
-void PlayerAttackDirectional::Update(PlayerControllerComponent*, float) {}
+void PlayerAttackDirectional::Enter(PlayerControllerComponent* controller)
+{
+    controller->getAnimBlackboard().setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
+    if (auto* motor = controller->GetMovement()) motor->SetDesiredDirection({ 0.0f, 0.0f });
+    if (auto* anim = controller->GetAnimation()) anim->PlaySlot(Engine::Animation::AnimSlot::Attack_Directional, true);
+}
+void PlayerAttackDirectional::Update(PlayerControllerComponent* controller, float)
+{
+    if (auto* anim = controller->GetAnimation()) {
+        if (anim->GetCurrentTimer() >= anim->GetSlotDuration(Engine::Animation::AnimSlot::Attack_Directional) - 0.05f) {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+        }
+    }
+}
 void PlayerAttackDirectional::Exit(PlayerControllerComponent*) {}
 
-void PlayerAttackCharged::Enter(PlayerControllerComponent*) {}
-void PlayerAttackCharged::Update(PlayerControllerComponent*, float) {}
+void PlayerAttackCharged::Enter(PlayerControllerComponent* controller)
+{
+    controller->getAnimBlackboard().setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
+    if (auto* motor = controller->GetMovement()) motor->SetDesiredDirection({ 0.0f, 0.0f });
+    if (auto* anim = controller->GetAnimation()) anim->PlaySlot(Engine::Animation::AnimSlot::Attack_Charged, true);
+}
+void PlayerAttackCharged::Update(PlayerControllerComponent* controller, float)
+{
+    if (auto* anim = controller->GetAnimation()) {
+        if (anim->GetCurrentTimer() >= anim->GetSlotDuration(Engine::Animation::AnimSlot::Attack_Charged) - 0.05f) {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+        }
+    }
+}
 void PlayerAttackCharged::Exit(PlayerControllerComponent*) {}
 
 void PlayerAttackAerial::Enter(PlayerControllerComponent* controller)
@@ -1500,6 +1536,10 @@ void PlayerAttackAerial::Enter(PlayerControllerComponent* controller)
     // The actionIndex (e.g., 4 for Air Dash Attack) was set by DashEvade before transitioning.
     // We only reset to 0 if it wasn't a contextual entry.
     auto& blackboard = controller->getAnimBlackboard();
+
+    // Force combat stance active
+    blackboard.setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
+
     m_comboIndex = blackboard.actionIndex;
 
     const auto& intent = controller->GetIntent();
@@ -1595,10 +1635,34 @@ void PlayerAttackAerial::Update(PlayerControllerComponent* controller, float dt)
 void PlayerAttackAerial::Exit(PlayerControllerComponent* controller) {}
 
 // DEFENSE & REACTION
-void PlayerParryCounter::Enter(PlayerControllerComponent*) {}
-void PlayerParryCounter::Update(PlayerControllerComponent*, float) {}
+void PlayerParryCounter::Enter(PlayerControllerComponent* controller)
+{
+    controller->getAnimBlackboard().setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
+    if (auto* motor = controller->GetMovement()) motor->SetDesiredDirection({ 0.0f, 0.0f });
+    if (auto* anim = controller->GetAnimation()) anim->PlaySlot(Engine::Animation::AnimSlot::Parry_Counter, true);
+}
+void PlayerParryCounter::Update(PlayerControllerComponent* controller, float)
+{
+    if (auto* anim = controller->GetAnimation()) {
+        if (anim->GetCurrentTimer() >= anim->GetSlotDuration(Engine::Animation::AnimSlot::Parry_Counter) - 0.05f) {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+        }
+    }
+}
 void PlayerParryCounter::Exit(PlayerControllerComponent*) {}
 
-void PlayerHitReact::Enter(PlayerControllerComponent*) {}
-void PlayerHitReact::Update(PlayerControllerComponent*, float) {}
+void PlayerHitReact::Enter(PlayerControllerComponent* controller)
+{
+    controller->getAnimBlackboard().setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
+    if (auto* motor = controller->GetMovement()) motor->SetDesiredDirection({ 0.0f, 0.0f });
+    if (auto* anim = controller->GetAnimation()) anim->PlaySlot(Engine::Animation::AnimSlot::HitReact, true);
+}
+void PlayerHitReact::Update(PlayerControllerComponent* controller, float)
+{
+    if (auto* anim = controller->GetAnimation()) {
+        if (anim->GetCurrentTimer() >= anim->GetSlotDuration(Engine::Animation::AnimSlot::HitReact) - 0.05f) {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+        }
+    }
+}
 void PlayerHitReact::Exit(PlayerControllerComponent*) {}

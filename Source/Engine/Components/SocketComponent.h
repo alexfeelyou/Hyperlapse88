@@ -28,13 +28,20 @@ public:
 
 private:
     void ResolveBoneIndex() noexcept;
+    [[nodiscard]] std::size_t GetActiveProfileIndex() const noexcept;
 
     AnimationComponent* m_targetAnim{ nullptr };
-    std::string m_targetBoneName{};
-    int m_targetBoneIndex{ -1 };
 
-    // The localized offset applied ON TOP of the bone's exact transform
-    DirectX::XMFLOAT3 m_localPosition{ 0.0f, 0.0f, 0.0f };
-    DirectX::XMFLOAT3 m_localRotation{ 0.0f, 0.0f, 0.0f };
-    DirectX::XMFLOAT3 m_localScale{ 1.0f, 1.0f, 1.0f };
+    // Dual-Profile Storage: [0] = Holster, [1] = Combat
+    std::string m_targetBoneName[2]{};
+    int m_targetBoneIndex[2]{ -1, -1 };
+
+    // The localized offsets applied ON TOP of the bone's exact transform
+    DirectX::XMFLOAT3 m_localPosition[2]{ {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
+    DirectX::XMFLOAT3 m_localRotation[2]{ {0.0f, 0.0f, 0.0f}, {0.0f, 0.0f, 0.0f} };
+    DirectX::XMFLOAT3 m_localScale[2]{ {1.0f, 1.0f, 1.0f}, {1.0f, 1.0f, 1.0f} };
+
+    // Dynamic additive convergence accumulators (Smoothly blends between different attack grips)
+    DirectX::XMFLOAT3 m_currentGripDeltaPos{ 0.0f, 0.0f, 0.0f };
+    DirectX::XMFLOAT3 m_currentGripDeltaRot{ 0.0f, 0.0f, 0.0f };
 };

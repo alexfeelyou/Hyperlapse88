@@ -49,6 +49,9 @@ void PlayerControllerComponent::OnAttach(GameObject* owner) noexcept
 
         if (m_stateMachine)
         {
+            // PREVENTIVE BUG: Strip stale Editor variables to guarantee a clean Holster startup
+            m_blackboard.setFlag(Engine::Animation::AnimFlag::is_combat_active, false);
+            m_blackboard.actionIndex = 0;
             m_stateMachine->Initialize(GetState(PlayerStateType::Locomotion), this);
         }
     }
@@ -168,7 +171,21 @@ void PlayerControllerComponent::ResolveIntentToWorldSpace() noexcept
 
 void PlayerControllerComponent::Update(const float dt)
 {
-    if (EditorManager::Instance().GetEditorMode() != EditorMode::Play)
+    const bool isPlayMode = EditorManager::Instance().GetEditorMode() == EditorMode::Play;
+    static bool s_wasPlayMode = false;
+
+    // PREVENTIVE BUG: Live memory isn't destroyed when entering Play mode in this engine.
+    // We must intercept the transition frame to manually strip stale Editor variables 
+    // and reset the state machine so the player always starts cleanly in Holster/Locomotion.
+    if (isPlayMode && !s_wasPlayMode)
+    {
+        m_blackboard.setFlag(Engine::Animation::AnimFlag::is_combat_active, false);
+        m_blackboard.actionIndex = 0;
+        if (m_stateMachine) m_stateMachine->ChangeState(this, GetState(PlayerStateType::Locomotion));
+    }
+    s_wasPlayMode = isPlayMode;
+
+    if (!isPlayMode)
     {
         return;
     }

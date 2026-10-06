@@ -94,8 +94,7 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
     // Define both variables so the rest of the UI buttons work
     const bool isPreviewing = m_targetComponent->IsPreviewing();
     const bool isEnginePlaying = isGameLive || isPreviewing;
-
-    if (isEnginePlaying)
+    if (isGameLive)
     {
         const std::size_t runtimeState = m_targetComponent->GetCurrentStateIndex();
         if (runtimeState < states.size() && runtimeState != m_selectedStateIndex)
@@ -109,8 +108,12 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
     // Move Dynamic Sync OUTSIDE the play check
     if (m_targetComponent->GetIsolatedNodeIndex() == -1)
     {
+        const std::size_t runtimeState = m_targetComponent->GetCurrentStateIndex();
         const std::size_t runtimeNode = m_targetComponent->GetCurrentNodeIndex();
-        if (runtimeNode < states[m_selectedStateIndex].nodes.size() && runtimeNode != m_selectedNodeIndex)
+
+        // PREVENTIVE BUG: Only sync if the component is actively evaluating this state.
+        // If the engine hard-resets to State 0 via StopPreview(), the timeline pointer stays put.
+        if (runtimeState == m_selectedStateIndex && runtimeNode < states[m_selectedStateIndex].nodes.size() && runtimeNode != m_selectedNodeIndex)
         {
             m_selectedNodeIndex = runtimeNode;
             m_selectedEventIndex = -1;
@@ -129,6 +132,13 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
                 m_selectedStateIndex = i;
                 m_selectedNodeIndex = 0;
                 m_selectedEventIndex = -1;
+
+                // Force the 3D viewport to instantly pose to the newly selected state, 
+                // regardless of whether the preview harness was previously running or stopped.
+                if (!isGameLive)
+                {
+                    m_targetComponent->ScrubNodeToTime(m_selectedStateIndex, 0, 0.0f);
+                }
             }
             if (isSelected) ImGui::SetItemDefaultFocus();
         }
@@ -212,16 +222,35 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
     }
     ImGui::EndDisabled();
 
+    // Synchronize Stance state directly with the shared AnimBlackboard
+    if (auto* bb = const_cast<Engine::Animation::AnimBlackboard*>(m_targetComponent->GetBlackboard()))
+    {
+        ImGui::SameLine();
+        bool isCombat = bb->getFlag(Engine::Animation::AnimFlag::is_combat_active);
+        if (ImGui::Checkbox("Combat Stance", &isCombat))
+        {
+            // Mutate the shared memory contract so SocketComponent and AnimGraph update simultaneously
+            bb->setFlag(Engine::Animation::AnimFlag::is_combat_active, isCombat);
+
+            // Re-evaluate current pose immediately if paused in editor
+            if (!isEnginePlaying)
+            {
+                m_targetComponent->Update(0.0f);
+            }
+        }
+    }
+
     char speedBuf[64];
     snprintf(speedBuf, sizeof(speedBuf), "Base: %.2fs | Speed: %.1fx", baseDuration, targetNode.speedMultiplier);
     const float textWidth{ ImGui::CalcTextSize(speedBuf).x };
-    const float availX{ ImGui::GetContentRegionAvail().x };
 
-    if (availX > textWidth + 20.0f)
-    {
-        ImGui::SameLine(ImGui::GetWindowWidth() - textWidth - 20.0f);
-        ImGui::TextDisabled("%s", speedBuf);
-    }
+    ImGui::SameLine();
+    const float currentX = ImGui::GetCursorPosX();
+    const float targetX = ImGui::GetWindowWidth() - textWidth - 16.0f;
+
+    // Dynamically shift the text to avoid overlapping the Combat Stance checkbox
+    if (targetX > currentX + 10.0f) ImGui::SetCursorPosX(targetX);
+    ImGui::TextDisabled("%s", speedBuf);
 
     ImGui::Separator();
 
@@ -295,20 +324,29 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
     }
 
     const int totalFrames{ static_cast<int>(std::round(baseDuration * 60.0f)) };
+
+    // Prevent text overlap on extremely long clips (e.g. 10.0s Idle)
+    const float pixelsPerFrame = canvasWidth / (totalFrames > 0 ? static_cast<float>(totalFrames) : 1.0f);
+    int majorTickStep = 10;
+    if (pixelsPerFrame * 10.0f < 60.0f) majorTickStep = 30;
+    if (pixelsPerFrame * 30.0f < 60.0f) majorTickStep = 60;
+    if (pixelsPerFrame * 60.0f < 60.0f) majorTickStep = 120;
+    int minorTickStep = majorTickStep / 2;
+
     for (int i{ 0 }; i <= totalFrames; ++i)
     {
         const float t{ static_cast<float>(i) / 60.0f };
         const float normT{ t / baseDuration };
         const float xPixel{ canvasPos.x + (normT * canvasWidth) };
 
-        if (i % 10 == 0)
+        if (i % majorTickStep == 0)
         {
             drawList->AddLine(ImVec2(xPixel, canvasPos.y + headerHeight - 10.0f), ImVec2(xPixel, canvasPos.y + headerHeight), IM_COL32(200, 200, 200, 255));
             char labelBuf[32];
             snprintf(labelBuf, sizeof(labelBuf), "%df (%.2fs)", i, t);
             drawList->AddText(ImVec2(xPixel + 2.0f, canvasPos.y + 2.0f), IM_COL32(150, 150, 150, 255), labelBuf);
         }
-        else if (i % 5 == 0)
+        else if (i % minorTickStep == 0)
         {
             drawList->AddLine(ImVec2(xPixel, canvasPos.y + headerHeight - 6.0f), ImVec2(xPixel, canvasPos.y + headerHeight), IM_COL32(150, 150, 150, 255));
         }
@@ -394,10 +432,15 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
     ImGui::SetCursorScreenPos(canvasPos);
     ImGui::InvisibleButton("##ScrubPlane", ImVec2(canvasWidth, requiredHeight));
 
-    if (!isGameLive && ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+    // Allow instant clicking anywhere on the track (IsItemActive), not just dragging
+    if (!isGameLive && ImGui::IsItemActive())
     {
         const float mouseLocalX{ ImGui::GetIO().MousePos.x - canvasPos.x };
-        const float newNorm{ std::clamp<float>(mouseLocalX / canvasWidth, 0.0f, 1.0f) };
+
+        // PREVENTIVE BUG: Clamp slightly below 1.0f. If the time hits 1.0f perfectly, 
+        // the underlying AnimationComponent evaluates it as finished and fires StopPreview(), 
+        // breaking the pose and resetting the character back to Idle.
+        const float newNorm{ std::clamp<float>(mouseLocalX / canvasWidth, 0.0f, 0.999f) };
 
         m_targetComponent->ScrubNodeToTime(m_selectedStateIndex, m_selectedNodeIndex, newNorm * baseDuration);
     }
