@@ -118,6 +118,12 @@ private:
 };
 
 // COMBAT (GROUND)
+struct BufferedAttackIntent
+{
+    float timer{ 0.0f };
+    int targetCommandNormal{ -1 }; // -1 = Neutral, 0 = Up, 1 = Back
+};
+
 class PlayerAttackPrimary final : public PlayerState
 {
 public:
@@ -129,8 +135,9 @@ private:
     void PlayCurrentAttack(PlayerControllerComponent* controller) noexcept;
 
     int m_comboIndex{ 0 };
-    float m_attackBufferTimer{ 0.0f };
+    BufferedAttackIntent m_bufferedAttack{};
     float m_exitTimer{ 0.0f };
+    int m_cancelDeferFrames{ 0 };
     bool m_canCancel{ false };
     DirectX::XMFLOAT2 m_lungeDirection{ 0.0f, 1.0f };
 };
@@ -146,8 +153,9 @@ private:
     void PlayCurrentAttack(PlayerControllerComponent* controller) noexcept;
 
     int m_runAttackToggle{ 0 }; // DOD Ping-Pong Flag
-    float m_attackBufferTimer{ 0.0f };
+    BufferedAttackIntent m_bufferedAttack{};
     float m_exitTimer{ 0.0f };
+    int m_cancelDeferFrames{ 0 };
     bool m_canCancel{ false };
     DirectX::XMFLOAT2 m_lungeDirection{ 0.0f, 1.0f };
 };
@@ -158,6 +166,13 @@ public:
     void Enter(PlayerControllerComponent* controller) override;
     void Update(PlayerControllerComponent* controller, float dt) override;
     void Exit(PlayerControllerComponent* controller) override;
+
+private:
+    BufferedAttackIntent m_bufferedAttack{};
+    float m_exitTimer{ 0.0f };
+    int m_activeNode{ 0 };
+    bool m_canCancel{ false };
+    DirectX::XMFLOAT2 m_lungeDirection{ 0.0f, 1.0f };
 };
 
 class PlayerAttackCharged final : public PlayerState
@@ -180,7 +195,7 @@ private:
     void PlayCurrentAttack(PlayerControllerComponent* controller) noexcept;
 
     int m_comboIndex{ 0 };
-    float m_attackBufferTimer{ 0.0f };
+    BufferedAttackIntent m_bufferedAttack{};
     float m_exitTimer{ 0.0f };
     bool m_canCancel{ false };
     DirectX::XMFLOAT2 m_lungeDirection{ 0.0f, 1.0f };

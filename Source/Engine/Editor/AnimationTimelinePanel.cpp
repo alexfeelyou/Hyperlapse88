@@ -6,14 +6,16 @@
 #include <string>
 #include "AnimationTimelinePanel.h"
 #include "AnimationComponent.h"
+#include "CharacterMovementComponent.h"
 #include "EditorManager.h"
+#include "GameObject.h"
 
 namespace
 {
     inline constexpr const char* s_eventNames[] = {
          "None", "Hitbox_Active", "Hitbox_Inactive",
          "CancelWindow_Open", "Invincible_Start", "Invincible_End",
-         "Play_SFX", "Play_VFX", "Lunge_Impulse", "Movement_Halt",
+         "Play_SFX", "Play_VFX", "Lunge_Impulse", "Lunge_Vertical", "Movement_Halt",
          "Slide_GlidePose"
     };
 
@@ -24,6 +26,7 @@ namespace
         case CombatEventId::Hitbox_Active:     return IM_COL32(250, 80, 80, 255);
         case CombatEventId::CancelWindow_Open: return IM_COL32(250, 200, 50, 255);
         case CombatEventId::Lunge_Impulse:     return IM_COL32(50, 150, 250, 255);
+        case CombatEventId::Lunge_Vertical:    return IM_COL32(50, 250, 150, 255);
         case CombatEventId::Movement_Halt:     return IM_COL32(250, 120, 50, 255);
         case CombatEventId::Slide_GlidePose:   return IM_COL32(50, 200, 250, 255);
         case CombatEventId::Play_SFX:
@@ -111,13 +114,29 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
         const std::size_t runtimeState = m_targetComponent->GetCurrentStateIndex();
         const std::size_t runtimeNode = m_targetComponent->GetCurrentNodeIndex();
 
-        // PREVENTIVE BUG: Only sync if the component is actively evaluating this state.
-        // If the engine hard-resets to State 0 via StopPreview(), the timeline pointer stays put.
         if (runtimeState == m_selectedStateIndex && runtimeNode < states[m_selectedStateIndex].nodes.size() && runtimeNode != m_selectedNodeIndex)
         {
             m_selectedNodeIndex = runtimeNode;
             m_selectedEventIndex = -1;
         }
+    }
+
+	// Physics Preview Anchor
+    static DirectX::XMFLOAT3 s_previewAnchor{ 0.0f, 0.0f, 0.0f };
+    static bool s_hasPreviewAnchor{ false };
+
+    if (isGameLive || !isPreviewing)
+    {
+        if (s_hasPreviewAnchor && m_targetComponent->GetOwner())
+        {
+            m_targetComponent->GetOwner()->SetPosition(s_previewAnchor);
+            s_hasPreviewAnchor = false;
+        }
+    }
+    else if (isPreviewing && !s_hasPreviewAnchor && m_targetComponent->GetOwner())
+    {
+        s_previewAnchor = m_targetComponent->GetOwner()->GetPosition();
+        s_hasPreviewAnchor = true;
     }
 
     ImGui::BeginDisabled(isEnginePlaying && !isPreviewing);
@@ -201,6 +220,49 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
         }
     }
     if (baseDuration <= 0.001f) baseDuration = 1.0f;
+
+    // Live Physics Preview: Apply Impulse and Vertical Lunge events to the GameObject's position in real-time
+    if (s_hasPreviewAnchor && m_targetComponent->GetOwner())
+    {
+        DirectX::XMFLOAT3 offset{ 0.0f, 0.0f, 0.0f };
+        if (auto* motor = m_targetComponent->GetOwner()->GetComponent<CharacterMovementComponent>())
+        {
+            const float drag = motor->GetConfig().impulseDrag;
+            const float gravity = motor->GetConfig().gravity;
+
+            const float yaw = DirectX::XMConvertToRadians(m_targetComponent->GetOwner()->GetRotation().y);
+            const DirectX::XMFLOAT2 fwd{ std::sin(yaw), std::cos(yaw) };
+
+            const float currentTime = m_targetComponent->GetCurrentTimer();
+
+            for (const auto& ev : targetNode.events)
+            {
+                const float evTime = ev.normalizedTime * baseDuration;
+                if (currentTime > evTime)
+                {
+                    const float t = currentTime - evTime;
+                    if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse))
+                    {
+                        const float dist = (drag > 0.001f) ? ((ev.payload / drag) * (1.0f - std::exp(-drag * t))) : (ev.payload * t);
+                        offset.x += fwd.x * dist;
+                        offset.z += fwd.y * dist;
+                    }
+                    else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Vertical))
+                    {
+                        float dist = (ev.payload * t) + (0.5f * gravity * t * t);
+                        if (dist < 0.0f && motor->isGrounded()) dist = 0.0f; // Basic floor collision approximation
+                        offset.y += dist;
+                    }
+                }
+            }
+        }
+
+        m_targetComponent->GetOwner()->SetPosition({
+            s_previewAnchor.x + offset.x,
+            s_previewAnchor.y + offset.y,
+            s_previewAnchor.z + offset.z
+            });
+    }
 
     ImGui::SameLine();
     if (ImGui::Button("+ Add Event"))
@@ -504,12 +566,14 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
             ImGui::Spacing();
 
             if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse) ||
+                ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Vertical) ||
                 ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt) ||
                 ev.eventId == static_cast<std::uint32_t>(CombatEventId::Play_SFX) ||
                 ev.eventId == static_cast<std::uint32_t>(CombatEventId::Play_VFX))
             {
                 ImGui::Separator();
-                if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse)) ImGui::DragFloat("Lunge Force", &ev.payload, 0.5f, -200.0f, 200.0f);
+                if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse)) ImGui::DragFloat("Horizontal Lunge", &ev.payload, 0.5f, -200.0f, 200.0f);
+                else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Vertical)) ImGui::DragFloat("Vertical Lift (m/s)", &ev.payload, 0.5f, -50.0f, 50.0f);
                 else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt)) ImGui::DragFloat("Braking Factor", &ev.payload, 0.05f, 0.0f, 1.0f, "%.2f (1 = Stop)");
                 else ImGui::DragFloat("Asset ID", &ev.payload, 1.0f, 0.0f, 100.0f);
                 ImGui::Spacing();

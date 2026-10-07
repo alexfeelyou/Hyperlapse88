@@ -22,6 +22,7 @@ enum class CombatEventId : std::uint32_t
     Play_SFX,
     Play_VFX,
     Lunge_Impulse,
+    Lunge_Vertical,
     Movement_Halt,
     Slide_GlidePose
 };
@@ -45,7 +46,7 @@ struct TransitionRule
 {
     std::string sourceStateName{ "" };
     std::uint64_t sourceStateHash{ 0 };
-    int sourceNodeIndex{ -1 }; // -1 means "Any Node"
+    int sourceNodeIndex{ -1 }; // -1 means Any Node
     float blendDuration{ 0.1f };
     float targetStartOffset{ 0.0f };
 };

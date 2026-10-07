@@ -9,9 +9,38 @@
 
 using namespace Engine::Animation;
 
+namespace
+{
+    // Evaluates directional combat intent (Command Normals). Returns Target Node Index, or -1 if none.
+    [[nodiscard]] int EvaluateCommandNormal(const GameObject* owner, const InputIntent& intent, bool requireFreshInput = true) noexcept
+    {
+        if (!owner) return -1;
+
+        // Raw Up/W Input always triggers Up Attack inside combat, but only on fresh input in locomotion.
+        // intent.moveVector.y maps directly to the raw W key or Left Stick Y-axis (+1.0 = Up).
+        if (intent.moveVector.y > 0.4f)
+        {
+            if (!requireFreshInput || intent.forwardIntentTimer <= 0.15f) return 0; // Node 0: Attack_Up_Floor_to_Air_02
+        }
+
+        // Back Attack triggers when world input strictly opposes the character's physical facing.
+        // E.g., Character faces Right (+X), Player presses Left (-X). Dot product is -1.0.
+        const float yawRad{ DirectX::XMConvertToRadians(owner->GetRotation().y) };
+        const DirectX::XMFLOAT2 charFwd{ std::sin(yawRad), std::cos(yawRad) };
+        const float fwdDot{ (intent.worldMoveDirection.x * charFwd.x) + (intent.worldMoveDirection.y * charFwd.y) };
+
+        // Stricter dot product threshold (-0.85f) ensures only ~150-180 degree back-pulls trigger the retreat slash,
+        // preventing lateral or diagonal (-0.707f) inputs from unintentionally hijacking the move.
+        if (fwdDot < -0.85f) return 1; // Node 1
+
+        return -1; // Neutral
+    }
+}
+
 // GROUND & LOCOMOTION
 void PlayerLocomotion::Enter(PlayerControllerComponent* controller)
 {
+    controller->ConsumePendingComboHit(); // Sanitize mailbox on returning to neutral
     auto* motor{ controller->GetMovement() };
     auto* anim{ controller->GetAnimation() };
     if (!motor || !anim) return;
@@ -140,14 +169,24 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
     }
     if (intent.bAttackPressed)
     {
-        // 2.5f ensures walking doesn't trigger the heavy gap-closer
+        const int commandNormalIdx{ EvaluateCommandNormal(controller->GetOwner(), intent) };
+
+        // Sprint Attack takes highest priority gap-closing
         if (controller->getAnimBlackboard().groundSpeed > 2.5f && intent.bSprintHeld)
         {
-            controller->getAnimBlackboard().actionIndex = -1; // -1 triggers the Contextual Ping-Pong Arbiter
+            controller->SetPendingComboHit(-1); // Sprint Arbiter
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackContextual));
         }
+        // Directional Command Normals (Up / Back)
+        else if (commandNormalIdx != -1)
+        {
+            controller->SetPendingComboHit(commandNormalIdx);
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackDirectional));
+        }
+        // Neutral Ground Combo Poke
         else
         {
+            controller->SetPendingComboHit(0);
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPrimary));
         }
         return;
@@ -399,7 +438,7 @@ void PlayerStop::Update(PlayerControllerComponent* controller, float dt)
         // Safety Fallback: If you slide off a ledge while braking, transition to falling
         if (!motor->isGrounded())
         {
-            blackboard.actionIndex = 1; // Fall Loop
+            blackboard.actionIndex = blackboard.getFlag(AnimFlag::is_combat_active) ? 5 : 2; // Fall Loop
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
             return;
         }
@@ -648,7 +687,7 @@ void PlayerSlide::Update(PlayerControllerComponent* controller, float dt)
     if (!motor->isGrounded() && vel.y < -1.5f)
     {
         if (capsule) capsule->ResizeFootAnchored(m_standingRadius, m_standingHeight);
-        blackboard.actionIndex = 1;
+        blackboard.actionIndex = blackboard.getFlag(AnimFlag::is_combat_active) ? 5 : 2; // Fall Loop
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
         return;
     }
@@ -737,6 +776,7 @@ void PlayerSlide::Exit(PlayerControllerComponent* controller)
 // AERIAL & PARKOUR
 void PlayerAirTraversal::Enter(PlayerControllerComponent* controller)
 {
+    controller->ConsumePendingComboHit(); // Sanitize mailbox on returning to neutral
     m_airTimer = 0.0f;
     m_isAcrobatic = false;
     m_canCancelAcrobatic = true; // Unlocked by default for standard falling
@@ -1243,12 +1283,12 @@ void PlayerDashEvade::Update(PlayerControllerComponent* controller, float dt)
         if (controller->GetMovement()->isGrounded())
         {
             // Directly route to Sprint Attacks since there is no dedicated ground dash attack clip
-            controller->getAnimBlackboard().actionIndex = -1;
+            controller->SetPendingComboHit(-1);
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackContextual));
         }
         else
         {
-            controller->getAnimBlackboard().actionIndex = 4; // Air Dash Attack
+            controller->SetPendingComboHit(4); // Air Dash Attack
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackAerial));
         }
         return;
@@ -1278,7 +1318,7 @@ void PlayerDashEvade::Update(PlayerControllerComponent* controller, float dt)
         // Re-evaluate ground status to prevent falling into locomotion if an Air Dash finishes mid-air
         if (!controller->GetMovement()->isGrounded())
         {
-            controller->getAnimBlackboard().actionIndex = 1; // Fall Loop
+            controller->getAnimBlackboard().actionIndex = controller->getAnimBlackboard().getFlag(AnimFlag::is_combat_active) ? 5 : 2; // Fall Loop
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
         }
         else
@@ -1300,8 +1340,9 @@ void PlayerDashEvade::Exit(PlayerControllerComponent* controller)
 void PlayerAttackPrimary::Enter(PlayerControllerComponent* controller)
 {
     auto& blackboard{ controller->getAnimBlackboard() };
-    // Read pipeline injection: if Contextual set index to 1, start at Hit 2. Otherwise default to 0.
-    m_comboIndex = (blackboard.actionIndex > 0 && blackboard.actionIndex < 4) ? blackboard.actionIndex : 0;
+    // Consume explicit mailbox token. Defaults to 0 if none provided.
+    const int pendingHit{ controller->ConsumePendingComboHit() };
+    m_comboIndex = (pendingHit > 0 && pendingHit < 4) ? pendingHit : 0;
 
     // Force combat stance active so SocketComponent switches to Profile 1 (Combat) and evaluates grip overrides.
     blackboard.setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
@@ -1320,7 +1361,8 @@ void PlayerAttackPrimary::Enter(PlayerControllerComponent* controller)
 void PlayerAttackPrimary::PlayCurrentAttack(PlayerControllerComponent* controller) noexcept
 {
     m_canCancel = false;
-    m_attackBufferTimer = 0.0f;
+    m_cancelDeferFrames = 0;
+    m_bufferedAttack = {};
 
     controller->getAnimBlackboard().actionIndex = m_comboIndex;
 
@@ -1340,12 +1382,27 @@ void PlayerAttackPrimary::Update(PlayerControllerComponent* controller, float dt
 {
     m_exitTimer -= dt;
 
-    if (m_attackBufferTimer > 0.0f) m_attackBufferTimer -= dt;
+    if (m_bufferedAttack.timer > 0.0f) m_bufferedAttack.timer -= dt;
 
     const auto& intent = controller->GetIntent();
+
+    // Live hardware poll for directional intent (requires fresh flick to prevent holding-forward accidental triggers)
+    const int liveDirectionalIntent{ EvaluateCommandNormal(controller->GetOwner(), intent, true) };
+
+    // Monotonic Buffer Upgrade (Sticky Intent)
     if (intent.bAttackPressed)
     {
-        m_attackBufferTimer = 0.25f;
+        m_bufferedAttack.timer = 0.25f; // Always refresh the buffer lifetime on press
+        // Never downgrade a latched directional intent back to neutral (-1) from sloppy mashing
+        if (liveDirectionalIntent != -1 || m_bufferedAttack.targetCommandNormal == -1)
+        {
+            m_bufferedAttack.targetCommandNormal = liveDirectionalIntent;
+        }
+    }
+    else if (m_bufferedAttack.timer > 0.0f && liveDirectionalIntent != -1)
+    {
+        // Promote neutral buffer to directional if stick is pushed mid-swing
+        m_bufferedAttack.targetCommandNormal = liveDirectionalIntent;
     }
 
     for (const auto& ev : controller->GetAnimation()->GetFiredEvents())
@@ -1353,6 +1410,7 @@ void PlayerAttackPrimary::Update(PlayerControllerComponent* controller, float dt
         if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
         {
             m_canCancel = true;
+            m_cancelDeferFrames = 4; // 4-frame grace window (~66ms) to upgrade neutral mash to directional
         }
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse))
         {
@@ -1392,10 +1450,23 @@ void PlayerAttackPrimary::Update(PlayerControllerComponent* controller, float dt
         }
     }
 
-    // Combo Chaining
-    if (m_canCancel && m_attackBufferTimer > 0.0f)
+    if (m_canCancel && m_bufferedAttack.timer > 0.0f)
     {
-        if (m_comboIndex < 3)
+        if (m_cancelDeferFrames > 0) m_cancelDeferFrames--;
+
+        // Just-In-Time Live Hardware Override
+        int activeCommand{ liveDirectionalIntent };
+        if (activeCommand == -1) activeCommand = m_bufferedAttack.targetCommandNormal;
+
+        if (activeCommand != -1)
+        {
+            controller->SetPendingComboHit(activeCommand);
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackDirectional));
+            return;
+        }
+
+        // Defer transitioning to neutral combos to give players time to push the stick
+        if (m_cancelDeferFrames == 0 && m_comboIndex < 3)
         {
             m_comboIndex++;
             m_lungeDirection = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
@@ -1413,7 +1484,7 @@ void PlayerAttackPrimary::Update(PlayerControllerComponent* controller, float dt
         }
         else
         {
-            controller->getAnimBlackboard().actionIndex = 1; // Fall Loop
+            controller->getAnimBlackboard().actionIndex = controller->getAnimBlackboard().getFlag(AnimFlag::is_combat_active) ? 5 : 2; // Fall Loop
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
         }
     }
@@ -1427,11 +1498,14 @@ void PlayerAttackContextual::Enter(PlayerControllerComponent* controller)
     blackboard.setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
 
     // Arbiter: -1 implies dynamic generation (Sprint or Ground Dash attack request)
-    if (blackboard.actionIndex == -1)
+    int activeNode{ controller->ConsumePendingComboHit() };
+    if (activeNode == -1)
     {
-        blackboard.actionIndex = m_runAttackToggle;
+        activeNode = m_runAttackToggle;
         m_runAttackToggle ^= 1; // Strict DOD Ping-Pong: 0 -> 1 -> 0 -> 1
     }
+
+    blackboard.actionIndex = activeNode;
 
     const auto& intent = controller->GetIntent();
     m_lungeDirection = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
@@ -1447,7 +1521,8 @@ void PlayerAttackContextual::Enter(PlayerControllerComponent* controller)
 void PlayerAttackContextual::PlayCurrentAttack(PlayerControllerComponent* controller) noexcept
 {
     m_canCancel = false;
-    m_attackBufferTimer = 0.0f;
+    m_cancelDeferFrames = 0;
+    m_bufferedAttack = {};
 
     FacingResolver::SnapFaceDirection(controller->GetOwner(), m_lungeDirection);
 
@@ -1461,16 +1536,31 @@ void PlayerAttackContextual::PlayCurrentAttack(PlayerControllerComponent* contro
 void PlayerAttackContextual::Update(PlayerControllerComponent* controller, float dt)
 {
     m_exitTimer -= dt;
-    if (m_attackBufferTimer > 0.0f) m_attackBufferTimer -= dt;
+    if (m_bufferedAttack.timer > 0.0f) m_bufferedAttack.timer -= dt;
 
     const auto& intent = controller->GetIntent();
-    if (intent.bAttackPressed) m_attackBufferTimer = 0.25f;
+
+    const int liveDirectionalIntent{ EvaluateCommandNormal(controller->GetOwner(), intent, true) };
+
+    if (intent.bAttackPressed)
+    {
+        m_bufferedAttack.timer = 0.25f;
+        if (liveDirectionalIntent != -1 || m_bufferedAttack.targetCommandNormal == -1)
+        {
+            m_bufferedAttack.targetCommandNormal = liveDirectionalIntent;
+        }
+    }
+    else if (m_bufferedAttack.timer > 0.0f && liveDirectionalIntent != -1)
+    {
+        m_bufferedAttack.targetCommandNormal = liveDirectionalIntent;
+    }
 
     for (const auto& ev : controller->GetAnimation()->GetFiredEvents())
     {
         if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
         {
             m_canCancel = true;
+            m_cancelDeferFrames = 4;
         }
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse))
         {
@@ -1501,13 +1591,29 @@ void PlayerAttackContextual::Update(PlayerControllerComponent* controller, float
         }
     }
 
-    // Seamless Combo Linking: Hand off to Primary Attack State
-    if (m_canCancel && m_attackBufferTimer > 0.0f && controller->GetMovement()->isGrounded())
+    // Seamless Combo Linking: Hand off to Primary Attack State or Directional Normal
+    if (m_canCancel && m_bufferedAttack.timer > 0.0f && controller->GetMovement()->isGrounded())
     {
-        // Inject index 1 so PlayerAttackPrimary skips the poke and starts directly at Hit 2 (Cross Slash)
-        controller->getAnimBlackboard().actionIndex = 1;
-        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPrimary));
-        return;
+        if (m_cancelDeferFrames > 0) m_cancelDeferFrames--;
+
+        int activeCommand{ liveDirectionalIntent };
+        if (activeCommand == -1) activeCommand = m_bufferedAttack.targetCommandNormal;
+
+        if (activeCommand != -1)
+        {
+            controller->SetPendingComboHit(activeCommand);
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackDirectional));
+            return;
+        }
+
+        // Defer transitioning to neutral combos
+        if (m_cancelDeferFrames == 0)
+        {
+            // Inject index 1 so PlayerAttackPrimary skips the poke and starts directly at Hit 2 (Cross Slash)
+            controller->SetPendingComboHit(1);
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPrimary));
+            return;
+        }
     }
 
     // Natural Exit (Context-Aware)
@@ -1519,7 +1625,7 @@ void PlayerAttackContextual::Update(PlayerControllerComponent* controller, float
         }
         else
         {
-            controller->getAnimBlackboard().actionIndex = 1; // Fall Loop
+            controller->getAnimBlackboard().actionIndex = controller->getAnimBlackboard().getFlag(AnimFlag::is_combat_active) ? 5 : 2; // Fall Loop
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
         }
     }
@@ -1529,18 +1635,153 @@ void PlayerAttackContextual::Exit(PlayerControllerComponent* controller) {}
 
 void PlayerAttackDirectional::Enter(PlayerControllerComponent* controller)
 {
-    controller->getAnimBlackboard().setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
+    auto& blackboard{ controller->getAnimBlackboard() };
+    blackboard.setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
+
+    m_activeNode = controller->ConsumePendingComboHit();
+    if (m_activeNode < 0) m_activeNode = 0;
+    blackboard.actionIndex = m_activeNode;
+
     if (auto* motor = controller->GetMovement()) motor->SetDesiredDirection({ 0.0f, 0.0f });
-    if (auto* anim = controller->GetAnimation()) anim->PlaySlot(Engine::Animation::AnimSlot::Attack_Directional, true);
+    if (auto* anim = controller->GetAnimation())
+    {
+        anim->PlaySlot(Engine::Animation::AnimSlot::Attack_Directional, true);
+        m_exitTimer = anim->GetSlotDuration(Engine::Animation::AnimSlot::Attack_Directional);
+    }
+
+    const auto& intent{ controller->GetIntent() };
+
+    // Directional Snapping:
+    // Back attack (Node 1) snaps to the raw stick input direction.
+    // Up attack (Node 0) preserves the character's current physical facing to avoid snapping to the camera forward vector.
+    if (m_activeNode == 0)
+    {
+        m_lungeDirection = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), { 0.0f, 0.0f });
+    }
+    else
+    {
+        m_lungeDirection = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
+    }
+
+    FacingResolver::SnapFaceDirection(controller->GetOwner(), m_lungeDirection);
+
+    m_canCancel = false;
+    m_bufferedAttack = {};
 }
-void PlayerAttackDirectional::Update(PlayerControllerComponent* controller, float)
+
+void PlayerAttackDirectional::Update(PlayerControllerComponent* controller, float dt)
 {
-    if (auto* anim = controller->GetAnimation()) {
-        if (anim->GetCurrentTimer() >= anim->GetSlotDuration(Engine::Animation::AnimSlot::Attack_Directional) - 0.05f) {
+    m_exitTimer -= dt;
+    if (m_bufferedAttack.timer > 0.0f) m_bufferedAttack.timer -= dt;
+
+    const auto& intent = controller->GetIntent();
+
+    const int liveDirectionalIntent{ EvaluateCommandNormal(controller->GetOwner(), intent, true) };
+
+    if (intent.bAttackPressed)
+    {
+        m_bufferedAttack.timer = 0.25f;
+        if (liveDirectionalIntent != -1 || m_bufferedAttack.targetCommandNormal == -1)
+        {
+            m_bufferedAttack.targetCommandNormal = liveDirectionalIntent;
+        }
+    }
+    else if (m_bufferedAttack.timer > 0.0f && liveDirectionalIntent != -1)
+    {
+        m_bufferedAttack.targetCommandNormal = liveDirectionalIntent;
+    }
+
+    auto* motor = controller->GetMovement();
+
+    for (const auto& ev : controller->GetAnimation()->GetFiredEvents())
+    {
+        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
+        {
+            m_canCancel = true;
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse))
+        {
+            if (motor)
+            {
+                // Push character along the snapped facing vector
+                motor->AddImpulse(DirectX::XMFLOAT3{
+                    m_lungeDirection.x * ev.payload, 0.0f, m_lungeDirection.y * ev.payload
+                    });
+            }
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Vertical))
+        {
+            if (motor) motor->SetVerticalVelocity(ev.payload); // Execute lift-off
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt))
+        {
+            if (motor) motor->HaltMomentum(ev.payload);
+        }
+    }
+
+    // Evasion Cancel
+    if (m_canCancel && intent.bDashTriggered)
+    {
+        if (motor && (motor->isGrounded() || !controller->getAnimBlackboard().getFlag(AnimFlag::has_air_dashed)))
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
+            return;
+        }
+    }
+
+    // Combo Injection
+    if (m_canCancel && m_bufferedAttack.timer > 0.0f)
+    {
+        int activeCommand{ liveDirectionalIntent };
+        if (activeCommand == -1) activeCommand = m_bufferedAttack.targetCommandNormal;
+
+        // Allow branching if the player inputs a NEW command normal (e.g. Back Attack -> Up Attack)
+        if (activeCommand != -1 && activeCommand != m_activeNode)
+        {
+            controller->SetPendingComboHit(activeCommand);
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackDirectional));
+            return;
+        }
+
+        auto& blackboard = controller->getAnimBlackboard();
+
+        if (!motor || motor->isGrounded())
+        {
+            // Grounded Back Attack (Node 1) pipes directly into Hit 2 of Primary Combos
+            if (m_activeNode == 1)
+            {
+                controller->SetPendingComboHit(1); // Hand-off target to PlayerAttackPrimary
+                controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPrimary));
+                return;
+            }
+        }
+        else
+        {
+            // Floor-to-Air Ascended (Node 0) -> Pipeline natively into Aerial Combos
+            if (m_activeNode == 0)
+            {
+                controller->SetPendingComboHit(0); // Hand-off target to Combo_Attack_Air_01
+                controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackAerial));
+                return;
+            }
+        }
+    }
+
+    // Natural Exit
+    if (m_exitTimer <= 0.0f)
+    {
+        if (motor && motor->isGrounded())
+        {
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+        }
+        else
+        {
+            controller->getAnimBlackboard().actionIndex = controller->getAnimBlackboard().getFlag(AnimFlag::is_combat_active) ? 5 : 2; // Fall Loop
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
         }
     }
 }
+
 void PlayerAttackDirectional::Exit(PlayerControllerComponent*) {}
 
 void PlayerAttackCharged::Enter(PlayerControllerComponent* controller)
@@ -1561,14 +1802,13 @@ void PlayerAttackCharged::Exit(PlayerControllerComponent*) {}
 
 void PlayerAttackAerial::Enter(PlayerControllerComponent* controller)
 {
-    // The actionIndex (e.g., 4 for Air Dash Attack) was set by DashEvade before transitioning.
-    // We only reset to 0 if it wasn't a contextual entry.
     auto& blackboard = controller->getAnimBlackboard();
 
     // Force combat stance active
     blackboard.setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
 
-    m_comboIndex = blackboard.actionIndex;
+    m_comboIndex = controller->ConsumePendingComboHit();
+    if (m_comboIndex < 0) m_comboIndex = 0;
 
     const auto& intent = controller->GetIntent();
     m_lungeDirection = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
@@ -1579,7 +1819,7 @@ void PlayerAttackAerial::Enter(PlayerControllerComponent* controller)
 void PlayerAttackAerial::PlayCurrentAttack(PlayerControllerComponent* controller) noexcept
 {
     m_canCancel = false;
-    m_attackBufferTimer = 0.0f;
+    m_bufferedAttack = {};
 
     controller->getAnimBlackboard().actionIndex = m_comboIndex;
     FacingResolver::SnapFaceDirection(controller->GetOwner(), m_lungeDirection);
@@ -1604,10 +1844,24 @@ void PlayerAttackAerial::Update(PlayerControllerComponent* controller, float dt)
     }
 
     m_exitTimer -= dt;
-    if (m_attackBufferTimer > 0.0f) m_attackBufferTimer -= dt;
+    if (m_bufferedAttack.timer > 0.0f) m_bufferedAttack.timer -= dt;
 
     const auto& intent = controller->GetIntent();
-    if (intent.bAttackPressed) m_attackBufferTimer = 0.25f;
+
+    const int liveDirectionalIntent{ EvaluateCommandNormal(controller->GetOwner(), intent, true) };
+
+    if (intent.bAttackPressed)
+    {
+        m_bufferedAttack.timer = 0.25f;
+        if (liveDirectionalIntent != -1 || m_bufferedAttack.targetCommandNormal == -1)
+        {
+            m_bufferedAttack.targetCommandNormal = liveDirectionalIntent;
+        }
+    }
+    else if (m_bufferedAttack.timer > 0.0f && liveDirectionalIntent != -1)
+    {
+        m_bufferedAttack.targetCommandNormal = liveDirectionalIntent;
+    }
 
     for (const auto& ev : controller->GetAnimation()->GetFiredEvents())
     {
@@ -1639,8 +1893,16 @@ void PlayerAttackAerial::Update(PlayerControllerComponent* controller, float dt)
     }
 
     // Aerial Combo Chaining
-    if (m_canCancel && m_attackBufferTimer > 0.0f)
+    if (m_canCancel && m_bufferedAttack.timer > 0.0f)
     {
+        int activeCommand{ liveDirectionalIntent };
+        if (activeCommand == -1) activeCommand = m_bufferedAttack.targetCommandNormal;
+
+        // Optionally map Aerial specific command normals here if needed in the future
+        if (activeCommand != -1)
+        {
+            // Placeholder if aerial directional attacks are added (e.g. Helmbreaker)
+        }
         // Standard air combo is usually 2 or 3 hits (Indices 0, 1, 2). 
         // If we came from a dash attack (Index 4), don't combo further.
         if (m_comboIndex < 2)
@@ -1655,7 +1917,7 @@ void PlayerAttackAerial::Update(PlayerControllerComponent* controller, float dt)
     // Natural Exit back to falling
     if (m_exitTimer <= 0.0f)
     {
-        controller->getAnimBlackboard().actionIndex = 1; // Fall Loop
+        controller->getAnimBlackboard().actionIndex = controller->getAnimBlackboard().getFlag(AnimFlag::is_combat_active) ? 5 : 2; // Fall Loop
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
     }
 }

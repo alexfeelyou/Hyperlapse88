@@ -86,6 +86,10 @@ void PlayerControllerComponent::GatherHardwareInput(const float dt) noexcept
 
     m_intent.moveVector = { targetX, targetZ };
 
+    // Maintain Temporal Input Freshness for Directional Command Normals
+    if (targetZ > 0.4f) m_intent.forwardIntentTimer += dt;
+    else m_intent.forwardIntentTimer = 0.0f;
+
     // KEYBOARD SHIFT: TAP-TO-DASH VS HOLD-TO-SPRINT 
     // Threshold 200ms for discriminates between an intentional tap and a sustained hold
     constexpr float s_shiftHoldThreshold{ 0.20f };

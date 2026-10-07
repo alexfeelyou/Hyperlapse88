@@ -252,7 +252,7 @@
             "Name": "Main Camera",
             "PosX": 0.10000000149011612,
             "PosY": 1.100000023841858,
-            "PosZ": -4.800000190734863,
+            "PosZ": -0.9953887462615967,
             "RotX": -0.0,
             "RotY": 0.0,
             "RotZ": -0.0,
@@ -294,7 +294,7 @@
             "Name": "Vircam",
             "PosX": 0.10000000149011612,
             "PosY": 1.100000023841858,
-            "PosZ": -4.800000190734863,
+            "PosZ": -0.9953887462615967,
             "RotX": 0.0,
             "RotY": 0.0,
             "RotZ": 0.0,
@@ -1409,7 +1409,7 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 0,
+                                            "Id": 3,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.1279212385416031
@@ -1506,7 +1506,7 @@
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 9,
+                                            "Id": 10,
                                             "IsRange": false,
                                             "Payload": 0.4000000059604645,
                                             "Time": 0.48216474056243896
@@ -1573,7 +1573,7 @@
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 9,
+                                            "Id": 10,
                                             "IsRange": false,
                                             "Payload": 0.4000000059604645,
                                             "Time": 0.4819999933242798
@@ -1641,7 +1641,7 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 10,
+                                            "Id": 11,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.4747844934463501
@@ -1944,6 +1944,88 @@
                             ],
                             "Slot": 12,
                             "Type": 2
+                        },
+                        {
+                            "BlendParam": 0,
+                            "Name": "Attack Directional",
+                            "Nodes": [
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 62,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 8,
+                                            "IsRange": false,
+                                            "Payload": 15.0,
+                                            "Time": 0.1722017377614975
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 9,
+                                            "IsRange": false,
+                                            "Payload": 8.0,
+                                            "Time": 0.25953254103660583
+                                        }
+                                    ],
+                                    "GripPosX": 0.0,
+                                    "GripPosY": 0.0,
+                                    "GripPosZ": 0.0,
+                                    "GripRotX": 0.0,
+                                    "GripRotY": 0.0,
+                                    "GripRotZ": 0.0,
+                                    "HasGripOverride": false,
+                                    "LockRootX": false,
+                                    "LockRootY": true,
+                                    "LockRootZ": true,
+                                    "Loop": false,
+                                    "RootBoneIndex": 1,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 38,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 8,
+                                            "IsRange": false,
+                                            "Payload": 15.0,
+                                            "Time": 0.04551045969128609
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.49569451808929443
+                                        }
+                                    ],
+                                    "GripPosX": 0.0,
+                                    "GripPosY": 0.0,
+                                    "GripPosZ": 0.0,
+                                    "GripRotX": 0.0,
+                                    "GripRotY": 0.0,
+                                    "GripRotZ": 0.0,
+                                    "HasGripOverride": false,
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": true,
+                                    "Loop": false,
+                                    "RootBoneIndex": 1,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                }
+                            ],
+                            "Slot": 13,
+                            "Type": 2
                         }
                     ],
                     "Type": "AnimationComponent"
@@ -1983,7 +2065,7 @@
             "Name": "Alex",
             "PosX": 0.0,
             "PosY": 0.0,
-            "PosZ": 0.0,
+            "PosZ": 3.8046114444732666,
             "RotX": -0.0,
             "RotY": 0.0,
             "RotZ": -0.0,
