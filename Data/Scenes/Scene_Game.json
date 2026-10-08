@@ -2026,6 +2026,51 @@
                             ],
                             "Slot": 13,
                             "Type": 2
+                        },
+                        {
+                            "BlendParam": 0,
+                            "Name": "Attack Charged",
+                            "Nodes": [
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 41,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 11,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.27429264783859253
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 8,
+                                            "IsRange": false,
+                                            "Payload": 45.0,
+                                            "Time": 0.2865927517414093
+                                        }
+                                    ],
+                                    "GripPosX": -0.25999999046325684,
+                                    "GripPosY": 0.07000000029802322,
+                                    "GripPosZ": 0.019999999552965164,
+                                    "GripRotX": 16.0,
+                                    "GripRotY": 15.0,
+                                    "GripRotZ": 0.0,
+                                    "HasGripOverride": true,
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": true,
+                                    "Loop": false,
+                                    "RootBoneIndex": 1,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                }
+                            ],
+                            "Slot": 14,
+                            "Type": 0
                         }
                     ],
                     "Type": "AnimationComponent"
@@ -2065,7 +2110,7 @@
             "Name": "Alex",
             "PosX": 0.0,
             "PosY": 0.0,
-            "PosZ": 3.8046114444732666,
+            "PosZ": 0.0,
             "RotX": -0.0,
             "RotY": 0.0,
             "RotZ": -0.0,

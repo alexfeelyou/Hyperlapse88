@@ -43,6 +43,9 @@ struct InputIntent
     bool bSlideHeld{ false };
     bool bSlideTriggered{ false };
     bool bAttackPressed{ false };
+    bool bAttackHeld{ false };
+    bool bHeavyAttackPressed{ false };
+    bool bHeavyAttackHeld{ false };
     bool bJumpTriggered{ false };
     bool bSprintHeld{ false };
     float forwardIntentTimer{ 0.0f }; // Tracks input freshness for command normals

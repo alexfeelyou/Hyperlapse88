@@ -175,12 +175,29 @@ private:
     DirectX::XMFLOAT2 m_lungeDirection{ 0.0f, 1.0f };
 };
 
+enum class ChargeSubPhase : std::uint8_t
+{
+    Anticipation = 0,
+    Sustain_Hold,
+    Release_Lunge,
+    Recovery
+};
+
 class PlayerAttackCharged final : public PlayerState
 {
 public:
     void Enter(PlayerControllerComponent* controller) override;
     void Update(PlayerControllerComponent* controller, float dt) override;
     void Exit(PlayerControllerComponent* controller) override;
+
+private:
+    ChargeSubPhase m_phase{ ChargeSubPhase::Anticipation };
+    DirectX::XMFLOAT2 m_lungeDirection{ 0.0f, 1.0f };
+    float m_chargeTimer{ 0.0f };
+    float m_chargeRatio{ 0.40f }; // Tier 1 (Tap) default multiplier
+    float m_exitTimer{ 0.0f };
+    bool m_canCancel{ false };
+    bool m_earlyRelease{ false };
 };
 
 // COMBAT (AERIAL)

@@ -167,6 +167,11 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Slide));
         return;
     }
+    if (intent.bHeavyAttackPressed)
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackCharged));
+        return;
+    }
     if (intent.bAttackPressed)
     {
         const int commandNormalIdx{ EvaluateCommandNormal(controller->GetOwner(), intent) };
@@ -461,6 +466,11 @@ void PlayerStop::Update(PlayerControllerComponent* controller, float dt)
             return;
         }
     }
+    if (intent.bHeavyAttackPressed)
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackCharged));
+        return;
+    }
     if (intent.bAttackPressed)
     {
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPrimary));
@@ -656,7 +666,7 @@ void PlayerSlide::Update(PlayerControllerComponent* controller, float dt)
         {
             m_canCancel = true;
         }
-        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Slide_GlidePose) && m_phase == SlideSubPhase::Entry_Drop)
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Pose_HoldMarker) && m_phase == SlideSubPhase::Entry_Drop)
         {
             m_phase = SlideSubPhase::Sustain_Glide;
         }
@@ -1786,19 +1796,141 @@ void PlayerAttackDirectional::Exit(PlayerControllerComponent*) {}
 
 void PlayerAttackCharged::Enter(PlayerControllerComponent* controller)
 {
-    controller->getAnimBlackboard().setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
+    auto& blackboard = controller->getAnimBlackboard();
+    blackboard.setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
+    blackboard.setFlag(Engine::Animation::AnimFlag::is_charging, false);
+
+    m_phase = ChargeSubPhase::Anticipation;
+    m_chargeTimer = 0.0f;
+    m_chargeRatio = 0.40f;
+    m_canCancel = false;
+    m_earlyRelease = false;
+
+    const auto& intent = controller->GetIntent();
+    m_lungeDirection = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
+    FacingResolver::SnapFaceDirection(controller->GetOwner(), m_lungeDirection);
+
     if (auto* motor = controller->GetMovement()) motor->SetDesiredDirection({ 0.0f, 0.0f });
-    if (auto* anim = controller->GetAnimation()) anim->PlaySlot(Engine::Animation::AnimSlot::Attack_Charged, true);
+    if (auto* anim = controller->GetAnimation())
+    {
+        anim->SetPlaybackSpeed(1.0f);
+        anim->PlaySlot(Engine::Animation::AnimSlot::Attack_Charged, true);
+        m_exitTimer = anim->GetSlotDuration(Engine::Animation::AnimSlot::Attack_Charged);
+    }
 }
-void PlayerAttackCharged::Update(PlayerControllerComponent* controller, float)
+
+void PlayerAttackCharged::Update(PlayerControllerComponent* controller, float dt)
 {
-    if (auto* anim = controller->GetAnimation()) {
-        if (anim->GetCurrentTimer() >= anim->GetSlotDuration(Engine::Animation::AnimSlot::Attack_Charged) - 0.05f) {
+    auto* anim = controller->GetAnimation();
+    auto* motor = controller->GetMovement();
+    if (!anim || !motor) return;
+
+    m_exitTimer -= dt;
+    const auto& intent = controller->GetIntent();
+
+    // Charge Sub-Phase Input Logic
+    if (m_phase == ChargeSubPhase::Anticipation && !intent.bHeavyAttackHeld)
+    {
+        m_earlyRelease = true; // Lock into Tier 1 (Tap), avoid clamping animation
+    }
+    else if (m_phase == ChargeSubPhase::Sustain_Hold)
+    {
+        m_chargeTimer += dt;
+        controller->getAnimBlackboard().chargeTimer = m_chargeTimer;
+
+        // Discrete Hitbox & Displacement Tiering
+        if (m_chargeTimer >= 1.0f) m_chargeRatio = 1.0f;      // Tier 3 Max
+        else if (m_chargeTimer >= 0.5f) m_chargeRatio = 0.75f; // Tier 2 Half
+
+        // Release or Max Timeout
+        if (!intent.bHeavyAttackHeld || m_chargeTimer >= 1.0f)
+        {
+            m_phase = ChargeSubPhase::Release_Lunge;
+            anim->SetPlaybackSpeed(1.0f); // Resume weapon swing
+            controller->getAnimBlackboard().setFlag(Engine::Animation::AnimFlag::is_charging, false);
+        }
+    }
+
+    // Timeline Event Handoff
+    for (const auto& ev : anim->GetFiredEvents())
+    {
+        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Pose_HoldMarker))
+        {
+            if (m_phase == ChargeSubPhase::Anticipation)
+            {
+                if (m_earlyRelease)
+                {
+                    m_phase = ChargeSubPhase::Release_Lunge; // Sail past marker seamlessly
+                }
+                else
+                {
+                    m_phase = ChargeSubPhase::Sustain_Hold;
+                    anim->SetPlaybackSpeed(0.0f); // Freeze the wind-up pose
+                    controller->getAnimBlackboard().setFlag(Engine::Animation::AnimFlag::is_charging, true);
+                }
+            }
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse))
+        {
+            const float finalImpulse = ev.payload * m_chargeRatio;
+            motor->AddImpulse(DirectX::XMFLOAT3{
+                m_lungeDirection.x * finalImpulse, 0.0f, m_lungeDirection.y * finalImpulse
+                });
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt))
+        {
+            motor->HaltMomentum(ev.payload);
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
+        {
+            m_canCancel = true;
+            m_phase = ChargeSubPhase::Recovery;
+        }
+    }
+
+    // Allow micro-steering (60 deg/sec) while charging before the forward strike commits
+    const float inputSq = (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y);
+    if ((m_phase == ChargeSubPhase::Anticipation || m_phase == ChargeSubPhase::Sustain_Hold) && inputSq > 0.01f)
+    {
+        FacingResolver::SmoothFaceDirection(controller->GetOwner(), intent.worldMoveDirection, 60.0f, dt);
+        const float yawRad = DirectX::XMConvertToRadians(controller->GetOwner()->GetRotation().y);
+        m_lungeDirection = { std::sin(yawRad), std::cos(yawRad) };
+    }
+
+    // Evasion Cancels
+    if (m_canCancel && intent.bDashTriggered)
+    {
+        if (motor->isGrounded() || !controller->getAnimBlackboard().getFlag(AnimFlag::has_air_dashed))
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
+            return;
+        }
+    }
+
+    // Natural Exit
+    if (m_exitTimer <= 0.0f)
+    {
+        if (motor->isGrounded())
+        {
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+        }
+        else
+        {
+            controller->getAnimBlackboard().actionIndex = controller->getAnimBlackboard().getFlag(Engine::Animation::AnimFlag::is_combat_active) ? 5 : 2;
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
         }
     }
 }
-void PlayerAttackCharged::Exit(PlayerControllerComponent*) {}
+
+void PlayerAttackCharged::Exit(PlayerControllerComponent* controller)
+{
+    // Fail-safe: Always unfreeze playback and reset charge flags if interrupted (e.g. taking damage)
+    if (auto* anim = controller->GetAnimation()) anim->SetPlaybackSpeed(1.0f);
+
+    auto& blackboard = controller->getAnimBlackboard();
+    blackboard.setFlag(Engine::Animation::AnimFlag::is_charging, false);
+    blackboard.chargeTimer = 0.0f;
+}
 
 void PlayerAttackAerial::Enter(PlayerControllerComponent* controller)
 {

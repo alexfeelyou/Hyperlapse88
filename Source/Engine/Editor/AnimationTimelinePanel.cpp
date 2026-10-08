@@ -16,7 +16,7 @@ namespace
          "None", "Hitbox_Active", "Hitbox_Inactive",
          "CancelWindow_Open", "Invincible_Start", "Invincible_End",
          "Play_SFX", "Play_VFX", "Lunge_Impulse", "Lunge_Vertical", "Movement_Halt",
-         "Slide_GlidePose"
+         "Pose_HoldMarker"
     };
 
     [[nodiscard]] ImU32 GetColorForEvent(std::uint32_t eventId) noexcept
@@ -28,7 +28,7 @@ namespace
         case CombatEventId::Lunge_Impulse:     return IM_COL32(50, 150, 250, 255);
         case CombatEventId::Lunge_Vertical:    return IM_COL32(50, 250, 150, 255);
         case CombatEventId::Movement_Halt:     return IM_COL32(250, 120, 50, 255);
-        case CombatEventId::Slide_GlidePose:   return IM_COL32(50, 200, 250, 255);
+        case CombatEventId::Pose_HoldMarker:   return IM_COL32(50, 200, 250, 255);
         case CombatEventId::Play_SFX:
         case CombatEventId::Play_VFX:          return IM_COL32(200, 100, 250, 255);
         default:                               return IM_COL32(100, 200, 100, 255);

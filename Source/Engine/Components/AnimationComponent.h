@@ -24,7 +24,7 @@ enum class CombatEventId : std::uint32_t
     Lunge_Impulse,
     Lunge_Vertical,
     Movement_Halt,
-    Slide_GlidePose
+    Pose_HoldMarker
 };
 
 enum class AnimStateType : std::uint8_t {

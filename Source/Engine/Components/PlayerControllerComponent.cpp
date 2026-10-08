@@ -145,9 +145,17 @@ void PlayerControllerComponent::GatherHardwareInput(const float dt) noexcept
     m_intent.bSprintHeld = isShiftHoldingSprint ||
         ((pad.GetButton() & GamePad::BTN_RIGHT_SHOULDER) != 0);
 
-    // Attack: Left Mouse Button or Gamepad X
+    // Light Attack: Left Mouse Button or Gamepad X
     m_intent.bAttackPressed = input.GetKeyboard().IsTriggered(VK_LBUTTON) ||
         ((pad.GetButtonDown() & GamePad::BTN_X) != 0);
+    m_intent.bAttackHeld = input.GetKeyboard().IsPress(VK_LBUTTON) ||
+        ((pad.GetButton() & GamePad::BTN_X) != 0);
+
+    // Heavy/Charged Attack: Right Mouse Button or Gamepad Y
+    m_intent.bHeavyAttackPressed = input.GetKeyboard().IsTriggered(VK_RBUTTON) ||
+        ((pad.GetButtonDown() & GamePad::BTN_Y) != 0);
+    m_intent.bHeavyAttackHeld = input.GetKeyboard().IsPress(VK_RBUTTON) ||
+        ((pad.GetButton() & GamePad::BTN_Y) != 0);
 
     // Jump: Spacebar or Gamepad A
     m_intent.bJumpTriggered = input.GetKeyboard().IsTriggered(VK_SPACE) ||
@@ -203,11 +211,14 @@ void PlayerControllerComponent::Update(const float dt)
     {
         m_intent.moveVector = { 0.0f, 0.0f };
         m_intent.bAttackPressed = false;
+        m_intent.bAttackHeld = false;
+        m_intent.bHeavyAttackPressed = false;
+        m_intent.bHeavyAttackHeld = false;
         m_intent.bDashTriggered = false;
         m_intent.bJumpTriggered = false;
         m_intent.bSprintHeld = false;
-        m_shiftHoldTimer = 0.0f;   
-        m_wasShiftPressed = false; 
+        m_shiftHoldTimer = 0.0f;
+        m_wasShiftPressed = false;
     }
 
     ResolveIntentToWorldSpace();
