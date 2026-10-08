@@ -25,6 +25,7 @@ namespace Engine::Animation
         Attack_Directional,
         Attack_Charged,
         Attack_Aerial,
+        Attack_Plunge,
         Parry_Counter,
         HitReact,
         Count // Used strictly for array sizing

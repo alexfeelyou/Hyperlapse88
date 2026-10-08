@@ -214,7 +214,30 @@ private:
     BufferedAttackIntent m_bufferedAttack{};
     float m_exitTimer{ 0.0f };
     bool m_canCancel{ false };
+    bool m_wasGravityEnabled{ true };
     DirectX::XMFLOAT2 m_lungeDirection{ 0.0f, 1.0f };
+};
+
+enum class PlungeSubPhase : std::uint8_t
+{
+    Start = 0,
+    Loop,
+    End
+};
+
+class PlayerAttackPlunge final : public PlayerState
+{
+public:
+    void Enter(PlayerControllerComponent* controller) override;
+    void Update(PlayerControllerComponent* controller, float dt) override;
+    void Exit(PlayerControllerComponent* controller) override;
+
+private:
+    PlungeSubPhase m_phase{ PlungeSubPhase::Start };
+    int m_variation{ 0 };
+    float m_stateTimer{ 0.0f };
+    bool m_wasGravityEnabled{ true };
+    bool m_canCancel{ false };
 };
 
 // DEFENSE & REACTION

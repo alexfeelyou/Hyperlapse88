@@ -901,6 +901,13 @@ void PlayerAirTraversal::Update(PlayerControllerComponent* controller, float dt)
         return;
     }
 
+    // Plunge Attack Trigger
+    if (intent.bHeavyAttackPressed && !inDangerZone)
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPlunge));
+        return;
+    }
+
     // Double Jump Trigger (Requires 200ms debounce from previous jump, not in danger zone, max 2 jumps)
     if (intent.bJumpTriggered && !inDangerZone && blackboard.currentJumps < 2 && m_airTimer > 0.2f)
     {
@@ -1967,6 +1974,16 @@ void PlayerAttackAerial::Enter(PlayerControllerComponent* controller)
     const auto& intent = controller->GetIntent();
     m_lungeDirection = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
 
+    if (auto* motor = controller->GetMovement())
+    {
+        // Snapshot baseline physics, then completely suspend gravity and vertical momentum 
+        // to freeze the character on the current Y-plane.
+        m_wasGravityEnabled = motor->GetConfig().useGravity;
+        motor->GetConfig().useGravity = false;
+        motor->SetVerticalVelocity(0.0f);
+        motor->SetDesiredDirection({ 0.0f, 0.0f });
+    }
+
     PlayCurrentAttack(controller);
 }
 
@@ -2046,6 +2063,13 @@ void PlayerAttackAerial::Update(PlayerControllerComponent* controller, float dt)
         }
     }
 
+    // Plunge Attack Cancel (Chain into Helmbreaker from Aerial Combos)
+    if (m_canCancel && intent.bHeavyAttackPressed)
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPlunge));
+        return;
+    }
+
     // Aerial Combo Chaining
     if (m_canCancel && m_bufferedAttack.timer > 0.0f)
     {
@@ -2076,7 +2100,138 @@ void PlayerAttackAerial::Update(PlayerControllerComponent* controller, float dt)
     }
 }
 
-void PlayerAttackAerial::Exit(PlayerControllerComponent* controller) {}
+void PlayerAttackAerial::Exit(PlayerControllerComponent* controller)
+{
+    // Always restore the baseline physics state securely when leaving the aerial combo
+    if (auto* motor = controller->GetMovement())
+    {
+        motor->GetConfig().useGravity = m_wasGravityEnabled;
+    }
+}
+
+void PlayerAttackPlunge::Enter(PlayerControllerComponent* controller)
+{
+    auto& blackboard{ controller->getAnimBlackboard() };
+    blackboard.setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
+
+    auto* motor{ controller->GetMovement() };
+    auto* anim{ controller->GetAnimation() };
+
+    m_canCancel = false;
+    m_phase = PlungeSubPhase::Start;
+
+    // Round-Robin Deterministic Selection: 0 -> 1 -> 2 -> 0
+    // Because m_variation persists inside the unique_ptr pool, it safely remembers 
+    // the last used variation between subsequent jumps.
+    m_variation = (m_variation + 1) % 3;
+
+    if (motor)
+    {
+        m_wasGravityEnabled = motor->GetConfig().useGravity;
+        motor->GetConfig().useGravity = false; // Suspend standard gravity for the windup
+        motor->SetVerticalVelocity(0.0f);
+        motor->SetDesiredDirection({ 0.0f, 0.0f });
+    }
+
+    // Mathematical node mapping: Variation (0-2) * 3 + Phase Offset (0-2)
+    blackboard.actionIndex = (m_variation * 3) + 0;
+
+    if (anim)
+    {
+        anim->PlaySlot(Engine::Animation::AnimSlot::Attack_Plunge, true);
+        m_stateTimer = anim->GetSlotDuration(Engine::Animation::AnimSlot::Attack_Plunge);
+    }
+}
+
+void PlayerAttackPlunge::Update(PlayerControllerComponent* controller, float dt)
+{
+    m_stateTimer -= dt;
+    auto* motor{ controller->GetMovement() };
+    auto* anim{ controller->GetAnimation() };
+    auto& blackboard{ controller->getAnimBlackboard() };
+    const auto& intent{ controller->GetIntent() };
+
+    if (!motor || !anim) return;
+
+    // Check for cancel windows strictly during the End phase (ground impact recovery)
+    if (m_phase == PlungeSubPhase::End)
+    {
+        for (const auto& ev : anim->GetFiredEvents())
+        {
+            if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
+            {
+                m_canCancel = true;
+            }
+        }
+
+        if (m_canCancel)
+        {
+            if (intent.bDashTriggered)
+            {
+                controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
+                return;
+            }
+            if (intent.bAttackPressed)
+            {
+                controller->SetPendingComboHit(0);
+                controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPrimary));
+                return;
+            }
+
+            const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
+            if (inputSq > 0.01f)
+            {
+                controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+                return;
+            }
+        }
+    }
+
+    // Phase Transitions
+    if (m_phase == PlungeSubPhase::Start)
+    {
+        // Transition to falling once the apex stall animation finishes
+        if (m_stateTimer <= 0.05f)
+        {
+            m_phase = PlungeSubPhase::Loop;
+            blackboard.actionIndex = (m_variation * 3) + 1; // Phase offset 1
+            anim->PlaySlot(Engine::Animation::AnimSlot::Attack_Plunge, true);
+        }
+    }
+    else if (m_phase == PlungeSubPhase::Loop)
+    {
+        // Inject terminal downward velocity to bypass gravity and force the heavy plunge
+        motor->SetVerticalVelocity(-28.0f);
+
+        if (motor->isGrounded())
+        {
+            m_phase = PlungeSubPhase::End;
+            blackboard.actionIndex = (m_variation * 3) + 2; // Phase offset 2
+            anim->PlaySlot(Engine::Animation::AnimSlot::Attack_Plunge, true);
+            m_stateTimer = anim->GetSlotDuration(Engine::Animation::AnimSlot::Attack_Plunge);
+
+            // Halt any residual physics momentum upon impact
+            motor->HaltMomentum(1.0f);
+        }
+    }
+    else if (m_phase == PlungeSubPhase::End)
+    {
+        // Natural exit to Locomotion after recovery animation completes
+        if (m_stateTimer <= 0.0f)
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+        }
+    }
+}
+
+void PlayerAttackPlunge::Exit(PlayerControllerComponent* controller)
+{
+    // Always restore the baseline physics state securely
+    if (auto* motor{ controller->GetMovement() })
+    {
+        motor->GetConfig().useGravity = m_wasGravityEnabled;
+    }
+}
 
 // DEFENSE & REACTION
 void PlayerParryCounter::Enter(PlayerControllerComponent* controller)

@@ -24,6 +24,7 @@ enum class PlayerStateType : std::uint8_t
     AttackDirectional,
     AttackCharged,
     AttackAerial,
+    AttackPlunge,
     ParryCounter,
     HitReact,
     Count // Automatically handles the pool sizing

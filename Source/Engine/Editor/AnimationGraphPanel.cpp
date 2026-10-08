@@ -159,6 +159,7 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
         "Attack: Directional (WASD)",
         "Attack: Charged",
         "Attack: Aerial",
+        "Attack: Plunge",
         "Parry & Counter",
         "Hit Reaction"
     };
