@@ -1815,7 +1815,6 @@ void PlayerAttackCharged::Enter(PlayerControllerComponent* controller)
     {
         anim->SetPlaybackSpeed(1.0f);
         anim->PlaySlot(Engine::Animation::AnimSlot::Attack_Charged, true);
-        m_exitTimer = anim->GetSlotDuration(Engine::Animation::AnimSlot::Attack_Charged);
     }
 }
 
@@ -1825,7 +1824,6 @@ void PlayerAttackCharged::Update(PlayerControllerComponent* controller, float dt
     auto* motor = controller->GetMovement();
     if (!anim || !motor) return;
 
-    m_exitTimer -= dt;
     const auto& intent = controller->GetIntent();
 
     // Charge Sub-Phase Input Logic
@@ -1888,7 +1886,7 @@ void PlayerAttackCharged::Update(PlayerControllerComponent* controller, float dt
         }
     }
 
-    // Allow micro-steering (60 deg/sec) while charging before the forward strike commits
+    // Early Micro-Steering
     const float inputSq = (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y);
     if ((m_phase == ChargeSubPhase::Anticipation || m_phase == ChargeSubPhase::Sustain_Hold) && inputSq > 0.01f)
     {
@@ -1897,18 +1895,42 @@ void PlayerAttackCharged::Update(PlayerControllerComponent* controller, float dt
         m_lungeDirection = { std::sin(yawRad), std::cos(yawRad) };
     }
 
-    // Evasion Cancels
-    if (m_canCancel && intent.bDashTriggered)
+    // RECOVERY CANCELS
+    if (m_canCancel)
     {
-        if (motor->isGrounded() || !controller->getAnimBlackboard().getFlag(AnimFlag::has_air_dashed))
+        // Cancel to Evade
+        if (intent.bDashTriggered && (motor->isGrounded() || !controller->getAnimBlackboard().getFlag(AnimFlag::has_air_dashed)))
         {
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
             return;
         }
+
+        // Cancel to Light Attack
+        if (intent.bAttackPressed)
+        {
+            controller->SetPendingComboHit(0);
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPrimary));
+            return;
+        }
+
+        // Chain to another Heavy Attack
+        if (intent.bHeavyAttackPressed)
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackCharged));
+            return;
+        }
+
+        // Cancel to Movement
+        if (inputSq > 0.01f && motor->isGrounded())
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+            return;
+        }
     }
 
-    // Natural Exit
-    if (m_exitTimer <= 0.0f)
+    // Native Synchronization Exit
+    // Rely exclusively on the animation phase so it perfectly scales with SetPlaybackSpeed freezes
+    if (anim->GetCurrentTimer() >= anim->GetSlotDuration(Engine::Animation::AnimSlot::Attack_Charged) - 0.05f)
     {
         if (motor->isGrounded())
         {

@@ -195,7 +195,6 @@ private:
     DirectX::XMFLOAT2 m_lungeDirection{ 0.0f, 1.0f };
     float m_chargeTimer{ 0.0f };
     float m_chargeRatio{ 0.40f }; // Tier 1 (Tap) default multiplier
-    float m_exitTimer{ 0.0f };
     bool m_canCancel{ false };
     bool m_earlyRelease{ false };
 };
