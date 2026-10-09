@@ -83,11 +83,14 @@ void PlayerLocomotion::Enter(PlayerControllerComponent* controller)
         m_startTimer = 0.0f;
 
         // PREVENTIVE BUG: Sync the startup idle clip identically to the Combat stance
+        m_wasCombatActive = blackboard.getFlag(AnimFlag::is_combat_active);
+        
+        // Keeps the transient selector offset primed for Starts/Stops
         int actionIdx = 0;
-        if (blackboard.getFlag(AnimFlag::is_combat_active)) actionIdx += 3;
+        if (m_wasCombatActive) actionIdx += 3;
         blackboard.actionIndex = actionIdx;
 
-        anim->PlaySlot(AnimSlot::Locomotion);
+        anim->PlaySlot(m_wasCombatActive ? AnimSlot::Locomotion_Combat : AnimSlot::Locomotion);
     }
 }
 
@@ -380,10 +383,19 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
             if (turnDot < 0.0f) m_startTimer = 0.0f;
         }
 
+        // Seamlessly crossfade between relaxed and combat locomotion
+        const bool isCombat = blackboard.getFlag(AnimFlag::is_combat_active);
+        if (isCombat != m_wasCombatActive && m_startTimer <= 0.0f)
+        {
+            m_wasCombatActive = isCombat;
+            blackboard.actionIndex = isCombat ? 3 : 0;
+            anim->PlaySlot(isCombat ? AnimSlot::Locomotion_Combat : AnimSlot::Locomotion, true); // Force restart to trigger crossfade blend
+        }
+
         // Fall into the 1D loop once the start timer expires or is aborted
         if (m_startTimer <= 0.0f)
         {
-            anim->PlaySlot(AnimSlot::Locomotion);
+            anim->PlaySlot(isCombat ? AnimSlot::Locomotion_Combat : AnimSlot::Locomotion);
         }
     }
     m_wasActivelyMoving = isActivelyMoving;
@@ -637,6 +649,9 @@ void PlayerSlide::Enter(PlayerControllerComponent* controller)
 
     m_canCancel = false;
     m_phase = SlideSubPhase::Entry_Drop;
+
+    // Squashing to the floor completely hides the weapon socket jump
+    controller->getAnimBlackboard().setFlag(Engine::Animation::AnimFlag::is_combat_active, false);
 
     if (auto* capsule = controller->GetOwner()->GetComponent<CapsuleColliderComponent>())
     {
@@ -944,12 +959,15 @@ void PlayerAirTraversal::Update(PlayerControllerComponent* controller, float dt)
     // Double Jump Trigger (Requires 200ms debounce from previous jump, not in danger zone, max 2 jumps)
     if (intent.bJumpTriggered && !inDangerZone && blackboard.currentJumps < 2 && m_airTimer > 0.2f)
     {
+        // Committing to an acrobatic mid-air flip silently sheathes the weapon
+        blackboard.setFlag(AnimFlag::is_combat_active, false);
+
         blackboard.currentJumps++;
         motor->Jump(7.0f);
 
         m_isAcrobatic = true;
         m_canCancelAcrobatic = false; // Lock out the dash until the CancelWindow_Open event fires
-        blackboard.actionIndex = blackboard.getFlag(AnimFlag::is_combat_active) ? 1 : 0;
+        blackboard.actionIndex = 0; // Forced neutral jump takeoff due to combat demotion
 
         if (auto* anim{ controller->GetAnimation() })
         {
@@ -1024,6 +1042,9 @@ void PlayerLanding::Enter(PlayerControllerComponent* controller)
     // seamlessly transition into a forward roll to maintain combat pacing.
     else if (holdingMove && controller->getAnimBlackboard().groundSpeed > 2.5f)
     {
+        // Tucking into a rapid forward somersault completely hides the socket transition
+        controller->getAnimBlackboard().setFlag(Engine::Animation::AnimFlag::is_combat_active, false);
+
         actionIdx = 1; // Roll Land
 
         // Preserve input direction momentum through the roll
@@ -1091,6 +1112,9 @@ void PlayerParkourWall::Enter(PlayerControllerComponent* controller)
 {
     m_wallRunTimer = 0.0f;
     m_isParabolicMount = false;
+
+    // Entering a parkour action signals environmental traversal over combat
+    controller->getAnimBlackboard().setFlag(Engine::Animation::AnimFlag::is_combat_active, false);
 
     if (auto* motor{ controller->GetMovement() })
     {
@@ -1365,6 +1389,13 @@ void PlayerDashEvade::Update(PlayerControllerComponent* controller, float dt)
     // Movement Cancel (ONLY ALLOWED ON GROUND)
     if (m_canCancel && playerWantsToMove && controller->GetMovement()->isGrounded())
     {
+        // If the player evasively dashes and immediately holds Sprint to run away,
+        // we silently demote the combat stance. They will emerge from the dash straight into non combat fast running.
+        if (intent.bSprintHeld)
+        {
+            controller->getAnimBlackboard().setFlag(Engine::Animation::AnimFlag::is_combat_active, false);
+        }
+
         // Seamless Momentum Transfer:
         // Inject immediate physical momentum in the requested direction. This forces 
         // groundSpeed > 2.5f upon entering Locomotion, explicitly bypassing the 

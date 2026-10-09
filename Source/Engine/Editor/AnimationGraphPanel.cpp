@@ -164,8 +164,13 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
         "Hit Reaction",
         "Skill Buff",
         "Speed Attack Ground",
-        "Speed Attack Aerial"
+        "Speed Attack Aerial",
+        "Locomotion Combat"
     };
+
+    // Safety Standard: Guarantee compile-time synchronization between the Enum and the UI string array.
+    static_assert(std::size(s_slotNames) == static_cast<std::size_t>(Engine::Animation::AnimSlot::Count),
+        "AnimSlot enum and s_slotNames array are out of sync!");
 
     int currentSlot = static_cast<int>(state.slot);
     if (ImGui::Combo("Semantic Slot", &currentSlot, s_slotNames, IM_ARRAYSIZE(s_slotNames)))
@@ -357,7 +362,7 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
 
     const bool isPreviewing{ m_targetComponent->IsPreviewing() };
 
-    // PREVENTIVE BUG FIX: Keep UI perfectly in sync with the Component.
+    // PREVENTIVE BUG: Keep UI perfectly in sync with the Component.
     // If the game goes live, or if the component hard-reset itself, kill the UI harness loop
     if ((isGameLive || (!isPreviewing && m_transitionPhase != 0)) && m_isPreviewingTransition)
     {

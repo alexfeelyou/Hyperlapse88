@@ -31,6 +31,7 @@ namespace Engine::Animation
         SkillBuff,
         Attack_Speed_Ground,
         Attack_Speed_Aerial,
+        Locomotion_Combat,
         Count // Used strictly for array sizing
     };
 
@@ -57,7 +58,7 @@ namespace Engine::Animation
         float skillBuffTimer{ 0.0f };
 
         int actionIndex{ 0 };
-        int currentJumps{ 0 }; 
+        int currentJumps{ 0 };
 
         std::bitset<static_cast<std::size_t>(AnimFlag::Count)> flags{};
 

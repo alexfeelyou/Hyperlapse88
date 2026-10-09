@@ -15,8 +15,9 @@ public:
 
 private:
     float m_fallTimer{ 0.0f };
-    float m_startTimer{ 0.0f }; 
+    float m_startTimer{ 0.0f };
     bool m_wasActivelyMoving{ false };
+    bool m_wasCombatActive{ false };
 };
 
 // Add the PlayerStop class below Locomotion

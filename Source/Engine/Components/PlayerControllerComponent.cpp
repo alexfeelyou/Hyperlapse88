@@ -135,7 +135,7 @@ void PlayerControllerComponent::GatherHardwareInput(const float dt) noexcept
     }
     m_wasShiftPressed = isShiftDown;
 
-    // --- INPUT INTENT ASSIGNMENTS ---
+    // INPUT INTENT ASSIGNMENTS
 
     // Dash / Evade:
     // Keyboard: Quick tap-release on Shift (< 200ms)
@@ -177,6 +177,12 @@ void PlayerControllerComponent::GatherHardwareInput(const float dt) noexcept
     // Buff Activation: Keyboard Q or Gamepad RT (Right Trigger)
     m_intent.bSkillTriggered = input.GetKeyboard().IsTriggered('Q') ||
         ((pad.GetButtonDown() & GamePad::BTN_RIGHT_TRIGGER) != 0);
+
+    // Sustain Combat Stance on Aggressive Actions
+    if (m_intent.bAttackPressed || m_intent.bAttackHeld || m_intent.bHeavyAttackPressed || m_intent.bHeavyAttackHeld || m_intent.bSkillTriggered)
+    {
+        m_blackboard.setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
+    }
 }
 
 void PlayerControllerComponent::ResolveIntentToWorldSpace() noexcept
