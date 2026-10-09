@@ -2116,14 +2116,14 @@ void PlayerAttackPlunge::Enter(PlayerControllerComponent* controller)
 
     auto* motor{ controller->GetMovement() };
     auto* anim{ controller->GetAnimation() };
+    const auto& intent{ controller->GetIntent() };
 
     m_canCancel = false;
     m_phase = PlungeSubPhase::Start;
 
-    // Round-Robin Deterministic Selection: 0 -> 1 -> 2 -> 0
-    // Because m_variation persists inside the unique_ptr pool, it safely remembers 
-    // the last used variation between subsequent jumps.
-    m_variation = (m_variation + 1) % 3;
+    // Snapshot facing direction to strictly lock forward momentum
+    m_lungeDirection = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
+    FacingResolver::SnapFaceDirection(controller->GetOwner(), m_lungeDirection);
 
     if (motor)
     {
@@ -2131,6 +2131,7 @@ void PlayerAttackPlunge::Enter(PlayerControllerComponent* controller)
         motor->GetConfig().useGravity = false; // Suspend standard gravity for the windup
         motor->SetVerticalVelocity(0.0f);
         motor->SetDesiredDirection({ 0.0f, 0.0f });
+        motor->SetFrictionMultiplier(0.0f); // Zero friction ensures horizontal plunge glides perfectly without drag decay
     }
 
     // Mathematical node mapping: Variation (0-2) * 3 + Phase Offset (0-2)
@@ -2153,17 +2154,34 @@ void PlayerAttackPlunge::Update(PlayerControllerComponent* controller, float dt)
 
     if (!motor || !anim) return;
 
+    // Global Event Listener (Timeline Driven Kinematics)
+    for (const auto& ev : anim->GetFiredEvents())
+    {
+        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
+        {
+            m_canCancel = true;
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Vertical))
+        {
+            motor->SetVerticalVelocity(ev.payload); // Drives the exact fall speed authored in Timeline
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse))
+        {
+            // SCALAR MAGNETISM INJECTION POINT
+            // Future soft-lockon logic: Override `ev.payload` with (DistanceToTarget / TimeToImpact).
+            motor->AddImpulse(DirectX::XMFLOAT3{
+                m_lungeDirection.x * ev.payload, 0.0f, m_lungeDirection.y * ev.payload
+                });
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt))
+        {
+            motor->HaltMomentum(ev.payload);
+        }
+    }
+
     // Check for cancel windows strictly during the End phase (ground impact recovery)
     if (m_phase == PlungeSubPhase::End)
     {
-        for (const auto& ev : anim->GetFiredEvents())
-        {
-            if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
-            {
-                m_canCancel = true;
-            }
-        }
-
         if (m_canCancel)
         {
             if (intent.bDashTriggered)
@@ -2200,9 +2218,7 @@ void PlayerAttackPlunge::Update(PlayerControllerComponent* controller, float dt)
     }
     else if (m_phase == PlungeSubPhase::Loop)
     {
-        // Inject terminal downward velocity to bypass gravity and force the heavy plunge
-        motor->SetVerticalVelocity(-28.0f);
-
+        // Gravity is suspended. Character coasts flawlessly on Timeline Lunge_Vertical and Lunge_Impulse.
         if (motor->isGrounded())
         {
             m_phase = PlungeSubPhase::End;
@@ -2210,8 +2226,8 @@ void PlayerAttackPlunge::Update(PlayerControllerComponent* controller, float dt)
             anim->PlaySlot(Engine::Animation::AnimSlot::Attack_Plunge, true);
             m_stateTimer = anim->GetSlotDuration(Engine::Animation::AnimSlot::Attack_Plunge);
 
-            // Halt any residual physics momentum upon impact
-            motor->HaltMomentum(1.0f);
+            motor->SetFrictionMultiplier(1.0f); // Restore friction immediately on ground impact
+            motor->HaltMomentum(1.0f); // Stick the landing
         }
     }
     else if (m_phase == PlungeSubPhase::End)
@@ -2230,7 +2246,12 @@ void PlayerAttackPlunge::Exit(PlayerControllerComponent* controller)
     if (auto* motor{ controller->GetMovement() })
     {
         motor->GetConfig().useGravity = m_wasGravityEnabled;
+        motor->SetFrictionMultiplier(1.0f); // Fail-safe friction restore
     }
+
+    // Round-Robin Deterministic Selection (0 -> 1 -> 2 -> 0)
+    // Advanced upon exit so the entire 3-phase attack sequence locks onto the same variation index.
+    m_variation = (m_variation + 1) % 3;
 }
 
 // DEFENSE & REACTION

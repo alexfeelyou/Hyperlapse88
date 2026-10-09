@@ -238,6 +238,7 @@ private:
     float m_stateTimer{ 0.0f };
     bool m_wasGravityEnabled{ true };
     bool m_canCancel{ false };
+    DirectX::XMFLOAT2 m_lungeDirection{ 0.0f, 1.0f };
 };
 
 // DEFENSE & REACTION
