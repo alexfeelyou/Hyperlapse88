@@ -40,6 +40,7 @@ namespace Engine::Animation
         is_wall_running,
         is_charging,
         has_air_dashed,
+        has_air_attacked,
         Count
     };
 

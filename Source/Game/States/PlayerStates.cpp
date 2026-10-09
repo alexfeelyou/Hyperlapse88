@@ -51,6 +51,7 @@ void PlayerLocomotion::Enter(PlayerControllerComponent* controller)
     if (motor->isGrounded())
     {
         blackboard.setFlag(AnimFlag::has_air_dashed, false);
+        blackboard.setFlag(AnimFlag::has_air_attacked, false);
         blackboard.currentJumps = 0;
     }
 
@@ -901,6 +902,15 @@ void PlayerAirTraversal::Update(PlayerControllerComponent* controller, float dt)
         return;
     }
 
+    // Aerial Light Attack (Standard Air Combo Trigger)
+    // Locked behind has_air_attacked to prevent infinite map-traversal flying loops.
+    if (intent.bAttackPressed && !inDangerZone && !blackboard.getFlag(AnimFlag::has_air_attacked) && (!m_isAcrobatic || m_canCancelAcrobatic))
+    {
+        controller->SetPendingComboHit(0); // Explicitly start at Hit 1 (Index 0)
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackAerial));
+        return;
+    }
+
     // Plunge Attack Trigger
     if (intent.bHeavyAttackPressed && !inDangerZone)
     {
@@ -1077,6 +1087,11 @@ void PlayerParkourWall::Enter(PlayerControllerComponent* controller)
     }
 
     auto& bb{ controller->getAnimBlackboard() };
+
+    // Replenish aerial combat resources upon establishing a physical wall-run
+    bb.setFlag(AnimFlag::has_air_dashed, false);
+    bb.setFlag(AnimFlag::has_air_attacked, false);
+
     // Graph Routing: Index 1 = Lean Left (Right Wall), Index 0 = Lean Right (Left Wall)
     bb.actionIndex = (m_wallSide == -1) ? 1 : 0;
     bb.setFlag(AnimFlag::is_wall_running, true);
@@ -1965,8 +1980,9 @@ void PlayerAttackAerial::Enter(PlayerControllerComponent* controller)
 {
     auto& blackboard = controller->getAnimBlackboard();
 
-    // Force combat stance active
+    // Force combat stance active and consume the air-attack privilege for this jump
     blackboard.setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
+    blackboard.setFlag(Engine::Animation::AnimFlag::has_air_attacked, true);
 
     m_comboIndex = controller->ConsumePendingComboHit();
     if (m_comboIndex < 0) m_comboIndex = 0;
