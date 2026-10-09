@@ -321,22 +321,51 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
         ImGui::SameLine();
         bool isCombat = bb->getFlag(Engine::Animation::AnimFlag::is_combat_active);
 
-        // Auto-assert combat stance for slots that inherently require weapons drawn
-        const bool requiresCombatStance = (state.slot == Engine::Animation::AnimSlot::Attack_Primary ||
-            state.slot == Engine::Animation::AnimSlot::Attack_Contextual ||
-            state.slot == Engine::Animation::AnimSlot::Attack_Directional ||
-            state.slot == Engine::Animation::AnimSlot::Attack_Charged ||
-            state.slot == Engine::Animation::AnimSlot::Attack_Aerial ||
-            state.slot == Engine::Animation::AnimSlot::Attack_Plunge ||
-            state.slot == Engine::Animation::AnimSlot::SkillBuff ||
-            state.slot == Engine::Animation::AnimSlot::Attack_Speed_Ground ||
-            state.slot == Engine::Animation::AnimSlot::Attack_Speed_Aerial);
+        // Auto-assert combat stance for slots and specific node offsets that inherently require weapons drawn
+        auto EvaluatesToCombat = [](Engine::Animation::AnimSlot slot, std::size_t nodeIdx) constexpr -> bool {
+            using namespace Engine::Animation;
+            switch (slot) {
+            case AnimSlot::Attack_Primary:
+            case AnimSlot::Attack_Contextual:
+            case AnimSlot::Attack_Directional:
+            case AnimSlot::Attack_Charged:
+            case AnimSlot::Attack_Aerial:
+            case AnimSlot::Attack_Plunge:
+            case AnimSlot::Parry_Counter:
+            case AnimSlot::HitReact:
+            case AnimSlot::SkillBuff:
+            case AnimSlot::Attack_Speed_Ground:
+            case AnimSlot::Attack_Speed_Aerial:
+            case AnimSlot::Locomotion_Combat:
+                return true;
+            case AnimSlot::Locomotion_Start: return nodeIdx >= 3;
+            case AnimSlot::Locomotion_Stop:  return nodeIdx >= 5;
+            case AnimSlot::PivotTurn:        return nodeIdx >= 2;
+            case AnimSlot::DashEvade:        return nodeIdx >= 2;
+            case AnimSlot::Landing:          return nodeIdx >= 3;
+            case AnimSlot::AirTraversal:     return nodeIdx >= 3;
+            case AnimSlot::Jump_Acrobatic:   return false; // Jump Acrobatic demotes to peaceful
+            default:                         return false;
+            }
+            };
 
-        if (requiresCombatStance && !isCombat)
+        const bool requiresCombatStance{ EvaluatesToCombat(state.slot, m_selectedNodeIndex) };
+
+        // Edge-triggered auto-sync ensures unified defaults while keeping the checkbox interactive
+        static std::size_t s_lastTimelineState = SIZE_MAX;
+        static std::size_t s_lastTimelineNode = SIZE_MAX;
+
+        if (m_selectedStateIndex != s_lastTimelineState || m_selectedNodeIndex != s_lastTimelineNode)
         {
-            isCombat = true;
-            bb->setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
-            if (!isEnginePlaying) m_targetComponent->Update(0.0f);
+            s_lastTimelineState = m_selectedStateIndex;
+            s_lastTimelineNode = m_selectedNodeIndex;
+
+            if (isCombat != requiresCombatStance)
+            {
+                isCombat = requiresCombatStance;
+                bb->setFlag(Engine::Animation::AnimFlag::is_combat_active, isCombat);
+                if (!isEnginePlaying) m_targetComponent->Update(0.0f);
+            }
         }
 
         if (ImGui::Checkbox("Combat Stance", &isCombat))

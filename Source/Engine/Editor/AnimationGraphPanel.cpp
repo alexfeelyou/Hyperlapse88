@@ -382,25 +382,59 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
     ImGui::Spacing();
 
     // STANCE TOGGLE (Drives Dual-Profile Sockets and Combat Tree Paths)
-    // Auto-assert combat stance for slots that inherently require weapons drawn
-    const bool requiresCombatStance = (state.slot == Engine::Animation::AnimSlot::Attack_Primary ||
-        state.slot == Engine::Animation::AnimSlot::Attack_Contextual ||
-        state.slot == Engine::Animation::AnimSlot::Attack_Directional ||
-        state.slot == Engine::Animation::AnimSlot::Attack_Charged ||
-        state.slot == Engine::Animation::AnimSlot::Attack_Aerial ||
-        state.slot == Engine::Animation::AnimSlot::Attack_Plunge ||
-        state.slot == Engine::Animation::AnimSlot::SkillBuff ||
-        state.slot == Engine::Animation::AnimSlot::Attack_Speed_Ground ||
-        state.slot == Engine::Animation::AnimSlot::Attack_Speed_Aerial);
-
-    if (requiresCombatStance && !m_debugCombatActive)
-    {
-        m_debugCombatActive = true;
-        if (auto* bb = const_cast<Engine::Animation::AnimBlackboard*>(m_targetComponent->GetBlackboard()))
-        {
-            bb->setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
+    // Auto-assert combat stance for slots and specific node offsets that inherently require weapons drawn
+    auto EvaluatesToCombat = [](Engine::Animation::AnimSlot slot, std::size_t nodeIdx) constexpr -> bool {
+        using namespace Engine::Animation;
+        switch (slot) {
+        case AnimSlot::Attack_Primary:
+        case AnimSlot::Attack_Contextual:
+        case AnimSlot::Attack_Directional:
+        case AnimSlot::Attack_Charged:
+        case AnimSlot::Attack_Aerial:
+        case AnimSlot::Attack_Plunge:
+        case AnimSlot::Parry_Counter:
+        case AnimSlot::HitReact:
+        case AnimSlot::SkillBuff:
+        case AnimSlot::Attack_Speed_Ground:
+        case AnimSlot::Attack_Speed_Aerial:
+        case AnimSlot::Locomotion_Combat:
+            return true;
+        case AnimSlot::Locomotion_Start: return nodeIdx >= 3; // +3 Offset
+        case AnimSlot::Locomotion_Stop:  return nodeIdx >= 5; // +5 Offset
+        case AnimSlot::PivotTurn:        return nodeIdx >= 2; // +2 Offset
+        case AnimSlot::DashEvade:        return nodeIdx >= 2; // +2 Offset
+        case AnimSlot::Landing:          return nodeIdx >= 3; // +3 Offset
+        case AnimSlot::AirTraversal:     return nodeIdx >= 3; // Airborne combat offsets
+        case AnimSlot::Jump_Acrobatic:   return false; // Jump Acrobatic demotes to peaceful
+        default:                         return false;
         }
-        if (!isPreviewing && !isGameLive) m_targetComponent->Update(0.0f);
+        };
+
+    const std::size_t activeNodeIdx{ (m_selectedNodeForProps >= 0)
+        ? static_cast<std::size_t>(m_selectedNodeForProps)
+        : m_targetComponent->GetCurrentNodeIndex() };
+
+    const bool requiresCombatStance{ EvaluatesToCombat(state.slot, activeNodeIdx) };
+
+    // Edge-triggered auto-sync: Only force the unified default when the selected state/node actually changes.
+    // This allows the user to still manually click the checkbox below for testing.
+    static std::size_t s_lastSyncState = SIZE_MAX;
+    static std::size_t s_lastSyncNode = SIZE_MAX;
+
+    if (m_selectedStateIndex != s_lastSyncState || activeNodeIdx != s_lastSyncNode)
+    {
+        s_lastSyncState = m_selectedStateIndex;
+        s_lastSyncNode = activeNodeIdx;
+
+        if (m_debugCombatActive != requiresCombatStance)
+        {
+            m_debugCombatActive = requiresCombatStance;
+            if (auto* bb = const_cast<Engine::Animation::AnimBlackboard*>(m_targetComponent->GetBlackboard()))
+            {
+                bb->setFlag(Engine::Animation::AnimFlag::is_combat_active, m_debugCombatActive);
+            }
+            if (!isPreviewing && !isGameLive) m_targetComponent->Update(0.0f);
+        }
     }
 
     if (ImGui::Checkbox("Combat Active (Stance)", &m_debugCombatActive))
