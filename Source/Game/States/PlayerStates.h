@@ -257,3 +257,37 @@ public:
     void Update(PlayerControllerComponent* controller, float dt) override;
     void Exit(PlayerControllerComponent* controller) override;
 };
+
+class PlayerSkillBuff final : public PlayerState
+{
+public:
+    void Enter(PlayerControllerComponent* controller) override;
+    void Update(PlayerControllerComponent* controller, float dt) override;
+    void Exit(PlayerControllerComponent* controller) override;
+private:
+    float m_timer{ 0.0f };
+};
+
+enum class SpeedAttackPhase : std::uint8_t
+{
+    Start = 0,
+    Loop,
+    End
+};
+
+class PlayerAttackSpeed final : public PlayerState
+{
+public:
+    void Enter(PlayerControllerComponent* controller) override;
+    void Update(PlayerControllerComponent* controller, float dt) override;
+    void Exit(PlayerControllerComponent* controller) override;
+private:
+    SpeedAttackPhase m_phase{ SpeedAttackPhase::Start };
+    float m_stateTimer{ 0.0f };
+    float m_loopTimer{ 0.0f };
+    float m_mashGraceTimer{ 0.0f }; // Supports button mashing
+    bool m_isAerial{ false };
+    bool m_canCancel{ false };
+    bool m_wasGravityEnabled{ true };
+    DirectX::XMFLOAT2 m_facingDir{ 0.0f, 1.0f };
+};

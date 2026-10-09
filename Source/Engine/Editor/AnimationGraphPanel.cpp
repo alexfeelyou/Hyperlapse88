@@ -146,12 +146,12 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
         "None (Unbound)",
         "Locomotion",
         "Locomotion Start",
-        "Locomotion Stop", 
+        "Locomotion Stop",
         "Pivot Turn",
         "Slide",
         "Air Traversal",
-        "Jump: Acrobatic", 
-        "Landing",         
+        "Jump: Acrobatic",
+        "Landing",
         "Parkour Wall",
         "Dash / Evade",
         "Attack: Primary Combo",
@@ -161,7 +161,10 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
         "Attack: Aerial",
         "Attack: Plunge",
         "Parry & Counter",
-        "Hit Reaction"
+        "Hit Reaction",
+        "Skill Buff",
+        "Speed Attack Ground",
+        "Speed Attack Aerial"
     };
 
     int currentSlot = static_cast<int>(state.slot);
@@ -374,6 +377,27 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
     ImGui::Spacing();
 
     // STANCE TOGGLE (Drives Dual-Profile Sockets and Combat Tree Paths)
+    // Auto-assert combat stance for slots that inherently require weapons drawn
+    const bool requiresCombatStance = (state.slot == Engine::Animation::AnimSlot::Attack_Primary ||
+        state.slot == Engine::Animation::AnimSlot::Attack_Contextual ||
+        state.slot == Engine::Animation::AnimSlot::Attack_Directional ||
+        state.slot == Engine::Animation::AnimSlot::Attack_Charged ||
+        state.slot == Engine::Animation::AnimSlot::Attack_Aerial ||
+        state.slot == Engine::Animation::AnimSlot::Attack_Plunge ||
+        state.slot == Engine::Animation::AnimSlot::SkillBuff ||
+        state.slot == Engine::Animation::AnimSlot::Attack_Speed_Ground ||
+        state.slot == Engine::Animation::AnimSlot::Attack_Speed_Aerial);
+
+    if (requiresCombatStance && !m_debugCombatActive)
+    {
+        m_debugCombatActive = true;
+        if (auto* bb = const_cast<Engine::Animation::AnimBlackboard*>(m_targetComponent->GetBlackboard()))
+        {
+            bb->setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
+        }
+        if (!isPreviewing && !isGameLive) m_targetComponent->Update(0.0f);
+    }
+
     if (ImGui::Checkbox("Combat Active (Stance)", &m_debugCombatActive))
     {
         if (auto* bb = const_cast<Engine::Animation::AnimBlackboard*>(m_targetComponent->GetBlackboard()))

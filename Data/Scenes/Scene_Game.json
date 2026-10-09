@@ -252,7 +252,7 @@
             "Name": "Main Camera",
             "PosX": 0.10000000149011612,
             "PosY": 1.100000023841858,
-            "PosZ": -4.800000190734863,
+            "PosZ": -0.6716623306274414,
             "RotX": -0.0,
             "RotY": 0.0,
             "RotZ": -0.0,
@@ -294,7 +294,7 @@
             "Name": "Vircam",
             "PosX": 0.10000000149011612,
             "PosY": 1.100000023841858,
-            "PosZ": -4.800000190734863,
+            "PosZ": -0.6716623306274414,
             "RotX": 0.0,
             "RotY": 0.0,
             "RotZ": 0.0,
@@ -451,15 +451,15 @@
                     ],
                     "IsActive": true,
                     "Name": "Socket_Weapon_Back",
-                    "PosX": -0.4436783194541931,
-                    "PosY": 0.4655759334564209,
-                    "PosZ": 0.3163749575614929,
-                    "RotX": 4.234800815582275,
-                    "RotY": -131.75721740722656,
-                    "RotZ": 31.10491180419922,
-                    "ScaleX": 1.309999942779541,
-                    "ScaleY": 1.9099996089935303,
-                    "ScaleZ": 0.9099999666213989
+                    "PosX": -0.018671616911888123,
+                    "PosY": 1.334605097770691,
+                    "PosZ": 0.9900983572006226,
+                    "RotX": -28.224624633789063,
+                    "RotY": 103.25096130371094,
+                    "RotZ": -71.92517852783203,
+                    "ScaleX": 1.3100001811981201,
+                    "ScaleY": 1.910000205039978,
+                    "ScaleZ": 0.9100002646446228
                 }
             ],
             "Components": [
@@ -2472,6 +2472,238 @@
                             ],
                             "Slot": 16,
                             "Type": 2
+                        },
+                        {
+                            "BlendParam": 0,
+                            "Name": "Skill Buff",
+                            "Nodes": [
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 102,
+                                    "Events": [],
+                                    "GripPosX": 0.0,
+                                    "GripPosY": 0.0,
+                                    "GripPosZ": 0.0,
+                                    "GripRotX": 0.0,
+                                    "GripRotY": 0.0,
+                                    "GripRotZ": 0.0,
+                                    "HasGripOverride": false,
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                }
+                            ],
+                            "Slot": 19,
+                            "Type": 0
+                        },
+                        {
+                            "BlendParam": 0,
+                            "Name": "Speed Attack Ground",
+                            "Nodes": [
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 103,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 8,
+                                            "IsRange": false,
+                                            "Payload": 13.0,
+                                            "Time": 0.06150062754750252
+                                        }
+                                    ],
+                                    "GripPosX": -0.18000000715255737,
+                                    "GripPosY": 0.019999999552965164,
+                                    "GripPosZ": 0.25,
+                                    "GripRotX": 1.0,
+                                    "GripRotY": 21.0,
+                                    "GripRotZ": 1.0,
+                                    "HasGripOverride": true,
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": true,
+                                    "Loop": false,
+                                    "RootBoneIndex": 1,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 104,
+                                    "Events": [],
+                                    "GripPosX": -0.18000000715255737,
+                                    "GripPosY": 0.019999999552965164,
+                                    "GripPosZ": 0.25,
+                                    "GripRotX": 1.0,
+                                    "GripRotY": 21.0,
+                                    "GripRotZ": 1.0,
+                                    "HasGripOverride": true,
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": true,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 105,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 8,
+                                            "IsRange": false,
+                                            "Payload": 9.0,
+                                            "Time": 0.14454980194568634
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.6552128195762634
+                                        }
+                                    ],
+                                    "GripPosX": 0.0,
+                                    "GripPosY": 0.0,
+                                    "GripPosZ": 0.0,
+                                    "GripRotX": 0.0,
+                                    "GripRotY": 0.0,
+                                    "GripRotZ": 0.0,
+                                    "HasGripOverride": false,
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": true,
+                                    "Loop": false,
+                                    "RootBoneIndex": 1,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                }
+                            ],
+                            "Slot": 20,
+                            "Type": 2
+                        },
+                        {
+                            "BlendParam": 0,
+                            "Name": "Speed Attack Aerial",
+                            "Nodes": [
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 74,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 8,
+                                            "IsRange": false,
+                                            "Payload": 13.0,
+                                            "Time": 0.02369668334722519
+                                        }
+                                    ],
+                                    "GripPosX": 0.0,
+                                    "GripPosY": 0.0,
+                                    "GripPosZ": 0.0,
+                                    "GripRotX": 0.0,
+                                    "GripRotY": 0.0,
+                                    "GripRotZ": 0.0,
+                                    "HasGripOverride": false,
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": true,
+                                    "Loop": false,
+                                    "RootBoneIndex": 1,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 75,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 8,
+                                            "IsRange": false,
+                                            "Payload": 8.0,
+                                            "Time": 0.18601904809474945
+                                        }
+                                    ],
+                                    "GripPosX": -0.18000000715255737,
+                                    "GripPosY": 0.019999999552965164,
+                                    "GripPosZ": 0.25,
+                                    "GripRotX": 1.0,
+                                    "GripRotY": 21.0,
+                                    "GripRotZ": 1.0,
+                                    "HasGripOverride": true,
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": true,
+                                    "Loop": true,
+                                    "RootBoneIndex": 1,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 76,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 8,
+                                            "IsRange": false,
+                                            "Payload": 15.0,
+                                            "Time": 0.030805688351392746
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.8400470614433289
+                                        }
+                                    ],
+                                    "GripPosX": -0.18000000715255737,
+                                    "GripPosY": 0.019999999552965164,
+                                    "GripPosZ": 0.25,
+                                    "GripRotX": 1.0,
+                                    "GripRotY": 21.0,
+                                    "GripRotZ": 1.0,
+                                    "HasGripOverride": true,
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": true,
+                                    "Loop": false,
+                                    "RootBoneIndex": 1,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                }
+                            ],
+                            "Slot": 21,
+                            "Type": 2
                         }
                     ],
                     "Type": "AnimationComponent"
@@ -2511,7 +2743,7 @@
             "Name": "Alex",
             "PosX": 0.0,
             "PosY": 0.0,
-            "PosZ": 0.0,
+            "PosZ": 8.331817626953125,
             "RotX": -0.0,
             "RotY": 0.0,
             "RotZ": -0.0,

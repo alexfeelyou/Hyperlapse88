@@ -27,6 +27,8 @@ enum class PlayerStateType : std::uint8_t
     AttackPlunge,
     ParryCounter,
     HitReact,
+    SkillBuff,
+    AttackSpeed,
     Count // Automatically handles the pool sizing
 };
 
@@ -48,6 +50,7 @@ struct InputIntent
     bool bHeavyAttackPressed{ false };
     bool bHeavyAttackHeld{ false };
     bool bJumpTriggered{ false };
+    bool bSkillTriggered{ false };
     bool bSprintHeld{ false };
     float forwardIntentTimer{ 0.0f }; // Tracks input freshness for command normals
 };

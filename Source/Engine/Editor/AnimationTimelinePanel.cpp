@@ -289,6 +289,25 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
     {
         ImGui::SameLine();
         bool isCombat = bb->getFlag(Engine::Animation::AnimFlag::is_combat_active);
+
+        // Auto-assert combat stance for slots that inherently require weapons drawn
+        const bool requiresCombatStance = (state.slot == Engine::Animation::AnimSlot::Attack_Primary ||
+            state.slot == Engine::Animation::AnimSlot::Attack_Contextual ||
+            state.slot == Engine::Animation::AnimSlot::Attack_Directional ||
+            state.slot == Engine::Animation::AnimSlot::Attack_Charged ||
+            state.slot == Engine::Animation::AnimSlot::Attack_Aerial ||
+            state.slot == Engine::Animation::AnimSlot::Attack_Plunge ||
+            state.slot == Engine::Animation::AnimSlot::SkillBuff ||
+            state.slot == Engine::Animation::AnimSlot::Attack_Speed_Ground ||
+            state.slot == Engine::Animation::AnimSlot::Attack_Speed_Aerial);
+
+        if (requiresCombatStance && !isCombat)
+        {
+            isCombat = true;
+            bb->setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
+            if (!isEnginePlaying) m_targetComponent->Update(0.0f);
+        }
+
         if (ImGui::Checkbox("Combat Stance", &isCombat))
         {
             // Mutate the shared memory contract so SocketComponent and AnimGraph update simultaneously

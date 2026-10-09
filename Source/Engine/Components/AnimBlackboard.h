@@ -28,6 +28,9 @@ namespace Engine::Animation
         Attack_Plunge,
         Parry_Counter,
         HitReact,
+        SkillBuff,
+        Attack_Speed_Ground,
+        Attack_Speed_Aerial,
         Count // Used strictly for array sizing
     };
 
@@ -41,6 +44,7 @@ namespace Engine::Animation
         is_charging,
         has_air_dashed,
         has_air_attacked,
+        is_speed_buff_active,
         Count
     };
 
@@ -50,6 +54,7 @@ namespace Engine::Animation
         float groundSpeed{ 0.0f };
         float verticalVelocity{ 0.0f };
         float chargeTimer{ 0.0f };
+        float skillBuffTimer{ 0.0f };
 
         int actionIndex{ 0 };
         int currentJumps{ 0 }; 

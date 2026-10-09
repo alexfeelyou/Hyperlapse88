@@ -155,7 +155,13 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
         return;
     }
 
-    // Ground Actions (Dash / Attack)
+    // Ground Actions (Dash / Attack / Buff)
+    if (intent.bSkillTriggered)
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::SkillBuff));
+        return;
+    }
+
     if (intent.bDashTriggered)
     {
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
@@ -176,6 +182,15 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
     if (intent.bAttackPressed)
     {
         const int commandNormalIdx{ EvaluateCommandNormal(controller->GetOwner(), intent) };
+
+        // High-Speed Flurry Intercept (Prioritized EXCEPT for explicitly requested Up-Attacks)
+        // If the player presses Up + Attack, route cleanly to the launcher. 
+        // Otherwise, intercept the primary attack button to execute the Flurry.
+        if (controller->getAnimBlackboard().getFlag(AnimFlag::is_speed_buff_active) && commandNormalIdx != 0)
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackSpeed));
+            return;
+        }
 
         // Sprint Attack takes highest priority gap-closing
         if (controller->getAnimBlackboard().groundSpeed > 2.5f && intent.bSprintHeld)
@@ -906,6 +921,14 @@ void PlayerAirTraversal::Update(PlayerControllerComponent* controller, float dt)
     // Locked behind has_air_attacked to prevent infinite map-traversal flying loops.
     if (intent.bAttackPressed && !inDangerZone && !blackboard.getFlag(AnimFlag::has_air_attacked) && (!m_isAcrobatic || m_canCancelAcrobatic))
     {
+        // Up-Attack natively handles air-to-air tracking; Flurry overrides standard attacks only.
+        const int commandNormalIdx{ EvaluateCommandNormal(controller->GetOwner(), intent) };
+        if (blackboard.getFlag(AnimFlag::is_speed_buff_active) && commandNormalIdx != 0)
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackSpeed));
+            return;
+        }
+
         controller->SetPendingComboHit(0); // Explicitly start at Hit 1 (Index 0)
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackAerial));
         return;
@@ -1045,7 +1068,14 @@ void PlayerLanding::Update(PlayerControllerComponent* controller, float dt)
     }
     if (m_canCancel && intent.bAttackPressed)
     {
-        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPrimary));
+        if (controller->getAnimBlackboard().getFlag(AnimFlag::is_speed_buff_active))
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackSpeed));
+        }
+        else
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPrimary));
+        }
         return;
     }
 
@@ -1312,6 +1342,12 @@ void PlayerDashEvade::Update(PlayerControllerComponent* controller, float dt)
     // Dash Attack Cancel
     if (m_canCancel && intent.bAttackPressed)
     {
+        if (controller->getAnimBlackboard().getFlag(AnimFlag::is_speed_buff_active))
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackSpeed));
+            return;
+        }
+
         if (controller->GetMovement()->isGrounded())
         {
             // Directly route to Sprint Attacks since there is no dedicated ground dash attack clip
@@ -1792,8 +1828,15 @@ void PlayerAttackDirectional::Update(PlayerControllerComponent* controller, floa
             // Floor-to-Air Ascended (Node 0) -> Pipeline natively into Aerial Combos
             if (m_activeNode == 0)
             {
-                controller->SetPendingComboHit(0); // Hand-off target to Combo_Attack_Air_01
-                controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackAerial));
+                if (blackboard.getFlag(AnimFlag::is_speed_buff_active))
+                {
+                    controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackSpeed));
+                }
+                else
+                {
+                    controller->SetPendingComboHit(0); // Hand-off target to Combo_Attack_Air_01
+                    controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackAerial));
+                }
                 return;
             }
         }
@@ -1930,8 +1973,15 @@ void PlayerAttackCharged::Update(PlayerControllerComponent* controller, float dt
         // Cancel to Light Attack
         if (intent.bAttackPressed)
         {
-            controller->SetPendingComboHit(0);
-            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPrimary));
+            if (controller->getAnimBlackboard().getFlag(AnimFlag::is_speed_buff_active))
+            {
+                controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackSpeed));
+            }
+            else
+            {
+                controller->SetPendingComboHit(0);
+                controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPrimary));
+            }
             return;
         }
 
@@ -2302,3 +2352,167 @@ void PlayerHitReact::Update(PlayerControllerComponent* controller, float)
     }
 }
 void PlayerHitReact::Exit(PlayerControllerComponent*) {}
+
+// SKILLS & BUFFS
+void PlayerSkillBuff::Enter(PlayerControllerComponent* controller)
+{
+    auto& blackboard{ controller->getAnimBlackboard() };
+    blackboard.setFlag(AnimFlag::is_combat_active, true);
+
+    // Set 10-second prototype duration
+    blackboard.skillBuffTimer = 10.0f;
+
+    // Toggle buff globally via shared pod memory 
+    blackboard.setFlag(AnimFlag::is_speed_buff_active, true);
+
+    if (auto* motor{ controller->GetMovement() })
+    {
+        motor->SetDesiredDirection({ 0.0f, 0.0f });
+        motor->HaltMomentum(1.0f);
+    }
+
+    if (auto* anim{ controller->GetAnimation() })
+    {
+        anim->PlaySlot(AnimSlot::SkillBuff, true);
+        m_timer = anim->GetSlotDuration(AnimSlot::SkillBuff);
+    }
+}
+
+void PlayerSkillBuff::Update(PlayerControllerComponent* controller, float dt)
+{
+    m_timer -= dt;
+    if (m_timer <= 0.0f)
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+    }
+}
+
+void PlayerSkillBuff::Exit(PlayerControllerComponent*) {}
+
+void PlayerAttackSpeed::Enter(PlayerControllerComponent* controller)
+{
+    auto& blackboard{ controller->getAnimBlackboard() };
+    blackboard.setFlag(AnimFlag::is_combat_active, true);
+
+    auto* motor{ controller->GetMovement() };
+    m_isAerial = motor && !motor->isGrounded();
+    m_phase = SpeedAttackPhase::Start;
+    m_canCancel = false;
+    m_loopTimer = 0.0f;
+    m_mashGraceTimer = 0.0f;
+
+    const auto& intent{ controller->GetIntent() };
+    m_facingDir = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
+    FacingResolver::SnapFaceDirection(controller->GetOwner(), m_facingDir);
+
+    if (motor)
+    {
+        m_wasGravityEnabled = motor->GetConfig().useGravity;
+        if (m_isAerial)
+        {
+            motor->GetConfig().useGravity = false;
+            motor->SetVerticalVelocity(0.0f);
+            blackboard.setFlag(AnimFlag::has_air_attacked, true);
+        }
+        motor->SetDesiredDirection({ 0.0f, 0.0f });
+    }
+
+    blackboard.actionIndex = 0; // Node 0: Start sub-phase
+    if (auto* anim{ controller->GetAnimation() })
+    {
+        anim->PlaySlot(m_isAerial ? AnimSlot::Attack_Speed_Aerial : AnimSlot::Attack_Speed_Ground, true);
+        m_stateTimer = anim->GetSlotDuration(m_isAerial ? AnimSlot::Attack_Speed_Aerial : AnimSlot::Attack_Speed_Ground);
+    }
+}
+
+void PlayerAttackSpeed::Update(PlayerControllerComponent* controller, float dt)
+{
+    m_stateTimer -= dt;
+    if (m_mashGraceTimer > 0.0f) m_mashGraceTimer -= dt;
+
+    auto* anim{ controller->GetAnimation() };
+    auto* motor{ controller->GetMovement() };
+    auto& blackboard{ controller->getAnimBlackboard() };
+    const auto& intent{ controller->GetIntent() };
+
+    // Capture mash inputs globally across all sub-phases (Start, Loop, End)
+    if (intent.bAttackPressed) m_mashGraceTimer = 0.5f;
+
+    for (const auto& ev : anim->GetFiredEvents())
+    {
+        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
+        {
+            m_canCancel = true;
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse) && motor)
+        {
+            motor->AddImpulse({ m_facingDir.x * ev.payload, 0.0f, m_facingDir.y * ev.payload });
+        }
+    }
+
+    if (m_isAerial && motor && motor->isGrounded())
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+        return;
+    }
+
+    if (m_phase == SpeedAttackPhase::Start)
+    {
+        // Transition to sustained loop once start animation finishes or triggers early cancel
+        if (m_canCancel || m_stateTimer <= 0.05f)
+        {
+            m_phase = SpeedAttackPhase::Loop;
+            m_canCancel = false;
+            blackboard.actionIndex = 1; // Node 1: Loop
+            anim->PlaySlot(m_isAerial ? AnimSlot::Attack_Speed_Aerial : AnimSlot::Attack_Speed_Ground, true);
+        }
+    }
+    else if (m_phase == SpeedAttackPhase::Loop)
+    {
+        m_loopTimer += dt;
+
+        // Sustain rule: Must complete minimum 0.4s to prevent single-frame twitching.
+        // Ends if button is released AND mashing grace window expires, OR maximum 3.0s timeout is reached.
+        const bool isSustaining = intent.bAttackHeld || (m_mashGraceTimer > 0.0f);
+        if (m_loopTimer > 3.0f || (m_loopTimer > 0.4f && !isSustaining))
+        {
+            m_phase = SpeedAttackPhase::End;
+            m_canCancel = false;
+            blackboard.actionIndex = 2; // Node 2: End Finisher
+            anim->PlaySlot(m_isAerial ? AnimSlot::Attack_Speed_Aerial : AnimSlot::Attack_Speed_Ground, true);
+            m_stateTimer = anim->GetSlotDuration(m_isAerial ? AnimSlot::Attack_Speed_Aerial : AnimSlot::Attack_Speed_Ground);
+        }
+    }
+    else if (m_phase == SpeedAttackPhase::End)
+    {
+        if (m_canCancel && intent.bDashTriggered)
+        {
+            if (motor->isGrounded() || !blackboard.getFlag(AnimFlag::has_air_dashed))
+            {
+                controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
+                return;
+            }
+        }
+
+        if (m_stateTimer <= 0.0f)
+        {
+            if (motor && motor->isGrounded())
+            {
+                controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+            }
+            else
+            {
+                blackboard.actionIndex = blackboard.getFlag(AnimFlag::is_combat_active) ? 5 : 2;
+                controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
+            }
+        }
+    }
+}
+
+void PlayerAttackSpeed::Exit(PlayerControllerComponent* controller)
+{
+    if (auto* motor{ controller->GetMovement() })
+    {
+        motor->GetConfig().useGravity = m_wasGravityEnabled;
+    }
+}

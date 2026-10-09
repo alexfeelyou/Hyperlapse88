@@ -30,6 +30,8 @@ PlayerControllerComponent::PlayerControllerComponent() noexcept
     m_states[static_cast<std::size_t>(PlayerStateType::AttackPlunge)] = std::make_unique<PlayerAttackPlunge>();
     m_states[static_cast<std::size_t>(PlayerStateType::ParryCounter)] = std::make_unique<PlayerParryCounter>();
     m_states[static_cast<std::size_t>(PlayerStateType::HitReact)] = std::make_unique<PlayerHitReact>();
+    m_states[static_cast<std::size_t>(PlayerStateType::SkillBuff)] = std::make_unique<PlayerSkillBuff>();
+    m_states[static_cast<std::size_t>(PlayerStateType::AttackSpeed)] = std::make_unique<PlayerAttackSpeed>();
 }
 
 PlayerControllerComponent::~PlayerControllerComponent() = default;
@@ -60,6 +62,16 @@ void PlayerControllerComponent::OnAttach(GameObject* owner) noexcept
 
 void PlayerControllerComponent::GatherHardwareInput(const float dt) noexcept
 {
+    // Global Buff Decay
+    if (m_blackboard.skillBuffTimer > 0.0f)
+    {
+        m_blackboard.skillBuffTimer -= dt;
+        if (m_blackboard.skillBuffTimer <= 0.0f)
+        {
+            m_blackboard.setFlag(Engine::Animation::AnimFlag::is_speed_buff_active, false);
+        }
+    }
+
     if (!m_inputEnabled)
     {
         m_intent = InputIntent{};
@@ -161,6 +173,10 @@ void PlayerControllerComponent::GatherHardwareInput(const float dt) noexcept
     // Jump: Spacebar or Gamepad A
     m_intent.bJumpTriggered = input.GetKeyboard().IsTriggered(VK_SPACE) ||
         ((pad.GetButtonDown() & GamePad::BTN_A) != 0);
+
+    // Buff Activation: Keyboard Q or Gamepad RT (Right Trigger)
+    m_intent.bSkillTriggered = input.GetKeyboard().IsTriggered('Q') ||
+        ((pad.GetButtonDown() & GamePad::BTN_RIGHT_TRIGGER) != 0);
 }
 
 void PlayerControllerComponent::ResolveIntentToWorldSpace() noexcept
