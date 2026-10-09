@@ -134,7 +134,9 @@ public:
 private:
     void PlayCurrentAttack(PlayerControllerComponent* controller) noexcept;
 
-    int m_comboIndex{ 0 };
+    int m_trackIndex{ 2 }; // Starts at 2 so the first cycle hits Track 0 (Combo01)
+    int m_stepIndex{ 0 };
+    int m_activeNode{ 0 };
     BufferedAttackIntent m_bufferedAttack{};
     float m_exitTimer{ 0.0f };
     int m_cancelDeferFrames{ 0 };

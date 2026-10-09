@@ -252,7 +252,7 @@
             "Name": "Main Camera",
             "PosX": 0.10000000149011612,
             "PosY": 1.100000023841858,
-            "PosZ": -0.6716623306274414,
+            "PosZ": -4.800000190734863,
             "RotX": -0.0,
             "RotY": 0.0,
             "RotZ": -0.0,
@@ -294,7 +294,7 @@
             "Name": "Vircam",
             "PosX": 0.10000000149011612,
             "PosY": 1.100000023841858,
-            "PosZ": -0.6716623306274414,
+            "PosZ": -4.800000190734863,
             "RotX": 0.0,
             "RotY": 0.0,
             "RotZ": 0.0,
@@ -451,15 +451,15 @@
                     ],
                     "IsActive": true,
                     "Name": "Socket_Weapon_Back",
-                    "PosX": -0.018671616911888123,
-                    "PosY": 1.334605097770691,
-                    "PosZ": 0.9900983572006226,
-                    "RotX": -28.224624633789063,
-                    "RotY": 103.25096130371094,
-                    "RotZ": -71.92517852783203,
-                    "ScaleX": 1.3100001811981201,
-                    "ScaleY": 1.910000205039978,
-                    "ScaleZ": 0.9100002646446228
+                    "PosX": -0.4436783194541931,
+                    "PosY": 0.4655759334564209,
+                    "PosZ": 0.3163749575614929,
+                    "RotX": 4.234800815582275,
+                    "RotY": -131.75721740722656,
+                    "RotZ": 31.10491180419922,
+                    "ScaleX": 1.309999942779541,
+                    "ScaleY": 1.9099996089935303,
+                    "ScaleZ": 0.9099999666213989
                 }
             ],
             "Components": [
@@ -1832,6 +1832,13 @@
                                             "IsRange": false,
                                             "Payload": 15.0,
                                             "Time": 0.04674047604203224
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.4354243576526642
                                         }
                                     ],
                                     "GripPosX": 0.0,
@@ -1841,6 +1848,302 @@
                                     "GripRotY": 0.0,
                                     "GripRotZ": 0.0,
                                     "HasGripOverride": true,
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": true,
+                                    "Loop": false,
+                                    "RootBoneIndex": 1,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 24,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 8,
+                                            "IsRange": false,
+                                            "Payload": 3.0,
+                                            "Time": 0.029520299285650253
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.39479878544807434
+                                        }
+                                    ],
+                                    "GripPosX": -0.20000000298023224,
+                                    "GripPosY": 0.03999999910593033,
+                                    "GripPosZ": -0.4000000059604645,
+                                    "GripRotX": 18.0,
+                                    "GripRotY": 0.0,
+                                    "GripRotZ": 1.0,
+                                    "HasGripOverride": true,
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": true,
+                                    "Loop": false,
+                                    "RootBoneIndex": 1,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 25,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 8,
+                                            "IsRange": false,
+                                            "Payload": 6.5,
+                                            "Time": 0.1082410216331482
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.49938493967056274
+                                        }
+                                    ],
+                                    "GripPosX": -0.20000000298023224,
+                                    "GripPosY": 0.03999999910593033,
+                                    "GripPosZ": -0.4000000059604645,
+                                    "GripRotX": 18.0,
+                                    "GripRotY": 0.0,
+                                    "GripRotZ": 1.0,
+                                    "HasGripOverride": true,
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": true,
+                                    "Loop": false,
+                                    "RootBoneIndex": 1,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 26,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 8,
+                                            "IsRange": false,
+                                            "Payload": 9.5,
+                                            "Time": 0.05555557832121849
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.4669027328491211
+                                        }
+                                    ],
+                                    "GripPosX": 0.0,
+                                    "GripPosY": 0.0,
+                                    "GripPosZ": 0.0,
+                                    "GripRotX": 0.0,
+                                    "GripRotY": 0.0,
+                                    "GripRotZ": 0.0,
+                                    "HasGripOverride": false,
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": true,
+                                    "Loop": false,
+                                    "RootBoneIndex": 1,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 27,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 8,
+                                            "IsRange": false,
+                                            "Payload": 20.5,
+                                            "Time": 0.02718675695359707
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.5011819005012512
+                                        }
+                                    ],
+                                    "GripPosX": 0.0,
+                                    "GripPosY": 0.0,
+                                    "GripPosZ": 0.0,
+                                    "GripRotX": 0.0,
+                                    "GripRotY": 0.0,
+                                    "GripRotZ": 0.0,
+                                    "HasGripOverride": false,
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": true,
+                                    "Loop": false,
+                                    "RootBoneIndex": 1,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 32,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 8,
+                                            "IsRange": false,
+                                            "Payload": 8.0,
+                                            "Time": 0.1004728451371193
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.4196213185787201
+                                        }
+                                    ],
+                                    "GripPosX": 0.0,
+                                    "GripPosY": 0.0,
+                                    "GripPosZ": 0.0,
+                                    "GripRotX": 0.0,
+                                    "GripRotY": 0.0,
+                                    "GripRotZ": 0.0,
+                                    "HasGripOverride": true,
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": true,
+                                    "Loop": false,
+                                    "RootBoneIndex": 1,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 34,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 8,
+                                            "IsRange": false,
+                                            "Payload": 19.5,
+                                            "Time": 0.08747044950723648
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.4813360273838043
+                                        }
+                                    ],
+                                    "GripPosX": 0.0,
+                                    "GripPosY": 0.0,
+                                    "GripPosZ": 0.0,
+                                    "GripRotX": 0.0,
+                                    "GripRotY": 0.0,
+                                    "GripRotZ": 0.0,
+                                    "HasGripOverride": true,
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": true,
+                                    "Loop": false,
+                                    "RootBoneIndex": 1,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 35,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 8,
+                                            "IsRange": false,
+                                            "Payload": 16.5,
+                                            "Time": 0.02364065870642662
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.5011821985244751
+                                        }
+                                    ],
+                                    "GripPosX": 0.0,
+                                    "GripPosY": 0.0,
+                                    "GripPosZ": 0.0,
+                                    "GripRotX": 0.0,
+                                    "GripRotY": 0.0,
+                                    "GripRotZ": 0.0,
+                                    "HasGripOverride": false,
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": true,
+                                    "Loop": false,
+                                    "RootBoneIndex": 1,
+                                    "Speed": 1.0,
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 36,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 8,
+                                            "IsRange": false,
+                                            "Payload": 22.5,
+                                            "Time": 0.016548465937376022
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 3,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.7662973999977112
+                                        }
+                                    ],
+                                    "GripPosX": 0.0,
+                                    "GripPosY": 0.0,
+                                    "GripPosZ": 0.0,
+                                    "GripRotX": 0.0,
+                                    "GripRotY": 0.0,
+                                    "GripRotZ": 0.0,
+                                    "HasGripOverride": false,
                                     "LockRootX": false,
                                     "LockRootY": false,
                                     "LockRootZ": true,
@@ -2743,7 +3046,7 @@
             "Name": "Alex",
             "PosX": 0.0,
             "PosY": 0.0,
-            "PosZ": 8.331817626953125,
+            "PosZ": 0.0,
             "RotX": -0.0,
             "RotY": 0.0,
             "RotZ": -0.0,

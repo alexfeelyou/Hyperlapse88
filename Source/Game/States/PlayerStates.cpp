@@ -1408,11 +1408,17 @@ void PlayerDashEvade::Exit(PlayerControllerComponent* controller)
 void PlayerAttackPrimary::Enter(PlayerControllerComponent* controller)
 {
     auto& blackboard{ controller->getAnimBlackboard() };
-    // Consume explicit mailbox token. Defaults to 0 if none provided.
-    const int pendingHit{ controller->ConsumePendingComboHit() };
-    m_comboIndex = (pendingHit > 0 && pendingHit < 4) ? pendingHit : 0;
 
-    // Force combat stance active so SocketComponent switches to Profile 1 (Combat) and evaluates grip overrides.
+    // Advance the macro-track on every new state entry to keep visuals fresh (0 -> 1 -> 2)
+    m_trackIndex = (m_trackIndex + 1) % 3;
+
+    // Consume logical step token (e.g., 1 for Hit 2 from Sprint Attack, 0 for neutral jab)
+    const int pendingHit{ controller->ConsumePendingComboHit() };
+    m_stepIndex = (pendingHit > 0 && pendingHit < 4) ? pendingHit : 0;
+
+    // Resolve flat O(1) array index mapping to the 12-node selector
+    m_activeNode = (m_trackIndex * 4) + m_stepIndex;
+
     blackboard.setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
 
     const auto& intent = controller->GetIntent();
@@ -1432,11 +1438,8 @@ void PlayerAttackPrimary::PlayCurrentAttack(PlayerControllerComponent* controlle
     m_cancelDeferFrames = 0;
     m_bufferedAttack = {};
 
-    controller->getAnimBlackboard().actionIndex = m_comboIndex;
+    controller->getAnimBlackboard().actionIndex = m_activeNode;
 
-    // Snap once per combo hit — each hit locks facing for its own duration; consecutive
-    // hits can still turn the character between swings since m_lungeDirection is
-    // recomputed per hit below, but never mid-swing.
     FacingResolver::SnapFaceDirection(controller->GetOwner(), m_lungeDirection);
 
     if (auto* anim = controller->GetAnimation())
@@ -1534,9 +1537,10 @@ void PlayerAttackPrimary::Update(PlayerControllerComponent* controller, float dt
         }
 
         // Defer transitioning to neutral combos to give players time to push the stick
-        if (m_cancelDeferFrames == 0 && m_comboIndex < 3)
+        if (m_cancelDeferFrames == 0 && m_stepIndex < 3)
         {
-            m_comboIndex++;
+            m_stepIndex++;
+            m_activeNode = (m_trackIndex * 4) + m_stepIndex;
             m_lungeDirection = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
             PlayCurrentAttack(controller);
             return;
