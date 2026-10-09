@@ -19,6 +19,10 @@ public:
     void Draw(bool* pOpen) noexcept;
     void SetTarget(AnimationComponent* target, std::size_t stateIndex = 0) noexcept;
 
+    // Stops any scrub/preview and restores the character (Transform + capsule) to its pre-scrub position.
+    // Must be called before the editor switches to Play so the Play snapshot is clean.
+    void EndPreview() noexcept;
+
 private:
     AnimationComponent* m_targetComponent{ nullptr };
     std::size_t m_selectedStateIndex{ 0 };

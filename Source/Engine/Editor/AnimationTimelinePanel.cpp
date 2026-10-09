@@ -6,6 +6,7 @@
 #include <string>
 #include "AnimationTimelinePanel.h"
 #include "AnimationComponent.h"
+#include "CapsuleColliderComponent.h"
 #include "CharacterMovementComponent.h"
 #include "EditorManager.h"
 #include "GameObject.h"
@@ -34,6 +35,43 @@ namespace
         default:                               return IM_COL32(100, 200, 100, 255);
         }
     }
+}
+
+namespace
+{
+    // World position of the character captured on the first scrub/preview frame.
+    // File-scope (not function-local) so EndPreview() can also reach it from outside Draw().
+    DirectX::XMFLOAT3 s_previewAnchor{ 0.0f, 0.0f, 0.0f };
+    bool s_hasPreviewAnchor{ false };
+
+    // Puts the owner (Transform AND PhysX capsule) back on the saved anchor, then clears it.
+    // The capsule is teleported explicitly because CapsuleColliderComponent::Update() only syncs
+    // Transform -> controller in Edit mode; in Play mode the stale controller would win and
+    // Move() would write the old scrub position back into the Transform.
+    void RestorePreviewAnchor(GameObject* owner) noexcept
+    {
+        if (!s_hasPreviewAnchor) return;
+
+        if (owner)
+        {
+            owner->SetPosition(s_previewAnchor);
+
+            if (auto* capsule{ owner->GetComponent<CapsuleColliderComponent>() })
+            {
+                capsule->Teleport(s_previewAnchor);
+            }
+        }
+        s_hasPreviewAnchor = false;
+    }
+}
+
+void AnimationTimelinePanel::EndPreview() noexcept
+{
+    if (!m_targetComponent) return;
+
+    // Drop the isolated scrub pose first, then undo the positional side effects of previewing.
+    m_targetComponent->StopPreview();
+    RestorePreviewAnchor(m_targetComponent->GetOwner());
 }
 
 void AnimationTimelinePanel::SetTarget(AnimationComponent* target, std::size_t stateIndex) noexcept
@@ -121,17 +159,10 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
         }
     }
 
-	// Physics Preview Anchor
-    static DirectX::XMFLOAT3 s_previewAnchor{ 0.0f, 0.0f, 0.0f };
-    static bool s_hasPreviewAnchor{ false };
-
+    // Physics Preview Anchor: put the character back whenever we are not previewing (or the game is live)
     if (isGameLive || !isPreviewing)
     {
-        if (s_hasPreviewAnchor && m_targetComponent->GetOwner())
-        {
-            m_targetComponent->GetOwner()->SetPosition(s_previewAnchor);
-            s_hasPreviewAnchor = false;
-        }
+        RestorePreviewAnchor(m_targetComponent->GetOwner());
     }
     else if (isPreviewing && !s_hasPreviewAnchor && m_targetComponent->GetOwner())
     {
