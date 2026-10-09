@@ -119,6 +119,9 @@ void CapsuleColliderComponent::Teleport(const DirectX::XMFLOAT3& worldPos) noexc
     };
 
     m_controller->setPosition(pxTargetPos);
+
+    // Keep the Edit-mode change detector in sync so Update() doesn't re-teleport to a stale value
+    m_lastFramePos = worldPos;
 }
 
 void CapsuleColliderComponent::Resize(const float radius, const float height) noexcept

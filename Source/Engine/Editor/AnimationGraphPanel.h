@@ -25,6 +25,7 @@ private:
     // Editor-only mock blackboard for live-scrubbing parameters without running the game
     float m_debugSpeed{ 0.0f };
     int m_debugActionIndex{ 0 };
+    bool m_debugCombatActive{ false };
 
     // Transition Preview Harness
     bool m_isPreviewingTransition{ false };

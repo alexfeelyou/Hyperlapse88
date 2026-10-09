@@ -27,8 +27,11 @@ PlayerControllerComponent::PlayerControllerComponent() noexcept
     m_states[static_cast<std::size_t>(PlayerStateType::AttackDirectional)] = std::make_unique<PlayerAttackDirectional>();
     m_states[static_cast<std::size_t>(PlayerStateType::AttackCharged)] = std::make_unique<PlayerAttackCharged>();
     m_states[static_cast<std::size_t>(PlayerStateType::AttackAerial)] = std::make_unique<PlayerAttackAerial>();
+    m_states[static_cast<std::size_t>(PlayerStateType::AttackPlunge)] = std::make_unique<PlayerAttackPlunge>();
     m_states[static_cast<std::size_t>(PlayerStateType::ParryCounter)] = std::make_unique<PlayerParryCounter>();
     m_states[static_cast<std::size_t>(PlayerStateType::HitReact)] = std::make_unique<PlayerHitReact>();
+    m_states[static_cast<std::size_t>(PlayerStateType::SkillBuff)] = std::make_unique<PlayerSkillBuff>();
+    m_states[static_cast<std::size_t>(PlayerStateType::AttackSpeed)] = std::make_unique<PlayerAttackSpeed>();
 }
 
 PlayerControllerComponent::~PlayerControllerComponent() = default;
@@ -49,6 +52,9 @@ void PlayerControllerComponent::OnAttach(GameObject* owner) noexcept
 
         if (m_stateMachine)
         {
+            // PREVENTIVE BUG: Strip stale Editor variables to guarantee a clean Holster startup
+            m_blackboard.setFlag(Engine::Animation::AnimFlag::is_combat_active, false);
+            m_blackboard.actionIndex = 0;
             m_stateMachine->Initialize(GetState(PlayerStateType::Locomotion), this);
         }
     }
@@ -56,6 +62,16 @@ void PlayerControllerComponent::OnAttach(GameObject* owner) noexcept
 
 void PlayerControllerComponent::GatherHardwareInput(const float dt) noexcept
 {
+    // Global Buff Decay
+    if (m_blackboard.skillBuffTimer > 0.0f)
+    {
+        m_blackboard.skillBuffTimer -= dt;
+        if (m_blackboard.skillBuffTimer <= 0.0f)
+        {
+            m_blackboard.setFlag(Engine::Animation::AnimFlag::is_speed_buff_active, false);
+        }
+    }
+
     if (!m_inputEnabled)
     {
         m_intent = InputIntent{};
@@ -82,6 +98,10 @@ void PlayerControllerComponent::GatherHardwareInput(const float dt) noexcept
     }
 
     m_intent.moveVector = { targetX, targetZ };
+
+    // Maintain Temporal Input Freshness for Directional Command Normals
+    if (targetZ > 0.4f) m_intent.forwardIntentTimer += dt;
+    else m_intent.forwardIntentTimer = 0.0f;
 
     // KEYBOARD SHIFT: TAP-TO-DASH VS HOLD-TO-SPRINT 
     // Threshold 200ms for discriminates between an intentional tap and a sustained hold
@@ -115,7 +135,7 @@ void PlayerControllerComponent::GatherHardwareInput(const float dt) noexcept
     }
     m_wasShiftPressed = isShiftDown;
 
-    // --- INPUT INTENT ASSIGNMENTS ---
+    // INPUT INTENT ASSIGNMENTS
 
     // Dash / Evade:
     // Keyboard: Quick tap-release on Shift (< 200ms)
@@ -138,13 +158,31 @@ void PlayerControllerComponent::GatherHardwareInput(const float dt) noexcept
     m_intent.bSprintHeld = isShiftHoldingSprint ||
         ((pad.GetButton() & GamePad::BTN_RIGHT_SHOULDER) != 0);
 
-    // Attack: Left Mouse Button or Gamepad X
+    // Light Attack: Left Mouse Button or Gamepad X
     m_intent.bAttackPressed = input.GetKeyboard().IsTriggered(VK_LBUTTON) ||
         ((pad.GetButtonDown() & GamePad::BTN_X) != 0);
+    m_intent.bAttackHeld = input.GetKeyboard().IsPress(VK_LBUTTON) ||
+        ((pad.GetButton() & GamePad::BTN_X) != 0);
+
+    // Heavy/Charged Attack: Right Mouse Button or Gamepad Y
+    m_intent.bHeavyAttackPressed = input.GetKeyboard().IsTriggered(VK_RBUTTON) ||
+        ((pad.GetButtonDown() & GamePad::BTN_Y) != 0);
+    m_intent.bHeavyAttackHeld = input.GetKeyboard().IsPress(VK_RBUTTON) ||
+        ((pad.GetButton() & GamePad::BTN_Y) != 0);
 
     // Jump: Spacebar or Gamepad A
     m_intent.bJumpTriggered = input.GetKeyboard().IsTriggered(VK_SPACE) ||
         ((pad.GetButtonDown() & GamePad::BTN_A) != 0);
+
+    // Buff Activation: Keyboard Q or Gamepad RT (Right Trigger)
+    m_intent.bSkillTriggered = input.GetKeyboard().IsTriggered('Q') ||
+        ((pad.GetButtonDown() & GamePad::BTN_RIGHT_TRIGGER) != 0);
+
+    // Sustain Combat Stance on Aggressive Actions
+    if (m_intent.bAttackPressed || m_intent.bAttackHeld || m_intent.bHeavyAttackPressed || m_intent.bHeavyAttackHeld || m_intent.bSkillTriggered)
+    {
+        m_blackboard.setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
+    }
 }
 
 void PlayerControllerComponent::ResolveIntentToWorldSpace() noexcept
@@ -168,7 +206,21 @@ void PlayerControllerComponent::ResolveIntentToWorldSpace() noexcept
 
 void PlayerControllerComponent::Update(const float dt)
 {
-    if (EditorManager::Instance().GetEditorMode() != EditorMode::Play)
+    const bool isPlayMode = EditorManager::Instance().GetEditorMode() == EditorMode::Play;
+    static bool s_wasPlayMode = false;
+
+    // PREVENTIVE BUG: Live memory isn't destroyed when entering Play mode in this engine.
+    // We must intercept the transition frame to manually strip stale Editor variables 
+    // and reset the state machine so the player always starts cleanly in Holster/Locomotion.
+    if (isPlayMode && !s_wasPlayMode)
+    {
+        m_blackboard.setFlag(Engine::Animation::AnimFlag::is_combat_active, false);
+        m_blackboard.actionIndex = 0;
+        if (m_stateMachine) m_stateMachine->ChangeState(this, GetState(PlayerStateType::Locomotion));
+    }
+    s_wasPlayMode = isPlayMode;
+
+    if (!isPlayMode)
     {
         return;
     }
@@ -182,11 +234,14 @@ void PlayerControllerComponent::Update(const float dt)
     {
         m_intent.moveVector = { 0.0f, 0.0f };
         m_intent.bAttackPressed = false;
+        m_intent.bAttackHeld = false;
+        m_intent.bHeavyAttackPressed = false;
+        m_intent.bHeavyAttackHeld = false;
         m_intent.bDashTriggered = false;
         m_intent.bJumpTriggered = false;
         m_intent.bSprintHeld = false;
-        m_shiftHoldTimer = 0.0f;   
-        m_wasShiftPressed = false; 
+        m_shiftHoldTimer = 0.0f;
+        m_wasShiftPressed = false;
     }
 
     ResolveIntentToWorldSpace();

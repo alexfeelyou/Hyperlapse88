@@ -158,6 +158,7 @@
     <ClInclude Include="Source\Engine\Components\MeshComponent.h" />
     <ClInclude Include="Source\Engine\Components\OrbitCameraDriverComponent.h" />
     <ClInclude Include="Source\Engine\Components\PlayerControllerComponent.h" />
+    <ClInclude Include="Source\Engine\Components\SocketComponent.h" />
     <ClInclude Include="Source\Engine\Components\StaticMeshColliderComponent.h" />
     <ClInclude Include="Source\Engine\Components\VirtualCameraComponent.h" />
     <ClInclude Include="Source\Engine\Editor\AnimationGraphPanel.h" />
@@ -263,6 +264,7 @@
     <ClCompile Include="Source\Engine\Components\MeshComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\OrbitCameraDriverComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\PlayerControllerComponent.cpp" />
+    <ClCompile Include="Source\Engine\Components\SocketComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\StaticMeshColliderComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\VirtualCameraComponent.cpp" />
     <ClCompile Include="Source\Engine\Editor\AnimationGraphPanel.cpp" />

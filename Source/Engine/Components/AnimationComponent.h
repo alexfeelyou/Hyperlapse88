@@ -22,8 +22,9 @@ enum class CombatEventId : std::uint32_t
     Play_SFX,
     Play_VFX,
     Lunge_Impulse,
+    Lunge_Vertical,
     Movement_Halt,
-    Slide_GlidePose
+    Pose_HoldMarker
 };
 
 enum class AnimStateType : std::uint8_t {
@@ -45,7 +46,7 @@ struct TransitionRule
 {
     std::string sourceStateName{ "" };
     std::uint64_t sourceStateHash{ 0 };
-    int sourceNodeIndex{ -1 }; // -1 means "Any Node"
+    int sourceNodeIndex{ -1 }; // -1 means Any Node
     float blendDuration{ 0.1f };
     float targetStartOffset{ 0.0f };
 };
@@ -66,6 +67,11 @@ struct AnimNode
     float startOffset{ 0.0f };
     float speedMultiplier{ 1.0f };
     float blendDuration{ 0.2f };
+
+    // Additive Weapon Grip Deltas (Node/Attack Specific Pivot Adjustment)
+    bool hasGripOverride{ false };
+    DirectX::XMFLOAT3 gripPosition{ 0.0f, 0.0f, 0.0f };
+    DirectX::XMFLOAT3 gripRotation{ 0.0f, 0.0f, 0.0f };
 
     std::vector<AnimationEvent> events{};
     std::vector<TransitionRule> transitionRules{};
@@ -159,6 +165,7 @@ public:
     [[nodiscard]] std::size_t GetCurrentNodeIndex() const noexcept { return m_currentNodeIndex; }
     [[nodiscard]] bool IsPreviewing() const noexcept { return m_editorPreview; }
     [[nodiscard]] int GetIsolatedNodeIndex() const noexcept { return m_isolatedNodeIndex; }
+    [[nodiscard]] const AnimNode* GetActiveAnimNode() const noexcept;
 
     void SetPlaybackSpeed(float speed) noexcept { m_playbackSpeed = speed; }
     [[nodiscard]] float GetPlaybackSpeed() const noexcept { return m_playbackSpeed; }

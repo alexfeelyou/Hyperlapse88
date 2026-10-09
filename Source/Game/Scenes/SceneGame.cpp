@@ -184,7 +184,22 @@ void SceneGame::Update(const float elapsedTime)
                 m_postProcess->GetVignette().GetData().smoothness = FX_BLACK_SMOOTHNESS;
                 m_postProcess->GetVignette().GetData().intensity = FX_BLACK_INTENSITY;
             }
-            if (m_playerCtrl) m_playerCtrl->SetInputEnabled(false);
+
+            if (m_playerCtrl)
+            {
+                m_playerCtrl->SetInputEnabled(false);
+
+                // PREVENTIVE BUG: Manually wipe stale Editor blackboard state 
+                // since the live memory blocks are not destroyed on Play.
+                auto& bb{ m_playerCtrl->getAnimBlackboard() };
+                bb.setFlag(Engine::Animation::AnimFlag::is_combat_active, false);
+                bb.actionIndex = 0;
+
+                if (auto* sm{ m_playerCtrl->GetStateMachine() })
+                {
+                    sm->ChangeState(m_playerCtrl, m_playerCtrl->GetState(PlayerStateType::Locomotion));
+                }
+            }
         }
         else if (currentMode == EditorMode::Edit)
         {

@@ -365,6 +365,12 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
 
     if (DrawToolbarIconButton("##PlayBtn", ToolbarIcon::Play, m_editorMode == EditorMode::Play, ImVec4{ 0.2f, 0.7f, 0.2f, 1.0f }, buttonSize))
     {
+        // Undo any leftover timeline scrub (pose + position + capsule) before SceneGame snapshots the scene
+        if (m_editorMode == EditorMode::Edit)
+        {
+            m_timelinePanel.EndPreview();
+        }
+
         SetEditorMode(EditorMode::Play);
         m_showGizmos = false;
         s_skipGizmoThisFrame = true; 
@@ -644,6 +650,12 @@ void EditorManager::DrawMenuBar(Scene* currentScene) noexcept
             {
                 if (currentScene)
                 {
+                    // Undo any leftover timeline scrub so the preview offset is never written to disk
+                    if (m_editorMode == EditorMode::Edit)
+                    {
+                        m_timelinePanel.EndPreview();
+                    }
+
                     SceneSerializer::Save(
                         currentScene->GetSceneSavePath(),
                         currentScene->GetRootGameObject()

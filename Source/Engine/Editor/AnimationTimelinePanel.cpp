@@ -6,15 +6,18 @@
 #include <string>
 #include "AnimationTimelinePanel.h"
 #include "AnimationComponent.h"
+#include "CapsuleColliderComponent.h"
+#include "CharacterMovementComponent.h"
 #include "EditorManager.h"
+#include "GameObject.h"
 
 namespace
 {
     inline constexpr const char* s_eventNames[] = {
          "None", "Hitbox_Active", "Hitbox_Inactive",
          "CancelWindow_Open", "Invincible_Start", "Invincible_End",
-         "Play_SFX", "Play_VFX", "Lunge_Impulse", "Movement_Halt",
-         "Slide_GlidePose"
+         "Play_SFX", "Play_VFX", "Lunge_Impulse", "Lunge_Vertical", "Movement_Halt",
+         "Pose_HoldMarker"
     };
 
     [[nodiscard]] ImU32 GetColorForEvent(std::uint32_t eventId) noexcept
@@ -24,13 +27,51 @@ namespace
         case CombatEventId::Hitbox_Active:     return IM_COL32(250, 80, 80, 255);
         case CombatEventId::CancelWindow_Open: return IM_COL32(250, 200, 50, 255);
         case CombatEventId::Lunge_Impulse:     return IM_COL32(50, 150, 250, 255);
+        case CombatEventId::Lunge_Vertical:    return IM_COL32(50, 250, 150, 255);
         case CombatEventId::Movement_Halt:     return IM_COL32(250, 120, 50, 255);
-        case CombatEventId::Slide_GlidePose:   return IM_COL32(50, 200, 250, 255);
+        case CombatEventId::Pose_HoldMarker:   return IM_COL32(50, 200, 250, 255);
         case CombatEventId::Play_SFX:
         case CombatEventId::Play_VFX:          return IM_COL32(200, 100, 250, 255);
         default:                               return IM_COL32(100, 200, 100, 255);
         }
     }
+}
+
+namespace
+{
+    // World position of the character captured on the first scrub/preview frame.
+    // File-scope (not function-local) so EndPreview() can also reach it from outside Draw().
+    DirectX::XMFLOAT3 s_previewAnchor{ 0.0f, 0.0f, 0.0f };
+    bool s_hasPreviewAnchor{ false };
+
+    // Puts the owner (Transform AND PhysX capsule) back on the saved anchor, then clears it.
+    // The capsule is teleported explicitly because CapsuleColliderComponent::Update() only syncs
+    // Transform -> controller in Edit mode; in Play mode the stale controller would win and
+    // Move() would write the old scrub position back into the Transform.
+    void RestorePreviewAnchor(GameObject* owner) noexcept
+    {
+        if (!s_hasPreviewAnchor) return;
+
+        if (owner)
+        {
+            owner->SetPosition(s_previewAnchor);
+
+            if (auto* capsule{ owner->GetComponent<CapsuleColliderComponent>() })
+            {
+                capsule->Teleport(s_previewAnchor);
+            }
+        }
+        s_hasPreviewAnchor = false;
+    }
+}
+
+void AnimationTimelinePanel::EndPreview() noexcept
+{
+    if (!m_targetComponent) return;
+
+    // Drop the isolated scrub pose first, then undo the positional side effects of previewing.
+    m_targetComponent->StopPreview();
+    RestorePreviewAnchor(m_targetComponent->GetOwner());
 }
 
 void AnimationTimelinePanel::SetTarget(AnimationComponent* target, std::size_t stateIndex) noexcept
@@ -94,8 +135,7 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
     // Define both variables so the rest of the UI buttons work
     const bool isPreviewing = m_targetComponent->IsPreviewing();
     const bool isEnginePlaying = isGameLive || isPreviewing;
-
-    if (isEnginePlaying)
+    if (isGameLive)
     {
         const std::size_t runtimeState = m_targetComponent->GetCurrentStateIndex();
         if (runtimeState < states.size() && runtimeState != m_selectedStateIndex)
@@ -109,12 +149,25 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
     // Move Dynamic Sync OUTSIDE the play check
     if (m_targetComponent->GetIsolatedNodeIndex() == -1)
     {
+        const std::size_t runtimeState = m_targetComponent->GetCurrentStateIndex();
         const std::size_t runtimeNode = m_targetComponent->GetCurrentNodeIndex();
-        if (runtimeNode < states[m_selectedStateIndex].nodes.size() && runtimeNode != m_selectedNodeIndex)
+
+        if (runtimeState == m_selectedStateIndex && runtimeNode < states[m_selectedStateIndex].nodes.size() && runtimeNode != m_selectedNodeIndex)
         {
             m_selectedNodeIndex = runtimeNode;
             m_selectedEventIndex = -1;
         }
+    }
+
+    // Physics Preview Anchor: put the character back whenever we are not previewing (or the game is live)
+    if (isGameLive || !isPreviewing)
+    {
+        RestorePreviewAnchor(m_targetComponent->GetOwner());
+    }
+    else if (isPreviewing && !s_hasPreviewAnchor && m_targetComponent->GetOwner())
+    {
+        s_previewAnchor = m_targetComponent->GetOwner()->GetPosition();
+        s_hasPreviewAnchor = true;
     }
 
     ImGui::BeginDisabled(isEnginePlaying && !isPreviewing);
@@ -129,6 +182,13 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
                 m_selectedStateIndex = i;
                 m_selectedNodeIndex = 0;
                 m_selectedEventIndex = -1;
+
+                // Force the 3D viewport to instantly pose to the newly selected state, 
+                // regardless of whether the preview harness was previously running or stopped.
+                if (!isGameLive)
+                {
+                    m_targetComponent->ScrubNodeToTime(m_selectedStateIndex, 0, 0.0f);
+                }
             }
             if (isSelected) ImGui::SetItemDefaultFocus();
         }
@@ -192,6 +252,49 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
     }
     if (baseDuration <= 0.001f) baseDuration = 1.0f;
 
+    // Live Physics Preview: Apply Impulse and Vertical Lunge events to the GameObject's position in real-time
+    if (s_hasPreviewAnchor && m_targetComponent->GetOwner())
+    {
+        DirectX::XMFLOAT3 offset{ 0.0f, 0.0f, 0.0f };
+        if (auto* motor = m_targetComponent->GetOwner()->GetComponent<CharacterMovementComponent>())
+        {
+            const float drag = motor->GetConfig().impulseDrag;
+            const float gravity = motor->GetConfig().gravity;
+
+            const float yaw = DirectX::XMConvertToRadians(m_targetComponent->GetOwner()->GetRotation().y);
+            const DirectX::XMFLOAT2 fwd{ std::sin(yaw), std::cos(yaw) };
+
+            const float currentTime = m_targetComponent->GetCurrentTimer();
+
+            for (const auto& ev : targetNode.events)
+            {
+                const float evTime = ev.normalizedTime * baseDuration;
+                if (currentTime > evTime)
+                {
+                    const float t = currentTime - evTime;
+                    if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse))
+                    {
+                        const float dist = (drag > 0.001f) ? ((ev.payload / drag) * (1.0f - std::exp(-drag * t))) : (ev.payload * t);
+                        offset.x += fwd.x * dist;
+                        offset.z += fwd.y * dist;
+                    }
+                    else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Vertical))
+                    {
+                        float dist = (ev.payload * t) + (0.5f * gravity * t * t);
+                        if (dist < 0.0f && motor->isGrounded()) dist = 0.0f; // Basic floor collision approximation
+                        offset.y += dist;
+                    }
+                }
+            }
+        }
+
+        m_targetComponent->GetOwner()->SetPosition({
+            s_previewAnchor.x + offset.x,
+            s_previewAnchor.y + offset.y,
+            s_previewAnchor.z + offset.z
+            });
+    }
+
     ImGui::SameLine();
     if (ImGui::Button("+ Add Event"))
     {
@@ -212,16 +315,83 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
     }
     ImGui::EndDisabled();
 
+    // Synchronize Stance state directly with the shared AnimBlackboard
+    if (auto* bb = const_cast<Engine::Animation::AnimBlackboard*>(m_targetComponent->GetBlackboard()))
+    {
+        ImGui::SameLine();
+        bool isCombat = bb->getFlag(Engine::Animation::AnimFlag::is_combat_active);
+
+        // Auto-assert combat stance for slots and specific node offsets that inherently require weapons drawn
+        auto EvaluatesToCombat = [](Engine::Animation::AnimSlot slot, std::size_t nodeIdx) constexpr -> bool {
+            using namespace Engine::Animation;
+            switch (slot) {
+            case AnimSlot::Attack_Primary:
+            case AnimSlot::Attack_Contextual:
+            case AnimSlot::Attack_Directional:
+            case AnimSlot::Attack_Charged:
+            case AnimSlot::Attack_Aerial:
+            case AnimSlot::Attack_Plunge:
+            case AnimSlot::Parry_Counter:
+            case AnimSlot::HitReact:
+            case AnimSlot::SkillBuff:
+            case AnimSlot::Attack_Speed_Ground:
+            case AnimSlot::Attack_Speed_Aerial:
+            case AnimSlot::Locomotion_Combat:
+                return true;
+            case AnimSlot::Locomotion_Start: return nodeIdx >= 3;
+            case AnimSlot::Locomotion_Stop:  return nodeIdx >= 5;
+            case AnimSlot::PivotTurn:        return nodeIdx >= 2;
+            case AnimSlot::DashEvade:        return nodeIdx >= 2;
+            case AnimSlot::Landing:          return nodeIdx >= 3;
+            case AnimSlot::AirTraversal:     return nodeIdx >= 3;
+            case AnimSlot::Jump_Acrobatic:   return false; // Jump Acrobatic demotes to peaceful
+            default:                         return false;
+            }
+            };
+
+        const bool requiresCombatStance{ EvaluatesToCombat(state.slot, m_selectedNodeIndex) };
+
+        // Edge-triggered auto-sync ensures unified defaults while keeping the checkbox interactive
+        static std::size_t s_lastTimelineState = SIZE_MAX;
+        static std::size_t s_lastTimelineNode = SIZE_MAX;
+
+        if (m_selectedStateIndex != s_lastTimelineState || m_selectedNodeIndex != s_lastTimelineNode)
+        {
+            s_lastTimelineState = m_selectedStateIndex;
+            s_lastTimelineNode = m_selectedNodeIndex;
+
+            if (isCombat != requiresCombatStance)
+            {
+                isCombat = requiresCombatStance;
+                bb->setFlag(Engine::Animation::AnimFlag::is_combat_active, isCombat);
+                if (!isEnginePlaying) m_targetComponent->Update(0.0f);
+            }
+        }
+
+        if (ImGui::Checkbox("Combat Stance", &isCombat))
+        {
+            // Mutate the shared memory contract so SocketComponent and AnimGraph update simultaneously
+            bb->setFlag(Engine::Animation::AnimFlag::is_combat_active, isCombat);
+
+            // Re-evaluate current pose immediately if paused in editor
+            if (!isEnginePlaying)
+            {
+                m_targetComponent->Update(0.0f);
+            }
+        }
+    }
+
     char speedBuf[64];
     snprintf(speedBuf, sizeof(speedBuf), "Base: %.2fs | Speed: %.1fx", baseDuration, targetNode.speedMultiplier);
     const float textWidth{ ImGui::CalcTextSize(speedBuf).x };
-    const float availX{ ImGui::GetContentRegionAvail().x };
 
-    if (availX > textWidth + 20.0f)
-    {
-        ImGui::SameLine(ImGui::GetWindowWidth() - textWidth - 20.0f);
-        ImGui::TextDisabled("%s", speedBuf);
-    }
+    ImGui::SameLine();
+    const float currentX = ImGui::GetCursorPosX();
+    const float targetX = ImGui::GetWindowWidth() - textWidth - 16.0f;
+
+    // Dynamically shift the text to avoid overlapping the Combat Stance checkbox
+    if (targetX > currentX + 10.0f) ImGui::SetCursorPosX(targetX);
+    ImGui::TextDisabled("%s", speedBuf);
 
     ImGui::Separator();
 
@@ -295,20 +465,29 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
     }
 
     const int totalFrames{ static_cast<int>(std::round(baseDuration * 60.0f)) };
+
+    // Prevent text overlap on extremely long clips (e.g. 10.0s Idle)
+    const float pixelsPerFrame = canvasWidth / (totalFrames > 0 ? static_cast<float>(totalFrames) : 1.0f);
+    int majorTickStep = 10;
+    if (pixelsPerFrame * 10.0f < 60.0f) majorTickStep = 30;
+    if (pixelsPerFrame * 30.0f < 60.0f) majorTickStep = 60;
+    if (pixelsPerFrame * 60.0f < 60.0f) majorTickStep = 120;
+    int minorTickStep = majorTickStep / 2;
+
     for (int i{ 0 }; i <= totalFrames; ++i)
     {
         const float t{ static_cast<float>(i) / 60.0f };
         const float normT{ t / baseDuration };
         const float xPixel{ canvasPos.x + (normT * canvasWidth) };
 
-        if (i % 10 == 0)
+        if (i % majorTickStep == 0)
         {
             drawList->AddLine(ImVec2(xPixel, canvasPos.y + headerHeight - 10.0f), ImVec2(xPixel, canvasPos.y + headerHeight), IM_COL32(200, 200, 200, 255));
             char labelBuf[32];
             snprintf(labelBuf, sizeof(labelBuf), "%df (%.2fs)", i, t);
             drawList->AddText(ImVec2(xPixel + 2.0f, canvasPos.y + 2.0f), IM_COL32(150, 150, 150, 255), labelBuf);
         }
-        else if (i % 5 == 0)
+        else if (i % minorTickStep == 0)
         {
             drawList->AddLine(ImVec2(xPixel, canvasPos.y + headerHeight - 6.0f), ImVec2(xPixel, canvasPos.y + headerHeight), IM_COL32(150, 150, 150, 255));
         }
@@ -394,10 +573,15 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
     ImGui::SetCursorScreenPos(canvasPos);
     ImGui::InvisibleButton("##ScrubPlane", ImVec2(canvasWidth, requiredHeight));
 
-    if (!isGameLive && ImGui::IsItemActive() && ImGui::IsMouseDragging(ImGuiMouseButton_Left))
+    // Allow instant clicking anywhere on the track (IsItemActive), not just dragging
+    if (!isGameLive && ImGui::IsItemActive())
     {
         const float mouseLocalX{ ImGui::GetIO().MousePos.x - canvasPos.x };
-        const float newNorm{ std::clamp<float>(mouseLocalX / canvasWidth, 0.0f, 1.0f) };
+
+        // PREVENTIVE BUG: Clamp slightly below 1.0f. If the time hits 1.0f perfectly, 
+        // the underlying AnimationComponent evaluates it as finished and fires StopPreview(), 
+        // breaking the pose and resetting the character back to Idle.
+        const float newNorm{ std::clamp<float>(mouseLocalX / canvasWidth, 0.0f, 0.999f) };
 
         m_targetComponent->ScrubNodeToTime(m_selectedStateIndex, m_selectedNodeIndex, newNorm * baseDuration);
     }
@@ -461,12 +645,14 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
             ImGui::Spacing();
 
             if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse) ||
+                ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Vertical) ||
                 ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt) ||
                 ev.eventId == static_cast<std::uint32_t>(CombatEventId::Play_SFX) ||
                 ev.eventId == static_cast<std::uint32_t>(CombatEventId::Play_VFX))
             {
                 ImGui::Separator();
-                if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse)) ImGui::DragFloat("Lunge Force", &ev.payload, 0.5f, -200.0f, 200.0f);
+                if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse)) ImGui::DragFloat("Horizontal Lunge", &ev.payload, 0.5f, -200.0f, 200.0f);
+                else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Vertical)) ImGui::DragFloat("Vertical Lift (m/s)", &ev.payload, 0.5f, -50.0f, 50.0f);
                 else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt)) ImGui::DragFloat("Braking Factor", &ev.payload, 0.05f, 0.0f, 1.0f, "%.2f (1 = Stop)");
                 else ImGui::DragFloat("Asset ID", &ev.payload, 1.0f, 0.0f, 100.0f);
                 ImGui::Spacing();

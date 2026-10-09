@@ -24,8 +24,11 @@ enum class PlayerStateType : std::uint8_t
     AttackDirectional,
     AttackCharged,
     AttackAerial,
+    AttackPlunge,
     ParryCounter,
     HitReact,
+    SkillBuff,
+    AttackSpeed,
     Count // Automatically handles the pool sizing
 };
 
@@ -43,8 +46,13 @@ struct InputIntent
     bool bSlideHeld{ false };
     bool bSlideTriggered{ false };
     bool bAttackPressed{ false };
+    bool bAttackHeld{ false };
+    bool bHeavyAttackPressed{ false };
+    bool bHeavyAttackHeld{ false };
     bool bJumpTriggered{ false };
+    bool bSkillTriggered{ false };
     bool bSprintHeld{ false };
+    float forwardIntentTimer{ 0.0f }; // Tracks input freshness for command normals
 };
 
 // Translates hardware input into InputIntent and evaluates the State Machine
@@ -77,11 +85,14 @@ public:
     [[nodiscard]] Engine::Animation::AnimBlackboard& getAnimBlackboard() noexcept { return m_blackboard; }
     [[nodiscard]] const Engine::Animation::AnimBlackboard& getAnimBlackboard() const noexcept { return m_blackboard; }
 
-    // Fast O(1) state retrieval from the preallocated array 
     [[nodiscard]] PlayerState* GetState(PlayerStateType type) const noexcept
     {
         return m_states[static_cast<std::size_t>(type)].get();
     }
+
+    // Transient Mailbox for State Handoffs (DOD Isolation)
+    void SetPendingComboHit(int index) noexcept { m_pendingComboHit = index; }
+    [[nodiscard]] int ConsumePendingComboHit() noexcept { const int val = m_pendingComboHit; m_pendingComboHit = -1; return val; }
 
     void SetInputEnabled(bool enabled) noexcept { m_inputEnabled = enabled; }
 
@@ -91,6 +102,7 @@ private:
 
     InputIntent m_intent{};
     bool m_inputEnabled{ true };
+    int m_pendingComboHit{ -1 }; // Transient state token
 
     float m_shiftHoldTimer{ 0.0f };   // Accumulates continuous press duration for the Shift key
     bool  m_wasShiftPressed{ false }; // Tracks the previous frame's press state to detect key release

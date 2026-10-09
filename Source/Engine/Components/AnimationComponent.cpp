@@ -656,9 +656,10 @@ void AnimationComponent::ScrubNodeToTime(std::size_t stateIndex, std::size_t nod
     m_currentStateIndex = stateIndex;
     m_currentTimer = time;
     m_isBlending = false;
-    m_editorPreview = true; 
-	m_previewPaused = true;
+    m_editorPreview = true;
+    m_previewPaused = true;
     m_isolatedNodeIndex = static_cast<int>(nodeIndex);
+    m_currentNodeIndex = nodeIndex;
 
     if (!m_model || m_currentStateIndex >= m_states.size()) return;
 
@@ -798,6 +799,13 @@ void AnimationComponent::Serialize(nlohmann::json& j) const
             nodeJson["StartOffset"] = node.startOffset;
             nodeJson["Speed"] = node.speedMultiplier;
             nodeJson["Blend"] = node.blendDuration;
+            nodeJson["HasGripOverride"] = node.hasGripOverride;
+            nodeJson["GripPosX"] = node.gripPosition.x;
+            nodeJson["GripPosY"] = node.gripPosition.y;
+            nodeJson["GripPosZ"] = node.gripPosition.z;
+            nodeJson["GripRotX"] = node.gripRotation.x;
+            nodeJson["GripRotY"] = node.gripRotation.y;
+            nodeJson["GripRotZ"] = node.gripRotation.z;
             stateJson["BlendParam"] = static_cast<int>(state.blendParam);
 
             nlohmann::json eventsArray = nlohmann::json::array();
@@ -875,6 +883,17 @@ void AnimationComponent::Deserialize(const nlohmann::json& j)
                 node.startOffset = nodeJson.value("StartOffset", 0.0f);
                 node.speedMultiplier = nodeJson.value("Speed", 1.0f);
                 node.blendDuration = nodeJson.value("Blend", 0.2f);
+                node.hasGripOverride = nodeJson.value("HasGripOverride", false);
+                node.gripPosition = {
+                    nodeJson.value("GripPosX", 0.0f),
+                    nodeJson.value("GripPosY", 0.0f),
+                    nodeJson.value("GripPosZ", 0.0f)
+                };
+                node.gripRotation = {
+                    nodeJson.value("GripRotX", 0.0f),
+                    nodeJson.value("GripRotY", 0.0f),
+                    nodeJson.value("GripRotZ", 0.0f)
+                };
 
                 if (nodeJson.contains("Events"))
                 {
@@ -925,6 +944,19 @@ void AnimationComponent::RebuildSlotTable() noexcept
             m_slotLookup[static_cast<std::size_t>(m_states[i].slot)] = static_cast<int16_t>(i);
         }
     }
+}
+
+const AnimNode* AnimationComponent::GetActiveAnimNode() const noexcept
+{
+    if (m_states.empty() || m_currentStateIndex >= m_states.size()) return nullptr;
+    const auto& nodes{ m_states[m_currentStateIndex].nodes };
+    if (nodes.empty()) return nullptr;
+
+    const std::size_t idx{ (m_isolatedNodeIndex >= 0 && static_cast<std::size_t>(m_isolatedNodeIndex) < nodes.size())
+        ? static_cast<std::size_t>(m_isolatedNodeIndex)
+        : (m_currentNodeIndex < nodes.size() ? m_currentNodeIndex : 0) };
+
+    return &nodes[idx];
 }
 
 // Direct index execution

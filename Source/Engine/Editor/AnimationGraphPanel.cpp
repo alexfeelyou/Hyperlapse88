@@ -146,12 +146,12 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
         "None (Unbound)",
         "Locomotion",
         "Locomotion Start",
-        "Locomotion Stop", 
+        "Locomotion Stop",
         "Pivot Turn",
         "Slide",
         "Air Traversal",
-        "Jump: Acrobatic", 
-        "Landing",         
+        "Jump: Acrobatic",
+        "Landing",
         "Parkour Wall",
         "Dash / Evade",
         "Attack: Primary Combo",
@@ -159,9 +159,18 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
         "Attack: Directional (WASD)",
         "Attack: Charged",
         "Attack: Aerial",
+        "Attack: Plunge",
         "Parry & Counter",
-        "Hit Reaction"
+        "Hit Reaction",
+        "Skill Buff",
+        "Speed Attack Ground",
+        "Speed Attack Aerial",
+        "Locomotion Combat"
     };
+
+    // Safety Standard: Guarantee compile-time synchronization between the Enum and the UI string array.
+    static_assert(std::size(s_slotNames) == static_cast<std::size_t>(Engine::Animation::AnimSlot::Count),
+        "AnimSlot enum and s_slotNames array are out of sync!");
 
     int currentSlot = static_cast<int>(state.slot);
     if (ImGui::Combo("Semantic Slot", &currentSlot, s_slotNames, IM_ARRAYSIZE(s_slotNames)))
@@ -244,26 +253,91 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
         ImGui::SetNextItemWidth(200.0f);
         if (ImGui::BeginCombo("Clip", currentClipName.c_str()))
         {
+            static char searchBuffer[128] = "";
+
+            if (ImGui::IsWindowAppearing())
+            {
+                searchBuffer[0] = '\0';
+                ImGui::SetKeyboardFocusHere();
+            }
+
+            ImGui::InputText("##ClipSearch", searchBuffer, sizeof(searchBuffer));
+            ImGui::Separator();
+
+            const std::string_view filterView{ searchBuffer };
+            constexpr auto toLowerFast = [](const char c) constexpr -> char { return (c >= 'A' && c <= 'Z') ? (c + ('a' - 'A')) : c; };
+
             for (std::size_t a{ 0 }; a < animations.size(); ++a)
             {
+                const std::string& clipName{ animations[a].name };
+                bool matches{ true };
+
+                std::size_t start{ 0 };
+                while (start < filterView.length())
+                {
+                    std::size_t end{ filterView.find(' ', start) };
+                    if (end == std::string_view::npos) end = filterView.length();
+
+                    const std::string_view word{ filterView.substr(start, end - start) };
+                    if (!word.empty())
+                    {
+                        bool wordFound{ false };
+                        if (clipName.length() >= word.length())
+                        {
+                            for (std::size_t i{ 0 }; i <= clipName.length() - word.length(); ++i)
+                            {
+                                bool matchAtPos{ true };
+                                for (std::size_t j{ 0 }; j < word.length(); ++j)
+                                {
+                                    if (toLowerFast(clipName[i + j]) != toLowerFast(word[j]))
+                                    {
+                                        matchAtPos = false;
+                                        break;
+                                    }
+                                }
+                                if (matchAtPos)
+                                {
+                                    wordFound = true;
+                                    break;
+                                }
+                            }
+                        }
+                        if (!wordFound)
+                        {
+                            matches = false;
+                            break;
+                        }
+                    }
+                    start = end + 1;
+                }
+
+                if (!matches) continue;
+
                 const bool isClipSelected{ node.clipIndex == static_cast<int>(a) };
-                if (ImGui::Selectable(animations[a].name.c_str(), isClipSelected))
+                if (ImGui::Selectable(clipName.c_str(), isClipSelected))
                 {
                     node.clipIndex = static_cast<int>(a);
                 }
-                if (isClipSelected) ImGui::SetItemDefaultFocus();
+
+                // Only snap to the active item if the user hasn't typed anything, avoiding scroll-fighting.
+                if (isClipSelected && searchBuffer[0] == '\0') ImGui::SetItemDefaultFocus();
             }
             ImGui::EndCombo();
         }
 
         ImGui::SameLine();
+        ImGui::SameLine();
         if (ImGui::Button("Props"))
         {
             m_selectedNodeForProps = static_cast<int>(i);
-
-            // Kill preview if switching nodes
             m_isPreviewingTransition = false;
-            m_targetComponent->StopPreview();
+
+            // When editing weapon grips or node properties, 
+            // automatically snap the 3D model to the exact pose of this animation
+            if (EditorManager::Instance().GetEditorMode() != EditorMode::Play)
+            {
+                m_targetComponent->ScrubNodeToTime(m_selectedStateIndex, i, 0.0f);
+            }
         }
 
         ImGui::SameLine();
@@ -288,7 +362,7 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
 
     const bool isPreviewing{ m_targetComponent->IsPreviewing() };
 
-    // PREVENTIVE BUG FIX: Keep UI perfectly in sync with the Component.
+    // PREVENTIVE BUG: Keep UI perfectly in sync with the Component.
     // If the game goes live, or if the component hard-reset itself, kill the UI harness loop
     if ((isGameLive || (!isPreviewing && m_transitionPhase != 0)) && m_isPreviewingTransition)
     {
@@ -304,6 +378,74 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
         if (isPreviewing) m_targetComponent->StopPreview();
         else m_targetComponent->TestPlayState(m_selectedStateIndex, -1);
     }
+
+    ImGui::Spacing();
+
+    // STANCE TOGGLE (Drives Dual-Profile Sockets and Combat Tree Paths)
+    // Auto-assert combat stance for slots and specific node offsets that inherently require weapons drawn
+    auto EvaluatesToCombat = [](Engine::Animation::AnimSlot slot, std::size_t nodeIdx) constexpr -> bool {
+        using namespace Engine::Animation;
+        switch (slot) {
+        case AnimSlot::Attack_Primary:
+        case AnimSlot::Attack_Contextual:
+        case AnimSlot::Attack_Directional:
+        case AnimSlot::Attack_Charged:
+        case AnimSlot::Attack_Aerial:
+        case AnimSlot::Attack_Plunge:
+        case AnimSlot::Parry_Counter:
+        case AnimSlot::HitReact:
+        case AnimSlot::SkillBuff:
+        case AnimSlot::Attack_Speed_Ground:
+        case AnimSlot::Attack_Speed_Aerial:
+        case AnimSlot::Locomotion_Combat:
+            return true;
+        case AnimSlot::Locomotion_Start: return nodeIdx >= 3; // +3 Offset
+        case AnimSlot::Locomotion_Stop:  return nodeIdx >= 5; // +5 Offset
+        case AnimSlot::PivotTurn:        return nodeIdx >= 2; // +2 Offset
+        case AnimSlot::DashEvade:        return nodeIdx >= 2; // +2 Offset
+        case AnimSlot::Landing:          return nodeIdx >= 3; // +3 Offset
+        case AnimSlot::AirTraversal:     return nodeIdx >= 3; // Airborne combat offsets
+        case AnimSlot::Jump_Acrobatic:   return false; // Jump Acrobatic demotes to peaceful
+        default:                         return false;
+        }
+        };
+
+    const std::size_t activeNodeIdx{ (m_selectedNodeForProps >= 0)
+        ? static_cast<std::size_t>(m_selectedNodeForProps)
+        : m_targetComponent->GetCurrentNodeIndex() };
+
+    const bool requiresCombatStance{ EvaluatesToCombat(state.slot, activeNodeIdx) };
+
+    // Edge-triggered auto-sync: Only force the unified default when the selected state/node actually changes.
+    // This allows the user to still manually click the checkbox below for testing.
+    static std::size_t s_lastSyncState = SIZE_MAX;
+    static std::size_t s_lastSyncNode = SIZE_MAX;
+
+    if (m_selectedStateIndex != s_lastSyncState || activeNodeIdx != s_lastSyncNode)
+    {
+        s_lastSyncState = m_selectedStateIndex;
+        s_lastSyncNode = activeNodeIdx;
+
+        if (m_debugCombatActive != requiresCombatStance)
+        {
+            m_debugCombatActive = requiresCombatStance;
+            if (auto* bb = const_cast<Engine::Animation::AnimBlackboard*>(m_targetComponent->GetBlackboard()))
+            {
+                bb->setFlag(Engine::Animation::AnimFlag::is_combat_active, m_debugCombatActive);
+            }
+            if (!isPreviewing && !isGameLive) m_targetComponent->Update(0.0f);
+        }
+    }
+
+    if (ImGui::Checkbox("Combat Active (Stance)", &m_debugCombatActive))
+    {
+        if (auto* bb = const_cast<Engine::Animation::AnimBlackboard*>(m_targetComponent->GetBlackboard()))
+        {
+            bb->setFlag(Engine::Animation::AnimFlag::is_combat_active, m_debugCombatActive);
+        }
+        if (!isPreviewing && !isGameLive) m_targetComponent->Update(0.0f);
+    }
+
     ImGui::Spacing();
 
     // DYNAMIC BLACKBOARD UI BASED ON GRAPH TYPE 
@@ -482,6 +624,16 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
             {
                 ImGui::Spacing();
                 ImGui::InputInt("Root Bone Index", &targetNode.rootBoneIndex);
+            }
+
+            ImGui::Spacing();
+            ImGui::Separator();
+            ImGui::TextDisabled("WEAPON GRIP OVERRIDE (Attack Sync)");
+            ImGui::Checkbox("Override Weapon Grip##NodeGrip", &targetNode.hasGripOverride);
+            if (targetNode.hasGripOverride)
+            {
+                ImGui::DragFloat3("Grip Pos Delta##NodeGripPos", &targetNode.gripPosition.x, 0.01f);
+                ImGui::DragFloat3("Grip Rot Delta##NodeGripRot", &targetNode.gripRotation.x, 1.0f);
             }
 
             ImGui::Spacing();
