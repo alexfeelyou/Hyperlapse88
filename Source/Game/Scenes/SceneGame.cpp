@@ -126,6 +126,7 @@ SceneGame::SceneGame()
     m_postProcess->Initialize(static_cast<int>(screenW), static_cast<int>(screenH));
     m_postProcess->SetEnabled(true);
     m_postProcess->LoadConfig(GetPostProcessProfilePath());
+    m_postProcess->GetVignette().GetData().enabled = true;
 
     if (m_lastEditorMode == EditorMode::Edit)
     {
