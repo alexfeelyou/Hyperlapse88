@@ -100,7 +100,7 @@
                             "OutlineFadeStart": 12.0,
                             "OutlineWidth": 0.014999999664723873,
                             "Roughness": 0.10700000077486038,
-                            "ShaderId": 2,
+                            "ShaderId": 1,
                             "TexBase": "",
                             "TexNormal": ""
                         },
@@ -131,7 +131,7 @@
                             "OutlineFadeStart": 12.0,
                             "OutlineWidth": 0.014999999664723873,
                             "Roughness": 0.09600000083446503,
-                            "ShaderId": 2,
+                            "ShaderId": 1,
                             "TexBase": "",
                             "TexNormal": ""
                         },
@@ -162,7 +162,7 @@
                             "OutlineFadeStart": 12.0,
                             "OutlineWidth": 0.014999999664723873,
                             "Roughness": 0.10499999672174454,
-                            "ShaderId": 2,
+                            "ShaderId": 1,
                             "TexBase": "",
                             "TexNormal": ""
                         },
@@ -193,7 +193,7 @@
                             "OutlineFadeStart": 12.0,
                             "OutlineWidth": 0.014999999664723873,
                             "Roughness": 0.10000000149011612,
-                            "ShaderId": 2,
+                            "ShaderId": 1,
                             "TexBase": "",
                             "TexNormal": ""
                         }
@@ -451,15 +451,15 @@
                     ],
                     "IsActive": true,
                     "Name": "Socket_Weapon_Back",
-                    "PosX": 0.7095822095870972,
-                    "PosY": 1.00518798828125,
-                    "PosZ": -0.6010758876800537,
-                    "RotX": -28.852407455444336,
-                    "RotY": 51.63562774658203,
-                    "RotZ": 104.82478332519531,
+                    "PosX": -0.4436783194541931,
+                    "PosY": 0.4655759334564209,
+                    "PosZ": 0.3163749575614929,
+                    "RotX": 4.234800815582275,
+                    "RotY": -131.75721740722656,
+                    "RotZ": 31.10491180419922,
                     "ScaleX": 1.309999942779541,
-                    "ScaleY": 1.9099994897842407,
-                    "ScaleZ": 0.9100000262260437
+                    "ScaleY": 1.9099996089935303,
+                    "ScaleZ": 0.9099999666213989
                 }
             ],
             "Components": [
@@ -3201,7 +3201,7 @@
                             "OutlineFadeStart": 12.0,
                             "OutlineWidth": 0.014999999664723873,
                             "Roughness": 0.0560000017285347,
-                            "ShaderId": 2,
+                            "ShaderId": 1,
                             "TexBase": "",
                             "TexNormal": ""
                         }

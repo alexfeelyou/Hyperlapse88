@@ -196,11 +196,11 @@ void PostProcessManager::EndCapture(float dt)
     constexpr UINT zeroOffset{ 0 };
     dc->IASetVertexBuffers(0, 1, &nullBuffer, &zeroStride, &zeroOffset);
 
-    // Unbind DSV from the Output Merger to prevent Read/Write Hazards
-    ID3D11RenderTargetView* initialRTV{ m_sceneTarget.rtv.Get() };
-    dc->OMSetRenderTargets(1, &initialRTV, nullptr);
+    // Detach Output Merger targets completely to prevent OM/SRV feedback hazards
+    ID3D11RenderTargetView* nullRTV{ nullptr };
+    dc->OMSetRenderTargets(1, &nullRTV, nullptr);
 
-    // Bind the Depth SRV to register(t1) globally for all post-process effects
+    // Bind Depth SRV to t1 and Velocity SRV to t2 globally for passes requiring scene metrics
     ID3D11ShaderResourceView* depthSRV{ m_depthSRV.Get() };
     dc->PSSetShaderResources(1, 1, &depthSRV);
 
@@ -208,13 +208,13 @@ void PostProcessManager::EndCapture(float dt)
     dc->PSSetShaderResources(2, 1, &velocitySRV);
 
     // Multi-Pass Ping-Pong Loop
-    ID3D11ShaderResourceView* currentSourceSRV = m_sceneTarget.srv.Get();
+    ID3D11ShaderResourceView* currentSourceSRV{ m_sceneTarget.srv.Get() };
     int pingPongIndex{ 0 };
 
     if (m_temporalAAEffect->IsEnabled())
     {
         ID3D11ShaderResourceView* const nullSRV[]{ nullptr };
-        dc->PSSetShaderResources(3, 1, nullSRV); // unbind history SRV before binding its buffer as RTV
+        dc->PSSetShaderResources(3, 1, nullSRV); // Unbind history SRV before binding its buffer as RTV
 
         ID3D11RenderTargetView* resolveRTV{ m_temporalAAEffect->GetWriteRTV() };
         dc->OMSetRenderTargets(1, &resolveRTV, nullptr);
@@ -223,19 +223,42 @@ void PostProcessManager::EndCapture(float dt)
 
         currentSourceSRV = m_temporalAAEffect->GetWriteSRV();
         m_temporalAAEffect->SwapHistoryBuffers();
+
+        dc->PSSetShaderResources(0, 1, nullSRV);
+    }
+
+    // Execute active post-process passes through alternating ping-pong targets
+    for (const auto& effect : m_effects)
+    {
+        if (!effect->IsEnabled())
+        {
+            continue;
+        }
+
+        ID3D11RenderTargetView* targetRTV{ m_pingPong[pingPongIndex].rtv.Get() };
+        dc->OMSetRenderTargets(1, &targetRTV, nullptr);
+
+        effect->Draw(dc, currentSourceSRV);
+
+        // Break slot 0 binding to prevent feedback hazards when this buffer becomes an RTV
+        ID3D11ShaderResourceView* const nullSRV[]{ nullptr };
+        dc->PSSetShaderResources(0, 1, nullSRV);
+
+        currentSourceSRV = m_pingPong[pingPongIndex].srv.Get();
+        pingPongIndex = 1 - pingPongIndex;
     }
 
     // Final Pass: Blit the final processed texture directly into the host's original RTV
-    ID3D11ShaderResourceView* nullSRVs[2]{ nullptr, nullptr }; // Expand array to 2
-    dc->PSSetShaderResources(0, 2, nullSRVs); // Unbind both t0 and t1
+    ID3D11ShaderResourceView* nullSRVs[4]{ nullptr, nullptr, nullptr, nullptr };
+    dc->PSSetShaderResources(0, 4, nullSRVs); // Unbind slots t0 through t3
 
     dc->OMSetRenderTargets(1, &m_originalRTV, m_originalDSV);
     dc->RSSetViewports(m_originalViewportCount, &m_originalViewport);
 
     Blit(dc, currentSourceSRV, m_originalRTV);
 
-    // Unbind SRVs to prevent pipeline warnings on the next frame
-    dc->PSSetShaderResources(0, 2, nullSRVs);
+    // Unbind all SRVs to prevent pipeline warnings on subsequent passes or frames
+    dc->PSSetShaderResources(0, 4, nullSRVs);
 
     if (m_originalRTV) { m_originalRTV->Release(); m_originalRTV = nullptr; }
     if (m_originalDSV) { m_originalDSV->Release(); m_originalDSV = nullptr; }
