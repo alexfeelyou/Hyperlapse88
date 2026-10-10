@@ -41,7 +41,13 @@ float3 CalculateToonLight(float3 L, float3 N, float3 V, float3 radiance, float3 
     
     // A hard step creates a solid, sharp geometric glint instead of a soft realistic glare
     float celSpec = step(0.5f, specRaw);
-    float3 specularColor = radiance * celSpec * 0.5f; 
+
+    // Shadow Masking. Specular glints should never bleed into the shadowed cel-bands.
+    celSpec *= step(0.5f, halfLambert);
+    
+    // Tinting the reflection with the base albedo mimics painted anime cells.
+    float specularIntensity = saturate(1.0f - roughness);
+    float3 specularColor = radiance * celSpec * albedo * specularIntensity;
 
     return diffuseColor + specularColor;
 }
