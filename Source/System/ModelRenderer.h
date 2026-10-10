@@ -1,8 +1,11 @@
 #pragma once
 
 #include <algorithm>
+#include <cstddef>
+#include <cstdint>
 #include <d3d11.h>
 #include <DirectXMath.h>
+#include <limits>
 #include <memory>
 #include <vector>
 #include <wrl.h>
@@ -50,14 +53,84 @@ public:
 private:
     void DrawMeshVelocity(ID3D11DeviceContext* dc, const Model::Mesh& mesh, std::size_t skeletonSlot);
 
-    struct MeshDrawCommand
+    // Single-frame linear arena allocator for zero heap allocations per frame
+    class LinearFrameArena final
     {
-        const Model::Mesh* mesh{};
+    public:
+        explicit LinearFrameArena(std::size_t capacityBytes)
+            : m_capacity{ capacityBytes }
+            , m_buffer{ std::make_unique<std::byte[]>(capacityBytes) }
+        {}
+
+        ~LinearFrameArena() = default;
+        LinearFrameArena(const LinearFrameArena&) = delete;
+        LinearFrameArena& operator=(const LinearFrameArena&) = delete;
+        LinearFrameArena(LinearFrameArena&&) noexcept = default;
+        LinearFrameArena& operator=(LinearFrameArena&&) noexcept = default;
+
+        void Reset() noexcept
+        {
+            m_offset = 0;
+        }
+
+        [[nodiscard]] void* Allocate(std::size_t size, std::size_t alignment = alignof(std::max_align_t)) noexcept
+        {
+            const std::size_t currentAddress{ reinterpret_cast<std::size_t>(m_buffer.get() + m_offset) };
+            const std::size_t padding{ (alignment - (currentAddress % alignment)) % alignment };
+            if (m_offset + padding + size > m_capacity)
+            {
+                return nullptr;
+            }
+            m_offset += padding;
+            void* const ptr{ m_buffer.get() + m_offset };
+            m_offset += size;
+            return ptr;
+        }
+
+        template <typename T>
+        [[nodiscard]] T* AllocateArray(std::size_t count) noexcept
+        {
+            return static_cast<T*>(Allocate(sizeof(T) * count, alignof(T)));
+        }
+
+    private:
+        std::size_t                  m_capacity{ 0 };
+        std::size_t                  m_offset{ 0 };
+        std::unique_ptr<std::byte[]> m_buffer{ nullptr };
+    };
+
+    // 64-bit Radix Sort Key layout:
+    // Bits 63..60 : Pass ID (Shadow Cascades 0-3, Opaque, Mask, Transparent)
+    // Bits 59..56 : Translucency Layer (0 = Opaque front-to-back, 1 = Transparent back-to-front)
+    // Bits 55..48 : Shader ID (Pipeline State)
+    // Bits 47..32 : Material Key (Texture & Parameter state hash)
+    // Bits 31..16 : Geometry Key (Vertex & Index buffer pair hash)
+    // Bits 15..0  : Quantized Depth (16-bit linear camera distance)
+    [[nodiscard]] static constexpr uint64_t BuildDrawKey(
+        uint64_t passId,
+        uint64_t translucencyLayer,
+        uint64_t shaderId,
+        uint64_t materialKey,
+        uint64_t geometryKey,
+        uint16_t quantizedDepth) noexcept
+    {
+        return ((passId & 0xFULL) << 60)
+            | ((translucencyLayer & 0xFULL) << 56)
+            | ((shaderId & 0xFFULL) << 48)
+            | ((materialKey & 0xFFFFULL) << 32)
+            | ((geometryKey & 0xFFFFULL) << 16)
+            | (static_cast<uint64_t>(quantizedDepth));
+    }
+
+    struct DrawPacket
+    {
+        uint64_t            key{ 0 };
+        const Model::Mesh* mesh{ nullptr };
         std::size_t         skeletonSlot{ 0 };
-        DirectX::XMFLOAT4   color{};
+        DirectX::XMFLOAT4   color{ 1.0f, 1.0f, 1.0f, 1.0f };
         bool                useManualMatrix{ false };
+        bool                hasVelocity{ false };
         DirectX::XMFLOAT4X4 worldMatrix{};
-        bool                hasVelocity{ false }; 
     };
 
     struct CbScene
@@ -106,15 +179,6 @@ private:
         std::vector<std::size_t> skeletonSlots{};
     };
 
-    struct TransparencyDrawInfo
-    {
-        ShaderId            shaderId;
-        const Model::Mesh* mesh;
-        float               distance;
-        DirectX::XMFLOAT4   color;
-        std::size_t         skeletonSlot{ 0 };
-    };
-
     struct SkeletonSlot
     {
         Microsoft::WRL::ComPtr<ID3D11Buffer> currentBuffer{};
@@ -137,8 +201,8 @@ private:
     std::unique_ptr<OutlineShader>       m_outlineShader;
     std::unique_ptr<ShadowCasterShader>  m_shadowCasterShader{};
     std::unique_ptr<VelocityShader>      m_velocityShader{};
-    std::vector<DrawInfo>                drawInfos;
-    std::vector<TransparencyDrawInfo>    transparencyDrawInfos;
+    LinearFrameArena                     m_frameArena{ 4 * 1024 * 1024 }; // 4MB persistent frame bump arena
+    std::vector<DrawInfo>                drawInfos{};
 
     Microsoft::WRL::ComPtr<ID3D11Buffer> sceneConstantBuffer;
     Microsoft::WRL::ComPtr<ID3D11Buffer> objectConstantBuffer;
