@@ -31,6 +31,36 @@ namespace
     }
 }
 
+Material Material::Clone() const noexcept
+{
+    Material mat{};
+    mat.name = name;
+    mat.shaderId = shaderId;
+    mat.alphaMode = alphaMode;
+    mat.alphaCutoff = alphaCutoff;
+    mat.baseColor = baseColor;
+    mat.emissiveColor = emissiveColor;
+    mat.metalness = metalness;
+    mat.roughness = roughness;
+    mat.occlusionStrength = occlusionStrength;
+    mat.enableOutline = enableOutline;
+    mat.outlineWidth = outlineWidth;
+    mat.outlineFadeStart = outlineFadeStart;
+    mat.outlineFadeEnd = outlineFadeEnd;
+    mat.outlineColor = outlineColor;
+    mat.baseTextureFileName = baseTextureFileName;
+    mat.normalTextureFileName = normalTextureFileName;
+    mat.emissiveTextureFileName = emissiveTextureFileName;
+    mat.occlusionTextureFileName = occlusionTextureFileName;
+    mat.metalnessRoughnessTextureFileName = metalnessRoughnessTextureFileName;
+    mat.baseMap = baseMap;
+    mat.normalMap = normalMap;
+    mat.emissiveMap = emissiveMap;
+    mat.occlusionMap = occlusionMap;
+    mat.metalnessRoughnessMap = metalnessRoughnessMap;
+    return mat;
+}
+
 void Material::DrawInspector() noexcept
 {
     // Shader Selection Dropdown
@@ -252,6 +282,27 @@ void Material::Deserialize(const nlohmann::json& j)
 
     roughness = j.value("Roughness", 0.5f);
     metalness = j.value("Metalness", 0.0f);
+
+    // Restore texture paths
+    const std::string newBaseTex{ j.value("TexBase", "") };
+    const std::string newNormalTex{ j.value("TexNormal", "") };
+
+    // Reload texture descriptors if saved paths differ or texture is missing
+    if (!newBaseTex.empty() && (newBaseTex != baseTextureFileName || !baseMap))
+    {
+        auto* device{ Graphics::Instance().GetDevice() };
+        baseMap.Reset();
+        GpuResourceUtils::LoadTexture(device, newBaseTex.c_str(), baseMap.GetAddressOf());
+        baseTextureFileName = newBaseTex;
+    }
+
+    if (!newNormalTex.empty() && (newNormalTex != normalTextureFileName || !normalMap))
+    {
+        auto* device{ Graphics::Instance().GetDevice() };
+        normalMap.Reset();
+        GpuResourceUtils::LoadTexture(device, newNormalTex.c_str(), normalMap.GetAddressOf());
+        normalTextureFileName = newNormalTex;
+    }
 
     enableOutline = j.value("EnableOutline", true);
     outlineWidth = j.value("OutlineWidth", 0.015f);

@@ -26,6 +26,9 @@ public:
     Material(Material&&) = default;
     Material& operator=(Material&&) = default;
 
+    // Explicit clone creates an independent material instance (duplicates COM pointers via AddRef)
+    [[nodiscard]] Material Clone() const noexcept;
+
     // Renders the ImGui UI for this specific material
     void DrawInspector() noexcept;
 

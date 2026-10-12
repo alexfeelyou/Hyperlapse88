@@ -84,6 +84,17 @@ void MeshComponent::SetModel(std::shared_ptr<Model> model, std::string_view path
         m_modelPath = path;
     }
 
+    // Deep-clone material template instances into component storage
+    m_materials.clear();
+    if (m_model)
+    {
+        m_materials.reserve(m_model->GetMaterials().size());
+        for (const auto& mat : m_model->GetMaterials())
+        {
+            m_materials.push_back(mat.Clone());
+        }
+    }
+
     // Sync with AnimationComponent if it exists 
     if (m_owner)
     {
@@ -116,8 +127,8 @@ void MeshComponent::Render(ModelRenderer* renderer)
         previousGlobals = &animComp->GetPreviousNodeGlobals();
     }
 
-    // Pass the retrieved matrices to ModelRenderer to process hardware skinning
-    renderer->Draw(m_model, m_color, worldMatrix, previousWorldMatrix, currentGlobals, previousGlobals);
+    // Pass per-instance material overrides to prevent modifying shared asset templates
+    renderer->Draw(m_model, m_color, worldMatrix, previousWorldMatrix, currentGlobals, previousGlobals, true, &m_materials);
 
     // Cache after submission, or this frame's data is lost before the velocity pass reads it next frame
     m_previousWorldMatrix = worldMatrix;
@@ -169,25 +180,24 @@ void MeshComponent::DrawInspector()
         ImGui::Separator();
         ImGui::Spacing();
 
-        // Sub-Mesh material slots
-        ImGui::TextDisabled("MATERIALS (%zu)", m_model ? m_model->GetMaterials().size() : 0);
+        // Sub-Mesh material slots (Per-Instance Overrides)
+        ImGui::TextDisabled("MATERIALS (%zu)", m_materials.size());
 
-        if (m_model)
+        if (m_model && !m_materials.empty())
         {
-            auto& materials{ m_model->GetMaterials() };
-            for (size_t i = 0; i < materials.size(); ++i)
+            for (size_t i{ 0 }; i < m_materials.size(); ++i)
             {
                 // Use ImGui::PushID to ensure sliders/buttons in different materials don't conflict
                 ImGui::PushID(static_cast<int>(i));
 
                 // Format slot name: "Slot 0: MaterialName"
                 char headerName[64];
-                snprintf(headerName, sizeof(headerName), "Slot %zu: %s", i, materials[i].name.c_str());
+                snprintf(headerName, sizeof(headerName), "Slot %zu: %s", i, m_materials[i].name.c_str());
 
                 if (ImGui::TreeNode(headerName))
                 {
-                    // Draw the standalone Material UI 
-                    materials[i].DrawInspector();
+                    // Draw the standalone Material UI for this specific component
+                    m_materials[i].DrawInspector();
                     ImGui::TreePop();
                 }
 
@@ -207,18 +217,15 @@ void MeshComponent::Serialize(nlohmann::json& j) const
     j["ModelPath"] = LocalToUTF8(m_modelPath);
     j["Color"] = { m_color.x, m_color.y, m_color.z, m_color.w };
 
-    // Save all material overrides
-    if (m_model)
+    // Save per-instance material overrides
+    nlohmann::json matArray{ nlohmann::json::array() };
+    for (const auto& mat : m_materials)
     {
-        nlohmann::json matArray = nlohmann::json::array();
-        for (const auto& mat : m_model->GetMaterials())
-        {
-            nlohmann::json matJson{};
-            mat.Serialize(matJson);
-            matArray.push_back(matJson);
-        }
-        j["Materials"] = matArray;
+        nlohmann::json matJson{};
+        mat.Serialize(matJson);
+        matArray.push_back(matJson);
     }
+    j["Materials"] = matArray;
 }
 
 void MeshComponent::Deserialize(const nlohmann::json& j)
@@ -237,15 +244,26 @@ void MeshComponent::Deserialize(const nlohmann::json& j)
         {
             SetModel(std::move(newModel), path);
 
-            // Apply loaded material overrides to the model
+            // Apply loaded material overrides to this component instance
             if (j.contains("Materials"))
             {
-                auto& materials = m_model->GetMaterials();
-                const auto& matJsonArray = j["Materials"];
-
-                for (size_t i = 0; i < materials.size() && i < matJsonArray.size(); ++i)
+                const auto& matJsonArray{ j["Materials"] };
+                for (size_t i{ 0 }; i < m_materials.size() && i < matJsonArray.size(); ++i)
                 {
-                    materials[i].Deserialize(matJsonArray[i]);
+                    // Preserve base textures if the JSON texture path was empty
+                    auto preservedBaseMap{ m_materials[i].baseMap };
+                    auto preservedNormalMap{ m_materials[i].normalMap };
+
+                    m_materials[i].Deserialize(matJsonArray[i]);
+
+                    if (!m_materials[i].baseMap)
+                    {
+                        m_materials[i].baseMap = preservedBaseMap;
+                    }
+                    if (!m_materials[i].normalMap)
+                    {
+                        m_materials[i].normalMap = preservedNormalMap;
+                    }
                 }
             }
         }

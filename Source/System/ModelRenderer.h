@@ -39,13 +39,14 @@ public:
     ModelRenderer(ID3D11Device* device);
     ~ModelRenderer() {}
 
-    void Draw(std::shared_ptr<Model> model, const DirectX::XMFLOAT4& color = { 1.0f, 1.0f, 1.0f, 1.0f }, bool castShadows = true);
-    void Draw(std::shared_ptr<Model> model, DirectX::XMFLOAT4 color, const DirectX::XMFLOAT4X4& worldMatrix, bool castShadows = true);
+    void Draw(std::shared_ptr<Model> model, const DirectX::XMFLOAT4& color = { 1.0f, 1.0f, 1.0f, 1.0f }, bool castShadows = true, const std::vector<Material>* materials = nullptr);
+    void Draw(std::shared_ptr<Model> model, DirectX::XMFLOAT4 color, const DirectX::XMFLOAT4X4& worldMatrix, bool castShadows = true, const std::vector<Material>* materials = nullptr);
     void Draw(std::shared_ptr<Model> model, DirectX::XMFLOAT4 color,
         const DirectX::XMFLOAT4X4& worldMatrix, const DirectX::XMFLOAT4X4& previousWorldMatrix,
         const std::vector<DirectX::XMFLOAT4X4>* currentNodeGlobals = nullptr,
         const std::vector<DirectX::XMFLOAT4X4>* previousNodeGlobals = nullptr,
-        bool castShadows = true);
+        bool castShadows = true,
+        const std::vector<Material>* materials = nullptr);
 
     // ï`âÊé¿çs
     void Render(const RenderContext& rc);
@@ -133,6 +134,7 @@ private:
     {
         uint64_t            key{ 0 };
         const Model::Mesh* mesh{ nullptr };
+        const Material* material{ nullptr };
         std::size_t         skeletonSlot{ 0 };
         DirectX::XMFLOAT4   color{ 1.0f, 1.0f, 1.0f, 1.0f };
         DirectX::XMFLOAT4X4 worldMatrix{};
@@ -178,8 +180,9 @@ private:
         DirectX::XMFLOAT4X4      worldMatrix{};
         DirectX::XMFLOAT4X4      previousWorldMatrix{};
         bool                     castShadows{ true };
-        bool                     hasVelocity{ false }; 
+        bool                     hasVelocity{ false };
         std::vector<std::size_t> skeletonSlots{};
+        const std::vector<Material>* materials{ nullptr };
     };
 
     struct SkeletonSlot

@@ -38,9 +38,13 @@ public:
     void SetModel(std::shared_ptr<Model> model, std::string_view path = "") noexcept;
     [[nodiscard]] std::shared_ptr<Model> GetModel() const noexcept { return m_model; }
 
+    [[nodiscard]] const std::vector<Material>& GetMaterials() const noexcept { return m_materials; }
+    [[nodiscard]] std::vector<Material>& GetMaterials() noexcept { return m_materials; }
+
 private:
     std::shared_ptr<Model>  m_model{};
     std::string             m_modelPath{ "None" }; // Tracks the loaded asset path
+    std::vector<Material>   m_materials{};        // Per-instance material overrides
 
     DirectX::XMFLOAT4       m_color{ 1.0f, 1.0f, 1.0f, 1.0f };
 

@@ -117,6 +117,109 @@ namespace
 
         return { worldCenter, worldRadius };
     }
+
+    // Hashes only the properties consumed by the active main pass shader
+    [[nodiscard]] uint16_t HashMaterial(const Material* mat) noexcept
+    {
+        if (!mat) return 0;
+
+        // 16-byte aligned payload capturing surface parameters
+        struct alignas(16) MaterialKeyData
+        {
+            void* baseMap{ nullptr };
+            void* normalMap{ nullptr };
+            void* emissiveMap{ nullptr };
+            void* occlusionMap{ nullptr };
+            void* metalnessRoughnessMap{ nullptr };
+            DirectX::XMFLOAT4 baseColor{ 1.0f, 1.0f, 1.0f, 1.0f };
+            DirectX::XMFLOAT3 emissiveColor{ 0.0f, 0.0f, 0.0f };
+            float roughness{ 0.5f };
+            float metalness{ 0.0f };
+            float occlusionStrength{ 1.0f };
+            float alphaCutoff{ 0.5f };
+            int alphaMode{ 0 };
+        };
+
+        // Value-initialization guarantees all internal padding bytes are zeroed
+        MaterialKeyData data{};
+
+        // Common to all forward surface shaders
+        data.baseMap = mat->baseMap.Get();
+        data.baseColor = mat->baseColor;
+        data.alphaCutoff = mat->alphaCutoff;
+        data.alphaMode = static_cast<int>(mat->alphaMode);
+
+        // Scope hashing strictly to properties evaluated by the active shader permutation
+        switch (static_cast<ShaderId>(mat->shaderId))
+        {
+        case ShaderId::Basic:
+            // Basic shader ignores lighting, normal mapping, PBR maps, and outlines
+            break;
+
+        case ShaderId::Lambert:
+            data.emissiveColor = mat->emissiveColor;
+            break;
+
+        case ShaderId::Phong:
+            data.normalMap = mat->normalMap.Get();
+            data.emissiveColor = mat->emissiveColor;
+            data.roughness = mat->roughness;
+            break;
+
+        case ShaderId::Pbr:
+            data.normalMap = mat->normalMap.Get();
+            data.emissiveMap = mat->emissiveMap.Get();
+            data.occlusionMap = mat->occlusionMap.Get();
+            data.metalnessRoughnessMap = mat->metalnessRoughnessMap.Get();
+            data.emissiveColor = mat->emissiveColor;
+            data.roughness = mat->roughness;
+            data.metalness = mat->metalness;
+            data.occlusionStrength = mat->occlusionStrength;
+            break;
+
+        case ShaderId::Toon:
+            // Surface pass only evaluates diffuse, emissive, and stepped specular
+            data.emissiveColor = mat->emissiveColor;
+            data.roughness = mat->roughness;
+            break;
+
+        default:
+            break;
+        }
+
+        const std::uint64_t hash{ Core::BufferHash(&data, sizeof(MaterialKeyData)) };
+        return static_cast<uint16_t>(hash ^ (hash >> 16) ^ (hash >> 32) ^ (hash >> 48));
+    }
+
+    // Hashes only the parameters consumed by OutlineShader
+    [[nodiscard]] uint16_t HashOutlineMaterial(const Material* mat) noexcept
+    {
+        if (!mat) return 0;
+
+        struct alignas(16) OutlineKeyData
+        {
+            void* baseMap{ nullptr };
+            DirectX::XMFLOAT4 outlineColor{ 0.0f, 0.0f, 0.0f, 1.0f };
+            float outlineWidth{ 0.0f };
+            float outlineFadeStart{ 0.0f };
+            float outlineFadeEnd{ 0.0f };
+            float alphaCutoff{ 0.5f };
+            int alphaMode{ 0 };
+            float padding[3]{ 0.0f, 0.0f, 0.0f };
+        };
+
+        OutlineKeyData data{};
+        data.baseMap = mat->baseMap.Get();
+        data.outlineColor = mat->outlineColor;
+        data.outlineWidth = mat->outlineWidth;
+        data.outlineFadeStart = mat->outlineFadeStart;
+        data.outlineFadeEnd = mat->outlineFadeEnd;
+        data.alphaCutoff = mat->alphaCutoff;
+        data.alphaMode = static_cast<int>(mat->alphaMode);
+
+        const std::uint64_t hash{ Core::BufferHash(&data, sizeof(OutlineKeyData)) };
+        return static_cast<uint16_t>(hash ^ (hash >> 16) ^ (hash >> 32) ^ (hash >> 48));
+    }
 }
 
 ModelRenderer::ModelRenderer(ID3D11Device* device)
@@ -279,16 +382,17 @@ void ModelRenderer::BindSkeletonSlot(ID3D11DeviceContext* dc, std::size_t slotIn
     dc->VSSetConstantBuffers(9, 1, &previousCb); 
 }
 
-void ModelRenderer::Draw(std::shared_ptr<Model> model, const DirectX::XMFLOAT4& color, bool castShadows)
+void ModelRenderer::Draw(std::shared_ptr<Model> model, const DirectX::XMFLOAT4& color, bool castShadows, const std::vector<Material>* materials)
 {
     DrawInfo& drawInfo{ drawInfos.emplace_back() };
     drawInfo.model = std::move(model);
     drawInfo.color = color;
     drawInfo.useManualMatrix = false;
     drawInfo.castShadows = castShadows;
+    drawInfo.materials = materials;
 }
 
-void ModelRenderer::Draw(std::shared_ptr<Model> model, DirectX::XMFLOAT4 color, const DirectX::XMFLOAT4X4& worldMatrix, bool castShadows)
+void ModelRenderer::Draw(std::shared_ptr<Model> model, DirectX::XMFLOAT4 color, const DirectX::XMFLOAT4X4& worldMatrix, bool castShadows, const std::vector<Material>* materials)
 {
     DrawInfo& drawInfo{ drawInfos.emplace_back() };
     drawInfo.model = std::move(model);
@@ -297,15 +401,18 @@ void ModelRenderer::Draw(std::shared_ptr<Model> model, DirectX::XMFLOAT4 color, 
     drawInfo.worldMatrix = worldMatrix;
     drawInfo.previousWorldMatrix = worldMatrix;
     drawInfo.castShadows = castShadows;
+    drawInfo.materials = materials;
 }
 
 void ModelRenderer::Draw(std::shared_ptr<Model> model, DirectX::XMFLOAT4 color,
     const DirectX::XMFLOAT4X4& worldMatrix, const DirectX::XMFLOAT4X4& previousWorldMatrix,
     const std::vector<DirectX::XMFLOAT4X4>* currentNodeGlobals,
-    const std::vector<DirectX::XMFLOAT4X4>* previousNodeGlobals, bool castShadows)
+    const std::vector<DirectX::XMFLOAT4X4>* previousNodeGlobals, bool castShadows,
+    const std::vector<Material>* materials)
 {
     DrawInfo info{ std::move(model), currentNodeGlobals, previousNodeGlobals, color, true, worldMatrix, previousWorldMatrix, castShadows };
-    info.hasVelocity = true; 
+    info.hasVelocity = true;
+    info.materials = materials;
     drawInfos.push_back(std::move(info));
 }
 
@@ -377,103 +484,125 @@ void ModelRenderer::Render(const RenderContext& rc)
 
     std::size_t instanceOffset = 0;
 
-    // THE BATCHING DISPATCHER: Coalesces contiguous DrawPackets into single DrawIndexedInstanced calls
+    // THE PASS DISPATCHER: Single contiguous upload per pass, zero draw-loop mapping stalls
     auto executeBatches = [&](const DrawPacket* packets, std::size_t count, Shader* forcedShader = nullptr)
         {
             if (count == 0) return;
 
-            Shader* activeShader = nullptr;
-            ShaderId activeShaderId = ShaderId::EnumCount;
-            const Material* currentMaterial = nullptr;
-            ID3D11Buffer* currentVB = nullptr;
-            ID3D11Buffer* currentIB = nullptr;
-            std::size_t currentSlot = kInvalidSkeletonSlot;
+            // Dynamic Buffer Allocation & Wrap Guard
+            if (instanceOffset + count > m_instanceCapacity)
+            {
+                if (count > m_instanceCapacity)
+                {
+                    m_instanceCapacity = (std::max)(m_instanceCapacity * 2, count + 1024);
+                    D3D11_BUFFER_DESC idesc{};
+                    idesc.ByteWidth = sizeof(InstanceData) * static_cast<UINT>(m_instanceCapacity);
+                    idesc.Usage = D3D11_USAGE_DYNAMIC;
+                    idesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+                    idesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+                    m_instanceBuffer.Reset();
+                    device->CreateBuffer(&idesc, nullptr, m_instanceBuffer.GetAddressOf());
+                }
+                instanceOffset = 0;
+            }
 
-            // Bind Instance Buffer globally at offset 0 to prevent driver desync.
-            ID3D11Buffer* const instBuf = m_instanceBuffer.Get();
-            const UINT instStride = sizeof(InstanceData);
-            const UINT zeroOffset = 0;
+            // Stream all instance transforms for the entire pass in a single map operation
+            const D3D11_MAP mapType{ (instanceOffset == 0) ? D3D11_MAP_WRITE_DISCARD : D3D11_MAP_WRITE_NO_OVERWRITE };
+            D3D11_MAPPED_SUBRESOURCE mapped{};
+            dc->Map(m_instanceBuffer.Get(), 0, mapType, 0, &mapped);
+            InstanceData* const instData{ static_cast<InstanceData*>(mapped.pData) + instanceOffset };
+
+            const DirectX::XMMATRIX identity{ DirectX::XMMatrixIdentity() };
+            for (std::size_t i{ 0 }; i < count; ++i)
+            {
+                const DrawPacket& p{ packets[i] };
+                if (p.mesh->bones.empty())
+                {
+                    DirectX::XMStoreFloat4x4(&instData[i].world, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&p.worldMatrix)));
+                    DirectX::XMStoreFloat4x4(&instData[i].prevWorld, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&p.prevWorldMatrix)));
+                }
+                else
+                {
+                    DirectX::XMStoreFloat4x4(&instData[i].world, identity);
+                    DirectX::XMStoreFloat4x4(&instData[i].prevWorld, identity);
+                }
+                instData[i].color = p.color;
+            }
+            dc->Unmap(m_instanceBuffer.Get(), 0);
+
+            // Bind Slot 1 Instance Buffer once for the entire pass
+            ID3D11Buffer* const instBuf{ m_instanceBuffer.Get() };
+            const UINT instStride{ sizeof(InstanceData) };
+            const UINT zeroOffset{ 0 };
             dc->IASetVertexBuffers(1, 1, &instBuf, &instStride, &zeroOffset);
 
-            for (std::size_t pIdx = 0; pIdx < count; )
+            // Hot Dispatch Loop: Zero Map/Unmap overhead, pure state caching & dispatches
+            Shader* activeShader{ forcedShader };
+            ShaderId activeShaderId{ ShaderId::EnumCount };
+            const Material* currentMaterial{ nullptr };
+            ID3D11Buffer* currentVB{ nullptr };
+            ID3D11Buffer* currentIB{ nullptr };
+            std::size_t currentSlot{ kInvalidSkeletonSlot };
+
+            const bool isDepthOrVelocityPass{ (forcedShader == m_shadowCasterShader.get() || forcedShader == m_velocityShader.get()) };
+
+            for (std::size_t pIdx{ 0 }; pIdx < count; )
             {
-                const DrawPacket& firstPacket = packets[pIdx];
-                std::size_t batchCount = 1;
-                const bool isStatic = firstPacket.mesh->bones.empty();
+                const DrawPacket& firstPacket{ packets[pIdx] };
+                std::size_t batchCount{ 1 };
+                const bool isStatic{ firstPacket.mesh->bones.empty() };
 
                 if (isStatic)
                 {
-                    // Strict AAA Batch Invariant: Only coalesce identical geometry and material instances
-                    while (pIdx + batchCount < count &&
-                        packets[pIdx + batchCount].mesh == firstPacket.mesh &&
-                        packets[pIdx + batchCount].mesh->material == firstPacket.mesh->material &&
-                        packets[pIdx + batchCount].mesh->bones.empty())
+                    if (isDepthOrVelocityPass)
                     {
-                        ++batchCount;
-                    }
-                }
-
-                // Persistent Ring Buffer: DISCARD on frame reset (offset 0) or buffer wrap, NO_OVERWRITE otherwise
-                D3D11_MAP mapType{ (instanceOffset == 0) ? D3D11_MAP_WRITE_DISCARD : D3D11_MAP_WRITE_NO_OVERWRITE };
-                if (instanceOffset + batchCount > m_instanceCapacity)
-                {
-                    mapType = D3D11_MAP_WRITE_DISCARD;
-                    instanceOffset = 0;
-                }
-
-                D3D11_MAPPED_SUBRESOURCE mapped{};
-                dc->Map(m_instanceBuffer.Get(), 0, mapType, 0, &mapped);
-                InstanceData* const instData{ static_cast<InstanceData*>(mapped.pData) + instanceOffset };
-
-                const DirectX::XMMATRIX identity{ DirectX::XMMatrixIdentity() };
-                for (std::size_t i{ 0 }; i < batchCount; ++i)
-                {
-                    const DrawPacket& p{ packets[pIdx + i] };
-                    if (isStatic)
-                    {
-                        // HLSL consumes float4 vertex inputs as Columns, so transpose row-major matrices
-                        DirectX::XMStoreFloat4x4(&instData[i].world, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&p.worldMatrix)));
-                        DirectX::XMStoreFloat4x4(&instData[i].prevWorld, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&p.prevWorldMatrix)));
+                        // Depth/Velocity: Dissimilar materials on identical geometry coalesced into single draw
+                        while (pIdx + batchCount < count &&
+                            packets[pIdx + batchCount].mesh == firstPacket.mesh &&
+                            packets[pIdx + batchCount].mesh->bones.empty())
+                        {
+                            ++batchCount;
+                        }
                     }
                     else
                     {
-                        DirectX::XMStoreFloat4x4(&instData[i].world, identity);
-                        DirectX::XMStoreFloat4x4(&instData[i].prevWorld, identity);
+                        // Color/Outline: Coalesce identical geometry sharing the exact same 48-bit PSO & Material state key
+                        const bool isTransparent{ (((firstPacket.key >> 60) & 0xFULL) == 6) };
+                        const uint64_t firstStateKey{ firstPacket.key & 0xFFFFFFFFFFFF0000ULL };
+
+                        while (pIdx + batchCount < count &&
+                            packets[pIdx + batchCount].mesh == firstPacket.mesh &&
+                            (!isTransparent ? ((packets[pIdx + batchCount].key & 0xFFFFFFFFFFFF0000ULL) == firstStateKey)
+                                : (packets[pIdx + batchCount].key == firstPacket.key)) &&
+                            packets[pIdx + batchCount].mesh->bones.empty())
+                        {
+                            ++batchCount;
+                        }
                     }
-                    instData[i].color = p.color;
-                }
-                dc->Unmap(m_instanceBuffer.Get(), 0);
-
-                // Re-bind IA vertex buffer descriptor after DISCARD to update internal driver backing store
-                if (mapType == D3D11_MAP_WRITE_DISCARD)
-                {
-                    dc->IASetVertexBuffers(1, 1, &instBuf, &instStride, &zeroOffset);
                 }
 
-                // Deduplicated State Binding
                 if (!forcedShader)
                 {
-                    const ShaderId packetShaderId = static_cast<ShaderId>((firstPacket.key >> 48) & 0xFF);
+                    const ShaderId packetShaderId{ static_cast<ShaderId>((firstPacket.key >> 48) & 0xFF) };
                     if (packetShaderId != activeShaderId)
                     {
                         if (activeShader) activeShader->End(rc);
                         activeShaderId = packetShaderId;
                         activeShader = shaders[static_cast<int>(packetShaderId)].get();
                         if (activeShader) activeShader->Begin(rc);
-                        currentMaterial = nullptr; currentVB = nullptr; currentIB = nullptr; currentSlot = kInvalidSkeletonSlot;
+                        currentMaterial = nullptr;
+                        currentVB = nullptr;
+                        currentIB = nullptr;
+                        currentSlot = kInvalidSkeletonSlot;
                     }
-                }
-                else if (!activeShader)
-                {
-                    activeShader = forcedShader;
                 }
 
                 if (firstPacket.mesh->vertexBuffer.Get() != currentVB)
                 {
-                    ID3D11Buffer* const vb = firstPacket.mesh->vertexBuffer.Get();
-                    const UINT stride = sizeof(Model::Vertex);
+                    ID3D11Buffer* const vb{ firstPacket.mesh->vertexBuffer.Get() };
+                    const UINT stride{ sizeof(Model::Vertex) };
                     dc->IASetVertexBuffers(0, 1, &vb, &stride, &zeroOffset);
-                    currentVB = firstPacket.mesh->vertexBuffer.Get();
+                    currentVB = vb;
                 }
 
                 if (firstPacket.mesh->indexBuffer.Get() != currentIB)
@@ -488,18 +617,28 @@ void ModelRenderer::Render(const RenderContext& rc)
                     currentSlot = firstPacket.skeletonSlot;
                 }
 
-                if (firstPacket.mesh->material != currentMaterial)
+                if (!isDepthOrVelocityPass && firstPacket.material != currentMaterial)
                 {
-                    activeShader->Update(rc, *firstPacket.mesh);
-                    currentMaterial = firstPacket.mesh->material;
+                    // Transiently inject component material into mesh for uniform upload, then restore
+                    Model::Mesh* const nonConstMesh{ const_cast<Model::Mesh*>(firstPacket.mesh) };
+                    Material* const originalMaterial{ nonConstMesh->material };
+                    nonConstMesh->material = const_cast<Material*>(firstPacket.material);
+
+                    if (activeShader) activeShader->Update(rc, *nonConstMesh);
+
+                    nonConstMesh->material = originalMaterial;
+                    currentMaterial = firstPacket.material;
                 }
 
-                // Advance stream purely through StartInstanceLocation
-                dc->DrawIndexedInstanced(static_cast<UINT>(firstPacket.mesh->indices.size()), static_cast<UINT>(batchCount), 0, 0, static_cast<UINT>(instanceOffset));
+                dc->DrawIndexedInstanced(
+                    static_cast<UINT>(firstPacket.mesh->indices.size()),
+                    static_cast<UINT>(batchCount),
+                    0,
+                    0,
+                    static_cast<UINT>(instanceOffset + pIdx)
+                );
 
                 pIdx += batchCount;
-                instanceOffset += batchCount;
-
                 PROFILE_DRAW_CALL();
                 PROFILE_TRIANGLES(firstPacket.mesh->indices.size() / 3 * batchCount);
             }
@@ -508,34 +647,25 @@ void ModelRenderer::Render(const RenderContext& rc)
             {
                 activeShader->End(rc);
             }
+
+            instanceOffset += count;
         };
 
+    // Fast bitwise pointer hash eliminating stack frame buffer hashing
     auto hashPointer = [](const void* ptr) noexcept -> uint16_t
         {
-            const std::uint64_t hash{ Core::BufferHash(&ptr, sizeof(ptr)) };
-            return static_cast<uint16_t>(hash ^ (hash >> 16) ^ (hash >> 32) ^ (hash >> 48));
+            const uintptr_t val{ reinterpret_cast<uintptr_t>(ptr) };
+            return static_cast<uint16_t>((val >> 4) ^ (val >> 20));
         };
-    
-    if (rc.lightManager && rc.lightManager->GetDirectionalLight().castShadows)
+
+    if (rc.lightManager)
     {
-        rc.lightManager->UpdateCascades(*rc.camera);
-
-        ID3D11RenderTargetView* originalRTV{ nullptr };
-        ID3D11DepthStencilView* originalDSV{ nullptr };
-        dc->OMGetRenderTargets(1, &originalRTV, &originalDSV);
-
-        UINT numViewports{ 1 };
-        D3D11_VIEWPORT originalViewport{};
-        dc->RSGetViewports(&numViewports, &originalViewport);
-
-        D3D11_VIEWPORT shadowViewport{};
-        shadowViewport.Width = static_cast<float>(SHADOW_MAP_SIZE);
-        shadowViewport.Height = static_cast<float>(SHADOW_MAP_SIZE);
-        shadowViewport.MaxDepth = 1.0f;
-
-        dc->OMSetBlendState(rc.renderState->GetBlendState(BlendState::Opaque), nullptr, 0xFFFFFFFF);
-        dc->OMSetDepthStencilState(rc.renderState->GetDepthStencilState(DepthState::TestAndWrite), 0);
-        dc->RSSetState(rc.renderState->GetRasterizerState(RasterizerState::SolidCullBack));
+        const_cast<LightManager*>(rc.lightManager)->Update();
+        if (rc.lightManager->GetDirectionalLight().castShadows)
+        {
+            rc.lightManager->UpdateCascades(*rc.camera);
+        }
+    }
 
         std::size_t totalSceneMeshCount{ 0 };
         for (const auto& drawInfo : drawInfos) if (drawInfo.model) totalSceneMeshCount += drawInfo.model->GetMeshes().size();
@@ -573,6 +703,11 @@ void ModelRenderer::Render(const RenderContext& rc)
             for (std::size_t meshIdx{ 0 }; meshIdx < drawInfo.model->GetMeshes().size(); ++meshIdx)
             {
                 const Model::Mesh& mesh{ drawInfo.model->GetMeshes()[meshIdx] };
+                // Remap via mesh.materialIndex so all submeshes find their designated material slot
+                const Material* const mat{ (drawInfo.materials && mesh.materialIndex >= 0 &&
+                    static_cast<std::size_t>(mesh.materialIndex) < drawInfo.materials->size())
+                    ? &(*drawInfo.materials)[mesh.materialIndex]
+                    : mesh.material };
 
                 DirectX::XMMATRIX mWorld, mPrevWorld;
                 if (drawInfo.useManualMatrix)
@@ -589,6 +724,7 @@ void ModelRenderer::Render(const RenderContext& rc)
 
                 DrawPacket packet{};
                 packet.mesh = &mesh;
+                packet.material = mat;
                 packet.skeletonSlot = drawInfo.skeletonSlots[meshIdx];
                 packet.color = drawInfo.color;
                 DirectX::XMStoreFloat4x4(&packet.worldMatrix, mWorld);
@@ -596,18 +732,19 @@ void ModelRenderer::Render(const RenderContext& rc)
 
                 const BoundingSphere sphere{ CalculateMeshBoundingSphere(mesh, drawInfo.useManualMatrix, drawInfo.worldMatrix) };
 
-                // Shadows
-                if (drawInfo.castShadows && mesh.material->alphaMode != AlphaMode::Blend)
+                // Shadows: Group strictly by mesh identity to maximize multi-material depth batching
+                if (drawInfo.castShadows && mat->alphaMode != AlphaMode::Blend)
                 {
-                    for (int i = 0; i < SHADOW_CASCADE_COUNT; ++i)
+                    for (int i{ 0 }; i < SHADOW_CASCADE_COUNT; ++i)
                     {
                         if (rc.lightManager && rc.lightManager->GetDirectionalLight().castShadows)
                         {
-                            const CascadeFrustumPlanes cPlanes = ExtractCascadePlanes(rc.lightManager->GetCascadeMatrices()[i]);
+                            const CascadeFrustumPlanes cPlanes{ ExtractCascadePlanes(rc.lightManager->GetCascadeMatrices()[i]) };
                             if (IsSphereInCascade(cPlanes, sphere.center, sphere.radius))
                             {
-                                packet.key = static_cast<uint64_t>(hashPointer(mesh.vertexBuffer.Get()));
-                                cascadePackets[i][cascadeCount[i]++] = packet;
+                                DrawPacket shadowPacket{ packet };
+                                shadowPacket.key = reinterpret_cast<uint64_t>(&mesh);
+                                cascadePackets[i][cascadeCount[i]++] = shadowPacket;
                             }
                         }
                     }
@@ -624,30 +761,41 @@ void ModelRenderer::Render(const RenderContext& rc)
                 uint64_t translucencyLayer{ 0 };
                 uint16_t depthKey{ quantizedDepth };
 
-                if (mesh.material->alphaMode == AlphaMode::Blend || (mesh.material->baseColor.w > 0.01f && mesh.material->baseColor.w < 0.99f))
+                if (mat->alphaMode == AlphaMode::Blend || (mat->baseColor.w > 0.01f && mat->baseColor.w < 0.99f))
                 {
                     passId = 6;
                     translucencyLayer = 1;
                     depthKey = static_cast<uint16_t>(65535 - quantizedDepth); // Back-to-front
                 }
-                else if (mesh.material->alphaMode == AlphaMode::Mask)
+                else if (mat->alphaMode == AlphaMode::Mask)
                 {
                     passId = 5;
                 }
 
-                const uint64_t shaderId = static_cast<uint64_t>(mesh.material->shaderId);
-                packet.key = BuildDrawKey(passId, translucencyLayer, shaderId, hashPointer(mesh.material), hashPointer(mesh.vertexBuffer.Get()), depthKey);
+                const uint64_t shaderId{ static_cast<uint64_t>(mat->shaderId) };
+                packet.key = BuildDrawKey(passId, translucencyLayer, shaderId, HashMaterial(mat), hashPointer(mesh.vertexBuffer.Get()), depthKey);
 
                 if (passId == 6) transparentPackets[transparentCount++] = packet;
                 else opaquePackets[opaqueCount++] = packet;
 
-                if (drawInfo.hasVelocity && passId < 6) velocityPackets[velocityCount++] = packet;
-
-                if (shaderId == static_cast<uint64_t>(ShaderId::Toon) && mesh.material->enableOutline && mesh.material->outlineWidth > 0.0f)
+                if (drawInfo.hasVelocity && passId < 6)
                 {
-                    const float fadeEndSq{ mesh.material->outlineFadeEnd * mesh.material->outlineFadeEnd };
+                    DrawPacket velocityPacket{ packet };
+                    velocityPacket.key = reinterpret_cast<uint64_t>(&mesh);
+                    velocityPackets[velocityCount++] = velocityPacket;
+                }
+
+                if (shaderId == static_cast<uint64_t>(ShaderId::Toon) && mat->enableOutline && mat->outlineWidth > 0.0f)
+                {
+                    const float fadeEndSq{ mat->outlineFadeEnd * mat->outlineFadeEnd };
                     const float distSq{ DirectX::XMVectorGetX(DirectX::XMVector3LengthSq(DirectX::XMVectorSubtract(mWorld.r[3], CameraPosition))) };
-                    if (distSq <= (fadeEndSq + 25.0f)) outlinePackets[outlineCount++] = packet;
+                    if (distSq <= (fadeEndSq + 25.0f))
+                    {
+                        DrawPacket outlinePacket{ packet };
+                        // Build dedicated outline draw key to allow outline instances to coalesce independently
+                        outlinePacket.key = BuildDrawKey(4, 0, static_cast<uint64_t>(ShaderId::Toon), HashOutlineMaterial(mat), hashPointer(mesh.vertexBuffer.Get()), depthKey);
+                        outlinePackets[outlineCount++] = outlinePacket;
+                    }
                 }
             }
         }
@@ -665,11 +813,9 @@ void ModelRenderer::Render(const RenderContext& rc)
         std::sort(velocityPackets, velocityPackets + velocityCount, packetSort);
         for (int i = 0; i < 4; ++i) std::sort(cascadePackets[i], cascadePackets[i] + cascadeCount[i], packetSort);
 
-        // --- RENDER PASSES ---
+        // RENDER PASSES 
         if (rc.lightManager && rc.lightManager->GetDirectionalLight().castShadows)
         {
-            rc.lightManager->UpdateCascades(*rc.camera);
-
             ID3D11RenderTargetView* originalRTV{ nullptr };
             ID3D11DepthStencilView* originalDSV{ nullptr };
             dc->OMGetRenderTargets(1, &originalRTV, &originalDSV);
@@ -688,9 +834,9 @@ void ModelRenderer::Render(const RenderContext& rc)
             dc->RSSetState(rc.renderState->GetRasterizerState(RasterizerState::SolidCullBack));
 
             m_shadowCasterShader->Begin(rc);
-            for (int i = 0; i < SHADOW_CASCADE_COUNT; ++i)
+            for (int i{ 0 }; i < SHADOW_CASCADE_COUNT; ++i)
             {
-                ID3D11DepthStencilView* cascadeDSV = rc.lightManager->GetCascadeDSV(i);
+                ID3D11DepthStencilView* const cascadeDSV{ rc.lightManager->GetCascadeDSV(i) };
                 dc->ClearDepthStencilView(cascadeDSV, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
                 dc->OMSetRenderTargets(0, nullptr, cascadeDSV);
                 dc->RSSetViewports(1, &shadowViewport);
@@ -705,8 +851,6 @@ void ModelRenderer::Render(const RenderContext& rc)
             if (originalRTV) originalRTV->Release();
             if (originalDSV) originalDSV->Release();
         }
-
-        if (rc.lightManager) const_cast<LightManager*>(rc.lightManager)->Update();
 
         {
             static LightManager defaultLightManager;
@@ -818,5 +962,4 @@ void ModelRenderer::Render(const RenderContext& rc)
         dc->PSSetSamplers(0, 1, nullSamplers);
         ID3D11ShaderResourceView* const nullShadowSRVs[]{ nullptr, nullptr, nullptr, nullptr };
         dc->PSSetShaderResources(10, 4, nullShadowSRVs);
-    }
 }
