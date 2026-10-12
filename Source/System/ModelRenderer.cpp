@@ -63,78 +63,83 @@ namespace
         return cp;
     }
 
-    // 128-bit SIMD Structure of Arrays (SoA) Frustum Culler
-    // Evaluates up to 8 planes in two vectorized 4-wide SSE blocks with zero branching
-    struct alignas(16) SimdFrustum final
+    // 256-bit AVX2 Structure of Arrays (SoA) Frustum Culler
+    // Evaluates 8 bounding volumes simultaneously across 8 AVX2 lanes (__m256) with zero branching
+    struct alignas(32) AvxPlane final
     {
-        __m128 pX[2]{};
-        __m128 pY[2]{};
-        __m128 pZ[2]{};
-        __m128 pW[2]{};
-        __m128 absX[2]{};
-        __m128 absY[2]{};
-        __m128 absZ[2]{};
+        __m256 pX{};
+        __m256 pY{};
+        __m256 pZ{};
+        __m256 pW{};
+        __m256 absX{};
+        __m256 absY{};
+        __m256 absZ{};
+    };
+
+    struct alignas(32) AvxFrustum final
+    {
+        AvxPlane          planes[6]{};
+        DirectX::XMFLOAT4 rawPlanes[6]{};
+        DirectX::XMFLOAT3 absNormals[6]{};
+        std::size_t       planeCount{ 6 };
 
         void Init(const DirectX::XMFLOAT4* inPlanes, std::size_t count) noexcept
         {
-            alignas(16) float px[2][4]{};
-            alignas(16) float py[2][4]{};
-            alignas(16) float pz[2][4]{};
-            alignas(16) float pw[2][4]{};
-
-            for (std::size_t i{ 0 }; i < 8; ++i)
+            planeCount = count;
+            for (std::size_t i{ 0 }; i < count && i < 6; ++i)
             {
-                const std::size_t block{ i / 4 };
-                const std::size_t lane{ i % 4 };
+                rawPlanes[i] = inPlanes[i];
+                absNormals[i] = { std::abs(inPlanes[i].x), std::abs(inPlanes[i].y), std::abs(inPlanes[i].z) };
 
-                if (i < count)
-                {
-                    px[block][lane] = inPlanes[i].x;
-                    py[block][lane] = inPlanes[i].y;
-                    pz[block][lane] = inPlanes[i].z;
-                    pw[block][lane] = inPlanes[i].w;
-                }
-                else
-                {
-                    // Inactive plane lanes are assigned a massive positive W offset so they never cull
-                    px[block][lane] = 0.0f;
-                    py[block][lane] = 0.0f;
-                    pz[block][lane] = 0.0f;
-                    pw[block][lane] = 1e9f;
-                }
-            }
-
-            for (std::size_t b{ 0 }; b < 2; ++b)
-            {
-                pX[b] = _mm_load_ps(px[b]);
-                pY[b] = _mm_load_ps(py[b]);
-                pZ[b] = _mm_load_ps(pz[b]);
-                pW[b] = _mm_load_ps(pw[b]);
-
-                // Precompute absolute values of plane normals to eliminate runtime abs() overhead
-                const __m128 signMask{ _mm_castsi128_ps(_mm_set1_epi32(0x7FFFFFFF)) };
-                absX[b] = _mm_and_ps(pX[b], signMask);
-                absY[b] = _mm_and_ps(pY[b], signMask);
-                absZ[b] = _mm_and_ps(pZ[b], signMask);
+                planes[i].pX = _mm256_set1_ps(inPlanes[i].x);
+                planes[i].pY = _mm256_set1_ps(inPlanes[i].y);
+                planes[i].pZ = _mm256_set1_ps(inPlanes[i].z);
+                planes[i].pW = _mm256_set1_ps(inPlanes[i].w);
+                planes[i].absX = _mm256_set1_ps(absNormals[i].x);
+                planes[i].absY = _mm256_set1_ps(absNormals[i].y);
+                planes[i].absZ = _mm256_set1_ps(absNormals[i].z);
             }
         }
 
-        // Returns true if AABB is visible or intersecting; false if completely outside any plane
-        [[nodiscard]] inline bool IsVisibleAABB(__m128 cX, __m128 cY, __m128 cZ, __m128 eX, __m128 eY, __m128 eZ) const noexcept
+        // 8-Way AVX2 Parallel Frustum Culling
+        // Returns an 8-bit mask where bit `lane` is 1 if visible, 0 if culled
+        [[nodiscard]] inline uint32_t Cull8AABB(
+            __m256 cX, __m256 cY, __m256 cZ,
+            __m256 eX, __m256 eY, __m256 eZ) const noexcept
         {
-            // Block 0 (planes 0..3)
-            const __m128 dist0{ _mm_add_ps(pW[0], _mm_add_ps(_mm_mul_ps(pX[0], cX), _mm_add_ps(_mm_mul_ps(pY[0], cY), _mm_mul_ps(pZ[0], cZ)))) };
-            const __m128 rEff0{ _mm_add_ps(_mm_mul_ps(absX[0], eX), _mm_add_ps(_mm_mul_ps(absY[0], eY), _mm_mul_ps(absZ[0], eZ))) };
-            const __m128 culled0{ _mm_cmplt_ps(_mm_add_ps(dist0, rEff0), _mm_setzero_ps()) };
+            __m256 anyPlaneCulled{ _mm256_setzero_ps() };
 
-            // Block 1 (planes 4..7)
-            const __m128 dist1{ _mm_add_ps(pW[1], _mm_add_ps(_mm_mul_ps(pX[1], cX), _mm_add_ps(_mm_mul_ps(pY[1], cY), _mm_mul_ps(pZ[1], cZ)))) };
-            const __m128 rEff1{ _mm_add_ps(_mm_mul_ps(absX[1], eX), _mm_add_ps(_mm_mul_ps(absY[1], eY), _mm_mul_ps(absZ[1], eZ))) };
-            const __m128 culled1{ _mm_cmplt_ps(_mm_add_ps(dist1, rEff1), _mm_setzero_ps()) };
+            for (std::size_t i{ 0 }; i < planeCount; ++i)
+            {
+                const __m256 dot{ _mm256_add_ps(
+                    _mm256_mul_ps(planes[i].pX, cX),
+                    _mm256_add_ps(_mm256_mul_ps(planes[i].pY, cY), _mm256_mul_ps(planes[i].pZ, cZ))) };
+                const __m256 dist{ _mm256_add_ps(planes[i].pW, dot) };
+                const __m256 rEff{ _mm256_add_ps(
+                    _mm256_mul_ps(planes[i].absX, eX),
+                    _mm256_add_ps(_mm256_mul_ps(planes[i].absY, eY), _mm256_mul_ps(planes[i].absZ, eZ))) };
 
-            // Returns false if any lane in either block evaluated to less than zero
-            const int mask{ _mm_movemask_ps(_mm_or_ps(culled0, culled1)) };
-            return (mask == 0);
+                const __m256 isCulled{ _mm256_cmp_ps(_mm256_add_ps(dist, rEff), _mm256_setzero_ps(), _CMP_LT_OQ) };
+                anyPlaneCulled = _mm256_or_ps(anyPlaneCulled, isCulled);
+            }
+
+            const uint32_t culledMask{ static_cast<uint32_t>(_mm256_movemask_ps(anyPlaneCulled)) };
+            return (~culledMask) & 0xFFu;
+        }
+
+        // Single AABB evaluation for dynamic shadow receiver rays
+        [[nodiscard]] inline bool IsVisibleAABB(const DirectX::XMFLOAT3& c, const DirectX::XMFLOAT3& e) const noexcept
+        {
+            for (std::size_t i{ 0 }; i < planeCount; ++i)
+            {
+                const float dist{ rawPlanes[i].w + rawPlanes[i].x * c.x + rawPlanes[i].y * c.y + rawPlanes[i].z * c.z };
+                const float rEff{ absNormals[i].x * e.x + absNormals[i].y * e.y + absNormals[i].z * e.z };
+                if (dist + rEff < 0.0f)
+                {
+                    return false;
+                }
+            }
+            return true;
         }
     };
 
@@ -1106,15 +1111,15 @@ void ModelRenderer::Render(const RenderContext& rc)
             DirectX::XMStoreFloat4x4(&matViewProj, V * P);
         }
 
-        // Precompute SIMD Camera Frustum once per frame
-        SimdFrustum cameraFrustum{};
+        // Precompute AVX2 Camera Frustum once per frame
+        AvxFrustum cameraFrustum{};
         {
             const CameraFrustumPlanes cp{ ExtractCameraFrustumPlanes(matViewProj) };
             cameraFrustum.Init(cp.planes, 6);
         }
 
-        // Precompute all 4 SIMD Shadow Cascade Frustums once per frame
-        SimdFrustum cascadeFrustums[SHADOW_CASCADE_COUNT]{};
+        // Precompute all 4 AVX2 Shadow Cascade Frustums once per frame
+        AvxFrustum cascadeFrustums[SHADOW_CASCADE_COUNT]{};
         const bool hasDirectionalShadows{ rc.lightManager != nullptr && rc.lightManager->GetDirectionalLight().castShadows };
         DirectX::XMFLOAT3 lightDir{ 0.0f, -1.0f, 0.0f };
         if (hasDirectionalShadows)
@@ -1134,66 +1139,38 @@ void ModelRenderer::Render(const RenderContext& rc)
             }
         }
 
-        const DirectX::XMVECTOR CameraPosition{ DirectX::XMLoadFloat3(&rc.camera->GetPosition()) };
-        const DirectX::XMVECTOR CameraFront{ DirectX::XMLoadFloat3(&rc.camera->GetFront()) };
-
-        // Reset the 32 KB L1-resident software occlusion buffer for the current frame
-        m_occlusionBuffer.Clear();
-
         const DirectX::XMFLOAT3 cameraEyePos{ rc.camera->GetPosition() };
 
-        // Pre-rasterize all large opaque occluders into the software depth buffer
-        for (const DrawInfo& drawInfo : drawInfos)
+        // Scene Broadphase Flattening: Contiguous SoA spatial layout in L1 cache
+        const std::size_t paddedCount{ (totalSceneMeshCount + 7) & ~std::size_t{ 7 } };
+        float* const soaCenterX{ m_frameArena.AllocateArray<float>(paddedCount) };
+        float* const soaCenterY{ m_frameArena.AllocateArray<float>(paddedCount) };
+        float* const soaCenterZ{ m_frameArena.AllocateArray<float>(paddedCount) };
+        float* const soaExtentX{ m_frameArena.AllocateArray<float>(paddedCount) };
+        float* const soaExtentY{ m_frameArena.AllocateArray<float>(paddedCount) };
+        float* const soaExtentZ{ m_frameArena.AllocateArray<float>(paddedCount) };
+
+        struct MeshInstanceRef
         {
-            if (!drawInfo.model) continue;
+            const Model::Mesh* mesh{ nullptr };
+            const Material* material{ nullptr };
+            std::size_t         skeletonSlot{ 0 };
+            DirectX::XMFLOAT4   color{ 1.0f, 1.0f, 1.0f, 1.0f };
+            DirectX::XMFLOAT4X4 worldMatrix{};
+            DirectX::XMFLOAT4X4 prevWorldMatrix{};
+            bool                castShadows{ true };
+            bool                hasVelocity{ false };
+        };
+        MeshInstanceRef* const meshRefs{ m_frameArena.AllocateArray<MeshInstanceRef>(paddedCount) };
 
-            for (std::size_t meshIdx{ 0 }; meshIdx < drawInfo.model->GetMeshes().size(); ++meshIdx)
-            {
-                const Model::Mesh& mesh{ drawInfo.model->GetMeshes()[meshIdx] };
-                const Material* const mat{ (drawInfo.materials && mesh.materialIndex >= 0 &&
-                    static_cast<std::size_t>(mesh.materialIndex) < drawInfo.materials->size())
-                    ? &(*drawInfo.materials)[mesh.materialIndex]
-                    : mesh.material };
-
-                if (!mat || !mat->isOccluder || mat->alphaMode != AlphaMode::Opaque) continue;
-
-                const BoundingBox aabb{ CalculateMeshAABB(mesh, drawInfo.useManualMatrix, drawInfo.worldMatrix, drawInfo.currentNodeGlobals) };
-                const __m128 cX{ _mm_set1_ps(aabb.center.x) };
-                const __m128 cY{ _mm_set1_ps(aabb.center.y) };
-                const __m128 cZ{ _mm_set1_ps(aabb.center.z) };
-                const __m128 eX{ _mm_set1_ps(aabb.extents.x) };
-                const __m128 eY{ _mm_set1_ps(aabb.extents.y) };
-                const __m128 eZ{ _mm_set1_ps(aabb.extents.z) };
-
-                if (!cameraFrustum.IsVisibleAABB(cX, cY, cZ, eX, eY, eZ)) continue;
-
-                DirectX::XMMATRIX mWorld;
-                if (drawInfo.useManualMatrix)
-                {
-                    DirectX::XMMATRIX nodeGlobalMat;
-                    if (drawInfo.currentNodeGlobals && mesh.nodeIndex >= 0 && static_cast<std::size_t>(mesh.nodeIndex) < drawInfo.currentNodeGlobals->size())
-                    {
-                        nodeGlobalMat = DirectX::XMLoadFloat4x4(&(*drawInfo.currentNodeGlobals)[mesh.nodeIndex]);
-                    }
-                    else
-                    {
-                        nodeGlobalMat = DirectX::XMLoadFloat4x4(&mesh.node->globalTransform);
-                    }
-                    mWorld = nodeGlobalMat * DirectX::XMLoadFloat4x4(&drawInfo.worldMatrix);
-                }
-                else
-                {
-                    mWorld = DirectX::XMLoadFloat4x4(&mesh.node->worldTransform);
-                }
-
-                DirectX::XMFLOAT4X4 worldMatrix;
-                DirectX::XMStoreFloat4x4(&worldMatrix, mWorld);
-
-                m_occlusionBuffer.RasterizeOccluderMesh(mesh, worldMatrix, matViewProj);
-            }
+        // Zero-fill padding lanes for clean AVX2 vector loads
+        for (std::size_t i{ totalSceneMeshCount }; i < paddedCount; ++i)
+        {
+            soaCenterX[i] = 0.0f; soaCenterY[i] = 0.0f; soaCenterZ[i] = 0.0f;
+            soaExtentX[i] = 0.0f; soaExtentY[i] = 0.0f; soaExtentZ[i] = 0.0f;
         }
 
-        // Single extraction pass: Route objects cleanly to all sub-pipelines
+        std::size_t flatIndex{ 0 };
         for (const DrawInfo& drawInfo : drawInfos)
         {
             if (!drawInfo.model) continue;
@@ -1201,7 +1178,6 @@ void ModelRenderer::Render(const RenderContext& rc)
             for (std::size_t meshIdx{ 0 }; meshIdx < drawInfo.model->GetMeshes().size(); ++meshIdx)
             {
                 const Model::Mesh& mesh{ drawInfo.model->GetMeshes()[meshIdx] };
-                // Remap via mesh.materialIndex so all submeshes find their designated material slot
                 const Material* const mat{ (drawInfo.materials && mesh.materialIndex >= 0 &&
                     static_cast<std::size_t>(mesh.materialIndex) < drawInfo.materials->size())
                     ? &(*drawInfo.materials)[mesh.materialIndex]
@@ -1239,83 +1215,168 @@ void ModelRenderer::Render(const RenderContext& rc)
                     mPrevWorld = mWorld;
                 }
 
+                const BoundingBox aabb{ CalculateMeshAABB(mesh, drawInfo.useManualMatrix, drawInfo.worldMatrix, drawInfo.currentNodeGlobals) };
+
+                soaCenterX[flatIndex] = aabb.center.x;
+                soaCenterY[flatIndex] = aabb.center.y;
+                soaCenterZ[flatIndex] = aabb.center.z;
+                soaExtentX[flatIndex] = aabb.extents.x;
+                soaExtentY[flatIndex] = aabb.extents.y;
+                soaExtentZ[flatIndex] = aabb.extents.z;
+
+                MeshInstanceRef& ref{ meshRefs[flatIndex] };
+                ref.mesh = &mesh;
+                ref.material = mat;
+                ref.skeletonSlot = drawInfo.skeletonSlots[meshIdx];
+                ref.color = drawInfo.color;
+                DirectX::XMStoreFloat4x4(&ref.worldMatrix, mWorld);
+                DirectX::XMStoreFloat4x4(&ref.prevWorldMatrix, mPrevWorld);
+                ref.castShadows = drawInfo.castShadows;
+                ref.hasVelocity = drawInfo.hasVelocity;
+
+                ++flatIndex;
+            }
+        }
+
+        // Front-to-Back Occluder Sorting: Closest occluders rasterize first to maximize early-depth rejections
+        m_occlusionBuffer.Clear();
+
+        struct OccluderCandidate
+        {
+            std::size_t refIndex{ 0 };
+            float       distanceSq{ 0.0f };
+        };
+        OccluderCandidate* const occluders{ m_frameArena.AllocateArray<OccluderCandidate>(totalSceneMeshCount) };
+        std::size_t occluderCount{ 0 };
+
+        for (std::size_t i{ 0 }; i < totalSceneMeshCount; ++i)
+        {
+            const auto& ref{ meshRefs[i] };
+            if (!ref.material || !ref.material->isOccluder || ref.material->alphaMode != AlphaMode::Opaque) continue;
+
+            const DirectX::XMFLOAT3 center{ soaCenterX[i], soaCenterY[i], soaCenterZ[i] };
+            const DirectX::XMFLOAT3 extents{ soaExtentX[i], soaExtentY[i], soaExtentZ[i] };
+
+            if (!cameraFrustum.IsVisibleAABB(center, extents)) continue;
+
+            const float dx{ center.x - cameraEyePos.x };
+            const float dy{ center.y - cameraEyePos.y };
+            const float dz{ center.z - cameraEyePos.z };
+            occluders[occluderCount++] = { i, dx * dx + dy * dy + dz * dz };
+        }
+
+        std::sort(occluders, occluders + occluderCount, [](const OccluderCandidate& a, const OccluderCandidate& b) noexcept {
+            return a.distanceSq < b.distanceSq;
+            });
+
+        for (std::size_t i{ 0 }; i < occluderCount; ++i)
+        {
+            const auto& cand{ occluders[i] };
+            const auto& ref{ meshRefs[cand.refIndex] };
+            const DirectX::XMFLOAT3 center{ soaCenterX[cand.refIndex], soaCenterY[cand.refIndex], soaCenterZ[cand.refIndex] };
+            const DirectX::XMFLOAT3 extents{ soaExtentX[cand.refIndex], soaExtentY[cand.refIndex], soaExtentZ[cand.refIndex] };
+
+            // Hierarchical occlusion: If a closer occluder already completely covers this occluder, skip rasterization
+            if (ref.material->isOccludable && m_occlusionBuffer.IsOccluded(center, extents, matViewProj))
+            {
+                continue;
+            }
+
+            m_occlusionBuffer.RasterizeOccluderMesh(*ref.mesh, ref.worldMatrix, matViewProj);
+        }
+
+        // 8-Way AVX2 Parallel Culling Loop: Evaluates 8 objects across SIMD lanes from L1 cache
+        const DirectX::XMFLOAT3 camFront{ rc.camera->GetFront() };
+
+        for (std::size_t batch{ 0 }; batch < totalSceneMeshCount; batch += 8)
+        {
+            const uint32_t activeLanes{ (batch + 8 <= totalSceneMeshCount)
+                ? 0xFFu
+                : static_cast<uint32_t>((1u << (totalSceneMeshCount - batch)) - 1u) };
+
+            const __m256 cX{ _mm256_loadu_ps(&soaCenterX[batch]) };
+            const __m256 cY{ _mm256_loadu_ps(&soaCenterY[batch]) };
+            const __m256 cZ{ _mm256_loadu_ps(&soaCenterZ[batch]) };
+            const __m256 eX{ _mm256_loadu_ps(&soaExtentX[batch]) };
+            const __m256 eY{ _mm256_loadu_ps(&soaExtentY[batch]) };
+            const __m256 eZ{ _mm256_loadu_ps(&soaExtentZ[batch]) };
+
+            const uint32_t camVisibleMask{ cameraFrustum.Cull8AABB(cX, cY, cZ, eX, eY, eZ) & activeLanes };
+
+            for (std::size_t lane{ 0 }; lane < 8; ++lane)
+            {
+                if ((activeLanes & (1u << lane)) == 0) break;
+
+                const std::size_t idx{ batch + lane };
+                const auto& ref{ meshRefs[idx] };
+                const auto* const mat{ ref.material };
+                const auto& mesh{ *ref.mesh };
+
+                const DirectX::XMFLOAT3 center{ soaCenterX[idx], soaCenterY[idx], soaCenterZ[idx] };
+                const DirectX::XMFLOAT3 extents{ soaExtentX[idx], soaExtentY[idx], soaExtentZ[idx] };
+
                 DrawPacket packet{};
                 packet.mesh = &mesh;
                 packet.material = mat;
-                packet.skeletonSlot = drawInfo.skeletonSlots[meshIdx];
-                packet.color = drawInfo.color;
-                DirectX::XMStoreFloat4x4(&packet.worldMatrix, mWorld);
-                DirectX::XMStoreFloat4x4(&packet.prevWorldMatrix, mPrevWorld);
-
-                const BoundingBox aabb{ CalculateMeshAABB(mesh, drawInfo.useManualMatrix, drawInfo.worldMatrix, drawInfo.currentNodeGlobals) };
-                const __m128 cX{ _mm_set1_ps(aabb.center.x) };
-                const __m128 cY{ _mm_set1_ps(aabb.center.y) };
-                const __m128 cZ{ _mm_set1_ps(aabb.center.z) };
-                const __m128 eX{ _mm_set1_ps(aabb.extents.x) };
-                const __m128 eY{ _mm_set1_ps(aabb.extents.y) };
-                const __m128 eZ{ _mm_set1_ps(aabb.extents.z) };
+                packet.skeletonSlot = ref.skeletonSlot;
+                packet.color = ref.color;
+                packet.worldMatrix = ref.worldMatrix;
+                packet.prevWorldMatrix = ref.prevWorldMatrix;
 
                 // Shadows: Extruded shadow volume culling against camera frustum and occlusion buffer
-                if (drawInfo.castShadows && mat->alphaMode != AlphaMode::Blend && hasDirectionalShadows)
+                if (ref.castShadows && mat->alphaMode != AlphaMode::Blend && hasDirectionalShadows)
                 {
-                    // Compute light-extruded shadow volume AABB (object + cast shadow trajectory)
-                    const float groundDist{ (std::max)(1.0f, aabb.center.y + aabb.extents.y) };
+                    const float groundDist{ (std::max)(1.0f, center.y + extents.y) };
                     const float rayDist{ (std::abs(lightDir.y) > 0.05f) ? (groundDist / std::abs(lightDir.y)) : 30.0f };
                     const float shadowExtrudeLen{ std::clamp(rayDist, 10.0f, 40.0f) };
                     const float vx{ lightDir.x * shadowExtrudeLen };
                     const float vy{ lightDir.y * shadowExtrudeLen };
                     const float vz{ lightDir.z * shadowExtrudeLen };
 
-                    const float sMinX{ (std::min)(aabb.center.x - aabb.extents.x, aabb.center.x - aabb.extents.x + vx) };
-                    const float sMaxX{ (std::max)(aabb.center.x + aabb.extents.x, aabb.center.x + aabb.extents.x + vx) };
-                    const float sMinY{ (std::min)(aabb.center.y - aabb.extents.y, aabb.center.y - aabb.extents.y + vy) };
-                    const float sMaxY{ (std::max)(aabb.center.y + aabb.extents.y, aabb.center.y + aabb.extents.y + vy) };
-                    const float sMinZ{ (std::min)(aabb.center.z - aabb.extents.z, aabb.center.z - aabb.extents.z + vz) };
-                    const float sMaxZ{ (std::max)(aabb.center.z + aabb.extents.z, aabb.center.z + aabb.extents.z + vz) };
+                    const float sMinX{ (std::min)(center.x - extents.x, center.x - extents.x + vx) };
+                    const float sMaxX{ (std::max)(center.x + extents.x, center.x + extents.x + vx) };
+                    const float sMinY{ (std::min)(center.y - extents.y, center.y - extents.y + vy) };
+                    const float sMaxY{ (std::max)(center.y + extents.y, center.y + extents.y + vy) };
+                    const float sMinZ{ (std::min)(center.z - extents.z, center.z - extents.z + vz) };
+                    const float sMaxZ{ (std::max)(center.z + extents.z, center.z + extents.z + vz) };
 
                     const DirectX::XMFLOAT3 shadowCenter{ (sMinX + sMaxX) * 0.5f, (sMinY + sMaxY) * 0.5f, (sMinZ + sMaxZ) * 0.5f };
                     const DirectX::XMFLOAT3 shadowExtents{ (sMaxX - sMinX) * 0.5f, (sMaxY - sMinY) * 0.5f, (sMaxZ - sMinZ) * 0.5f };
 
-                    const __m128 scX{ _mm_set1_ps(shadowCenter.x) };
-                    const __m128 scY{ _mm_set1_ps(shadowCenter.y) };
-                    const __m128 scZ{ _mm_set1_ps(shadowCenter.z) };
-                    const __m128 seX{ _mm_set1_ps(shadowExtents.x) };
-                    const __m128 seY{ _mm_set1_ps(shadowExtents.y) };
-                    const __m128 seZ{ _mm_set1_ps(shadowExtents.z) };
-
-                    // Discard casters whose shadows cannot reach the camera frustum or are occluded by foreground walls
-                    const bool shadowInViewFrustum{ cameraFrustum.IsVisibleAABB(scX, scY, scZ, seX, seY, seZ) };
+                    const bool shadowInViewFrustum{ cameraFrustum.IsVisibleAABB(shadowCenter, shadowExtents) };
                     const bool shadowOccluded{ mat->isOccludable && m_occlusionBuffer.IsOccluded(shadowCenter, shadowExtents, matViewProj) };
 
                     if (shadowInViewFrustum && !shadowOccluded)
                     {
-                        for (int i{ 0 }; i < SHADOW_CASCADE_COUNT; ++i)
+                        for (int c{ 0 }; c < SHADOW_CASCADE_COUNT; ++c)
                         {
-                            if (cascadeFrustums[i].IsVisibleAABB(cX, cY, cZ, eX, eY, eZ))
+                            if (cascadeFrustums[c].IsVisibleAABB(center, extents))
                             {
                                 DrawPacket shadowPacket{ packet };
                                 shadowPacket.key = reinterpret_cast<uint64_t>(&mesh);
-                                cascadePackets[i][cascadeCount[i]++] = shadowPacket;
+                                cascadePackets[c][cascadeCount[c]++] = shadowPacket;
                             }
                         }
                     }
                 }
 
-                // Main Camera Frustum Check (6-plane SIMD AABB evaluation)
-                if (!cameraFrustum.IsVisibleAABB(cX, cY, cZ, eX, eY, eZ)) continue;
+                // Camera visibility check using precomputed 8-way AVX2 mask
+                if ((camVisibleMask & (1u << lane)) == 0) continue;
 
-                const DirectX::XMVECTOR aabbCenterVec{ DirectX::XMLoadFloat3(&aabb.center) };
-                const float distance{ DirectX::XMVectorGetX(DirectX::XMVector3Dot(CameraFront, DirectX::XMVectorSubtract(aabbCenterVec, CameraPosition))) };
+                const float dx{ center.x - cameraEyePos.x };
+                const float dy{ center.y - cameraEyePos.y };
+                const float dz{ center.z - cameraEyePos.z };
+                const float distance{ dx * camFront.x + dy * camFront.y + dz * camFront.z };
 
-                // Sub-pixel Screen Size Culling: Discard tiny meshes projecting to < 0.5 pixels
-                const float maxExtent{ (std::max)({ aabb.extents.x, aabb.extents.y, aabb.extents.z }) };
+                // Sub-pixel screen size culling
+                const float maxExtent{ (std::max)({ extents.x, extents.y, extents.z }) };
                 const float halfHeight{ (rc.psxEnabled ? rc.psxResHeight : 1080.0f) * 0.5f };
                 const float projRadiusPixels{ (maxExtent / (std::max)(distance, 0.001f)) * matViewProj._22 * halfHeight };
                 const bool isEmissive{ mat->emissiveColor.x > 0.001f || mat->emissiveColor.y > 0.001f || mat->emissiveColor.z > 0.001f };
                 if (distance > 0.0f && projRadiusPixels < 0.5f && !isEmissive) continue;
 
-                // Software Occlusion Culling: Drop objects obscured by foreground occluders before state setup
-                if (mat->isOccludable && m_occlusionBuffer.IsOccluded(aabb.center, aabb.extents, matViewProj))
+                // Software Occlusion Culling
+                if (mat->isOccludable && m_occlusionBuffer.IsOccluded(center, extents, matViewProj))
                 {
                     continue;
                 }
@@ -1344,7 +1405,7 @@ void ModelRenderer::Render(const RenderContext& rc)
                 if (passId == 6) transparentPackets[transparentCount++] = packet;
                 else opaquePackets[opaqueCount++] = packet;
 
-                if (drawInfo.hasVelocity && passId < 6)
+                if (ref.hasVelocity && passId < 6)
                 {
                     DrawPacket velocityPacket{ packet };
                     velocityPacket.key = reinterpret_cast<uint64_t>(&mesh);
@@ -1354,11 +1415,10 @@ void ModelRenderer::Render(const RenderContext& rc)
                 if (shaderId == static_cast<uint64_t>(ShaderId::Toon) && mat->enableOutline && mat->outlineWidth > 0.0f)
                 {
                     const float fadeEndSq{ mat->outlineFadeEnd * mat->outlineFadeEnd };
-                    const float distSq{ DirectX::XMVectorGetX(DirectX::XMVector3LengthSq(DirectX::XMVectorSubtract(aabbCenterVec, CameraPosition))) };
+                    const float distSq{ dx * dx + dy * dy + dz * dz };
                     if (distSq <= (fadeEndSq + 25.0f))
                     {
                         DrawPacket outlinePacket{ packet };
-                        // Build dedicated outline draw key to allow outline instances to coalesce independently
                         outlinePacket.key = BuildDrawKey(4, 0, static_cast<uint64_t>(ShaderId::Toon), HashOutlineMaterial(mat), hashPointer(mesh.vertexBuffer.Get()), depthKey);
                         outlinePackets[outlineCount++] = outlinePacket;
                     }
@@ -1427,8 +1487,10 @@ void ModelRenderer::Render(const RenderContext& rc)
             const DirectionalLight& dirLight{ lightManager->GetDirectionalLight() };
             cbScene.lightDirection = { dirLight.direction.x, dirLight.direction.y, dirLight.direction.z, 0.0f };
             cbScene.lightColor = { dirLight.color.x * dirLight.intensity, dirLight.color.y * dirLight.intensity, dirLight.color.z * dirLight.intensity, 1.0f };
-            cbScene.cameraPosition = { DirectX::XMVectorGetX(CameraPosition), DirectX::XMVectorGetY(CameraPosition), DirectX::XMVectorGetZ(CameraPosition), 1.0f };
-            cbScene.cameraDirection = { DirectX::XMVectorGetX(CameraFront), DirectX::XMVectorGetY(CameraFront), DirectX::XMVectorGetZ(CameraFront), 0.0f };
+            const DirectX::XMFLOAT3& camPos{ rc.camera->GetPosition() };
+            const DirectX::XMFLOAT3& camDir{ rc.camera->GetFront() };
+            cbScene.cameraPosition = { camPos.x, camPos.y, camPos.z, 1.0f };
+            cbScene.cameraDirection = { camDir.x, camDir.y, camDir.z, 0.0f };
             cbScene.ambientSkyColor = lightManager->GetEffectiveSkyColor();
             cbScene.ambientGroundColor = lightManager->GetEffectiveGroundColor();
             cbScene.packedParams = { rc.psxEnabled ? 1.0f : 0.0f, (std::max)(1.0f, rc.psxResWidth), (std::max)(1.0f, rc.psxResHeight), 0.0f };

@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <d3d11.h>
 #include <DirectXMath.h>
+#include <immintrin.h>
 #include <limits>
 #include <memory>
 #include <vector>
