@@ -43,6 +43,9 @@ Material Material::Clone() const noexcept
     mat.metalness = metalness;
     mat.roughness = roughness;
     mat.occlusionStrength = occlusionStrength;
+    mat.isOccluder = isOccluder;
+    mat.isOccludable = isOccludable;
+    mat.occluderScale = occluderScale;
     mat.enableOutline = enableOutline;
     mat.outlineWidth = outlineWidth;
     mat.outlineFadeStart = outlineFadeStart;
@@ -223,6 +226,24 @@ void Material::DrawInspector() noexcept
         ImGui::ColorEdit3("Emissive Color", &emissiveColor.x);
     }
 
+    // OCCLUSION CULLING SETTINGS
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::TextDisabled("OCCLUSION CULLING");
+    if (alphaMode == AlphaMode::Opaque)
+    {
+        ImGui::Checkbox("Treat as Occluder", &isOccluder);
+        if (isOccluder)
+        {
+            ImGui::SliderFloat("Occluder Scale", &occluderScale, 0.5f, 1.0f);
+        }
+    }
+    else
+    {
+        ImGui::TextDisabled("Treat as Occluder (Opaque only)");
+    }
+    ImGui::Checkbox("Allow Being Occluded", &isOccludable);
+
     // TOON OUTLINE (Conditional visibility) 
     // Visible only for Toon (4)
     if (shaderId == 4)
@@ -253,7 +274,9 @@ void Material::Serialize(nlohmann::json& j) const
     j["Emissive"] = { emissiveColor.x, emissiveColor.y, emissiveColor.z };
     j["Roughness"] = roughness;
     j["Metalness"] = metalness;
-
+    j["IsOccluder"] = isOccluder;
+    j["IsOccludable"] = isOccludable;
+    j["OccluderScale"] = occluderScale;
     j["TexBase"] = baseTextureFileName;
     j["TexNormal"] = normalTextureFileName;
 
@@ -282,6 +305,9 @@ void Material::Deserialize(const nlohmann::json& j)
 
     roughness = j.value("Roughness", 0.5f);
     metalness = j.value("Metalness", 0.0f);
+    isOccluder = j.value("IsOccluder", false);
+    isOccludable = j.value("IsOccludable", true);
+    occluderScale = j.value("OccluderScale", 0.95f);
 
     // Restore texture paths
     const std::string newBaseTex{ j.value("TexBase", "") };

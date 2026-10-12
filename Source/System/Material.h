@@ -47,6 +47,11 @@ public:
     float roughness{ 0.5f };
     float occlusionStrength{ 1.0f };
 
+    // Visibility & Software Occlusion Culling
+    bool  isOccluder{ false };
+    bool  isOccludable{ true };
+    float occluderScale{ 0.95f };
+
     // Outline Data (Toon Shader Only)
     bool              enableOutline{ true };
     float             outlineWidth{ 0.015f };

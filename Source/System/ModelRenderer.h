@@ -203,6 +203,27 @@ private:
         const std::vector<DirectX::XMFLOAT4X4>* previousNodeGlobals);
     void BindSkeletonSlot(ID3D11DeviceContext* dc, std::size_t slotIndex) const noexcept;
 
+    // 32 KB L1-Resident Software Occlusion Buffer for Culling
+    struct alignas(64) SoftwareOcclusionBuffer final
+    {
+        static constexpr int kWidth{ 128 };
+        static constexpr int kHeight{ 64 };
+        static constexpr int kTotalPixels{ kWidth * kHeight };
+
+        alignas(64) float depthBuffer[kTotalPixels]{};
+
+        void Clear() noexcept;
+        void RasterizeOccluderMesh(const Model::Mesh& mesh, const DirectX::XMFLOAT4X4& worldMatrix, const DirectX::XMFLOAT4X4& viewProj) noexcept;
+        [[nodiscard]] bool IsOccluded(const DirectX::XMFLOAT3& center, const DirectX::XMFLOAT3& extents, const DirectX::XMFLOAT4X4& viewProj) const noexcept;
+
+    private:
+        struct ClipVertex { float x{ 0.0f }, y{ 0.0f }, z{ 0.0f }, w{ 0.0f }; };
+        void ClipAndRasterizeTriangle(const ClipVertex& v0, const ClipVertex& v1, const ClipVertex& v2) noexcept;
+        [[nodiscard]] static bool ProjectPoint(const DirectX::XMFLOAT3& worldPos, const DirectX::XMFLOAT4X4& viewProj, float& outX, float& outY, float& outZ) noexcept;
+        void RasterizeTriangle(float x0, float y0, float z0, float x1, float y1, float z1, float x2, float y2, float z2) noexcept;
+    };
+
+    SoftwareOcclusionBuffer              m_occlusionBuffer{};
     std::unique_ptr<Shader>              shaders[static_cast<int>(ShaderId::EnumCount)];
     std::unique_ptr<OutlineShader>       m_outlineShader;
     std::unique_ptr<ShadowCasterShader>  m_shadowCasterShader{};
