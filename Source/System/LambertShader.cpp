@@ -49,9 +49,9 @@ void LambertShader::Update(const RenderContext& rc, const Model::Mesh& mesh)
 {
 	ID3D11DeviceContext* const dc{ rc.deviceContext };
 
-	// メッシュ用定数バッファ更新
+	// メッシュ用定数バッファ更新 (baseColor is streamed per-instance via Slot 1 vertex buffer)
 	const CbMesh cbMesh{
-		mesh.material->baseColor,
+		{ 1.0f, 1.0f, 1.0f, 1.0f },
 		mesh.material->emissiveColor,
 		static_cast<int>(mesh.material->alphaMode),
 		mesh.material->alphaCutoff,

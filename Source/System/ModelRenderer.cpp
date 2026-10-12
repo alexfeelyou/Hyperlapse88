@@ -264,7 +264,6 @@ namespace
             void* emissiveMap{ nullptr };
             void* occlusionMap{ nullptr };
             void* metalnessRoughnessMap{ nullptr };
-            DirectX::XMFLOAT4 baseColor{ 1.0f, 1.0f, 1.0f, 1.0f };
             DirectX::XMFLOAT3 emissiveColor{ 0.0f, 0.0f, 0.0f };
             float roughness{ 0.5f };
             float metalness{ 0.0f };
@@ -276,9 +275,8 @@ namespace
         // Value-initialization guarantees all internal padding bytes are zeroed
         MaterialKeyData data{};
 
-        // Common to all forward surface shaders
+        // Common to all forward surface shaders (baseColor streamed per-instance in Slot 1)
         data.baseMap = mat->baseMap.Get();
-        data.baseColor = mat->baseColor;
         data.alphaCutoff = mat->alphaCutoff;
         data.alphaMode = static_cast<int>(mat->alphaMode);
 
@@ -352,6 +350,71 @@ namespace
 
         const std::uint64_t hash{ Core::BufferHash(&data, sizeof(OutlineKeyData)) };
         return static_cast<uint16_t>(hash ^ (hash >> 16) ^ (hash >> 32) ^ (hash >> 48));
+    }
+
+    // Evaluates semantic property equality across active forward shader parameters
+    [[nodiscard]] bool AreMaterialsEquivalent(const Material* a, const Material* b, ShaderId shaderId) noexcept
+    {
+        if (a == b) return true;
+        if (!a || !b) return false;
+        if (a->baseMap.Get() != b->baseMap.Get()) return false;
+        if (a->alphaMode != b->alphaMode || a->alphaCutoff != b->alphaCutoff) return false;
+
+        switch (shaderId)
+        {
+        case ShaderId::Basic:
+            return true;
+
+        case ShaderId::Lambert:
+            return (a->emissiveColor.x == b->emissiveColor.x &&
+                a->emissiveColor.y == b->emissiveColor.y &&
+                a->emissiveColor.z == b->emissiveColor.z);
+
+        case ShaderId::Phong:
+            return (a->normalMap.Get() == b->normalMap.Get() &&
+                a->roughness == b->roughness &&
+                a->emissiveColor.x == b->emissiveColor.x &&
+                a->emissiveColor.y == b->emissiveColor.y &&
+                a->emissiveColor.z == b->emissiveColor.z);
+
+        case ShaderId::Pbr:
+            return (a->normalMap.Get() == b->normalMap.Get() &&
+                a->metalnessRoughnessMap.Get() == b->metalnessRoughnessMap.Get() &&
+                a->emissiveMap.Get() == b->emissiveMap.Get() &&
+                a->occlusionMap.Get() == b->occlusionMap.Get() &&
+                a->roughness == b->roughness &&
+                a->metalness == b->metalness &&
+                a->occlusionStrength == b->occlusionStrength &&
+                a->emissiveColor.x == b->emissiveColor.x &&
+                a->emissiveColor.y == b->emissiveColor.y &&
+                a->emissiveColor.z == b->emissiveColor.z);
+
+        case ShaderId::Toon:
+            return (a->roughness == b->roughness &&
+                a->emissiveColor.x == b->emissiveColor.x &&
+                a->emissiveColor.y == b->emissiveColor.y &&
+                a->emissiveColor.z == b->emissiveColor.z);
+
+        default:
+            return false;
+        }
+    }
+
+    // Evaluates semantic property equality strictly for outline parameters
+    [[nodiscard]] bool AreOutlineMaterialsEquivalent(const Material* a, const Material* b) noexcept
+    {
+        if (a == b) return true;
+        if (!a || !b) return false;
+        return (a->baseMap.Get() == b->baseMap.Get() &&
+            a->outlineColor.x == b->outlineColor.x &&
+            a->outlineColor.y == b->outlineColor.y &&
+            a->outlineColor.z == b->outlineColor.z &&
+            a->outlineColor.w == b->outlineColor.w &&
+            a->outlineWidth == b->outlineWidth &&
+            a->outlineFadeStart == b->outlineFadeStart &&
+            a->outlineFadeEnd == b->outlineFadeEnd &&
+            a->alphaMode == b->alphaMode &&
+            a->alphaCutoff == b->alphaCutoff);
     }
 }
 
@@ -945,7 +1008,15 @@ void ModelRenderer::Render(const RenderContext& rc)
                     DirectX::XMStoreFloat4x4(&instData[i].world, identity);
                     DirectX::XMStoreFloat4x4(&instData[i].prevWorld, identity);
                 }
-                instData[i].color = p.color;
+
+                // Stream combined instance tint and material baseColor directly via Slot 1 vertex buffer
+                const DirectX::XMFLOAT4& baseCol{ p.material ? p.material->baseColor : DirectX::XMFLOAT4{ 1.0f, 1.0f, 1.0f, 1.0f } };
+                instData[i].color = {
+                    p.color.x * baseCol.x,
+                    p.color.y * baseCol.y,
+                    p.color.z * baseCol.z,
+                    p.color.w * baseCol.w
+                };
             }
             dc->Unmap(m_instanceBuffer.Get(), 0);
 
@@ -959,6 +1030,7 @@ void ModelRenderer::Render(const RenderContext& rc)
             Shader* activeShader{ forcedShader };
             ShaderId activeShaderId{ ShaderId::EnumCount };
             const Material* currentMaterial{ nullptr };
+            uint16_t currentMaterialKey{ 0xFFFF };
             ID3D11Buffer* currentVB{ nullptr };
             ID3D11Buffer* currentIB{ nullptr };
             std::size_t currentSlot{ kInvalidSkeletonSlot };
@@ -1010,6 +1082,7 @@ void ModelRenderer::Render(const RenderContext& rc)
                         activeShader = shaders[static_cast<int>(packetShaderId)].get();
                         if (activeShader) activeShader->Begin(rc);
                         currentMaterial = nullptr;
+                        currentMaterialKey = 0xFFFF;
                         currentVB = nullptr;
                         currentIB = nullptr;
                         currentSlot = kInvalidSkeletonSlot;
@@ -1036,17 +1109,31 @@ void ModelRenderer::Render(const RenderContext& rc)
                     currentSlot = firstPacket.skeletonSlot;
                 }
 
-                if (!isDepthOrVelocityPass && firstPacket.material != currentMaterial)
+                if (!isDepthOrVelocityPass)
                 {
-                    // Transiently inject component material into mesh for uniform upload, then restore
-                    Model::Mesh* const nonConstMesh{ const_cast<Model::Mesh*>(firstPacket.mesh) };
-                    Material* const originalMaterial{ nonConstMesh->material };
-                    nonConstMesh->material = const_cast<Material*>(firstPacket.material);
+                    const uint16_t packetMatKey{ static_cast<uint16_t>((firstPacket.key >> 32) & 0xFFFFULL) };
+                    const bool isOutline{ (forcedShader == m_outlineShader.get()) };
+                    const bool needsUpdate{
+                        (currentMaterial == nullptr) ||
+                        (firstPacket.material != currentMaterial &&
+                         (packetMatKey != currentMaterialKey ||
+                          (isOutline ? !AreOutlineMaterialsEquivalent(firstPacket.material, currentMaterial)
+                                     : !AreMaterialsEquivalent(firstPacket.material, currentMaterial, activeShaderId))))
+                    };
 
-                    if (activeShader) activeShader->Update(rc, *nonConstMesh);
+                    if (needsUpdate)
+                    {
+                        // Transiently inject component material into mesh for uniform upload, then restore
+                        Model::Mesh* const nonConstMesh{ const_cast<Model::Mesh*>(firstPacket.mesh) };
+                        Material* const originalMaterial{ nonConstMesh->material };
+                        nonConstMesh->material = const_cast<Material*>(firstPacket.material);
 
-                    nonConstMesh->material = originalMaterial;
-                    currentMaterial = firstPacket.material;
+                        if (activeShader) activeShader->Update(rc, *nonConstMesh);
+
+                        nonConstMesh->material = originalMaterial;
+                        currentMaterial = firstPacket.material;
+                        currentMaterialKey = packetMatKey;
+                    }
                 }
 
                 dc->DrawIndexedInstanced(

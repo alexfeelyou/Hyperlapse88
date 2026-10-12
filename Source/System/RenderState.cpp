@@ -88,8 +88,8 @@ RenderState::RenderState(ID3D11Device* device)
 	{
 		D3D11_SAMPLER_DESC desc{};
 		desc.Filter = D3D11_FILTER_ANISOTROPIC;
-		desc.MaxAnisotropy = 16;
-		desc.MipLODBias = -0.5f; 
+		desc.MaxAnisotropy = 4;   
+		desc.MipLODBias = 0.0f;   
 		desc.ComparisonFunc = D3D11_COMPARISON_NEVER;
 		desc.MinLOD = -D3D11_FLOAT32_MAX;
 		desc.MaxLOD = D3D11_FLOAT32_MAX;
