@@ -122,15 +122,23 @@ private:
             | (static_cast<uint64_t>(quantizedDepth));
     }
 
+    struct InstanceData
+    {
+        DirectX::XMFLOAT4X4 world;
+        DirectX::XMFLOAT4X4 prevWorld;
+        DirectX::XMFLOAT4   color;
+    };
+
     struct DrawPacket
     {
         uint64_t            key{ 0 };
         const Model::Mesh* mesh{ nullptr };
         std::size_t         skeletonSlot{ 0 };
         DirectX::XMFLOAT4   color{ 1.0f, 1.0f, 1.0f, 1.0f };
-        bool                useManualMatrix{ false };
-        bool                hasVelocity{ false };
         DirectX::XMFLOAT4X4 worldMatrix{};
+        DirectX::XMFLOAT4X4 prevWorldMatrix{};
+        bool                hasVelocity{ false };
+        bool                useManualMatrix{ false };
     };
 
     struct CbScene
@@ -158,11 +166,6 @@ private:
     struct CbSkeleton
     {
         DirectX::XMFLOAT4X4		boneTransforms[256];
-    };
-
-    struct CbObject
-    {
-        DirectX::XMFLOAT4       color;
     };
 
     struct DrawInfo
@@ -205,5 +208,9 @@ private:
     std::vector<DrawInfo>                drawInfos{};
 
     Microsoft::WRL::ComPtr<ID3D11Buffer> sceneConstantBuffer;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> objectConstantBuffer;
+    Microsoft::WRL::ComPtr<ID3D11Buffer> m_instanceBuffer;
+    std::size_t                          m_instanceCapacity{ 10000 };
+    std::size_t                          m_identitySkeletonSlot{ static_cast<std::size_t>(-1) };
+
+    static constexpr std::size_t         kInvalidSkeletonSlot{ ~std::size_t{0} };
 };

@@ -8,8 +8,12 @@ cbuffer CbShadow : register(b3)
 float4 main(
     float4 position : POSITION,
     float4 boneWeights : BONE_WEIGHTS,
-    uint4 boneIndices : BONE_INDICES) : SV_POSITION
+    uint4 boneIndices : BONE_INDICES,
+    float4x4 instanceWorld : INSTANCE_TRANSFORM,
+    float4x4 instancePrevWorld : INSTANCE_PREV_TRANSFORM,
+    float4 instanceColor : INSTANCE_COLOR) : SV_POSITION
 {
-    position = SkinningPosition(position, boneWeights, boneIndices);
-    return mul(position, lightViewProjection);
+    float4 localPos = SkinningPosition(position, boneWeights, boneIndices);
+    float4 worldPos = mul(localPos, instanceWorld);
+    return mul(worldPos, lightViewProjection);
 }

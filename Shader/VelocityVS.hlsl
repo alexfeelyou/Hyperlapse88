@@ -16,12 +16,18 @@ struct VSOutput
 VSOutput main(
     float4 position : POSITION,
     float4 boneWeights : BONE_WEIGHTS,
-    uint4 boneIndices : BONE_INDICES)
+    uint4 boneIndices : BONE_INDICES,
+    float4x4 instanceWorld : INSTANCE_TRANSFORM,
+    float4x4 instancePrevWorld : INSTANCE_PREV_TRANSFORM,
+    float4 instanceColor : INSTANCE_COLOR)
 {
     VSOutput output;
 
-    const float4 currentWorldPos = SkinningPosition(position, boneWeights, boneIndices);
-    const float4 previousWorldPos = SkinningPositionPrevious(position, boneWeights, boneIndices);
+    float4 localPos = SkinningPosition(position, boneWeights, boneIndices);
+    float4 prevLocalPos = SkinningPositionPrevious(position, boneWeights, boneIndices);
+    
+    float4 currentWorldPos = mul(localPos, instanceWorld);
+    float4 previousWorldPos = mul(prevLocalPos, instancePrevWorld);
 
     output.currentClipPos = mul(currentWorldPos, currentViewProjection);
     output.previousClipPos = mul(previousWorldPos, previousViewProjection);

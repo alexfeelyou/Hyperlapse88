@@ -7,4 +7,5 @@ struct VS_OUT
     float3 normal : NORMAL;
     float3 position : POSITION;
     float3 tangent : TANGENT;
+    float4 color : COLOR;
 };

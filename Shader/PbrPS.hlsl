@@ -15,11 +15,6 @@ cbuffer CbMesh : register(b0)
     float3 meshPadding;
 };
 
-cbuffer CbObject : register(b2)
-{
-    float4 objectColor;
-};
-
 Texture2D DiffuseMap : register(t0);
 Texture2D NormalMap : register(t1);
 Texture2D MetalRoughMap : register(t2);
@@ -92,7 +87,7 @@ float3 CalculateDirectLight(float3 L, float3 V, float3 N, float3 radiance, float
 float4 main(VS_OUT pin) : SV_TARGET
 {
     float4 albedoTex = DiffuseMap.Sample(LinearSampler, pin.texcoord);
-    float4 albedo = albedoTex * materialColor * objectColor;
+    float4 albedo = albedoTex * materialColor * pin.color;
 
     if (alphaMode == 1)
     {

@@ -9,11 +9,6 @@ cbuffer CbMesh : register(b0)
     float3 meshPadding;
 };
 
-cbuffer CbObject : register(b2)
-{
-    float4 objectColor;
-};
-
 Texture2D DiffuseMap : register(t0);
 SamplerState LinearSampler : register(s0);
 
@@ -27,7 +22,7 @@ float3 CalculateLambertLight(float3 L, float3 N, float3 radiance, float3 albedo)
 float4 main(VS_OUT pin) : SV_TARGET
 {
     float4 texColor = DiffuseMap.Sample(LinearSampler, pin.texcoord);
-    float4 color = texColor * materialColor * objectColor;
+    float4 color = texColor * materialColor * pin.color;
 
     if (alphaMode == 1)
     {

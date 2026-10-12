@@ -10,11 +10,6 @@ cbuffer CbMesh : register(b0)
     float2 meshPadding;
 };
 
-cbuffer CbObject : register(b2)
-{
-    float4 objectColor;
-};
-
 Texture2D DiffuseMap : register(t0);
 Texture2D NormalMap : register(t1);
 SamplerState LinearSampler : register(s0);
@@ -39,7 +34,7 @@ float3 CalculatePhongLight(float3 L, float3 V, float3 N, float3 radiance, float3
 float4 main(VS_OUT pin) : SV_TARGET
 {
     float4 texColor = DiffuseMap.Sample(LinearSampler, pin.texcoord);
-    float4 color = texColor * materialColor * objectColor;
+    float4 color = texColor * materialColor * pin.color;
 
     if (alphaMode == 1)
     {

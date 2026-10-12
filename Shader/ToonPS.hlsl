@@ -10,11 +10,6 @@ cbuffer CbMesh : register(b0)
     float2 padding; 
 };
 
-cbuffer CbObject : register(b2)
-{
-    float4 objectColor;
-};
-
 Texture2D DiffuseMap : register(t0);
 SamplerState LinearSampler : register(s0);
 
@@ -55,7 +50,7 @@ float3 CalculateToonLight(float3 L, float3 N, float3 V, float3 radiance, float3 
 float4 main(VS_OUT pin) : SV_TARGET
 {
     float4 texColor = DiffuseMap.Sample(LinearSampler, pin.texcoord);
-    float4 color = texColor * materialColor * objectColor;
+    float4 color = texColor * materialColor * pin.color;
 
     if (alphaMode == 1)
     {
