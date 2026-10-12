@@ -69,6 +69,7 @@ public:
 		Microsoft::WRL::ComPtr<ID3D11Buffer>	indexBuffer;
 
 		DirectX::XMFLOAT3 boundsCenter{ 0.0f, 0.0f, 0.0f };
+		DirectX::XMFLOAT3 boundsExtents{ 0.0f, 0.0f, 0.0f };
 		float boundsRadius{ 0.0f };
 
 		template<class Archive>
@@ -148,6 +149,7 @@ public:
 
 	// バウンディング情報取得
 	[[nodiscard]] const DirectX::XMFLOAT3& GetBoundsCenter() const noexcept { return m_boundsCenter; }
+	[[nodiscard]] const DirectX::XMFLOAT3& GetBoundsExtents() const noexcept { return m_boundsExtents; }
 	[[nodiscard]] float GetBoundsRadius() const noexcept { return m_boundsRadius; }
 
 	// ノードインデックス取得
@@ -184,5 +186,6 @@ private:
 
 private:
 	DirectX::XMFLOAT3 m_boundsCenter{ 0.0f, 0.0f, 0.0f };
+	DirectX::XMFLOAT3 m_boundsExtents{ 0.0f, 0.0f, 0.0f };
 	float             m_boundsRadius{ 1.0f };
 };

@@ -6,18 +6,18 @@ namespace
 {
     struct CascadeFrustumPlanes
     {
-        DirectX::XMFLOAT4 planes[5];
+        DirectX::XMFLOAT4 planes[5]{};
     };
 
     struct CameraFrustumPlanes
     {
-        DirectX::XMFLOAT4 planes[6];
+        DirectX::XMFLOAT4 planes[6]{};
     };
 
-    struct BoundingSphere
+    struct BoundingBox
     {
         DirectX::XMFLOAT3 center{ 0.0f, 0.0f, 0.0f };
-        float radius{ 0.0f };
+        DirectX::XMFLOAT3 extents{ 0.0f, 0.0f, 0.0f };
     };
 
     [[nodiscard]] CascadeFrustumPlanes ExtractCascadePlanes(const DirectX::XMFLOAT4X4& M) noexcept
@@ -31,10 +31,10 @@ namespace
 
         for (auto& p : cp.planes)
         {
-            const float len = std::sqrt(p.x * p.x + p.y * p.y + p.z * p.z);
+            const float len{ std::sqrt(p.x * p.x + p.y * p.y + p.z * p.z) };
             if (len > 0.00001f)
             {
-                const float invLen = 1.0f / len;
+                const float invLen{ 1.0f / len };
                 p.x *= invLen; p.y *= invLen; p.z *= invLen; p.w *= invLen;
             }
         }
@@ -53,50 +53,171 @@ namespace
 
         for (auto& p : cp.planes)
         {
-            const float len = std::sqrt(p.x * p.x + p.y * p.y + p.z * p.z);
+            const float len{ std::sqrt(p.x * p.x + p.y * p.y + p.z * p.z) };
             if (len > 0.00001f)
             {
-                const float invLen = 1.0f / len;
+                const float invLen{ 1.0f / len };
                 p.x *= invLen; p.y *= invLen; p.z *= invLen; p.w *= invLen;
             }
         }
         return cp;
     }
 
-    [[nodiscard]] bool IsSphereInCascade(const CascadeFrustumPlanes& cp, const DirectX::XMFLOAT3& center, float radius) noexcept
+    // 128-bit SIMD Structure of Arrays (SoA) Frustum Culler
+    // Evaluates up to 8 planes in two vectorized 4-wide SSE blocks with zero branching
+    struct alignas(16) SimdFrustum final
     {
-        for (const auto& p : cp.planes)
+        __m128 pX[2]{};
+        __m128 pY[2]{};
+        __m128 pZ[2]{};
+        __m128 pW[2]{};
+        __m128 absX[2]{};
+        __m128 absY[2]{};
+        __m128 absZ[2]{};
+
+        void Init(const DirectX::XMFLOAT4* inPlanes, std::size_t count) noexcept
         {
-            if ((p.x * center.x + p.y * center.y + p.z * center.z + p.w) < -radius)
+            alignas(16) float px[2][4]{};
+            alignas(16) float py[2][4]{};
+            alignas(16) float pz[2][4]{};
+            alignas(16) float pw[2][4]{};
+
+            for (std::size_t i{ 0 }; i < 8; ++i)
             {
-                return false;
+                const std::size_t block{ i / 4 };
+                const std::size_t lane{ i % 4 };
+
+                if (i < count)
+                {
+                    px[block][lane] = inPlanes[i].x;
+                    py[block][lane] = inPlanes[i].y;
+                    pz[block][lane] = inPlanes[i].z;
+                    pw[block][lane] = inPlanes[i].w;
+                }
+                else
+                {
+                    // Inactive plane lanes are assigned a massive positive W offset so they never cull
+                    px[block][lane] = 0.0f;
+                    py[block][lane] = 0.0f;
+                    pz[block][lane] = 0.0f;
+                    pw[block][lane] = 1e9f;
+                }
+            }
+
+            for (std::size_t b{ 0 }; b < 2; ++b)
+            {
+                pX[b] = _mm_load_ps(px[b]);
+                pY[b] = _mm_load_ps(py[b]);
+                pZ[b] = _mm_load_ps(pz[b]);
+                pW[b] = _mm_load_ps(pw[b]);
+
+                // Precompute absolute values of plane normals to eliminate runtime abs() overhead
+                const __m128 signMask{ _mm_castsi128_ps(_mm_set1_epi32(0x7FFFFFFF)) };
+                absX[b] = _mm_and_ps(pX[b], signMask);
+                absY[b] = _mm_and_ps(pY[b], signMask);
+                absZ[b] = _mm_and_ps(pZ[b], signMask);
             }
         }
-        return true;
-    }
 
-    [[nodiscard]] bool IsSphereInFrustum(const CameraFrustumPlanes& cp, const DirectX::XMFLOAT3& center, float radius) noexcept
-    {
-        for (const auto& p : cp.planes)
+        // Returns true if AABB is visible or intersecting; false if completely outside any plane
+        [[nodiscard]] inline bool IsVisibleAABB(__m128 cX, __m128 cY, __m128 cZ, __m128 eX, __m128 eY, __m128 eZ) const noexcept
         {
-            if ((p.x * center.x + p.y * center.y + p.z * center.z + p.w) < -radius)
-            {
-                return false;
-            }
-        }
-        return true;
-    }
+            // Block 0 (planes 0..3)
+            const __m128 dist0{ _mm_add_ps(pW[0], _mm_add_ps(_mm_mul_ps(pX[0], cX), _mm_add_ps(_mm_mul_ps(pY[0], cY), _mm_mul_ps(pZ[0], cZ)))) };
+            const __m128 rEff0{ _mm_add_ps(_mm_mul_ps(absX[0], eX), _mm_add_ps(_mm_mul_ps(absY[0], eY), _mm_mul_ps(absZ[0], eZ))) };
+            const __m128 culled0{ _mm_cmplt_ps(_mm_add_ps(dist0, rEff0), _mm_setzero_ps()) };
 
-    [[nodiscard]] BoundingSphere CalculateMeshBoundingSphere(
+            // Block 1 (planes 4..7)
+            const __m128 dist1{ _mm_add_ps(pW[1], _mm_add_ps(_mm_mul_ps(pX[1], cX), _mm_add_ps(_mm_mul_ps(pY[1], cY), _mm_mul_ps(pZ[1], cZ)))) };
+            const __m128 rEff1{ _mm_add_ps(_mm_mul_ps(absX[1], eX), _mm_add_ps(_mm_mul_ps(absY[1], eY), _mm_mul_ps(absZ[1], eZ))) };
+            const __m128 culled1{ _mm_cmplt_ps(_mm_add_ps(dist1, rEff1), _mm_setzero_ps()) };
+
+            // Returns false if any lane in either block evaluated to less than zero
+            const int mask{ _mm_movemask_ps(_mm_or_ps(culled0, culled1)) };
+            return (mask == 0);
+        }
+    };
+
+    // Computes tight transformed World-space AABB for static geometry (Arvo's method) or dynamic bone hierarchies
+    [[nodiscard]] BoundingBox CalculateMeshAABB(
         const Model::Mesh& mesh,
         bool useManualMatrix,
-        const DirectX::XMFLOAT4X4& manualMatrix) noexcept
+        const DirectX::XMFLOAT4X4& manualMatrix,
+        const std::vector<DirectX::XMFLOAT4X4>* currentNodeGlobals) noexcept
     {
+        const DirectX::XMMATRIX manualWorldMat{ DirectX::XMLoadFloat4x4(&manualMatrix) };
+
+        // Skinned mesh with active bones: evaluate dynamic bounds around all animated joints
+        if (!mesh.bones.empty())
+        {
+            DirectX::XMFLOAT3 minB{ FLT_MAX, FLT_MAX, FLT_MAX };
+            DirectX::XMFLOAT3 maxB{ -FLT_MAX, -FLT_MAX, -FLT_MAX };
+            bool hasValidBone{ false };
+
+            for (const auto& bone : mesh.bones)
+            {
+                DirectX::XMMATRIX nodeGlobalMat;
+                if (currentNodeGlobals && bone.nodeIndex >= 0 && static_cast<std::size_t>(bone.nodeIndex) < currentNodeGlobals->size())
+                {
+                    nodeGlobalMat = DirectX::XMLoadFloat4x4(&(*currentNodeGlobals)[bone.nodeIndex]);
+                }
+                else
+                {
+                    nodeGlobalMat = DirectX::XMLoadFloat4x4(&bone.node->globalTransform);
+                }
+
+                const DirectX::XMMATRIX boneWorld{ useManualMatrix
+                    ? (nodeGlobalMat * manualWorldMat)
+                    : DirectX::XMLoadFloat4x4(&bone.node->worldTransform) };
+
+                DirectX::XMFLOAT4X4 bw{};
+                DirectX::XMStoreFloat4x4(&bw, boneWorld);
+
+                minB.x = (std::min)(minB.x, bw._41);
+                minB.y = (std::min)(minB.y, bw._42);
+                minB.z = (std::min)(minB.z, bw._43);
+
+                maxB.x = (std::max)(maxB.x, bw._41);
+                maxB.y = (std::max)(maxB.y, bw._42);
+                maxB.z = (std::max)(maxB.z, bw._43);
+                hasValidBone = true;
+            }
+
+            if (hasValidBone && minB.x <= maxB.x)
+            {
+                // Scale padding by instance transform scale
+                const float scaleX{ DirectX::XMVectorGetX(DirectX::XMVector3Length(manualWorldMat.r[0])) };
+                const float scaleY{ DirectX::XMVectorGetX(DirectX::XMVector3Length(manualWorldMat.r[1])) };
+                const float scaleZ{ DirectX::XMVectorGetX(DirectX::XMVector3Length(manualWorldMat.r[2])) };
+                const float maxScale{ (std::max)({ scaleX, scaleY, scaleZ }) };
+
+                // Padding encapsulates skin surface, hair, and footwear extending beyond bone joints
+                const float padding{ (std::max)(0.6f, mesh.boundsRadius * 0.35f) * (maxScale > 0.0001f ? maxScale : 1.0f) };
+
+                minB.x -= padding; maxB.x += padding;
+                minB.y -= padding; maxB.y += padding;
+                minB.z -= padding; maxB.z += padding;
+
+                return {
+                    { (minB.x + maxB.x) * 0.5f, (minB.y + maxB.y) * 0.5f, (minB.z + maxB.z) * 0.5f },
+                    { (maxB.x - minB.x) * 0.5f, (maxB.y - minB.y) * 0.5f, (maxB.z - minB.z) * 0.5f }
+                };
+            }
+        }
+
+        // Static or unskinned mesh path: respect animated parent node if present
         DirectX::XMMATRIX mWorld{};
         if (useManualMatrix)
         {
-            DirectX::XMMATRIX nodeGlobalMat = DirectX::XMLoadFloat4x4(&mesh.node->globalTransform);
-            DirectX::XMMATRIX manualWorldMat = DirectX::XMLoadFloat4x4(&manualMatrix);
+            DirectX::XMMATRIX nodeGlobalMat;
+            if (currentNodeGlobals && mesh.nodeIndex >= 0 && static_cast<std::size_t>(mesh.nodeIndex) < currentNodeGlobals->size())
+            {
+                nodeGlobalMat = DirectX::XMLoadFloat4x4(&(*currentNodeGlobals)[mesh.nodeIndex]);
+            }
+            else
+            {
+                nodeGlobalMat = DirectX::XMLoadFloat4x4(&mesh.node->globalTransform);
+            }
             mWorld = nodeGlobalMat * manualWorldMat;
         }
         else
@@ -104,18 +225,25 @@ namespace
             mWorld = DirectX::XMLoadFloat4x4(&mesh.node->worldTransform);
         }
 
-        const DirectX::XMVECTOR vCenter = DirectX::XMLoadFloat3(&mesh.boundsCenter);
+        const DirectX::XMVECTOR vCenter{ DirectX::XMLoadFloat3(&mesh.boundsCenter) };
         DirectX::XMFLOAT3 worldCenter{};
         DirectX::XMStoreFloat3(&worldCenter, DirectX::XMVector3TransformCoord(vCenter, mWorld));
 
-        const float scaleX = DirectX::XMVectorGetX(DirectX::XMVector3Length(mWorld.r[0]));
-        const float scaleY = DirectX::XMVectorGetX(DirectX::XMVector3Length(mWorld.r[1]));
-        const float scaleZ = DirectX::XMVectorGetX(DirectX::XMVector3Length(mWorld.r[2]));
-        const float maxScale = (std::max)({ scaleX, scaleY, scaleZ });
+        DirectX::XMFLOAT3 localExtents{ mesh.boundsExtents };
+        if (localExtents.x <= 0.0001f && localExtents.y <= 0.0001f && localExtents.z <= 0.0001f)
+        {
+            const float r{ mesh.boundsRadius > 0.0f ? mesh.boundsRadius : 1.0f };
+            localExtents = { r, r, r };
+        }
 
-        const float worldRadius = mesh.boundsRadius * (maxScale > 0.0001f ? maxScale : 1.0f);
+        DirectX::XMFLOAT4X4 M{};
+        DirectX::XMStoreFloat4x4(&M, mWorld);
 
-        return { worldCenter, worldRadius };
+        const float worldExtentX{ std::abs(M._11) * localExtents.x + std::abs(M._21) * localExtents.y + std::abs(M._31) * localExtents.z };
+        const float worldExtentY{ std::abs(M._12) * localExtents.x + std::abs(M._22) * localExtents.y + std::abs(M._32) * localExtents.z };
+        const float worldExtentZ{ std::abs(M._13) * localExtents.x + std::abs(M._23) * localExtents.y + std::abs(M._33) * localExtents.z };
+
+        return { worldCenter, { worldExtentX, worldExtentY, worldExtentZ } };
     }
 
     // Hashes only the properties consumed by the active main pass shader
@@ -687,13 +815,32 @@ void ModelRenderer::Render(const RenderContext& rc)
 
         DirectX::XMFLOAT4X4 matViewProj{};
         {
-            const DirectX::XMMATRIX V = DirectX::XMLoadFloat4x4(&rc.camera->GetView());
-            const DirectX::XMMATRIX P = DirectX::XMLoadFloat4x4(&rc.camera->GetProjection());
+            const DirectX::XMMATRIX V{ DirectX::XMLoadFloat4x4(&rc.camera->GetView()) };
+            const DirectX::XMMATRIX P{ DirectX::XMLoadFloat4x4(&rc.camera->GetProjection()) };
             DirectX::XMStoreFloat4x4(&matViewProj, V * P);
         }
-        const CameraFrustumPlanes cameraPlanes = ExtractCameraFrustumPlanes(matViewProj);
-        const DirectX::XMVECTOR CameraPosition = DirectX::XMLoadFloat3(&rc.camera->GetPosition());
-        const DirectX::XMVECTOR CameraFront = DirectX::XMLoadFloat3(&rc.camera->GetFront());
+
+        // Precompute SIMD Camera Frustum once per frame
+        SimdFrustum cameraFrustum{};
+        {
+            const CameraFrustumPlanes cp{ ExtractCameraFrustumPlanes(matViewProj) };
+            cameraFrustum.Init(cp.planes, 6);
+        }
+
+        // Precompute all 4 SIMD Shadow Cascade Frustums once per frame
+        SimdFrustum cascadeFrustums[SHADOW_CASCADE_COUNT]{};
+        const bool hasDirectionalShadows{ rc.lightManager != nullptr && rc.lightManager->GetDirectionalLight().castShadows };
+        if (hasDirectionalShadows)
+        {
+            for (int i{ 0 }; i < SHADOW_CASCADE_COUNT; ++i)
+            {
+                const CascadeFrustumPlanes cp{ ExtractCascadePlanes(rc.lightManager->GetCascadeMatrices()[i]) };
+                cascadeFrustums[i].Init(cp.planes, 5);
+            }
+        }
+
+        const DirectX::XMVECTOR CameraPosition{ DirectX::XMLoadFloat3(&rc.camera->GetPosition()) };
+        const DirectX::XMVECTOR CameraFront{ DirectX::XMLoadFloat3(&rc.camera->GetFront()) };
 
         // Single extraction pass: Route objects cleanly to all sub-pipelines
         for (const DrawInfo& drawInfo : drawInfos)
@@ -712,9 +859,28 @@ void ModelRenderer::Render(const RenderContext& rc)
                 DirectX::XMMATRIX mWorld, mPrevWorld;
                 if (drawInfo.useManualMatrix)
                 {
-                    DirectX::XMMATRIX nodeGlobalMat = DirectX::XMLoadFloat4x4(&mesh.node->globalTransform);
+                    DirectX::XMMATRIX nodeGlobalMat;
+                    if (drawInfo.currentNodeGlobals && mesh.nodeIndex >= 0 && static_cast<std::size_t>(mesh.nodeIndex) < drawInfo.currentNodeGlobals->size())
+                    {
+                        nodeGlobalMat = DirectX::XMLoadFloat4x4(&(*drawInfo.currentNodeGlobals)[mesh.nodeIndex]);
+                    }
+                    else
+                    {
+                        nodeGlobalMat = DirectX::XMLoadFloat4x4(&mesh.node->globalTransform);
+                    }
+
+                    DirectX::XMMATRIX prevNodeGlobalMat;
+                    if (drawInfo.previousNodeGlobals && mesh.nodeIndex >= 0 && static_cast<std::size_t>(mesh.nodeIndex) < drawInfo.previousNodeGlobals->size())
+                    {
+                        prevNodeGlobalMat = DirectX::XMLoadFloat4x4(&(*drawInfo.previousNodeGlobals)[mesh.nodeIndex]);
+                    }
+                    else
+                    {
+                        prevNodeGlobalMat = nodeGlobalMat;
+                    }
+
                     mWorld = nodeGlobalMat * DirectX::XMLoadFloat4x4(&drawInfo.worldMatrix);
-                    mPrevWorld = nodeGlobalMat * DirectX::XMLoadFloat4x4(&drawInfo.previousWorldMatrix);
+                    mPrevWorld = prevNodeGlobalMat * DirectX::XMLoadFloat4x4(&drawInfo.previousWorldMatrix);
                 }
                 else
                 {
@@ -730,32 +896,42 @@ void ModelRenderer::Render(const RenderContext& rc)
                 DirectX::XMStoreFloat4x4(&packet.worldMatrix, mWorld);
                 DirectX::XMStoreFloat4x4(&packet.prevWorldMatrix, mPrevWorld);
 
-                const BoundingSphere sphere{ CalculateMeshBoundingSphere(mesh, drawInfo.useManualMatrix, drawInfo.worldMatrix) };
+                const BoundingBox aabb{ CalculateMeshAABB(mesh, drawInfo.useManualMatrix, drawInfo.worldMatrix, drawInfo.currentNodeGlobals) };
+                const __m128 cX{ _mm_set1_ps(aabb.center.x) };
+                const __m128 cY{ _mm_set1_ps(aabb.center.y) };
+                const __m128 cZ{ _mm_set1_ps(aabb.center.z) };
+                const __m128 eX{ _mm_set1_ps(aabb.extents.x) };
+                const __m128 eY{ _mm_set1_ps(aabb.extents.y) };
+                const __m128 eZ{ _mm_set1_ps(aabb.extents.z) };
 
-                // Shadows: Group strictly by mesh identity to maximize multi-material depth batching
-                if (drawInfo.castShadows && mat->alphaMode != AlphaMode::Blend)
+                // Shadows: Vectorized single-pass cascade culling using pre-extracted SIMD planes
+                if (drawInfo.castShadows && mat->alphaMode != AlphaMode::Blend && hasDirectionalShadows)
                 {
                     for (int i{ 0 }; i < SHADOW_CASCADE_COUNT; ++i)
                     {
-                        if (rc.lightManager && rc.lightManager->GetDirectionalLight().castShadows)
+                        if (cascadeFrustums[i].IsVisibleAABB(cX, cY, cZ, eX, eY, eZ))
                         {
-                            const CascadeFrustumPlanes cPlanes{ ExtractCascadePlanes(rc.lightManager->GetCascadeMatrices()[i]) };
-                            if (IsSphereInCascade(cPlanes, sphere.center, sphere.radius))
-                            {
-                                DrawPacket shadowPacket{ packet };
-                                shadowPacket.key = reinterpret_cast<uint64_t>(&mesh);
-                                cascadePackets[i][cascadeCount[i]++] = shadowPacket;
-                            }
+                            DrawPacket shadowPacket{ packet };
+                            shadowPacket.key = reinterpret_cast<uint64_t>(&mesh);
+                            cascadePackets[i][cascadeCount[i]++] = shadowPacket;
                         }
                     }
                 }
 
-                // Main Camera Frustum Check
-                if (!IsSphereInFrustum(cameraPlanes, sphere.center, sphere.radius)) continue;
+                // Main Camera Frustum Check (6-plane SIMD AABB evaluation)
+                if (!cameraFrustum.IsVisibleAABB(cX, cY, cZ, eX, eY, eZ)) continue;
 
-                const float distance = DirectX::XMVectorGetX(DirectX::XMVector3Dot(CameraFront, DirectX::XMVectorSubtract(mWorld.r[3], CameraPosition)));
-                const float clampedDist = std::clamp(distance, 0.0f, 1000.0f);
-                const uint16_t quantizedDepth = static_cast<uint16_t>((clampedDist / 1000.0f) * 65535.0f);
+                const DirectX::XMVECTOR aabbCenterVec{ DirectX::XMLoadFloat3(&aabb.center) };
+                const float distance{ DirectX::XMVectorGetX(DirectX::XMVector3Dot(CameraFront, DirectX::XMVectorSubtract(aabbCenterVec, CameraPosition))) };
+
+                // Sub-pixel Screen Size Culling: Discard tiny meshes projecting to < 0.5 pixels
+                const float maxExtent{ (std::max)({ aabb.extents.x, aabb.extents.y, aabb.extents.z }) };
+                const float halfHeight{ (rc.psxEnabled ? rc.psxResHeight : 1080.0f) * 0.5f };
+                const float projRadiusPixels{ (maxExtent / (std::max)(distance, 0.001f)) * matViewProj._22 * halfHeight };
+                const bool isEmissive{ mat->emissiveColor.x > 0.001f || mat->emissiveColor.y > 0.001f || mat->emissiveColor.z > 0.001f };
+                if (distance > 0.0f && projRadiusPixels < 0.5f && !isEmissive) continue;
+                const float clampedDist{ std::clamp(distance, 0.0f, 1000.0f) };
+                const uint16_t quantizedDepth{ static_cast<uint16_t>((clampedDist / 1000.0f) * 65535.0f) };
 
                 uint64_t passId{ 4 };
                 uint64_t translucencyLayer{ 0 };
@@ -788,7 +964,7 @@ void ModelRenderer::Render(const RenderContext& rc)
                 if (shaderId == static_cast<uint64_t>(ShaderId::Toon) && mat->enableOutline && mat->outlineWidth > 0.0f)
                 {
                     const float fadeEndSq{ mat->outlineFadeEnd * mat->outlineFadeEnd };
-                    const float distSq{ DirectX::XMVectorGetX(DirectX::XMVector3LengthSq(DirectX::XMVectorSubtract(mWorld.r[3], CameraPosition))) };
+                    const float distSq{ DirectX::XMVectorGetX(DirectX::XMVector3LengthSq(DirectX::XMVectorSubtract(aabbCenterVec, CameraPosition))) };
                     if (distSq <= (fadeEndSq + 25.0f))
                     {
                         DrawPacket outlinePacket{ packet };

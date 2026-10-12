@@ -414,7 +414,11 @@ void Model::ComputeBounds() noexcept
 			(minMesh.y + maxMesh.y) * 0.5f,
 			(minMesh.z + maxMesh.z) * 0.5f
 		};
-
+		mesh.boundsExtents = {
+			(maxMesh.x - minMesh.x) * 0.5f,
+			(maxMesh.y - minMesh.y) * 0.5f,
+			(maxMesh.z - minMesh.z) * 0.5f
+		};
 		float maxDistSq = 0.0f;
 		for (const auto& v : mesh.vertices)
 		{
@@ -429,6 +433,9 @@ void Model::ComputeBounds() noexcept
 		if (!mesh.bones.empty())
 		{
 			mesh.boundsRadius *= 1.4f;
+			mesh.boundsExtents.x *= 1.4f;
+			mesh.boundsExtents.y *= 1.4f;
+			mesh.boundsExtents.z *= 1.4f;
 		}
 
 		minModel.x = (std::min)(minModel.x, minMesh.x);
@@ -444,6 +451,11 @@ void Model::ComputeBounds() noexcept
 		(minModel.x + maxModel.x) * 0.5f,
 		(minModel.y + maxModel.y) * 0.5f,
 		(minModel.z + maxModel.z) * 0.5f
+	};
+	m_boundsExtents = {
+		(maxModel.x - minModel.x) * 0.5f,
+		(maxModel.y - minModel.y) * 0.5f,
+		(maxModel.z - minModel.z) * 0.5f
 	};
 
 	float maxModelDistSq = 0.0f;
