@@ -156,9 +156,9 @@ private:
         DirectX::XMFLOAT4   packedParams{};         // 16 bytes (psxEnabled, psxResW, psxResH, padding)
         DirectX::XMINT4     lightCounts{};          // 16 bytes (pointCount, spotCount, padding, padding)
 
-        DirectX::XMFLOAT4X4 cascadeMatrices[4]{};
-        DirectX::XMFLOAT4   cascadeSplits{};        // x: Split 1, y: Split 2, z: Split 3, w: Split 4
-        DirectX::XMFLOAT4   cascadeBias{};          // x, y, z, w map to cascades 0, 1, 2, 3
+        DirectX::XMFLOAT4X4 cascadeMatrices[SHADOW_CASCADE_COUNT]{};
+        DirectX::XMFLOAT4   cascadeSplits{};        // x: Split 1, y: Split 2, z: Split 3, w: padding
+        DirectX::XMFLOAT4   cascadeBias{};          // x, y, z map to cascades 0, 1, 2
         DirectX::XMFLOAT4   shadowSettings{};       // x: CastShadows(1/0), y: Attenuation, z: padding, w: padding
 
         PointLightData      pointLights[8]{};       // 256 bytes

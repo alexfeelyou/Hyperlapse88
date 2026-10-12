@@ -1094,15 +1094,13 @@ void ModelRenderer::Render(const RenderContext& rc)
         DrawPacket* const transparentPackets{ m_frameArena.AllocateArray<DrawPacket>(totalSceneMeshCount) };
         DrawPacket* const velocityPackets{ m_frameArena.AllocateArray<DrawPacket>(totalSceneMeshCount) };
         DrawPacket* const outlinePackets{ m_frameArena.AllocateArray<DrawPacket>(totalSceneMeshCount) };
-        DrawPacket* const cascadePackets[4]{
-            m_frameArena.AllocateArray<DrawPacket>(totalSceneMeshCount),
+        DrawPacket* const cascadePackets[SHADOW_CASCADE_COUNT]{
             m_frameArena.AllocateArray<DrawPacket>(totalSceneMeshCount),
             m_frameArena.AllocateArray<DrawPacket>(totalSceneMeshCount),
             m_frameArena.AllocateArray<DrawPacket>(totalSceneMeshCount)
         };
-
         std::size_t opaqueCount{ 0 }, transparentCount{ 0 }, velocityCount{ 0 }, outlineCount{ 0 };
-        std::size_t cascadeCount[4]{ 0, 0, 0, 0 };
+        std::size_t cascadeCount[SHADOW_CASCADE_COUNT]{ 0, 0, 0 };
 
         DirectX::XMFLOAT4X4 matViewProj{};
         {
@@ -1350,6 +1348,9 @@ void ModelRenderer::Render(const RenderContext& rc)
                     {
                         for (int c{ 0 }; c < SHADOW_CASCADE_COUNT; ++c)
                         {
+                            // Skinned meshes bypass Cascade 2 to eliminate distant bone evaluation
+                            if (c == 2 && !mesh.bones.empty()) continue;
+
                             if (cascadeFrustums[c].IsVisibleAABB(center, extents))
                             {
                                 DrawPacket shadowPacket{ packet };
@@ -1437,7 +1438,7 @@ void ModelRenderer::Render(const RenderContext& rc)
         std::sort(transparentPackets, transparentPackets + transparentCount, packetSort);
         std::sort(outlinePackets, outlinePackets + outlineCount, packetSort);
         std::sort(velocityPackets, velocityPackets + velocityCount, packetSort);
-        for (int i = 0; i < 4; ++i) std::sort(cascadePackets[i], cascadePackets[i] + cascadeCount[i], packetSort);
+        for (int i{ 0 }; i < SHADOW_CASCADE_COUNT; ++i) std::sort(cascadePackets[i], cascadePackets[i] + cascadeCount[i], packetSort);
 
         // RENDER PASSES 
         if (rc.lightManager && rc.lightManager->GetDirectionalLight().castShadows)
@@ -1463,7 +1464,8 @@ void ModelRenderer::Render(const RenderContext& rc)
             for (int i{ 0 }; i < SHADOW_CASCADE_COUNT; ++i)
             {
                 ID3D11DepthStencilView* const cascadeDSV{ rc.lightManager->GetCascadeDSV(i) };
-                dc->ClearDepthStencilView(cascadeDSV, D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, 1.0f, 0);
+                // Pure D16 hardware depth clear
+                dc->ClearDepthStencilView(cascadeDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
                 dc->OMSetRenderTargets(0, nullptr, cascadeDSV);
                 dc->RSSetViewports(1, &shadowViewport);
 
@@ -1501,9 +1503,9 @@ void ModelRenderer::Render(const RenderContext& rc)
 
             if (dirLight.castShadows)
             {
-                for (int i = 0; i < 4; ++i) cbScene.cascadeMatrices[i] = lightManager->GetCascadeMatrices()[i];
-                cbScene.cascadeSplits = { dirLight.splitDistances[1], dirLight.splitDistances[2], dirLight.splitDistances[3], dirLight.splitDistances[4] };
-                cbScene.cascadeBias = { dirLight.shadowBias[0], dirLight.shadowBias[1], dirLight.shadowBias[2], dirLight.shadowBias[3] };
+                for (int i{ 0 }; i < SHADOW_CASCADE_COUNT; ++i) cbScene.cascadeMatrices[i] = lightManager->GetCascadeMatrices()[i];
+                cbScene.cascadeSplits = { dirLight.splitDistances[1], dirLight.splitDistances[2], dirLight.splitDistances[3], 0.0f };
+                cbScene.cascadeBias = { dirLight.shadowBias[0], dirLight.shadowBias[1], dirLight.shadowBias[2], 0.0f };
                 cbScene.shadowSettings = { 1.0f, dirLight.shadowAttenuation, 0.0f, 0.0f };
             }
             else cbScene.shadowSettings = { 0.0f, 1.0f, 0.0f, 0.0f };
@@ -1523,8 +1525,8 @@ void ModelRenderer::Render(const RenderContext& rc)
 
         if (rc.lightManager && rc.lightManager->GetDirectionalLight().castShadows)
         {
-            ID3D11ShaderResourceView* const* cascadeSRVs = rc.lightManager->GetCascadeSRVs();
-            dc->PSSetShaderResources(10, 4, cascadeSRVs);
+            ID3D11ShaderResourceView* const cascadeArraySRV{ rc.lightManager->GetCascadeArraySRV() };
+            dc->PSSetShaderResources(10, 1, &cascadeArraySRV);
         }
 
         dc->OMSetDepthStencilState(rc.renderState->GetDepthStencilState(DepthState::TestAndWrite), 0);
@@ -1588,6 +1590,6 @@ void ModelRenderer::Render(const RenderContext& rc)
         dc->PSSetConstantBuffers(7, 1, nullBuffers);
         ID3D11SamplerState* const nullSamplers[]{ nullptr };
         dc->PSSetSamplers(0, 1, nullSamplers);
-        ID3D11ShaderResourceView* const nullShadowSRVs[]{ nullptr, nullptr, nullptr, nullptr };
-        dc->PSSetShaderResources(10, 4, nullShadowSRVs);
+        ID3D11ShaderResourceView* const nullShadowSRV{ nullptr };
+        dc->PSSetShaderResources(10, 1, &nullShadowSRV);
 }

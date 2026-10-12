@@ -55,14 +55,14 @@ public:
     [[nodiscard]] bool CastsShadows() const noexcept { return m_castShadows; }
     void SetCastShadows(bool cast) noexcept { m_castShadows = cast; }
     [[nodiscard]] float GetShadowAttenuation() const noexcept { return m_shadowAttenuation; }
-    [[nodiscard]] const std::array<float, 4>& GetShadowBias() const noexcept { return m_shadowBias; }
-    [[nodiscard]] const std::array<float, 5>& GetSplitDistances() const noexcept { return m_splitDistances; }
+    [[nodiscard]] const std::array<float, SHADOW_CASCADE_COUNT>& GetShadowBias() const noexcept { return m_shadowBias; }
+    [[nodiscard]] const std::array<float, SHADOW_CASCADE_COUNT + 1>& GetSplitDistances() const noexcept { return m_splitDistances; }
 
 private:
     bool  m_castShadows{ true };
     float m_shadowAttenuation{ 0.5f };
-    std::array<float, 4> m_shadowBias{ 0.00005f, 0.0001f, 0.0005f, 0.001f };
-    std::array<float, 5> m_splitDistances{ 0.1f, 25.0f, 100.0f, 250.0f, 500.0f };
+    std::array<float, SHADOW_CASCADE_COUNT> m_shadowBias{ 0.001f, 0.002f, 0.004f };
+    std::array<float, SHADOW_CASCADE_COUNT + 1> m_splitDistances{ 0.1f, 15.0f, 60.0f, 200.0f };
 };
 
 class PointLightComponent final : public LightComponent

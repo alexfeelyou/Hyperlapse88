@@ -60,26 +60,10 @@ void DirectionalLightComponent::DrawInspector()
             ImGui::DragFloat("Near Plane", &m_splitDistances[0], 0.1f, 0.1f, m_splitDistances[1]);
             ImGui::DragFloat("Split 1", &m_splitDistances[1], 1.0f, m_splitDistances[0], m_splitDistances[2]);
             ImGui::DragFloat("Split 2", &m_splitDistances[2], 1.0f, m_splitDistances[1], m_splitDistances[3]);
-            ImGui::DragFloat("Split 3", &m_splitDistances[3], 1.0f, m_splitDistances[2], m_splitDistances[4]);
-            ImGui::DragFloat("Far Plane", &m_splitDistances[4], 1.0f, m_splitDistances[3], 2000.0f);
+            ImGui::DragFloat("Far Plane", &m_splitDistances[3], 1.0f, m_splitDistances[2], 2000.0f);
 
             ImGui::Spacing();
-            ImGui::DragFloat4("Depth Bias", m_shadowBias.data(), 0.0001f, 0.0f, 0.02f, "%.4f");
-            ImGui::TreePop();
-        }
-
-        if (ImGui::TreeNode("Shadow Map Previews"))
-        {
-            const auto* srvs = Graphics::Instance().GetLightManager().GetCascadeSRVs();
-            for (int i = 0; i < 4; ++i)
-            {
-                ImGui::Text("Cascade %d", i);
-                if (srvs[i])
-                {
-                    ImGui::Image(reinterpret_cast<ImTextureID>(srvs[i]), ImVec2{ 256, 256 },
-                        ImVec2{ 0, 0 }, ImVec2{ 1, 1 }, ImVec4{ 1, 1, 1, 1 }, ImVec4{ 0.5f, 0.5f, 0.5f, 1.0f });
-                }
-            }
+            ImGui::DragFloat3("Depth Bias", m_shadowBias.data(), 0.0001f, 0.0f, 0.02f, "%.4f");
             ImGui::TreePop();
         }
     }
@@ -109,11 +93,19 @@ void DirectionalLightComponent::Deserialize(const nlohmann::json& inJson)
 
     if (inJson.contains("ShadowBias"))
     {
-        m_shadowBias = inJson["ShadowBias"].get<std::array<float, 4>>();
+        const auto& biasJson{ inJson["ShadowBias"] };
+        for (std::size_t i{ 0 }; i < m_shadowBias.size() && i < biasJson.size(); ++i)
+        {
+            m_shadowBias[i] = biasJson[i].get<float>();
+        }
     }
     if (inJson.contains("SplitDistances"))
     {
-        m_splitDistances = inJson["SplitDistances"].get<std::array<float, 5>>();
+        const auto& splitJson{ inJson["SplitDistances"] };
+        for (std::size_t i{ 0 }; i < m_splitDistances.size() && i < splitJson.size(); ++i)
+        {
+            m_splitDistances[i] = splitJson[i].get<float>();
+        }
     }
 }
 REGISTER_COMPONENT(DirectionalLightComponent)
