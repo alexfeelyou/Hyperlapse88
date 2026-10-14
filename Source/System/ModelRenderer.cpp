@@ -153,61 +153,62 @@ namespace
     {
         const DirectX::XMMATRIX manualWorldMat{ DirectX::XMLoadFloat4x4(&manualMatrix) };
 
-        // Skinned mesh with active bones: evaluate dynamic bounds around all animated joints
+        // Skinned mesh with active bones: evaluate dynamic bounds around all animated joints in SIMD registers
         if (!mesh.bones.empty())
         {
-            DirectX::XMFLOAT3 minB{ FLT_MAX, FLT_MAX, FLT_MAX };
-            DirectX::XMFLOAT3 maxB{ -FLT_MAX, -FLT_MAX, -FLT_MAX };
+            DirectX::XMVECTOR vMin{ DirectX::XMVectorReplicate(FLT_MAX) };
+            DirectX::XMVECTOR vMax{ DirectX::XMVectorReplicate(-FLT_MAX) };
             bool hasValidBone{ false };
 
             for (const auto& bone : mesh.bones)
             {
-                DirectX::XMMATRIX nodeGlobalMat;
-                if (currentNodeGlobals && bone.nodeIndex >= 0 && static_cast<std::size_t>(bone.nodeIndex) < currentNodeGlobals->size())
+                DirectX::XMVECTOR vPos{};
+                if (useManualMatrix)
                 {
-                    nodeGlobalMat = DirectX::XMLoadFloat4x4(&(*currentNodeGlobals)[bone.nodeIndex]);
+                    if (currentNodeGlobals && bone.nodeIndex >= 0 && static_cast<std::size_t>(bone.nodeIndex) < currentNodeGlobals->size())
+                    {
+                        const auto& ng{ (*currentNodeGlobals)[bone.nodeIndex] };
+                        vPos = DirectX::XMVectorSet(ng._41, ng._42, ng._43, 1.0f);
+                    }
+                    else
+                    {
+                        const auto& ng{ bone.node->globalTransform };
+                        vPos = DirectX::XMVectorSet(ng._41, ng._42, ng._43, 1.0f);
+                    }
+                    // Transform joint translation directly by instance world matrix without 4x4 matrix multiplication
+                    vPos = DirectX::XMVector3TransformCoord(vPos, manualWorldMat);
                 }
                 else
                 {
-                    nodeGlobalMat = DirectX::XMLoadFloat4x4(&bone.node->globalTransform);
+                    const auto& wt{ bone.node->worldTransform };
+                    vPos = DirectX::XMVectorSet(wt._41, wt._42, wt._43, 1.0f);
                 }
 
-                const DirectX::XMMATRIX boneWorld{ useManualMatrix
-                    ? (nodeGlobalMat * manualWorldMat)
-                    : DirectX::XMLoadFloat4x4(&bone.node->worldTransform) };
-
-                DirectX::XMFLOAT4X4 bw{};
-                DirectX::XMStoreFloat4x4(&bw, boneWorld);
-
-                minB.x = (std::min)(minB.x, bw._41);
-                minB.y = (std::min)(minB.y, bw._42);
-                minB.z = (std::min)(minB.z, bw._43);
-
-                maxB.x = (std::max)(maxB.x, bw._41);
-                maxB.y = (std::max)(maxB.y, bw._42);
-                maxB.z = (std::max)(maxB.z, bw._43);
+                vMin = DirectX::XMVectorMin(vMin, vPos);
+                vMax = DirectX::XMVectorMax(vMax, vPos);
                 hasValidBone = true;
             }
 
-            if (hasValidBone && minB.x <= maxB.x)
+            if (hasValidBone && DirectX::XMVector3LessOrEqual(vMin, vMax))
             {
-                // Scale padding by instance transform scale
                 const float scaleX{ DirectX::XMVectorGetX(DirectX::XMVector3Length(manualWorldMat.r[0])) };
                 const float scaleY{ DirectX::XMVectorGetX(DirectX::XMVector3Length(manualWorldMat.r[1])) };
                 const float scaleZ{ DirectX::XMVectorGetX(DirectX::XMVector3Length(manualWorldMat.r[2])) };
                 const float maxScale{ (std::max)({ scaleX, scaleY, scaleZ }) };
 
-                // Padding encapsulates skin surface, hair, and footwear extending beyond bone joints
                 const float padding{ (std::max)(0.6f, mesh.boundsRadius * 0.35f) * (maxScale > 0.0001f ? maxScale : 1.0f) };
+                const DirectX::XMVECTOR vPad{ DirectX::XMVectorReplicate(padding) };
 
-                minB.x -= padding; maxB.x += padding;
-                minB.y -= padding; maxB.y += padding;
-                minB.z -= padding; maxB.z += padding;
+                vMin = DirectX::XMVectorSubtract(vMin, vPad);
+                vMax = DirectX::XMVectorAdd(vMax, vPad);
 
-                return {
-                    { (minB.x + maxB.x) * 0.5f, (minB.y + maxB.y) * 0.5f, (minB.z + maxB.z) * 0.5f },
-                    { (maxB.x - minB.x) * 0.5f, (maxB.y - minB.y) * 0.5f, (maxB.z - minB.z) * 0.5f }
-                };
+                const DirectX::XMVECTOR vCenter{ DirectX::XMVectorScale(DirectX::XMVectorAdd(vMin, vMax), 0.5f) };
+                const DirectX::XMVECTOR vExtents{ DirectX::XMVectorScale(DirectX::XMVectorSubtract(vMax, vMin), 0.5f) };
+
+                BoundingBox box{};
+                DirectX::XMStoreFloat3(&box.center, vCenter);
+                DirectX::XMStoreFloat3(&box.extents, vExtents);
+                return box;
             }
         }
 
