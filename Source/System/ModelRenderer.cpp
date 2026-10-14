@@ -835,127 +835,13 @@ void ModelRenderer::Render(const RenderContext& rc)
     m_frameArena.Reset();
     dc->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-    // Build the frame's unified bone matrix palette
+    // Initialize the frame's unified bone matrix palette (populated lazily post-culling)
     m_boneMatrixStaging.clear();
 
     // Index 0 is strictly the Identity Matrix (consumed by all static meshes with boneOffset = 0)
     DirectX::XMFLOAT4X4 identityMatrix{};
     DirectX::XMStoreFloat4x4(&identityMatrix, DirectX::XMMatrixIdentity());
     m_boneMatrixStaging.push_back(identityMatrix);
-
-    for (DrawInfo& drawInfo : drawInfos)
-    {
-        if (!drawInfo.model) continue;
-
-        const auto& meshes{ drawInfo.model->GetMeshes() };
-        drawInfo.meshBoneOffsets.resize(meshes.size(), 0);
-        drawInfo.meshPrevBoneOffsets.resize(meshes.size(), 0);
-
-        const DirectX::XMMATRIX manualWorldMat{ DirectX::XMLoadFloat4x4(&drawInfo.worldMatrix) };
-        const DirectX::XMMATRIX previousManualWorldMat{ DirectX::XMLoadFloat4x4(&drawInfo.previousWorldMatrix) };
-
-        for (std::size_t meshIdx{ 0 }; meshIdx < meshes.size(); ++meshIdx)
-        {
-            const auto& mesh{ meshes[meshIdx] };
-            if (mesh.bones.empty())
-            {
-                drawInfo.meshBoneOffsets[meshIdx] = 0;
-                drawInfo.meshPrevBoneOffsets[meshIdx] = 0;
-                continue;
-            }
-
-            // Deduplicate matching bone palettes within the same drawInfo entity
-            uint32_t sharedOffset{ 0xFFFFFFFF };
-            uint32_t sharedPrevOffset{ 0xFFFFFFFF };
-            for (std::size_t prevIdx{ 0 }; prevIdx < meshIdx; ++prevIdx)
-            {
-                if (drawInfo.meshBoneOffsets[prevIdx] != 0 &&
-                    AreBonePalettesEqual(mesh.bones, meshes[prevIdx].bones))
-                {
-                    sharedOffset = drawInfo.meshBoneOffsets[prevIdx];
-                    sharedPrevOffset = drawInfo.meshPrevBoneOffsets[prevIdx];
-                    break;
-                }
-            }
-
-            if (sharedOffset != 0xFFFFFFFF)
-            {
-                drawInfo.meshBoneOffsets[meshIdx] = sharedOffset;
-                drawInfo.meshPrevBoneOffsets[meshIdx] = sharedPrevOffset;
-                continue;
-            }
-
-            const uint32_t currentOffset{ static_cast<uint32_t>(m_boneMatrixStaging.size()) };
-            drawInfo.meshBoneOffsets[meshIdx] = currentOffset;
-            m_boneMatrixStaging.resize(currentOffset + mesh.bones.size());
-
-            for (std::size_t i{ 0 }; i < mesh.bones.size(); ++i)
-            {
-                const Model::Bone& bone{ mesh.bones[i] };
-                DirectX::XMMATRIX nodeGlobalMat;
-                if (drawInfo.currentNodeGlobals && bone.nodeIndex >= 0 && static_cast<std::size_t>(bone.nodeIndex) < drawInfo.currentNodeGlobals->size())
-                {
-                    nodeGlobalMat = DirectX::XMLoadFloat4x4(&(*drawInfo.currentNodeGlobals)[bone.nodeIndex]);
-                }
-                else
-                {
-                    nodeGlobalMat = DirectX::XMLoadFloat4x4(&bone.node->globalTransform);
-                }
-
-                const DirectX::XMMATRIX offsetTransform{ DirectX::XMLoadFloat4x4(&bone.offsetTransform) };
-                const DirectX::XMMATRIX worldTransform{ drawInfo.useManualMatrix
-                    ? (nodeGlobalMat * manualWorldMat)
-                    : DirectX::XMLoadFloat4x4(&bone.node->worldTransform) };
-
-                DirectX::XMStoreFloat4x4(&m_boneMatrixStaging[currentOffset + i], offsetTransform * worldTransform);
-            }
-
-            if (drawInfo.hasVelocity)
-            {
-                const uint32_t prevOffset{ static_cast<uint32_t>(m_boneMatrixStaging.size()) };
-                drawInfo.meshPrevBoneOffsets[meshIdx] = prevOffset;
-                m_boneMatrixStaging.resize(prevOffset + mesh.bones.size());
-
-                for (std::size_t i{ 0 }; i < mesh.bones.size(); ++i)
-                {
-                    const Model::Bone& bone{ mesh.bones[i] };
-                    DirectX::XMMATRIX prevNodeGlobalMat;
-                    if (drawInfo.previousNodeGlobals && bone.nodeIndex >= 0 && static_cast<std::size_t>(bone.nodeIndex) < drawInfo.previousNodeGlobals->size())
-                    {
-                        prevNodeGlobalMat = DirectX::XMLoadFloat4x4(&(*drawInfo.previousNodeGlobals)[bone.nodeIndex]);
-                    }
-                    else
-                    {
-                        prevNodeGlobalMat = (drawInfo.currentNodeGlobals && bone.nodeIndex >= 0 && static_cast<std::size_t>(bone.nodeIndex) < drawInfo.currentNodeGlobals->size())
-                            ? DirectX::XMLoadFloat4x4(&(*drawInfo.currentNodeGlobals)[bone.nodeIndex])
-                            : DirectX::XMLoadFloat4x4(&bone.node->globalTransform);
-                    }
-
-                    const DirectX::XMMATRIX offsetTransform{ DirectX::XMLoadFloat4x4(&bone.offsetTransform) };
-                    const DirectX::XMMATRIX previousWorldTransform{ drawInfo.useManualMatrix
-                        ? (prevNodeGlobalMat * previousManualWorldMat)
-                        : DirectX::XMLoadFloat4x4(&bone.node->worldTransform) };
-
-                    DirectX::XMStoreFloat4x4(&m_boneMatrixStaging[prevOffset + i], offsetTransform * previousWorldTransform);
-                }
-            }
-            else
-            {
-                drawInfo.meshPrevBoneOffsets[meshIdx] = currentOffset;
-            }
-        }
-    }
-
-    // Upload the unified bone palette in a single continuous transfer
-    EnsureBonePaletteCapacity(device.Get(), m_boneMatrixStaging.size());
-    D3D11_MAPPED_SUBRESOURCE mappedPalette{};
-    dc->Map(m_bonePaletteBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedPalette);
-    std::memcpy(mappedPalette.pData, m_boneMatrixStaging.data(), sizeof(DirectX::XMFLOAT4X4) * m_boneMatrixStaging.size());
-    dc->Unmap(m_bonePaletteBuffer.Get(), 0);
-
-    // Bind unified bone palette SRV to Vertex Shader register t14 once for the entire frame
-    ID3D11ShaderResourceView* const bonePaletteSRVs[]{ m_bonePaletteSRV.Get() };
-    dc->VSSetShaderResources(14, 1, bonePaletteSRVs);
 
     std::size_t instanceOffset = 0;
 
@@ -1218,10 +1104,14 @@ void ModelRenderer::Render(const RenderContext& rc)
         float* const soaExtentY{ m_frameArena.AllocateArray<float>(paddedCount) };
         float* const soaExtentZ{ m_frameArena.AllocateArray<float>(paddedCount) };
 
+        static constexpr uint32_t kUnevaluatedBoneOffset{ 0xFFFFFFFFu };
+
         struct MeshInstanceRef
         {
             const Model::Mesh* mesh{ nullptr };
             const Material* material{ nullptr };
+            uint32_t            drawInfoIndex{ 0 };
+            uint32_t            baseFlatIndex{ 0 };
             uint32_t            boneOffset{ 0 };
             uint32_t            prevBoneOffset{ 0 };
             DirectX::XMFLOAT4   color{ 1.0f, 1.0f, 1.0f, 1.0f };
@@ -1240,13 +1130,17 @@ void ModelRenderer::Render(const RenderContext& rc)
         }
 
         std::size_t flatIndex{ 0 };
-        for (const DrawInfo& drawInfo : drawInfos)
+        for (std::size_t drawIdx{ 0 }; drawIdx < drawInfos.size(); ++drawIdx)
         {
+            const DrawInfo& drawInfo{ drawInfos[drawIdx] };
             if (!drawInfo.model) continue;
 
-            for (std::size_t meshIdx{ 0 }; meshIdx < drawInfo.model->GetMeshes().size(); ++meshIdx)
+            const uint32_t entityBaseFlatIndex{ static_cast<uint32_t>(flatIndex) };
+            const auto& meshes{ drawInfo.model->GetMeshes() };
+
+            for (std::size_t meshIdx{ 0 }; meshIdx < meshes.size(); ++meshIdx)
             {
-                const Model::Mesh& mesh{ drawInfo.model->GetMeshes()[meshIdx] };
+                const Model::Mesh& mesh{ meshes[meshIdx] };
                 const Material* const mat{ (drawInfo.materials && mesh.materialIndex >= 0 &&
                     static_cast<std::size_t>(mesh.materialIndex) < drawInfo.materials->size())
                     ? &(*drawInfo.materials)[mesh.materialIndex]
@@ -1284,18 +1178,18 @@ void ModelRenderer::Render(const RenderContext& rc)
                     mPrevWorld = mWorld;
                 }
 
-                // Skinned AABB deduplication: If this mesh shares a skeleton slot with an earlier mesh in the same drawInfo,
-                // and has matching boundsRadius, reuse the calculated AABB to skip redundant bone transforms
+                // Skinned AABB deduplication: If this mesh shares an identical bone palette and boundsRadius
+                // with an earlier submesh of the same entity, reuse the calculated AABB
                 BoundingBox aabb{};
                 bool aabbReused{ false };
                 if (!mesh.bones.empty())
                 {
                     for (std::size_t prevIdx{ 0 }; prevIdx < meshIdx; ++prevIdx)
                     {
-                        if (drawInfo.meshBoneOffsets[meshIdx] == drawInfo.meshBoneOffsets[prevIdx] &&
-                            std::abs(mesh.boundsRadius - drawInfo.model->GetMeshes()[prevIdx].boundsRadius) <= 0.001f)
+                        if (std::abs(mesh.boundsRadius - meshes[prevIdx].boundsRadius) <= 0.001f &&
+                            AreBonePalettesEqual(mesh.bones, meshes[prevIdx].bones))
                         {
-                            const std::size_t prevFlat{ flatIndex - (meshIdx - prevIdx) };
+                            const std::size_t prevFlat{ static_cast<std::size_t>(entityBaseFlatIndex) + prevIdx };
                             aabb.center = { soaCenterX[prevFlat], soaCenterY[prevFlat], soaCenterZ[prevFlat] };
                             aabb.extents = { soaExtentX[prevFlat], soaExtentY[prevFlat], soaExtentZ[prevFlat] };
                             aabbReused = true;
@@ -1316,11 +1210,15 @@ void ModelRenderer::Render(const RenderContext& rc)
                 soaExtentY[flatIndex] = aabb.extents.y;
                 soaExtentZ[flatIndex] = aabb.extents.z;
 
+                const uint32_t initialBoneOffset{ mesh.bones.empty() ? 0u : kUnevaluatedBoneOffset };
+
                 MeshInstanceRef& ref{ meshRefs[flatIndex] };
                 ref.mesh = &mesh;
                 ref.material = mat;
-                ref.boneOffset = drawInfo.meshBoneOffsets[meshIdx];
-                ref.prevBoneOffset = drawInfo.meshPrevBoneOffsets[meshIdx];
+                ref.drawInfoIndex = static_cast<uint32_t>(drawIdx);
+                ref.baseFlatIndex = entityBaseFlatIndex;
+                ref.boneOffset = initialBoneOffset;
+                ref.prevBoneOffset = initialBoneOffset;
                 ref.color = drawInfo.color;
                 DirectX::XMStoreFloat4x4(&ref.worldMatrix, mWorld);
                 DirectX::XMStoreFloat4x4(&ref.prevWorldMatrix, mPrevWorld);
@@ -1378,6 +1276,117 @@ void ModelRenderer::Render(const RenderContext& rc)
             m_occlusionBuffer.RasterizeOccluderMesh(*ref.mesh, ref.worldMatrix, matViewProj);
         }
 
+        // On-demand bone palette evaluators: executed only for meshes that survive visibility culling
+        auto ensureCurrentBones = [&](std::size_t refIdx) -> uint32_t
+            {
+                MeshInstanceRef& targetRef{ meshRefs[refIdx] };
+                if (targetRef.boneOffset != kUnevaluatedBoneOffset)
+                {
+                    return targetRef.boneOffset;
+                }
+
+                const Model::Mesh& targetMesh{ *targetRef.mesh };
+                const std::size_t baseFlat{ targetRef.baseFlatIndex };
+
+                // Deduplicate matching bone palettes across visible submeshes of the same entity
+                for (std::size_t prevFlat{ baseFlat }; prevFlat < refIdx; ++prevFlat)
+                {
+                    if (meshRefs[prevFlat].boneOffset != 0u &&
+                        meshRefs[prevFlat].boneOffset != kUnevaluatedBoneOffset &&
+                        AreBonePalettesEqual(targetMesh.bones, meshRefs[prevFlat].mesh->bones))
+                    {
+                        targetRef.boneOffset = meshRefs[prevFlat].boneOffset;
+                        return targetRef.boneOffset;
+                    }
+                }
+
+                const DrawInfo& drawInfo{ drawInfos[targetRef.drawInfoIndex] };
+                const DirectX::XMMATRIX manualWorldMat{ DirectX::XMLoadFloat4x4(&drawInfo.worldMatrix) };
+
+                const uint32_t currentOffset{ static_cast<uint32_t>(m_boneMatrixStaging.size()) };
+                targetRef.boneOffset = currentOffset;
+                m_boneMatrixStaging.resize(currentOffset + targetMesh.bones.size());
+
+                for (std::size_t i{ 0 }; i < targetMesh.bones.size(); ++i)
+                {
+                    const Model::Bone& bone{ targetMesh.bones[i] };
+                    DirectX::XMMATRIX nodeGlobalMat;
+                    if (drawInfo.currentNodeGlobals && bone.nodeIndex >= 0 && static_cast<std::size_t>(bone.nodeIndex) < drawInfo.currentNodeGlobals->size())
+                    {
+                        nodeGlobalMat = DirectX::XMLoadFloat4x4(&(*drawInfo.currentNodeGlobals)[bone.nodeIndex]);
+                    }
+                    else
+                    {
+                        nodeGlobalMat = DirectX::XMLoadFloat4x4(&bone.node->globalTransform);
+                    }
+
+                    const DirectX::XMMATRIX offsetTransform{ DirectX::XMLoadFloat4x4(&bone.offsetTransform) };
+                    const DirectX::XMMATRIX worldTransform{ drawInfo.useManualMatrix
+                        ? (nodeGlobalMat * manualWorldMat)
+                        : DirectX::XMLoadFloat4x4(&bone.node->worldTransform) };
+
+                    DirectX::XMStoreFloat4x4(&m_boneMatrixStaging[currentOffset + i], offsetTransform * worldTransform);
+                }
+
+                return currentOffset;
+            };
+
+        auto ensurePreviousBones = [&](std::size_t refIdx) -> uint32_t
+            {
+                MeshInstanceRef& targetRef{ meshRefs[refIdx] };
+                if (targetRef.prevBoneOffset != kUnevaluatedBoneOffset)
+                {
+                    return targetRef.prevBoneOffset;
+                }
+
+                const Model::Mesh& targetMesh{ *targetRef.mesh };
+                const std::size_t baseFlat{ targetRef.baseFlatIndex };
+
+                // Deduplicate matching previous-frame bone palettes across submeshes of the same entity
+                for (std::size_t prevFlat{ baseFlat }; prevFlat < refIdx; ++prevFlat)
+                {
+                    if (meshRefs[prevFlat].prevBoneOffset != 0u &&
+                        meshRefs[prevFlat].prevBoneOffset != kUnevaluatedBoneOffset &&
+                        AreBonePalettesEqual(targetMesh.bones, meshRefs[prevFlat].mesh->bones))
+                    {
+                        targetRef.prevBoneOffset = meshRefs[prevFlat].prevBoneOffset;
+                        return targetRef.prevBoneOffset;
+                    }
+                }
+
+                const DrawInfo& drawInfo{ drawInfos[targetRef.drawInfoIndex] };
+                const DirectX::XMMATRIX previousManualWorldMat{ DirectX::XMLoadFloat4x4(&drawInfo.previousWorldMatrix) };
+
+                const uint32_t prevOffset{ static_cast<uint32_t>(m_boneMatrixStaging.size()) };
+                targetRef.prevBoneOffset = prevOffset;
+                m_boneMatrixStaging.resize(prevOffset + targetMesh.bones.size());
+
+                for (std::size_t i{ 0 }; i < targetMesh.bones.size(); ++i)
+                {
+                    const Model::Bone& bone{ targetMesh.bones[i] };
+                    DirectX::XMMATRIX prevNodeGlobalMat;
+                    if (drawInfo.previousNodeGlobals && bone.nodeIndex >= 0 && static_cast<std::size_t>(bone.nodeIndex) < drawInfo.previousNodeGlobals->size())
+                    {
+                        prevNodeGlobalMat = DirectX::XMLoadFloat4x4(&(*drawInfo.previousNodeGlobals)[bone.nodeIndex]);
+                    }
+                    else
+                    {
+                        prevNodeGlobalMat = (drawInfo.currentNodeGlobals && bone.nodeIndex >= 0 && static_cast<std::size_t>(bone.nodeIndex) < drawInfo.currentNodeGlobals->size())
+                            ? DirectX::XMLoadFloat4x4(&(*drawInfo.currentNodeGlobals)[bone.nodeIndex])
+                            : DirectX::XMLoadFloat4x4(&bone.node->globalTransform);
+                    }
+
+                    const DirectX::XMMATRIX offsetTransform{ DirectX::XMLoadFloat4x4(&bone.offsetTransform) };
+                    const DirectX::XMMATRIX previousWorldTransform{ drawInfo.useManualMatrix
+                        ? (prevNodeGlobalMat * previousManualWorldMat)
+                        : DirectX::XMLoadFloat4x4(&bone.node->worldTransform) };
+
+                    DirectX::XMStoreFloat4x4(&m_boneMatrixStaging[prevOffset + i], offsetTransform * previousWorldTransform);
+                }
+
+                return prevOffset;
+            };
+
         // 8-Way AVX2 Parallel Culling Loop: Evaluates 8 objects across SIMD lanes from L1 cache
         const DirectX::XMFLOAT3 camFront{ rc.camera->GetFront() };
 
@@ -1411,8 +1420,6 @@ void ModelRenderer::Render(const RenderContext& rc)
                 DrawPacket packet{};
                 packet.mesh = &mesh;
                 packet.material = mat;
-                packet.boneOffset = ref.boneOffset;
-                packet.prevBoneOffset = ref.prevBoneOffset;
                 packet.color = ref.color;
                 packet.worldMatrix = ref.worldMatrix;
                 packet.prevWorldMatrix = ref.prevWorldMatrix;
@@ -1449,7 +1456,10 @@ void ModelRenderer::Render(const RenderContext& rc)
 
                             if (cascadeFrustums[c].IsVisibleAABB(center, extents))
                             {
+                                const uint32_t currentBones{ ensureCurrentBones(idx) };
                                 DrawPacket shadowPacket{ packet };
+                                shadowPacket.boneOffset = currentBones;
+                                shadowPacket.prevBoneOffset = currentBones;
                                 shadowPacket.key = reinterpret_cast<uint64_t>(&mesh);
                                 cascadePackets[c][cascadeCount[c]++] = shadowPacket;
                             }
@@ -1478,6 +1488,11 @@ void ModelRenderer::Render(const RenderContext& rc)
                     continue;
                 }
 
+                // Mesh survived camera culling: resolve current-frame bone palette on demand
+                const uint32_t currentBones{ ensureCurrentBones(idx) };
+                packet.boneOffset = currentBones;
+                packet.prevBoneOffset = currentBones;
+
                 const float clampedDist{ std::clamp(distance, 0.0f, 1000.0f) };
                 const uint16_t quantizedDepth{ static_cast<uint16_t>((clampedDist / 1000.0f) * 65535.0f) };
 
@@ -1502,9 +1517,11 @@ void ModelRenderer::Render(const RenderContext& rc)
                 if (passId == 6) transparentPackets[transparentCount++] = packet;
                 else opaquePackets[opaqueCount++] = packet;
 
-                if (ref.hasVelocity && passId < 6)
+                // Evaluate previous-frame bones only if Velocity Pass is active and this mesh participates
+                if (rc.velocityRenderTargetView && ref.hasVelocity && passId < 6)
                 {
                     DrawPacket velocityPacket{ packet };
+                    velocityPacket.prevBoneOffset = ensurePreviousBones(idx);
                     velocityPacket.key = reinterpret_cast<uint64_t>(&mesh);
                     velocityPackets[velocityCount++] = velocityPacket;
                 }
@@ -1523,6 +1540,17 @@ void ModelRenderer::Render(const RenderContext& rc)
             }
         }
         drawInfos.clear();
+
+        // Upload only the visible bone palettes in a single continuous PCIe transfer
+        EnsureBonePaletteCapacity(device.Get(), m_boneMatrixStaging.size());
+        D3D11_MAPPED_SUBRESOURCE mappedPalette{};
+        dc->Map(m_bonePaletteBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedPalette);
+        std::memcpy(mappedPalette.pData, m_boneMatrixStaging.data(), sizeof(DirectX::XMFLOAT4X4) * m_boneMatrixStaging.size());
+        dc->Unmap(m_bonePaletteBuffer.Get(), 0);
+
+        // Bind unified bone palette SRV to Vertex Shader register t14 once for the entire frame
+        ID3D11ShaderResourceView* const bonePaletteSRVs[]{ m_bonePaletteSRV.Get() };
+        dc->VSSetShaderResources(14, 1, bonePaletteSRVs);
 
         // Independent radix/stream sorting
         auto packetSort = [](const DrawPacket& a, const DrawPacket& b) noexcept

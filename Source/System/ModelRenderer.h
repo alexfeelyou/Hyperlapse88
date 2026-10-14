@@ -168,11 +168,6 @@ private:
     };
     static_assert((sizeof(CbScene) % 16) == 0, "CbScene constant buffer must be 16-byte aligned!");
 
-    struct CbSkeleton
-    {
-        DirectX::XMFLOAT4X4		boneTransforms[256];
-    };
-
     struct DrawInfo
     {
         std::shared_ptr<Model>  model{};
@@ -184,8 +179,6 @@ private:
         DirectX::XMFLOAT4X4      previousWorldMatrix{};
         bool                     castShadows{ true };
         bool                     hasVelocity{ false };
-        std::vector<uint32_t>    meshBoneOffsets{};
-        std::vector<uint32_t>    meshPrevBoneOffsets{};
         const std::vector<Material>* materials{ nullptr };
     };
 
