@@ -33,8 +33,10 @@ float4 main(VS_OUT pin) : SV_TARGET
     float linearDepth = (2.0f * nearZ) / (farZ + nearZ - depthRaw * (farZ - nearZ));
     float physicalDistance = linearDepth * farZ;
 
+    // Linearize sRGB inspector fog color to blend physically in linear HDR space
+    float3 linearFogColor = pow(abs(fogColor.rgb), 2.2f);
     float fogFactor = saturate((physicalDistance - fogStart) / (fogEnd - fogStart));
-    float3 finalColor = lerp(originalColor.rgb, fogColor.rgb, fogFactor);
+    float3 finalColor = lerp(originalColor.rgb, linearFogColor, fogFactor);
 
     return float4(finalColor, originalColor.a);
 }

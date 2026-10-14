@@ -30,6 +30,6 @@ float4 main(VS_OUT pin) : SV_TARGET
         clip(texColor.a - 0.01f);
     }
 
-    // Output pure unlit flat color
-    return outlineColor;
+    // Linearize sRGB inspector outline color for the linear HDR pipeline
+    return float4(pow(abs(outlineColor.rgb), 2.2f), outlineColor.a);
 }

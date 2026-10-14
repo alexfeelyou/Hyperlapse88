@@ -25,6 +25,8 @@ float4 main(VS_OUT pin) : SV_TARGET
     {
         clip(color.a - 0.01f);
     }
-    
+
+    // Linearize unlit sRGB albedo to match the linear HDR scene target
+    color.rgb = pow(abs(color.rgb), 2.2f);
     return color;
 }

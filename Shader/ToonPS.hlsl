@@ -119,8 +119,8 @@ float4 main(VS_OUT pin) : SV_TARGET
     float celFactor = step(0.0f, factor); // Hard step between sky and ground color
     float3 ambientLight = lerp(ambientGroundColor.rgb, ambientSkyColor.rgb, celFactor);
 
-    float3 finalColor = totalDirectLight + (ambientLight * albedo) + emissiveColor;
-    finalColor = pow(abs(finalColor), float3(1.0f / 2.2f, 1.0f / 2.2f, 1.0f / 2.2f));
+    // Output pure unbounded linear HDR radiance
+    float3 finalColor = max(0.0f, totalDirectLight + (ambientLight * albedo) + emissiveColor);
 
     return float4(finalColor, color.a);
 }

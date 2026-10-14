@@ -31,6 +31,8 @@ float4 main(VS_OUT pin) : SV_TARGET
     float distSq = dot(coord, coord);
     float mask = saturate(1.0f - distSq * v_intensity);
     mask = smoothstep(0.0f, v_smoothness, mask);
-    
-    return lerp(v_color, color, mask);
+
+    // Linearize sRGB vignette tint to blend in linear HDR space
+    float4 linearVignetteColor = float4(pow(abs(v_color.rgb), 2.2f), v_color.a);
+    return lerp(linearVignetteColor, color, mask);
 }

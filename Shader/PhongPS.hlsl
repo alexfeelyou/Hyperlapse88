@@ -116,12 +116,12 @@ float4 main(VS_OUT pin) : SV_TARGET
     float factor = dot(N, float3(0.0f, 1.0f, 0.0f)) * 0.5f + 0.5f;
     float3 ambientLight = lerp(ambientGroundColor.rgb, ambientSkyColor.rgb, factor);
 
-    float3 finalColor = totalDirectLight + (ambientLight * albedo) + emissiveColor;
-    finalColor = pow(abs(finalColor), float3(1.0f / 2.2f, 1.0f / 2.2f, 1.0f / 2.2f));
+    // Output pure unbounded linear HDR radiance
+    float3 finalColor = max(0.0f, totalDirectLight + (ambientLight * albedo) + emissiveColor);
 
     if (any(isnan(finalColor)) || any(isinf(finalColor)))
     {
-        return float4(1.0f, 0.0f, 1.0f, 1.0f);
+        return float4(0.0f, 0.0f, 0.0f, 1.0f);
     }
 
     return float4(finalColor, color.a);

@@ -82,7 +82,7 @@ void PostProcessManager::CreateBuffers(int width, int height)
     texDesc.Height = static_cast<UINT>(height);
     texDesc.MipLevels = 1;
     texDesc.ArraySize = 1;
-    texDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    texDesc.Format = DXGI_FORMAT_R11G11B10_FLOAT;
     texDesc.SampleDesc.Count = 1;
     texDesc.Usage = D3D11_USAGE_DEFAULT;
     texDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
@@ -99,13 +99,13 @@ void PostProcessManager::CreateBuffers(int width, int height)
         assert(SUCCEEDED(hr) && "Failed to create PostProcess SRV");
         };
 
-	// Allocate Primary Scene Capture Target
-    allocateRT(m_sceneTarget, DXGI_FORMAT_R8G8B8A8_UNORM);
+    // Allocate Primary Scene Capture Target in 32-bpp Linear HDR (Zero extra bandwidth vs RGBA8)
+    allocateRT(m_sceneTarget, DXGI_FORMAT_R11G11B10_FLOAT);
 
-	// Allocate Ping-Pong Targets for Multi-Pass Post-Processing
+    // Allocate Ping-Pong Targets in 32-bpp Linear HDR for Multi-Pass Post-Processing
     for (auto& pp : m_pingPong)
     {
-        allocateRT(pp, DXGI_FORMAT_R8G8B8A8_UNORM);
+        allocateRT(pp, DXGI_FORMAT_R11G11B10_FLOAT);
     }
 
 	// Allocate Velocity Target for Temporal AA

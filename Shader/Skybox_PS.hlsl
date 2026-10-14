@@ -17,5 +17,8 @@ SamplerState skySampler : register(s0);
 float4 main(VS_OUT pin) : SV_TARGET
 {
     float3 viewDir = normalize(pin.worldPosition.xyz - cameraPosition.xyz);
-    return skyTexture.Sample(skySampler, viewDir);
+    float4 skyColor = skyTexture.Sample(skySampler, viewDir);
+
+    // Linearize sRGB cubemap texels into linear HDR space
+    return float4(pow(abs(skyColor.rgb), 2.2f), skyColor.a);
 }

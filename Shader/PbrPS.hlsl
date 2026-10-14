@@ -211,8 +211,8 @@ float4 main(VS_OUT pin) : SV_TARGET
     
     float3 ambient = (kD_ambient * diffuseAmbient + specularAmbient) * ao;
 
-    float3 finalColor = ambient + totalDirectLighting + emissive;
-    finalColor = pow(abs(finalColor), float3(1.0f / 2.2f, 1.0f / 2.2f, 1.0f / 2.2f));
+    // Output pure unbounded linear HDR radiance (sanitized for unsigned R11G11B10_FLOAT)
+    float3 finalColor = max(0.0f, ambient + totalDirectLighting + emissive);
 
     return float4(finalColor, albedo.a);
 }
