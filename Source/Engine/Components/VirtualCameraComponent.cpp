@@ -185,6 +185,19 @@ void VirtualCameraComponent::AddOrbitDistance(float delta) noexcept
 
 void VirtualCameraComponent::Update(float dt)
 {
+    m_hasSteppedThisFrame = false;
+}
+
+void VirtualCameraComponent::LateUpdate(float dt)
+{
+    Step(dt);
+}
+
+void VirtualCameraComponent::Step(float dt)
+{
+    if (m_hasSteppedThisFrame) return;
+    m_hasSteppedThisFrame = true;
+
     if (!m_owner) return;
 
     // Lazy resolve targets once connected to a hierarchy

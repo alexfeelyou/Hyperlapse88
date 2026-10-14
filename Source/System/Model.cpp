@@ -508,66 +508,104 @@ void Model::UpdateTransform(const DirectX::XMFLOAT4X4& worldTransform)
 	}
 }
 
+namespace
+{
+	template <typename KeyframeType>
+	[[nodiscard]] std::size_t FindKeyframeSegment(const std::vector<KeyframeType>& keyframes, float time) noexcept
+	{
+		const std::size_t count{ keyframes.size() };
+		if (count <= 2) return 0;
+
+		auto it{ std::upper_bound(keyframes.begin(), keyframes.end(), time,
+			[](float t, const KeyframeType& k) noexcept {
+				return t < k.seconds;
+			}) };
+
+		if (it == keyframes.begin()) return 0;
+		const std::size_t idx{ static_cast<std::size_t>(std::distance(keyframes.begin(), it)) - 1 };
+		return (idx < count - 1) ? idx : count - 2;
+	}
+}
+
 void Model::ComputeAnimation(int animationIndex, int nodeIndex, float time, NodePose& nodePose) const
 {
-	const Animation& animation = animations.at(animationIndex);
-	const NodeAnim& nodeAnim = animation.nodeAnims.at(nodeIndex);
+	if (animationIndex < 0 || static_cast<std::size_t>(animationIndex) >= animations.size()) return;
+	const Animation& animation{ animations[animationIndex] };
+	if (nodeIndex < 0 || static_cast<std::size_t>(nodeIndex) >= animation.nodeAnims.size()) return;
+	const NodeAnim& nodeAnim{ animation.nodeAnims[nodeIndex] };
 
-	// 位置
-	for (size_t index = 0; index < nodeAnim.positionKeyframes.size() - 1; ++index)
+	// Position track evaluation
+	if (!nodeAnim.positionKeyframes.empty())
 	{
-		// 現在の時間がどのキーフレームの間にいるか判定する
-		const VectorKeyframe& keyframe0 = nodeAnim.positionKeyframes.at(index);
-		const VectorKeyframe& keyframe1 = nodeAnim.positionKeyframes.at(index + 1);
-		if (time >= keyframe0.seconds && time <= keyframe1.seconds)
+		if (nodeAnim.positionKeyframes.size() == 1 || time <= nodeAnim.positionKeyframes.front().seconds)
 		{
-			// 再生時間とキーフレームの時間から補完率を算出する
-			float rate = (time - keyframe0.seconds) / (keyframe1.seconds - keyframe0.seconds);
+			nodePose.position = nodeAnim.positionKeyframes.front().value;
+		}
+		else if (time >= nodeAnim.positionKeyframes.back().seconds)
+		{
+			nodePose.position = nodeAnim.positionKeyframes.back().value;
+		}
+		else
+		{
+			const std::size_t idx{ FindKeyframeSegment(nodeAnim.positionKeyframes, time) };
+			const auto& k0{ nodeAnim.positionKeyframes[idx] };
+			const auto& k1{ nodeAnim.positionKeyframes[idx + 1] };
+			const float duration{ k1.seconds - k0.seconds };
+			const float rate{ (duration > 0.00001f) ? std::clamp((time - k0.seconds) / duration, 0.0f, 1.0f) : 0.0f };
 
-			// 前のキーフレームと次のキーフレームの姿勢を補完
-			DirectX::XMVECTOR V0 = DirectX::XMLoadFloat3(&keyframe0.value);
-			DirectX::XMVECTOR V1 = DirectX::XMLoadFloat3(&keyframe1.value);
-			DirectX::XMVECTOR V = DirectX::XMVectorLerp(V0, V1, rate);
-			// 計算結果をノードに格納
-			DirectX::XMStoreFloat3(&nodePose.position, V);
+			const DirectX::XMVECTOR v0{ DirectX::XMLoadFloat3(&k0.value) };
+			const DirectX::XMVECTOR v1{ DirectX::XMLoadFloat3(&k1.value) };
+			DirectX::XMStoreFloat3(&nodePose.position, DirectX::XMVectorLerp(v0, v1, rate));
 		}
 	}
-	// 回転
-	for (size_t index = 0; index < nodeAnim.rotationKeyframes.size() - 1; ++index)
-	{
-		// 現在の時間がどのキーフレームの間にいるか判定する
-		const QuaternionKeyframe& keyframe0 = nodeAnim.rotationKeyframes.at(index);
-		const QuaternionKeyframe& keyframe1 = nodeAnim.rotationKeyframes.at(index + 1);
-		if (time >= keyframe0.seconds && time <= keyframe1.seconds)
-		{
-			// 再生時間とキーフレームの時間から補完率を算出する
-			float rate = (time - keyframe0.seconds) / (keyframe1.seconds - keyframe0.seconds);
 
-			// 前のキーフレームと次のキーフレームの姿勢を補完
-			DirectX::XMVECTOR Q0 = DirectX::XMLoadFloat4(&keyframe0.value);
-			DirectX::XMVECTOR Q1 = DirectX::XMLoadFloat4(&keyframe1.value);
-			DirectX::XMVECTOR Q = DirectX::XMQuaternionSlerp(Q0, Q1, rate);
-			// 計算結果をノードに格納
-			DirectX::XMStoreFloat4(&nodePose.rotation, Q);
+	// Rotation track evaluation
+	if (!nodeAnim.rotationKeyframes.empty())
+	{
+		if (nodeAnim.rotationKeyframes.size() == 1 || time <= nodeAnim.rotationKeyframes.front().seconds)
+		{
+			nodePose.rotation = nodeAnim.rotationKeyframes.front().value;
+		}
+		else if (time >= nodeAnim.rotationKeyframes.back().seconds)
+		{
+			nodePose.rotation = nodeAnim.rotationKeyframes.back().value;
+		}
+		else
+		{
+			const std::size_t idx{ FindKeyframeSegment(nodeAnim.rotationKeyframes, time) };
+			const auto& k0{ nodeAnim.rotationKeyframes[idx] };
+			const auto& k1{ nodeAnim.rotationKeyframes[idx + 1] };
+			const float duration{ k1.seconds - k0.seconds };
+			const float rate{ (duration > 0.00001f) ? std::clamp((time - k0.seconds) / duration, 0.0f, 1.0f) : 0.0f };
+
+			const DirectX::XMVECTOR q0{ DirectX::XMLoadFloat4(&k0.value) };
+			const DirectX::XMVECTOR q1{ DirectX::XMLoadFloat4(&k1.value) };
+			DirectX::XMStoreFloat4(&nodePose.rotation, DirectX::XMQuaternionSlerp(q0, q1, rate));
 		}
 	}
-	// スケール
-	for (size_t index = 0; index < nodeAnim.scaleKeyframes.size() - 1; ++index)
-	{
-		// 現在の時間がどのキーフレームの間にいるか判定する
-		const VectorKeyframe& keyframe0 = nodeAnim.scaleKeyframes.at(index);
-		const VectorKeyframe& keyframe1 = nodeAnim.scaleKeyframes.at(index + 1);
-		if (time >= keyframe0.seconds && time <= keyframe1.seconds)
-		{
-			// 再生時間とキーフレームの時間から補完率を算出する
-			float rate = (time - keyframe0.seconds) / (keyframe1.seconds - keyframe0.seconds);
 
-			// 前のキーフレームと次のキーフレームの姿勢を補完
-			DirectX::XMVECTOR V0 = DirectX::XMLoadFloat3(&keyframe0.value);
-			DirectX::XMVECTOR V1 = DirectX::XMLoadFloat3(&keyframe1.value);
-			DirectX::XMVECTOR V = DirectX::XMVectorLerp(V0, V1, rate);
-			// 計算結果をノードに格納
-			DirectX::XMStoreFloat3(&nodePose.scale, V);
+	// Scale track evaluation
+	if (!nodeAnim.scaleKeyframes.empty())
+	{
+		if (nodeAnim.scaleKeyframes.size() == 1 || time <= nodeAnim.scaleKeyframes.front().seconds)
+		{
+			nodePose.scale = nodeAnim.scaleKeyframes.front().value;
+		}
+		else if (time >= nodeAnim.scaleKeyframes.back().seconds)
+		{
+			nodePose.scale = nodeAnim.scaleKeyframes.back().value;
+		}
+		else
+		{
+			const std::size_t idx{ FindKeyframeSegment(nodeAnim.scaleKeyframes, time) };
+			const auto& k0{ nodeAnim.scaleKeyframes[idx] };
+			const auto& k1{ nodeAnim.scaleKeyframes[idx + 1] };
+			const float duration{ k1.seconds - k0.seconds };
+			const float rate{ (duration > 0.00001f) ? std::clamp((time - k0.seconds) / duration, 0.0f, 1.0f) : 0.0f };
+
+			const DirectX::XMVECTOR v0{ DirectX::XMLoadFloat3(&k0.value) };
+			const DirectX::XMVECTOR v1{ DirectX::XMLoadFloat3(&k1.value) };
+			DirectX::XMStoreFloat3(&nodePose.scale, DirectX::XMVectorLerp(v0, v1, rate));
 		}
 	}
 }
@@ -575,13 +613,16 @@ void Model::ComputeAnimation(int animationIndex, int nodeIndex, float time, Node
 // アニメーション計算
 void Model::ComputeAnimation(int animationIndex, float time, std::vector<NodePose>& nodePoses) const
 {
+	if (animationIndex < 0 || static_cast<std::size_t>(animationIndex) >= animations.size()) return;
 	if (nodePoses.size() != nodes.size())
 	{
 		nodePoses.resize(nodes.size());
 	}
-	for (size_t nodeIndex = 0; nodeIndex < nodePoses.size(); ++nodeIndex)
+	const Animation& anim{ animations[animationIndex] };
+	const std::size_t animNodeCount{ (std::min)(anim.nodeAnims.size(), nodePoses.size()) };
+	for (size_t nodeIndex = 0; nodeIndex < animNodeCount; ++nodeIndex)
 	{
-		ComputeAnimation(animationIndex, static_cast<int>(nodeIndex), time, nodePoses.at(nodeIndex));
+		ComputeAnimation(animationIndex, static_cast<int>(nodeIndex), time, nodePoses[nodeIndex]);
 	}
 }
 

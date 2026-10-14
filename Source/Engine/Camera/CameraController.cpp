@@ -120,11 +120,11 @@ void CameraController::Update(float dt)
     }
 
     // Apply rotation
-    constexpr float sensitivity{ 0.15f }; 
-    const float rotSpeed{ m_rollSpeed * dt };
+    // Mouse displacement is an instantaneous pointer delta, not a velocity: do not multiply by dt
+    constexpr float sensitivity{ 0.003f };
 
-    m_currentAngle.y += deltaX * sensitivity * rotSpeed;
-    m_currentAngle.x += deltaY * sensitivity * rotSpeed;
+    m_currentAngle.y += deltaX * sensitivity;
+    m_currentAngle.x += deltaY * sensitivity;
 
     // Ensure Pitch does not exceed vertical bounds to prevent screen flip
     constexpr float PITCH_LIMIT{ DirectX::XM_PIDIV2 - 0.01f };

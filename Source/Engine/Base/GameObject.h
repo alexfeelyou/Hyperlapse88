@@ -27,6 +27,9 @@ public:
     // Recursively updates this object, its components, and its children
     void Update(float dt);
 
+    // Recursively late-updates this object, its components, and its children
+    void LateUpdate(float dt);
+
     // Recursively renders this object and all its children
     void Render(class ModelRenderer* renderer);
 

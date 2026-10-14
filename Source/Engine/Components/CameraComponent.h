@@ -19,7 +19,8 @@ public:
     CameraComponent& operator=(CameraComponent&&) = default;
 
     void OnAttach(class GameObject* owner) noexcept override;
-    void Update(float dt) override;
+    void Update(float dt) override {}
+    void LateUpdate(float dt) override;
     void DrawInspector() override;
     void DrawGizmo(const GizmoContext& ctx) noexcept override;
 

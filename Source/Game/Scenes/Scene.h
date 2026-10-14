@@ -20,7 +20,13 @@ public:
 		if (m_sceneRoot) m_sceneRoot->Update(elapsedTime);
 	}
 
-	// •`‰æˆ—
+	// Late-updates camera systems and post-simulation transforms
+	virtual void LateUpdate(float elapsedTime)
+	{
+		if (m_sceneRoot) m_sceneRoot->LateUpdate(elapsedTime);
+	}
+
+	// •`‰æˆ— 
 	virtual void Render(float dt, class Camera* camera = nullptr) = 0;
 
 	// GUI•`‰æˆ—

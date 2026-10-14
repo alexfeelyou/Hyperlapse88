@@ -72,7 +72,7 @@ void CameraComponent::AddTrauma(float amount) noexcept
     m_trauma = std::clamp(m_trauma + amount, 0.0f, 1.0f);
 }
 
-void CameraComponent::Update(float dt)
+void CameraComponent::LateUpdate(float dt)
 {
     if (!GetOwner()) return;
 
@@ -124,10 +124,16 @@ void CameraComponent::Update(float dt)
 
         if (!m_activeVirtualCamera) m_blendTimer = m_blendDuration;
         m_activeVirtualCamera = bestVCam;
-        previewSnap = true; 
+        previewSnap = true;
     }
 
-    if (m_activeVirtualCamera) m_activeVirtualCamera->SetActiveShot(true);
+    if (m_activeVirtualCamera)
+    {
+        m_activeVirtualCamera->SetActiveShot(true);
+        // Guarantee the active virtual camera steps its follow rig for the current frame
+        // prior to reading its world transform
+        m_activeVirtualCamera->Step(dt);
+    }
 
     DirectX::XMFLOAT3 targetPos{};
     DirectX::XMFLOAT3 targetRot{};

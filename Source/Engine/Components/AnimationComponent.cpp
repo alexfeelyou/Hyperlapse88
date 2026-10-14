@@ -139,6 +139,8 @@ void AnimationComponent::SetModel(std::shared_ptr<Model> model) noexcept
         m_currentLocalPoses[i].scale = nodes[i].scale;
         m_snapshotPoses[i] = m_currentLocalPoses[i];
         m_blendedLocalPoses[i] = m_currentLocalPoses[i];
+        m_scratchpad.bufferA[i] = m_currentLocalPoses[i];
+        m_scratchpad.bufferB[i] = m_currentLocalPoses[i];
     }
 
     ComputeGlobalTransforms();
@@ -328,10 +330,10 @@ void AnimationComponent::Update(const float dt)
 
     if (m_states.empty() || m_currentStateIndex >= m_states.size()) return;
 
-    float evalDt = dt;
+    float evalDt{ dt };
     if (evalDt <= 0.0001f && m_editorPreview)
     {
-		evalDt = m_previewPaused ? 0.0f : ImGui::GetIO().DeltaTime;
+        evalDt = m_previewPaused ? 0.0f : ImGui::GetIO().DeltaTime;
     }
     else if (evalDt > 0.0001f && m_editorPreview)
     {
@@ -359,8 +361,7 @@ void AnimationComponent::Update(const float dt)
         }
         else if (targetState.type == AnimStateType::Blend1D && targetState.nodes.size() > 1 && m_blackboard)
         {
-            // Extract the correct parameter dynamically
-            float param = 0.0f;
+            float param{ 0.0f };
             if (targetState.blendParam == BlendParamType::GroundSpeed) param = m_blackboard->groundSpeed;
             else if (targetState.blendParam == BlendParamType::VerticalVelocity) param = m_blackboard->verticalVelocity;
 
@@ -373,8 +374,8 @@ void AnimationComponent::Update(const float dt)
                     if (param >= targetState.nodes[i].threshold && param < targetState.nodes[i + 1].threshold)
                     {
                         nodeA = i; nodeB = i + 1;
-                        const float range = targetState.nodes[nodeB].threshold - targetState.nodes[nodeA].threshold;
-                        t = (param - targetState.nodes[nodeA].threshold) / (range > 0.001f ? range : 1.0f);
+                        const float range{ targetState.nodes[i + 1].threshold - targetState.nodes[i].threshold };
+                        t = (param - targetState.nodes[i].threshold) / (range > 0.001f ? range : 1.0f);
                         break;
                     }
                 }
@@ -382,7 +383,7 @@ void AnimationComponent::Update(const float dt)
         }
         else if (targetState.type == AnimStateType::Selector && m_blackboard)
         {
-            int rawIndex = m_blackboard->actionIndex;
+            int rawIndex{ m_blackboard->actionIndex };
             if (rawIndex < 0) rawIndex = 0;
             if (rawIndex >= static_cast<int>(targetState.nodes.size())) rawIndex = static_cast<int>(targetState.nodes.size()) - 1;
             nodeA = static_cast<std::size_t>(rawIndex);
@@ -399,30 +400,23 @@ void AnimationComponent::Update(const float dt)
             const float durationA{ animations[clipA].secondsLength };
             const float durationB{ animations[clipB].secondsLength };
 
-            // FREQUENCY BLENDING 
-            // Blending durations mathematically misaligns footfalls when speeds change.
-            // We must blend the animation frequencies (Hz) to preserve physical stride rates.
-            const float freqA = (durationA > 0.001f) ? (1.0f / durationA) : 1.0f;
-            const float freqB = (durationB > 0.001f) ? (1.0f / durationB) : 1.0f;
-            const float blendedFreq = (freqA * (1.0f - t)) + (freqB * t);
-            const float currentDuration = (blendedFreq > 0.001f) ? (1.0f / blendedFreq) : 1.0f;
+            const float freqA{ (durationA > 0.001f) ? (1.0f / durationA) : 1.0f };
+            const float freqB{ (durationB > 0.001f) ? (1.0f / durationB) : 1.0f };
+            const float blendedFreq{ (freqA * (1.0f - t)) + (freqB * t) };
+            const float currentDuration{ (blendedFreq > 0.001f) ? (1.0f / blendedFreq) : 1.0f };
 
             if (currentDuration > 0.001f)
             {
-                const float currentSpeed = (targetState.nodes[nodeA].speedMultiplier * (1.0f - t)) + (targetState.nodes[nodeB].speedMultiplier * t);
-
-                // DECOUPLED PHASE ACCUMULATION 
-                 // We advance the persistent phase directly (m_playbackSpeed allows external state machines to pause/clamp)
-                const float phaseDelta = (evalDt * currentSpeed * m_playbackSpeed) * blendedFreq;
+                const float currentSpeed{ (targetState.nodes[nodeA].speedMultiplier * (1.0f - t)) + (targetState.nodes[nodeB].speedMultiplier * t) };
+                const float phaseDelta{ (evalDt * currentSpeed * m_playbackSpeed) * blendedFreq };
                 m_currentPhase += phaseDelta;
 
-                const std::size_t dominantNode = (t <= 0.5f) ? nodeA : nodeB;
+                const std::size_t dominantNode{ (t <= 0.5f) ? nodeA : nodeB };
                 m_currentNodeIndex = dominantNode;
 
-                // WRAP OR CLAMP PHASE
                 if (targetState.nodes[dominantNode].isLooping)
                 {
-                    m_currentPhase -= std::floor(m_currentPhase); // Wrap smoothly 0.0 to 1.0
+                    m_currentPhase -= std::floor(m_currentPhase);
                 }
                 else
                 {
@@ -430,11 +424,10 @@ void AnimationComponent::Update(const float dt)
                     if (m_editorPreview && m_currentPhase >= 1.0f) StopPreview();
                 }
 
-                // SYNC LEGACY TIMER & EVENTS
                 m_currentTimer = m_currentPhase * currentDuration;
                 ProcessEvents(evalDt, targetState.nodes[dominantNode].events, previousFrameTimer, m_currentTimer, currentDuration);
 
-                // EVALUATE USING PURE PHASE 
+                // Zero-latency direct pose evaluation using O(log K) binary search
                 if (nodeA == nodeB)
                 {
                     m_model->ComputeAnimation(clipA, m_currentPhase * durationA, m_currentLocalPoses);
@@ -446,14 +439,13 @@ void AnimationComponent::Update(const float dt)
                     BlendPoses(m_scratchpad.bufferA, m_scratchpad.bufferB, t, m_currentLocalPoses);
                 }
 
-                // ROOT LOCKS
-                const bool hasRootLock = targetState.nodes[dominantNode].lockRootX ||
+                const bool hasRootLock{ targetState.nodes[dominantNode].lockRootX ||
                     targetState.nodes[dominantNode].lockRootY ||
-                    targetState.nodes[dominantNode].lockRootZ;
+                    targetState.nodes[dominantNode].lockRootZ };
 
                 if (hasRootLock && !m_currentLocalPoses.empty())
                 {
-                    const int boneIdx = std::clamp(targetState.nodes[dominantNode].rootBoneIndex, 0, static_cast<int>(m_currentLocalPoses.size() - 1));
+                    const int boneIdx{ std::clamp(targetState.nodes[dominantNode].rootBoneIndex, 0, static_cast<int>(m_currentLocalPoses.size() - 1)) };
                     if (targetState.nodes[dominantNode].lockRootX) m_currentLocalPoses[boneIdx].position.x = m_model->GetNodes()[boneIdx].position.x;
                     if (targetState.nodes[dominantNode].lockRootY) m_currentLocalPoses[boneIdx].position.y = m_model->GetNodes()[boneIdx].position.y;
                     if (targetState.nodes[dominantNode].lockRootZ) m_currentLocalPoses[boneIdx].position.z = m_model->GetNodes()[boneIdx].position.z;
@@ -465,25 +457,11 @@ void AnimationComponent::Update(const float dt)
     if (m_isBlending)
     {
         m_blendTimer += evalDt;
-        float t = (m_activeBlendDuration > 0.001f) ? (m_blendTimer / m_activeBlendDuration) : 1.0f;
-        if (t >= 1.0f) { t = 1.0f; m_isBlending = false; }
+        float blendT{ (m_activeBlendDuration > 0.001f) ? (m_blendTimer / m_activeBlendDuration) : 1.0f };
+        if (blendT >= 1.0f) { blendT = 1.0f; m_isBlending = false; }
 
-        const float decayWeight = 1.0f - ((1.0f - t) * (1.0f - t) * (1.0f - t));
-
-        for (std::size_t i = 0; i < m_blendedLocalPoses.size(); ++i)
-        {
-            const DirectX::XMVECTOR s0{ DirectX::XMLoadFloat3(&m_snapshotPoses[i].scale) };
-            const DirectX::XMVECTOR r0{ DirectX::XMLoadFloat4(&m_snapshotPoses[i].rotation) };
-            const DirectX::XMVECTOR t0{ DirectX::XMLoadFloat3(&m_snapshotPoses[i].position) };
-
-            const DirectX::XMVECTOR s1{ DirectX::XMLoadFloat3(&m_currentLocalPoses[i].scale) };
-            const DirectX::XMVECTOR r1{ DirectX::XMLoadFloat4(&m_currentLocalPoses[i].rotation) };
-            const DirectX::XMVECTOR t1{ DirectX::XMLoadFloat3(&m_currentLocalPoses[i].position) };
-
-            DirectX::XMStoreFloat3(&m_blendedLocalPoses[i].scale, DirectX::XMVectorLerp(s0, s1, decayWeight));
-            DirectX::XMStoreFloat4(&m_blendedLocalPoses[i].rotation, DirectX::XMQuaternionSlerp(r0, r1, decayWeight));
-            DirectX::XMStoreFloat3(&m_blendedLocalPoses[i].position, DirectX::XMVectorLerp(t0, t1, decayWeight));
-        }
+        const float decayWeight{ 1.0f - ((1.0f - blendT) * (1.0f - blendT) * (1.0f - blendT)) };
+        BlendPoses(m_snapshotPoses, m_currentLocalPoses, decayWeight, m_blendedLocalPoses);
     }
     else
     {
@@ -564,8 +542,8 @@ void AnimationComponent::ScrubToTime(std::size_t stateIndex, float time) noexcep
     m_currentStateIndex = stateIndex;
     m_currentTimer = time;
     m_isBlending = false;
-    m_editorPreview = true; 
-	m_previewPaused = true;
+    m_editorPreview = true;
+    m_previewPaused = true;
     m_isolatedNodeIndex = -1;
 
     if (!m_model || m_currentStateIndex >= m_states.size()) return;
@@ -653,7 +631,6 @@ void AnimationComponent::ScrubToTime(std::size_t stateIndex, float time) noexcep
 
 void AnimationComponent::ScrubNodeToTime(std::size_t stateIndex, std::size_t nodeIndex, float time) noexcept
 {
-    m_currentStateIndex = stateIndex;
     m_currentTimer = time;
     m_isBlending = false;
     m_editorPreview = true;

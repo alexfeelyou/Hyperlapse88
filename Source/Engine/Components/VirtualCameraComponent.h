@@ -22,6 +22,8 @@ public:
 
     void OnAttach(class GameObject* owner) noexcept override;
     void Update(float dt) override;
+    void LateUpdate(float dt) override;
+    void Step(float dt);
     void DrawInspector() override;
     void DrawGizmo(const GizmoContext& ctx) noexcept override;
     void ForceSync() noexcept;
@@ -125,6 +127,7 @@ private:
     DirectX::XMFLOAT3 m_cachedRot{ 0.0f, 0.0f, 0.0f };
 
     bool m_isActiveShot{ false };
+    bool m_hasSteppedThisFrame{ false };
 
     static inline std::uint32_t s_globalDirtyFrame{ 0 };
     bool m_isDirty{ false };

@@ -44,6 +44,27 @@ void GameObject::Update(float dt)
     }
 }
 
+void GameObject::LateUpdate(float dt)
+{
+    // Fast fail if inactive or pending destruction
+    if (!m_isActive || m_isDestroyed) return;
+
+    // Late-update all attached components
+    for (const auto& component : m_components)
+    {
+        component->LateUpdate(dt);
+    }
+
+    // Recursively late-update surviving children
+    for (const auto& child : m_children)
+    {
+        if (child)
+        {
+            child->LateUpdate(dt);
+        }
+    }
+}
+
 void GameObject::Render(ModelRenderer* renderer)
 {
     // Active check: If deactivated, stop rendering self and all children

@@ -53,6 +53,10 @@ public:
     // only override it if they actually need to tick.
     virtual void Update(float dt) {}
 
+    // Executes after all GameObjects have completed their standard Update tick.
+    // Critical for cameras, target tracking, and post-movement alignment.
+    virtual void LateUpdate(float dt) {}
+
     // Executes during the GPU submission phase
     virtual void Render(ModelRenderer* renderer) {}
 

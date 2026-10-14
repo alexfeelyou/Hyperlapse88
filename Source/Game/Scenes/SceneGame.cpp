@@ -119,7 +119,11 @@ SceneGame::SceneGame()
     if (m_lastEditorMode == EditorMode::Edit)
     {
         PhysicsManager::Instance().Simulate(0.0f);
-        if (m_sceneRoot) m_sceneRoot->Update(0.0f);
+        if (m_sceneRoot)
+        {
+            m_sceneRoot->Update(0.0f);
+            m_sceneRoot->LateUpdate(0.0f);
+        }
     }
 
     m_postProcess = std::make_unique<PostProcessManager>();
@@ -229,6 +233,7 @@ void SceneGame::Update(const float elapsedTime)
 
             Camera* activeCam{ CameraController::Instance().GetActiveCamera().get() };
             Scene::Update(0.0f);
+            Scene::LateUpdate(0.0f);
 
             m_isPaused = false;
             m_isExitingToTitle = false;
@@ -413,6 +418,7 @@ void SceneGame::Update(const float elapsedTime)
 
     const float sceneDt = isPlaying ? elapsedTime : 0.0f;
     Scene::Update(sceneDt);
+    Scene::LateUpdate(sceneDt);
 
     EffectManager::Instance().Update(sceneDt);
 }
