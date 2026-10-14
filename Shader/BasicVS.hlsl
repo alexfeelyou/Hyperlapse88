@@ -8,11 +8,12 @@ VS_OUT main(
 	float2 texcoord : TEXCOORD,
 	float4x4 instanceWorld : INSTANCE_TRANSFORM,
 	float4x4 instancePrevWorld : INSTANCE_PREV_TRANSFORM,
-	float4 instanceColor : INSTANCE_COLOR)
+	float4 instanceColor : INSTANCE_COLOR,
+	uint4 instanceBoneOffsets : INSTANCE_BONE_OFFSETS)
 {
     VS_OUT vout = (VS_OUT) 0;
 
-    float4 localPos = SkinningPosition(position, boneWeights, boneIndices);
+    float4 localPos = SkinningPosition(position, boneWeights, boneIndices, instanceBoneOffsets.x);
     float4 worldPos = mul(localPos, instanceWorld);
 	
     vout.vertex = mul(worldPos, viewProjection);

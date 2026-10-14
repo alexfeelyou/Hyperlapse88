@@ -19,12 +19,13 @@ VSOutput main(
     uint4 boneIndices : BONE_INDICES,
     float4x4 instanceWorld : INSTANCE_TRANSFORM,
     float4x4 instancePrevWorld : INSTANCE_PREV_TRANSFORM,
-    float4 instanceColor : INSTANCE_COLOR)
+    float4 instanceColor : INSTANCE_COLOR,
+    uint4 instanceBoneOffsets : INSTANCE_BONE_OFFSETS)
 {
     VSOutput output;
 
-    float4 localPos = SkinningPosition(position, boneWeights, boneIndices);
-    float4 prevLocalPos = SkinningPositionPrevious(position, boneWeights, boneIndices);
+    float4 localPos = SkinningPosition(position, boneWeights, boneIndices, instanceBoneOffsets.x);
+    float4 prevLocalPos = SkinningPositionPrevious(position, boneWeights, boneIndices, instanceBoneOffsets.y);
     
     float4 currentWorldPos = mul(localPos, instanceWorld);
     float4 previousWorldPos = mul(prevLocalPos, instancePrevWorld);

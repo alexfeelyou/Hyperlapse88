@@ -129,6 +129,7 @@ private:
         DirectX::XMFLOAT4X4 world;
         DirectX::XMFLOAT4X4 prevWorld;
         DirectX::XMFLOAT4   color;
+        DirectX::XMUINT4    boneOffsets{ 0, 0, 0, 0 }; // x: current, y: previous
     };
 
     struct DrawPacket
@@ -136,7 +137,8 @@ private:
         uint64_t            key{ 0 };
         const Model::Mesh* mesh{ nullptr };
         const Material* material{ nullptr };
-        std::size_t         skeletonSlot{ 0 };
+        uint32_t            boneOffset{ 0 };
+        uint32_t            prevBoneOffset{ 0 };
         DirectX::XMFLOAT4   color{ 1.0f, 1.0f, 1.0f, 1.0f };
         DirectX::XMFLOAT4X4 worldMatrix{};
         DirectX::XMFLOAT4X4 prevWorldMatrix{};
@@ -182,27 +184,12 @@ private:
         DirectX::XMFLOAT4X4      previousWorldMatrix{};
         bool                     castShadows{ true };
         bool                     hasVelocity{ false };
-        std::vector<std::size_t> skeletonSlots{};
+        std::vector<uint32_t>    meshBoneOffsets{};
+        std::vector<uint32_t>    meshPrevBoneOffsets{};
         const std::vector<Material>* materials{ nullptr };
     };
 
-    struct SkeletonSlot
-    {
-        Microsoft::WRL::ComPtr<ID3D11Buffer> currentBuffer{};
-        Microsoft::WRL::ComPtr<ID3D11Buffer> previousBuffer{};
-    };
-
-    std::vector<SkeletonSlot> m_skeletonPool{};
-    std::size_t m_skeletonPoolUsed{ 0 };
-
-    [[nodiscard]] std::size_t AcquireSkeletonSlot(ID3D11Device* device);
-    void ComputeAndUploadSkeleton(
-        ID3D11DeviceContext* dc, std::size_t slotIndex, const Model::Mesh& mesh, bool useManual,
-        bool needsPrevious, 
-        const DirectX::XMFLOAT4X4& worldMatrix, const DirectX::XMFLOAT4X4& previousWorldMatrix,
-        const std::vector<DirectX::XMFLOAT4X4>* currentNodeGlobals,
-        const std::vector<DirectX::XMFLOAT4X4>* previousNodeGlobals);
-    void BindSkeletonSlot(ID3D11DeviceContext* dc, std::size_t slotIndex) const noexcept;
+    void EnsureBonePaletteCapacity(ID3D11Device* device, std::size_t requiredMatrices);
 
     // 32 KB L1-Resident Software Occlusion Buffer for Culling
     struct alignas(64) SoftwareOcclusionBuffer final
@@ -232,10 +219,12 @@ private:
     LinearFrameArena                     m_frameArena{ 4 * 1024 * 1024 }; // 4MB persistent frame bump arena
     std::vector<DrawInfo>                drawInfos{};
 
-    Microsoft::WRL::ComPtr<ID3D11Buffer> sceneConstantBuffer;
-    Microsoft::WRL::ComPtr<ID3D11Buffer> m_instanceBuffer;
-    std::size_t                          m_instanceCapacity{ 10000 };
-    std::size_t                          m_identitySkeletonSlot{ static_cast<std::size_t>(-1) };
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              sceneConstantBuffer;
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_instanceBuffer;
+    std::size_t                                       m_instanceCapacity{ 10000 };
 
-    static constexpr std::size_t         kInvalidSkeletonSlot{ ~std::size_t{0} };
+    Microsoft::WRL::ComPtr<ID3D11Buffer>              m_bonePaletteBuffer{};
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>  m_bonePaletteSRV{};
+    std::size_t                                       m_bonePaletteCapacity{ 8192 };
+    std::vector<DirectX::XMFLOAT4X4>                  m_boneMatrixStaging{};
 };

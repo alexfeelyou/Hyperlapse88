@@ -738,7 +738,8 @@ ModelRenderer::ModelRenderer(ID3D11Device* device)
     device->CreateBuffer(&idesc, nullptr, m_instanceBuffer.GetAddressOf());
 
     drawInfos.reserve(2000);
-    m_skeletonPool.reserve(16);
+    m_boneMatrixStaging.reserve(m_bonePaletteCapacity);
+    EnsureBonePaletteCapacity(device, m_bonePaletteCapacity);
 
     shaders[static_cast<int>(ShaderId::Basic)] = std::make_unique<BasicShader>(device);
     shaders[static_cast<int>(ShaderId::Lambert)] = std::make_unique<LambertShader>(device);
@@ -751,139 +752,37 @@ ModelRenderer::ModelRenderer(ID3D11Device* device)
     m_velocityShader = std::make_unique<VelocityShader>(device);
 }
 
-std::size_t ModelRenderer::AcquireSkeletonSlot(ID3D11Device* device)
+void ModelRenderer::EnsureBonePaletteCapacity(ID3D11Device* device, std::size_t requiredMatrices)
 {
-    const std::size_t index{ m_skeletonPoolUsed++ };
-    if (index >= m_skeletonPool.size())
+    if (m_bonePaletteBuffer && requiredMatrices <= m_bonePaletteCapacity) return;
+
+    if (requiredMatrices > m_bonePaletteCapacity)
     {
-        // Grows only the first time this many simultaneous meshes-with-transforms are drawn
-        // in one frame. Every subsequent frame at or below that count allocates nothing.
-        SkeletonSlot slot{};
-        GpuResourceUtils::CreateConstantBuffer(device, sizeof(CbSkeleton), slot.currentBuffer.GetAddressOf());
-        GpuResourceUtils::CreateConstantBuffer(device, sizeof(CbSkeleton), slot.previousBuffer.GetAddressOf());
-        m_skeletonPool.push_back(std::move(slot));
-    }
-    return index;
-}
-
-void ModelRenderer::ComputeAndUploadSkeleton(
-    ID3D11DeviceContext* dc, std::size_t slotIndex, const Model::Mesh& mesh, bool useManual,
-    bool needsPrevious,
-    const DirectX::XMFLOAT4X4& worldMatrix, const DirectX::XMFLOAT4X4& previousWorldMatrix,
-    const std::vector<DirectX::XMFLOAT4X4>* currentNodeGlobals,
-    const std::vector<DirectX::XMFLOAT4X4>* previousNodeGlobals)
-{
-    // Bypass buffer writes entirely if this slot is the shared global identity slot
-    if (slotIndex == m_identitySkeletonSlot) return;
-
-    SkeletonSlot& slot{ m_skeletonPool[slotIndex] };
-
-    CbSkeleton cbCurrent{};
-    CbSkeleton cbPrevious{}; // only populated and uploaded when needsPrevious is true
-
-    const DirectX::XMMATRIX manualWorldMat{ DirectX::XMLoadFloat4x4(&worldMatrix) };
-    const DirectX::XMMATRIX previousManualWorldMat{ DirectX::XMLoadFloat4x4(&previousWorldMatrix) };
-
-    if (!mesh.bones.empty())
-    {
-        for (std::size_t i{ 0 }; i < mesh.bones.size(); ++i)
-        {
-            const Model::Bone& bone{ mesh.bones[i] };
-
-            DirectX::XMMATRIX nodeGlobalMat;
-            if (currentNodeGlobals && bone.nodeIndex >= 0 && static_cast<std::size_t>(bone.nodeIndex) < currentNodeGlobals->size())
-            {
-                nodeGlobalMat = DirectX::XMLoadFloat4x4(&(*currentNodeGlobals)[bone.nodeIndex]);
-            }
-            else
-            {
-                nodeGlobalMat = DirectX::XMLoadFloat4x4(&bone.node->globalTransform);
-            }
-
-            const DirectX::XMMATRIX offsetTransform{ DirectX::XMLoadFloat4x4(&bone.offsetTransform) };
-            const DirectX::XMMATRIX worldTransform{ useManual
-                ? (nodeGlobalMat * manualWorldMat)
-                : DirectX::XMLoadFloat4x4(&bone.node->worldTransform) };
-            DirectX::XMStoreFloat4x4(&cbCurrent.boneTransforms[i], offsetTransform * worldTransform);
-
-            if (needsPrevious)
-            {
-                DirectX::XMMATRIX prevNodeGlobalMat;
-                if (previousNodeGlobals && bone.nodeIndex >= 0 && static_cast<std::size_t>(bone.nodeIndex) < previousNodeGlobals->size())
-                {
-                    prevNodeGlobalMat = DirectX::XMLoadFloat4x4(&(*previousNodeGlobals)[bone.nodeIndex]);
-                }
-                else
-                {
-                    prevNodeGlobalMat = nodeGlobalMat;
-                }
-
-                const DirectX::XMMATRIX previousWorldTransform{ useManual
-                    ? (prevNodeGlobalMat * previousManualWorldMat)
-                    : DirectX::XMLoadFloat4x4(&bone.node->worldTransform) };
-                DirectX::XMStoreFloat4x4(&cbPrevious.boneTransforms[i], offsetTransform * previousWorldTransform);
-            }
-        }
-    }
-    else
-    {
-        if (useManual)
-        {
-            // Unskinned meshes must track the animated node
-            DirectX::XMMATRIX nodeGlobalMat;
-
-            // If the AnimationComponent provided evaluated globals, use them
-            if (currentNodeGlobals && mesh.nodeIndex >= 0 && static_cast<std::size_t>(mesh.nodeIndex) < currentNodeGlobals->size())
-            {
-                nodeGlobalMat = DirectX::XMLoadFloat4x4(&(*currentNodeGlobals)[mesh.nodeIndex]);
-            }
-            else
-            {
-                // Fallback to static bind pose if no AnimationComponent exists
-                nodeGlobalMat = DirectX::XMLoadFloat4x4(&mesh.node->globalTransform);
-            }
-
-            DirectX::XMStoreFloat4x4(&cbCurrent.boneTransforms[0], nodeGlobalMat * manualWorldMat);
-
-            if (needsPrevious)
-            {
-                DirectX::XMMATRIX prevNodeGlobalMat;
-                if (previousNodeGlobals && mesh.nodeIndex >= 0 && static_cast<std::size_t>(mesh.nodeIndex) < previousNodeGlobals->size())
-                {
-                    prevNodeGlobalMat = DirectX::XMLoadFloat4x4(&(*previousNodeGlobals)[mesh.nodeIndex]);
-                }
-                else
-                {
-                    prevNodeGlobalMat = nodeGlobalMat;
-                }
-
-                DirectX::XMStoreFloat4x4(&cbPrevious.boneTransforms[0], prevNodeGlobalMat * previousManualWorldMat);
-            }
-        }
-        else
-        {
-            cbCurrent.boneTransforms[0] = mesh.node->worldTransform;
-            if (needsPrevious)
-            {
-                cbPrevious.boneTransforms[0] = mesh.node->worldTransform;
-            }
-        }
+        m_bonePaletteCapacity = (std::max)(m_bonePaletteCapacity * 2, requiredMatrices + 2048);
     }
 
-    dc->UpdateSubresource(slot.currentBuffer.Get(), 0, nullptr, &cbCurrent, 0, 0);
-    if (needsPrevious)
-    {
-        dc->UpdateSubresource(slot.previousBuffer.Get(), 0, nullptr, &cbPrevious, 0, 0);
-    }
-}
+    m_bonePaletteSRV.Reset();
+    m_bonePaletteBuffer.Reset();
 
-void ModelRenderer::BindSkeletonSlot(ID3D11DeviceContext* dc, std::size_t slotIndex) const noexcept
-{
-    const SkeletonSlot& slot{ m_skeletonPool[slotIndex] };
-    ID3D11Buffer* const currentCb{ slot.currentBuffer.Get() };
-    ID3D11Buffer* const previousCb{ slot.previousBuffer.Get() };
-    dc->VSSetConstantBuffers(6, 1, &currentCb);  
-    dc->VSSetConstantBuffers(9, 1, &previousCb); 
+    D3D11_BUFFER_DESC desc{};
+    desc.ByteWidth = static_cast<UINT>(sizeof(DirectX::XMFLOAT4X4) * m_bonePaletteCapacity);
+    desc.Usage = D3D11_USAGE_DYNAMIC;
+    desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    desc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    desc.MiscFlags = D3D11_RESOURCE_MISC_BUFFER_STRUCTURED;
+    desc.StructureByteStride = sizeof(DirectX::XMFLOAT4X4);
+
+    HRESULT hr = device->CreateBuffer(&desc, nullptr, m_bonePaletteBuffer.GetAddressOf());
+    _ASSERT_EXPR(SUCCEEDED(hr), HRTrace(hr));
+
+    D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+    srvDesc.Format = DXGI_FORMAT_UNKNOWN;
+    srvDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
+    srvDesc.Buffer.FirstElement = 0;
+    srvDesc.Buffer.NumElements = static_cast<UINT>(m_bonePaletteCapacity);
+
+    hr = device->CreateShaderResourceView(m_bonePaletteBuffer.Get(), &srvDesc, m_bonePaletteSRV.GetAddressOf());
+    _ASSERT_EXPR(SUCCEEDED(hr), HRTrace(hr));
 }
 
 void ModelRenderer::Draw(std::shared_ptr<Model> model, const DirectX::XMFLOAT4& color, bool castShadows, const std::vector<Material>* materials)
@@ -920,20 +819,9 @@ void ModelRenderer::Draw(std::shared_ptr<Model> model, DirectX::XMFLOAT4 color,
     drawInfos.push_back(std::move(info));
 }
 
-void ModelRenderer::DrawMeshVelocity(ID3D11DeviceContext* dc, const Model::Mesh& mesh, std::size_t skeletonSlot)
+void ModelRenderer::DrawMeshVelocity(ID3D11DeviceContext*, const Model::Mesh&, std::size_t)
 {
-    UINT stride{ sizeof(Model::Vertex) };
-    UINT offset{ 0 };
-    dc->IASetVertexBuffers(0, 1, mesh.vertexBuffer.GetAddressOf(), &stride, &offset);
-    dc->IASetIndexBuffer(mesh.indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
-    dc->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-    BindSkeletonSlot(dc, skeletonSlot);
-
-    dc->DrawIndexed(static_cast<UINT>(mesh.indices.size()), 0, 0);
-
-    PROFILE_DRAW_CALL();
-    PROFILE_TRIANGLES(mesh.indices.size() / 3);
+    // Deprecated: Velocity pass is handled through executeBatches
 }
 
 void ModelRenderer::Render(const RenderContext& rc)
@@ -944,68 +832,130 @@ void ModelRenderer::Render(const RenderContext& rc)
     Microsoft::WRL::ComPtr<ID3D11Device> device{};
     dc->GetDevice(device.GetAddressOf());
 
-    m_skeletonPoolUsed = 0;
     m_frameArena.Reset();
     dc->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-    // Create the global Identity Skeleton Slot once per frame for ALL static meshes to share
-    m_identitySkeletonSlot = AcquireSkeletonSlot(device.Get());
-    {
-        SkeletonSlot& idSlot = m_skeletonPool[m_identitySkeletonSlot];
-        CbSkeleton cbId{};
-        const DirectX::XMMATRIX identity = DirectX::XMMatrixIdentity();
-        for (int i = 0; i < 256; ++i)
-        {
-            DirectX::XMStoreFloat4x4(&cbId.boneTransforms[i], identity);
-        }
-        dc->UpdateSubresource(idSlot.currentBuffer.Get(), 0, nullptr, &cbId, 0, 0);
-        dc->UpdateSubresource(idSlot.previousBuffer.Get(), 0, nullptr, &cbId, 0, 0);
-    }
+    // Build the frame's unified bone matrix palette
+    m_boneMatrixStaging.clear();
+
+    // Index 0 is strictly the Identity Matrix (consumed by all static meshes with boneOffset = 0)
+    DirectX::XMFLOAT4X4 identityMatrix{};
+    DirectX::XMStoreFloat4x4(&identityMatrix, DirectX::XMMatrixIdentity());
+    m_boneMatrixStaging.push_back(identityMatrix);
 
     for (DrawInfo& drawInfo : drawInfos)
     {
         if (!drawInfo.model) continue;
 
         const auto& meshes{ drawInfo.model->GetMeshes() };
-        drawInfo.skeletonSlots.resize(meshes.size());
+        drawInfo.meshBoneOffsets.resize(meshes.size(), 0);
+        drawInfo.meshPrevBoneOffsets.resize(meshes.size(), 0);
+
+        const DirectX::XMMATRIX manualWorldMat{ DirectX::XMLoadFloat4x4(&drawInfo.worldMatrix) };
+        const DirectX::XMMATRIX previousManualWorldMat{ DirectX::XMLoadFloat4x4(&drawInfo.previousWorldMatrix) };
 
         for (std::size_t meshIdx{ 0 }; meshIdx < meshes.size(); ++meshIdx)
         {
-            if (meshes[meshIdx].bones.empty())
+            const auto& mesh{ meshes[meshIdx] };
+            if (mesh.bones.empty())
             {
-                drawInfo.skeletonSlots[meshIdx] = m_identitySkeletonSlot;
+                drawInfo.meshBoneOffsets[meshIdx] = 0;
+                drawInfo.meshPrevBoneOffsets[meshIdx] = 0;
+                continue;
             }
-            else
-            {
-                // Multi-mesh skeleton deduplication:
-                // If an earlier mesh in this drawInfo has an identical bone palette, reuse its uploaded slot
-                std::size_t sharedSlot{ kInvalidSkeletonSlot };
-                for (std::size_t prevIdx{ 0 }; prevIdx < meshIdx; ++prevIdx)
-                {
-                    if (drawInfo.skeletonSlots[prevIdx] != m_identitySkeletonSlot &&
-                        drawInfo.skeletonSlots[prevIdx] != kInvalidSkeletonSlot &&
-                        AreBonePalettesEqual(meshes[meshIdx].bones, meshes[prevIdx].bones))
-                    {
-                        sharedSlot = drawInfo.skeletonSlots[prevIdx];
-                        break;
-                    }
-                }
 
-                if (sharedSlot != kInvalidSkeletonSlot)
+            // Deduplicate matching bone palettes within the same drawInfo entity
+            uint32_t sharedOffset{ 0xFFFFFFFF };
+            uint32_t sharedPrevOffset{ 0xFFFFFFFF };
+            for (std::size_t prevIdx{ 0 }; prevIdx < meshIdx; ++prevIdx)
+            {
+                if (drawInfo.meshBoneOffsets[prevIdx] != 0 &&
+                    AreBonePalettesEqual(mesh.bones, meshes[prevIdx].bones))
                 {
-                    drawInfo.skeletonSlots[meshIdx] = sharedSlot;
+                    sharedOffset = drawInfo.meshBoneOffsets[prevIdx];
+                    sharedPrevOffset = drawInfo.meshPrevBoneOffsets[prevIdx];
+                    break;
+                }
+            }
+
+            if (sharedOffset != 0xFFFFFFFF)
+            {
+                drawInfo.meshBoneOffsets[meshIdx] = sharedOffset;
+                drawInfo.meshPrevBoneOffsets[meshIdx] = sharedPrevOffset;
+                continue;
+            }
+
+            const uint32_t currentOffset{ static_cast<uint32_t>(m_boneMatrixStaging.size()) };
+            drawInfo.meshBoneOffsets[meshIdx] = currentOffset;
+            m_boneMatrixStaging.resize(currentOffset + mesh.bones.size());
+
+            for (std::size_t i{ 0 }; i < mesh.bones.size(); ++i)
+            {
+                const Model::Bone& bone{ mesh.bones[i] };
+                DirectX::XMMATRIX nodeGlobalMat;
+                if (drawInfo.currentNodeGlobals && bone.nodeIndex >= 0 && static_cast<std::size_t>(bone.nodeIndex) < drawInfo.currentNodeGlobals->size())
+                {
+                    nodeGlobalMat = DirectX::XMLoadFloat4x4(&(*drawInfo.currentNodeGlobals)[bone.nodeIndex]);
                 }
                 else
                 {
-                    const std::size_t slot{ AcquireSkeletonSlot(device.Get()) };
-                    ComputeAndUploadSkeleton(dc, slot, meshes[meshIdx], drawInfo.useManualMatrix,
-                        drawInfo.hasVelocity, drawInfo.worldMatrix, drawInfo.previousWorldMatrix,
-                        drawInfo.currentNodeGlobals, drawInfo.previousNodeGlobals);
-                    drawInfo.skeletonSlots[meshIdx] = slot;
+                    nodeGlobalMat = DirectX::XMLoadFloat4x4(&bone.node->globalTransform);
                 }
+
+                const DirectX::XMMATRIX offsetTransform{ DirectX::XMLoadFloat4x4(&bone.offsetTransform) };
+                const DirectX::XMMATRIX worldTransform{ drawInfo.useManualMatrix
+                    ? (nodeGlobalMat * manualWorldMat)
+                    : DirectX::XMLoadFloat4x4(&bone.node->worldTransform) };
+
+                DirectX::XMStoreFloat4x4(&m_boneMatrixStaging[currentOffset + i], offsetTransform * worldTransform);
+            }
+
+            if (drawInfo.hasVelocity)
+            {
+                const uint32_t prevOffset{ static_cast<uint32_t>(m_boneMatrixStaging.size()) };
+                drawInfo.meshPrevBoneOffsets[meshIdx] = prevOffset;
+                m_boneMatrixStaging.resize(prevOffset + mesh.bones.size());
+
+                for (std::size_t i{ 0 }; i < mesh.bones.size(); ++i)
+                {
+                    const Model::Bone& bone{ mesh.bones[i] };
+                    DirectX::XMMATRIX prevNodeGlobalMat;
+                    if (drawInfo.previousNodeGlobals && bone.nodeIndex >= 0 && static_cast<std::size_t>(bone.nodeIndex) < drawInfo.previousNodeGlobals->size())
+                    {
+                        prevNodeGlobalMat = DirectX::XMLoadFloat4x4(&(*drawInfo.previousNodeGlobals)[bone.nodeIndex]);
+                    }
+                    else
+                    {
+                        prevNodeGlobalMat = (drawInfo.currentNodeGlobals && bone.nodeIndex >= 0 && static_cast<std::size_t>(bone.nodeIndex) < drawInfo.currentNodeGlobals->size())
+                            ? DirectX::XMLoadFloat4x4(&(*drawInfo.currentNodeGlobals)[bone.nodeIndex])
+                            : DirectX::XMLoadFloat4x4(&bone.node->globalTransform);
+                    }
+
+                    const DirectX::XMMATRIX offsetTransform{ DirectX::XMLoadFloat4x4(&bone.offsetTransform) };
+                    const DirectX::XMMATRIX previousWorldTransform{ drawInfo.useManualMatrix
+                        ? (prevNodeGlobalMat * previousManualWorldMat)
+                        : DirectX::XMLoadFloat4x4(&bone.node->worldTransform) };
+
+                    DirectX::XMStoreFloat4x4(&m_boneMatrixStaging[prevOffset + i], offsetTransform * previousWorldTransform);
+                }
+            }
+            else
+            {
+                drawInfo.meshPrevBoneOffsets[meshIdx] = currentOffset;
             }
         }
     }
+
+    // Upload the unified bone palette in a single continuous transfer
+    EnsureBonePaletteCapacity(device.Get(), m_boneMatrixStaging.size());
+    D3D11_MAPPED_SUBRESOURCE mappedPalette{};
+    dc->Map(m_bonePaletteBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedPalette);
+    std::memcpy(mappedPalette.pData, m_boneMatrixStaging.data(), sizeof(DirectX::XMFLOAT4X4) * m_boneMatrixStaging.size());
+    dc->Unmap(m_bonePaletteBuffer.Get(), 0);
+
+    // Bind unified bone palette SRV to Vertex Shader register t14 once for the entire frame
+    ID3D11ShaderResourceView* const bonePaletteSRVs[]{ m_bonePaletteSRV.Get() };
+    dc->VSSetShaderResources(14, 1, bonePaletteSRVs);
 
     std::size_t instanceOffset = 0;
 
@@ -1060,6 +1010,9 @@ void ModelRenderer::Render(const RenderContext& rc)
                     p.color.z * baseCol.z,
                     p.color.w * baseCol.w
                 };
+
+                // Stream instance bone palette offsets into Slot 1
+                instData[i].boneOffsets = { p.boneOffset, p.prevBoneOffset, 0u, 0u };
             }
             dc->Unmap(m_instanceBuffer.Get(), 0);
 
@@ -1076,7 +1029,6 @@ void ModelRenderer::Render(const RenderContext& rc)
             uint16_t currentMaterialKey{ 0xFFFF };
             ID3D11Buffer* currentVB{ nullptr };
             ID3D11Buffer* currentIB{ nullptr };
-            std::size_t currentSlot{ kInvalidSkeletonSlot };
 
             const bool isDepthOrVelocityPass{ (forcedShader == m_shadowCasterShader.get() || forcedShader == m_velocityShader.get()) };
 
@@ -1084,34 +1036,29 @@ void ModelRenderer::Render(const RenderContext& rc)
             {
                 const DrawPacket& firstPacket{ packets[pIdx] };
                 std::size_t batchCount{ 1 };
-                const bool isStatic{ firstPacket.mesh->bones.empty() };
 
-                if (isStatic)
+                // Crowd Coalescing: Skinned meshes now coalesce across instances identically to static meshes
+                if (isDepthOrVelocityPass)
                 {
-                    if (isDepthOrVelocityPass)
+                    // Depth/Velocity: Dissimilar materials on identical geometry coalesced into single draw
+                    while (pIdx + batchCount < count &&
+                        packets[pIdx + batchCount].mesh == firstPacket.mesh)
                     {
-                        // Depth/Velocity: Dissimilar materials on identical geometry coalesced into single draw
-                        while (pIdx + batchCount < count &&
-                            packets[pIdx + batchCount].mesh == firstPacket.mesh &&
-                            packets[pIdx + batchCount].mesh->bones.empty())
-                        {
-                            ++batchCount;
-                        }
+                        ++batchCount;
                     }
-                    else
-                    {
-                        // Color/Outline: Coalesce identical geometry sharing the exact same 48-bit PSO & Material state key
-                        const bool isTransparent{ (((firstPacket.key >> 60) & 0xFULL) == 6) };
-                        const uint64_t firstStateKey{ firstPacket.key & 0xFFFFFFFFFFFF0000ULL };
+                }
+                else
+                {
+                    // Color/Outline: Coalesce identical geometry sharing the exact same 48-bit PSO & Material state key
+                    const bool isTransparent{ (((firstPacket.key >> 60) & 0xFULL) == 6) };
+                    const uint64_t firstStateKey{ firstPacket.key & 0xFFFFFFFFFFFF0000ULL };
 
-                        while (pIdx + batchCount < count &&
-                            packets[pIdx + batchCount].mesh == firstPacket.mesh &&
-                            (!isTransparent ? ((packets[pIdx + batchCount].key & 0xFFFFFFFFFFFF0000ULL) == firstStateKey)
-                                : (packets[pIdx + batchCount].key == firstPacket.key)) &&
-                            packets[pIdx + batchCount].mesh->bones.empty())
-                        {
-                            ++batchCount;
-                        }
+                    while (pIdx + batchCount < count &&
+                        packets[pIdx + batchCount].mesh == firstPacket.mesh &&
+                        (!isTransparent ? ((packets[pIdx + batchCount].key & 0xFFFFFFFFFFFF0000ULL) == firstStateKey)
+                            : (packets[pIdx + batchCount].key == firstPacket.key)))
+                    {
+                        ++batchCount;
                     }
                 }
 
@@ -1128,7 +1075,6 @@ void ModelRenderer::Render(const RenderContext& rc)
                         currentMaterialKey = 0xFFFF;
                         currentVB = nullptr;
                         currentIB = nullptr;
-                        currentSlot = kInvalidSkeletonSlot;
                     }
                 }
 
@@ -1144,12 +1090,6 @@ void ModelRenderer::Render(const RenderContext& rc)
                 {
                     dc->IASetIndexBuffer(firstPacket.mesh->indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
                     currentIB = firstPacket.mesh->indexBuffer.Get();
-                }
-
-                if (firstPacket.skeletonSlot != currentSlot)
-                {
-                    BindSkeletonSlot(dc, firstPacket.skeletonSlot);
-                    currentSlot = firstPacket.skeletonSlot;
                 }
 
                 if (!isDepthOrVelocityPass)
@@ -1282,7 +1222,8 @@ void ModelRenderer::Render(const RenderContext& rc)
         {
             const Model::Mesh* mesh{ nullptr };
             const Material* material{ nullptr };
-            std::size_t         skeletonSlot{ 0 };
+            uint32_t            boneOffset{ 0 };
+            uint32_t            prevBoneOffset{ 0 };
             DirectX::XMFLOAT4   color{ 1.0f, 1.0f, 1.0f, 1.0f };
             DirectX::XMFLOAT4X4 worldMatrix{};
             DirectX::XMFLOAT4X4 prevWorldMatrix{};
@@ -1351,7 +1292,7 @@ void ModelRenderer::Render(const RenderContext& rc)
                 {
                     for (std::size_t prevIdx{ 0 }; prevIdx < meshIdx; ++prevIdx)
                     {
-                        if (drawInfo.skeletonSlots[meshIdx] == drawInfo.skeletonSlots[prevIdx] &&
+                        if (drawInfo.meshBoneOffsets[meshIdx] == drawInfo.meshBoneOffsets[prevIdx] &&
                             std::abs(mesh.boundsRadius - drawInfo.model->GetMeshes()[prevIdx].boundsRadius) <= 0.001f)
                         {
                             const std::size_t prevFlat{ flatIndex - (meshIdx - prevIdx) };
@@ -1378,7 +1319,8 @@ void ModelRenderer::Render(const RenderContext& rc)
                 MeshInstanceRef& ref{ meshRefs[flatIndex] };
                 ref.mesh = &mesh;
                 ref.material = mat;
-                ref.skeletonSlot = drawInfo.skeletonSlots[meshIdx];
+                ref.boneOffset = drawInfo.meshBoneOffsets[meshIdx];
+                ref.prevBoneOffset = drawInfo.meshPrevBoneOffsets[meshIdx];
                 ref.color = drawInfo.color;
                 DirectX::XMStoreFloat4x4(&ref.worldMatrix, mWorld);
                 DirectX::XMStoreFloat4x4(&ref.prevWorldMatrix, mPrevWorld);
@@ -1469,7 +1411,8 @@ void ModelRenderer::Render(const RenderContext& rc)
                 DrawPacket packet{};
                 packet.mesh = &mesh;
                 packet.material = mat;
-                packet.skeletonSlot = ref.skeletonSlot;
+                packet.boneOffset = ref.boneOffset;
+                packet.prevBoneOffset = ref.prevBoneOffset;
                 packet.color = ref.color;
                 packet.worldMatrix = ref.worldMatrix;
                 packet.prevWorldMatrix = ref.prevWorldMatrix;
@@ -1745,4 +1688,7 @@ void ModelRenderer::Render(const RenderContext& rc)
         dc->PSSetSamplers(0, 1, nullSamplers);
         ID3D11ShaderResourceView* const nullShadowSRV{ nullptr };
         dc->PSSetShaderResources(10, 1, &nullShadowSRV);
+
+        ID3D11ShaderResourceView* const nullBonePaletteSRV{ nullptr };
+        dc->VSSetShaderResources(14, 1, &nullBonePaletteSRV);
 }

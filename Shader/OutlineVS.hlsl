@@ -26,13 +26,14 @@ VS_OUT main(
     float3 normal : NORMAL,
     float4x4 instanceWorld : INSTANCE_TRANSFORM,
     float4x4 instancePrevWorld : INSTANCE_PREV_TRANSFORM,
-    float4 instanceColor : INSTANCE_COLOR)
+    float4 instanceColor : INSTANCE_COLOR,
+    uint4 instanceBoneOffsets : INSTANCE_BONE_OFFSETS)
 {
     VS_OUT vout = (VS_OUT) 0;
     vout.texcoord = texcoord;
 
     // Evaluate hardware instancing world space
-    float4 localPos = SkinningPosition(position, boneWeights, boneIndices);
+    float4 localPos = SkinningPosition(position, boneWeights, boneIndices, instanceBoneOffsets.x);
     float4 worldPos = mul(localPos, instanceWorld);
     float dist = length(cameraPosition.xyz - worldPos.xyz);
     
@@ -41,7 +42,7 @@ VS_OUT main(
     vout.vertex = mul(worldPos, viewProjection);
 
     // Evaluate instance-aligned normal
-    float3 localNormal = SkinningVector(normal, boneWeights, boneIndices);
+    float3 localNormal = SkinningVector(normal, boneWeights, boneIndices, instanceBoneOffsets.x);
     float3 worldNormal = normalize(mul(localNormal, (float3x3) instanceWorld));
     float4 clipNormal = mul(float4(worldNormal, 0.0f), viewProjection);
     float2 offset = normalize(clipNormal.xy);
