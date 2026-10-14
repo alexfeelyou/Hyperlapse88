@@ -480,11 +480,12 @@ void Model::UpdateTransform(const DirectX::XMFLOAT4X4& worldTransform)
 
 	for (Node& node : nodes)
 	{
-		// ローカル行列算出
-		DirectX::XMMATRIX S = DirectX::XMMatrixScaling(node.scale.x, node.scale.y, node.scale.z);
-		DirectX::XMMATRIX R = DirectX::XMMatrixRotationQuaternion(DirectX::XMLoadFloat4(&node.rotation));
-		DirectX::XMMATRIX T = DirectX::XMMatrixTranslation(node.position.x, node.position.y, node.position.z);
-		DirectX::XMMATRIX LocalTransform = S * R * T;
+		// Direct single-pass affine matrix composition: S * R * T without intermediate matrix multiplies
+		DirectX::XMMATRIX LocalTransform{ DirectX::XMMatrixRotationQuaternion(DirectX::XMLoadFloat4(&node.rotation)) };
+		LocalTransform.r[0] = DirectX::XMVectorMultiply(LocalTransform.r[0], DirectX::XMVectorReplicate(node.scale.x));
+		LocalTransform.r[1] = DirectX::XMVectorMultiply(LocalTransform.r[1], DirectX::XMVectorReplicate(node.scale.y));
+		LocalTransform.r[2] = DirectX::XMVectorMultiply(LocalTransform.r[2], DirectX::XMVectorReplicate(node.scale.z));
+		LocalTransform.r[3] = DirectX::XMVectorSet(node.position.x, node.position.y, node.position.z, 1.0f);
 
 		// グローバル行列算出
 		DirectX::XMMATRIX ParentGlobalTransform;
@@ -511,23 +512,61 @@ void Model::UpdateTransform(const DirectX::XMFLOAT4X4& worldTransform)
 namespace
 {
 	template <typename KeyframeType>
-	[[nodiscard]] std::size_t FindKeyframeSegment(const std::vector<KeyframeType>& keyframes, float time) noexcept
+	[[nodiscard]] std::size_t FindKeyframeSegment(
+		const std::vector<KeyframeType>& keyframes,
+		float time,
+		uint32_t* hint = nullptr) noexcept
 	{
 		const std::size_t count{ keyframes.size() };
 		if (count <= 2) return 0;
 
+		// Temporal O(1) Fast Path: Check if playback is within current or immediate next segment
+		if (hint && *hint < static_cast<uint32_t>(count - 1))
+		{
+			const std::size_t currentIdx{ static_cast<std::size_t>(*hint) };
+
+			// Time is still within the cached segment
+			if (time >= keyframes[currentIdx].seconds && time < keyframes[currentIdx + 1].seconds)
+			{
+				return currentIdx;
+			}
+
+			// Time has monotonically advanced to the immediately following segment
+			if (currentIdx + 2 < count &&
+				time >= keyframes[currentIdx + 1].seconds &&
+				time < keyframes[currentIdx + 2].seconds)
+			{
+				*hint = static_cast<uint32_t>(currentIdx + 1);
+				return currentIdx + 1;
+			}
+		}
+
+		// Fallback O(log K): Binary search on animation loop wrap, scrub, or large jump
 		auto it{ std::upper_bound(keyframes.begin(), keyframes.end(), time,
 			[](float t, const KeyframeType& k) noexcept {
 				return t < k.seconds;
 			}) };
 
-		if (it == keyframes.begin()) return 0;
-		const std::size_t idx{ static_cast<std::size_t>(std::distance(keyframes.begin(), it)) - 1 };
-		return (idx < count - 1) ? idx : count - 2;
+		std::size_t resultIdx{ 0 };
+		if (it == keyframes.begin())
+		{
+			resultIdx = 0;
+		}
+		else
+		{
+			const std::size_t idx{ static_cast<std::size_t>(std::distance(keyframes.begin(), it)) - 1 };
+			resultIdx = (idx < count - 1) ? idx : count - 2;
+		}
+
+		if (hint)
+		{
+			*hint = static_cast<uint32_t>(resultIdx);
+		}
+		return resultIdx;
 	}
 }
 
-void Model::ComputeAnimation(int animationIndex, int nodeIndex, float time, NodePose& nodePose) const
+void Model::ComputeAnimation(int animationIndex, int nodeIndex, float time, NodePose& nodePose, TrackCursors* cursor) const
 {
 	if (animationIndex < 0 || static_cast<std::size_t>(animationIndex) >= animations.size()) return;
 	const Animation& animation{ animations[animationIndex] };
@@ -540,14 +579,19 @@ void Model::ComputeAnimation(int animationIndex, int nodeIndex, float time, Node
 		if (nodeAnim.positionKeyframes.size() == 1 || time <= nodeAnim.positionKeyframes.front().seconds)
 		{
 			nodePose.position = nodeAnim.positionKeyframes.front().value;
+			if (cursor) cursor->pos = 0;
 		}
 		else if (time >= nodeAnim.positionKeyframes.back().seconds)
 		{
 			nodePose.position = nodeAnim.positionKeyframes.back().value;
+			if (cursor && nodeAnim.positionKeyframes.size() >= 2)
+			{
+				cursor->pos = static_cast<uint32_t>(nodeAnim.positionKeyframes.size() - 2);
+			}
 		}
 		else
 		{
-			const std::size_t idx{ FindKeyframeSegment(nodeAnim.positionKeyframes, time) };
+			const std::size_t idx{ FindKeyframeSegment(nodeAnim.positionKeyframes, time, cursor ? &cursor->pos : nullptr) };
 			const auto& k0{ nodeAnim.positionKeyframes[idx] };
 			const auto& k1{ nodeAnim.positionKeyframes[idx + 1] };
 			const float duration{ k1.seconds - k0.seconds };
@@ -558,6 +602,10 @@ void Model::ComputeAnimation(int animationIndex, int nodeIndex, float time, Node
 			DirectX::XMStoreFloat3(&nodePose.position, DirectX::XMVectorLerp(v0, v1, rate));
 		}
 	}
+	else if (static_cast<std::size_t>(nodeIndex) < nodes.size())
+	{
+		nodePose.position = nodes[nodeIndex].position;
+	}
 
 	// Rotation track evaluation
 	if (!nodeAnim.rotationKeyframes.empty())
@@ -565,14 +613,19 @@ void Model::ComputeAnimation(int animationIndex, int nodeIndex, float time, Node
 		if (nodeAnim.rotationKeyframes.size() == 1 || time <= nodeAnim.rotationKeyframes.front().seconds)
 		{
 			nodePose.rotation = nodeAnim.rotationKeyframes.front().value;
+			if (cursor) cursor->rot = 0;
 		}
 		else if (time >= nodeAnim.rotationKeyframes.back().seconds)
 		{
 			nodePose.rotation = nodeAnim.rotationKeyframes.back().value;
+			if (cursor && nodeAnim.rotationKeyframes.size() >= 2)
+			{
+				cursor->rot = static_cast<uint32_t>(nodeAnim.rotationKeyframes.size() - 2);
+			}
 		}
 		else
 		{
-			const std::size_t idx{ FindKeyframeSegment(nodeAnim.rotationKeyframes, time) };
+			const std::size_t idx{ FindKeyframeSegment(nodeAnim.rotationKeyframes, time, cursor ? &cursor->rot : nullptr) };
 			const auto& k0{ nodeAnim.rotationKeyframes[idx] };
 			const auto& k1{ nodeAnim.rotationKeyframes[idx + 1] };
 			const float duration{ k1.seconds - k0.seconds };
@@ -583,6 +636,10 @@ void Model::ComputeAnimation(int animationIndex, int nodeIndex, float time, Node
 			DirectX::XMStoreFloat4(&nodePose.rotation, DirectX::XMQuaternionSlerp(q0, q1, rate));
 		}
 	}
+	else if (static_cast<std::size_t>(nodeIndex) < nodes.size())
+	{
+		nodePose.rotation = nodes[nodeIndex].rotation;
+	}
 
 	// Scale track evaluation
 	if (!nodeAnim.scaleKeyframes.empty())
@@ -590,14 +647,19 @@ void Model::ComputeAnimation(int animationIndex, int nodeIndex, float time, Node
 		if (nodeAnim.scaleKeyframes.size() == 1 || time <= nodeAnim.scaleKeyframes.front().seconds)
 		{
 			nodePose.scale = nodeAnim.scaleKeyframes.front().value;
+			if (cursor) cursor->scale = 0;
 		}
 		else if (time >= nodeAnim.scaleKeyframes.back().seconds)
 		{
 			nodePose.scale = nodeAnim.scaleKeyframes.back().value;
+			if (cursor && nodeAnim.scaleKeyframes.size() >= 2)
+			{
+				cursor->scale = static_cast<uint32_t>(nodeAnim.scaleKeyframes.size() - 2);
+			}
 		}
 		else
 		{
-			const std::size_t idx{ FindKeyframeSegment(nodeAnim.scaleKeyframes, time) };
+			const std::size_t idx{ FindKeyframeSegment(nodeAnim.scaleKeyframes, time, cursor ? &cursor->scale : nullptr) };
 			const auto& k0{ nodeAnim.scaleKeyframes[idx] };
 			const auto& k1{ nodeAnim.scaleKeyframes[idx + 1] };
 			const float duration{ k1.seconds - k0.seconds };
@@ -608,10 +670,14 @@ void Model::ComputeAnimation(int animationIndex, int nodeIndex, float time, Node
 			DirectX::XMStoreFloat3(&nodePose.scale, DirectX::XMVectorLerp(v0, v1, rate));
 		}
 	}
+	else if (static_cast<std::size_t>(nodeIndex) < nodes.size())
+	{
+		nodePose.scale = nodes[nodeIndex].scale;
+	}
 }
 
 // アニメーション計算
-void Model::ComputeAnimation(int animationIndex, float time, std::vector<NodePose>& nodePoses) const
+void Model::ComputeAnimation(int animationIndex, float time, std::vector<NodePose>& nodePoses, TrackCursors* cursors) const
 {
 	if (animationIndex < 0 || static_cast<std::size_t>(animationIndex) >= animations.size()) return;
 	if (nodePoses.size() != nodes.size())
@@ -622,7 +688,7 @@ void Model::ComputeAnimation(int animationIndex, float time, std::vector<NodePos
 	const std::size_t animNodeCount{ (std::min)(anim.nodeAnims.size(), nodePoses.size()) };
 	for (size_t nodeIndex = 0; nodeIndex < animNodeCount; ++nodeIndex)
 	{
-		ComputeAnimation(animationIndex, static_cast<int>(nodeIndex), time, nodePoses[nodeIndex]);
+		ComputeAnimation(animationIndex, static_cast<int>(nodeIndex), time, nodePoses[nodeIndex], cursors ? &cursors[nodeIndex] : nullptr);
 	}
 }
 

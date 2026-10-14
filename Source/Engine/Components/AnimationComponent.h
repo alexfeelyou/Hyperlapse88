@@ -187,6 +187,10 @@ private:
 
     PoseScratchpad m_scratchpad{};
 
+    // Per-instance sampling cursor caches for O(1) monotonic timeline evaluation
+    std::vector<Model::TrackCursors> m_cursorsA{};
+    std::vector<Model::TrackCursors> m_cursorsB{};
+
     void ComputeGlobalTransforms() noexcept;
     void ProcessEvents(float dt, const std::vector<AnimationEvent>& events, float previousTimer, float currentTimer, float currentDuration) noexcept;
 

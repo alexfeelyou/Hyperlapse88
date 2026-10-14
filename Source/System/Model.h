@@ -121,6 +121,14 @@ public:
 		DirectX::XMFLOAT3	scale = { 1, 1, 1 };
 	};
 
+	// Temporal sampling cache for O(1) monotonic frame advancement
+	struct TrackCursors
+	{
+		uint32_t pos{ 0 };
+		uint32_t rot{ 0 };
+		uint32_t scale{ 0 };
+	};
+
 	// アニメーション追加読み込み
 	void AppendAnimations(const char* filename);
 
@@ -159,8 +167,8 @@ public:
 	void UpdateTransform(const DirectX::XMFLOAT4X4& worldTransform);
 
 	// アニメーション計算
-	void ComputeAnimation(int animationIndex, int nodeIndex, float time, NodePose& nodePose) const;
-	void ComputeAnimation(int animationIndex, float time, std::vector<NodePose>& nodePoses) const;
+	void ComputeAnimation(int animationIndex, int nodeIndex, float time, NodePose& nodePose, TrackCursors* cursor = nullptr) const;
+	void ComputeAnimation(int animationIndex, float time, std::vector<NodePose>& nodePoses, TrackCursors* cursors = nullptr) const;
 
 	// ノードポーズ設定
 	void SetNodePoses(const std::vector<NodePose>& nodePoses);

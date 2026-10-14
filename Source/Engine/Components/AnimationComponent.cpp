@@ -18,6 +18,18 @@ namespace
         const std::size_t nodeCount{ (std::min)({ sourceA.size(), sourceB.size(), outResult.size() }) };
         const float safeWeight{ std::clamp(weight, 0.0f, 1.0f) };
 
+        // Boundary Fast Paths: Avoid SIMD Slerp and Lerp operations when fully committed to a single pose
+        if (safeWeight <= 0.0001f)
+        {
+            std::copy_n(sourceA.begin(), nodeCount, outResult.begin());
+            return;
+        }
+        if (safeWeight >= 0.9999f)
+        {
+            std::copy_n(sourceB.begin(), nodeCount, outResult.begin());
+            return;
+        }
+
         for (std::size_t i{ 0 }; i < nodeCount; ++i)
         {
             const DirectX::XMVECTOR s0{ DirectX::XMLoadFloat3(&sourceA[i].scale) };
@@ -130,6 +142,9 @@ void AnimationComponent::SetModel(std::shared_ptr<Model> model) noexcept
     m_scratchpad.bufferA.resize(nodeCount);
     m_scratchpad.bufferB.resize(nodeCount);
     m_scratchpad.result.resize(nodeCount);
+
+    m_cursorsA.assign(nodeCount, Model::TrackCursors{});
+    m_cursorsB.assign(nodeCount, Model::TrackCursors{});
 
     const auto& nodes{ m_model->GetNodes() };
     for (std::size_t i{ 0 }; i < nodeCount; ++i)
@@ -255,6 +270,10 @@ void AnimationComponent::PlayState(const std::size_t stateIndex, bool forceResta
     }
     m_currentPhase = 0.0f;
 
+    // Reset cursor caches upon state transition to ensure clean O(1) tracking
+    std::fill(m_cursorsA.begin(), m_cursorsA.end(), Model::TrackCursors{});
+    std::fill(m_cursorsB.begin(), m_cursorsB.end(), Model::TrackCursors{});
+
     if (activeBlendDuration > 0.001f)
     {
         m_isBlending = true;
@@ -306,6 +325,9 @@ void AnimationComponent::StopPreview() noexcept
     m_blendTimer = 0.0f;
     m_currentTimer = 0.0f;
     m_currentPhase = 0.0f;
+
+    std::fill(m_cursorsA.begin(), m_cursorsA.end(), Model::TrackCursors{});
+    std::fill(m_cursorsB.begin(), m_cursorsB.end(), Model::TrackCursors{});
 
     // Hard reset back to the default state (State 0) so the game starts cleanly
     if (!m_states.empty())
@@ -427,15 +449,15 @@ void AnimationComponent::Update(const float dt)
                 m_currentTimer = m_currentPhase * currentDuration;
                 ProcessEvents(evalDt, targetState.nodes[dominantNode].events, previousFrameTimer, m_currentTimer, currentDuration);
 
-                // Zero-latency direct pose evaluation using O(log K) binary search
+                // Zero-latency direct pose evaluation using O(1) amortized temporal cursor caching
                 if (nodeA == nodeB)
                 {
-                    m_model->ComputeAnimation(clipA, m_currentPhase * durationA, m_currentLocalPoses);
+                    m_model->ComputeAnimation(clipA, m_currentPhase * durationA, m_currentLocalPoses, m_cursorsA.data());
                 }
                 else
                 {
-                    m_model->ComputeAnimation(clipA, m_currentPhase * durationA, m_scratchpad.bufferA);
-                    m_model->ComputeAnimation(clipB, m_currentPhase * durationB, m_scratchpad.bufferB);
+                    m_model->ComputeAnimation(clipA, m_currentPhase * durationA, m_scratchpad.bufferA, m_cursorsA.data());
+                    m_model->ComputeAnimation(clipB, m_currentPhase * durationB, m_scratchpad.bufferB, m_cursorsB.data());
                     BlendPoses(m_scratchpad.bufferA, m_scratchpad.bufferB, t, m_currentLocalPoses);
                 }
 
@@ -508,10 +530,12 @@ void AnimationComponent::ComputeGlobalTransforms() noexcept
         const auto& node{ nodes[i] };
         const auto& pose{ m_blendedLocalPoses[i] };
 
-        const DirectX::XMMATRIX S{ DirectX::XMMatrixScaling(pose.scale.x, pose.scale.y, pose.scale.z) };
-        const DirectX::XMMATRIX R{ DirectX::XMMatrixRotationQuaternion(DirectX::XMLoadFloat4(&pose.rotation)) };
-        const DirectX::XMMATRIX T{ DirectX::XMMatrixTranslation(pose.position.x, pose.position.y, pose.position.z) };
-        const DirectX::XMMATRIX localTransform{ S * R * T };
+        // Direct single-pass affine matrix composition: S * R * T without intermediate matrix multiplies
+        DirectX::XMMATRIX localTransform{ DirectX::XMMatrixRotationQuaternion(DirectX::XMLoadFloat4(&pose.rotation)) };
+        localTransform.r[0] = DirectX::XMVectorMultiply(localTransform.r[0], DirectX::XMVectorReplicate(pose.scale.x));
+        localTransform.r[1] = DirectX::XMVectorMultiply(localTransform.r[1], DirectX::XMVectorReplicate(pose.scale.y));
+        localTransform.r[2] = DirectX::XMVectorMultiply(localTransform.r[2], DirectX::XMVectorReplicate(pose.scale.z));
+        localTransform.r[3] = DirectX::XMVectorSet(pose.position.x, pose.position.y, pose.position.z, 1.0f);
 
         if (node.parentIndex >= 0 && static_cast<std::size_t>(node.parentIndex) < i)
         {
@@ -600,13 +624,13 @@ void AnimationComponent::ScrubToTime(std::size_t stateIndex, float time) noexcep
 
                 if (nodeA == nodeB)
                 {
-                    m_model->ComputeAnimation(clipA, m_currentTimer, m_currentLocalPoses);
+                    m_model->ComputeAnimation(clipA, m_currentTimer, m_currentLocalPoses, m_cursorsA.data());
                 }
                 else
                 {
                     const float normPhase = m_currentTimer / currentDuration;
-                    m_model->ComputeAnimation(clipA, normPhase * durationA, m_scratchpad.bufferA);
-                    m_model->ComputeAnimation(clipB, normPhase * durationB, m_scratchpad.bufferB);
+                    m_model->ComputeAnimation(clipA, normPhase * durationA, m_scratchpad.bufferA, m_cursorsA.data());
+                    m_model->ComputeAnimation(clipB, normPhase * durationB, m_scratchpad.bufferB, m_cursorsB.data());
                     BlendPoses(m_scratchpad.bufferA, m_scratchpad.bufferB, t, m_currentLocalPoses);
                 }
 
@@ -646,11 +670,11 @@ void AnimationComponent::ScrubNodeToTime(std::size_t stateIndex, std::size_t nod
     const int clipIdx = state.nodes[nodeIndex].clipIndex;
     if (clipIdx >= 0 && static_cast<std::size_t>(clipIdx) < m_model->GetAnimations().size())
     {
-        // FIX: Keep the underlying phase accumulator in perfect sync with the scrubbed time!
+        // Keep the underlying phase accumulator in perfect sync with the scrubbed time
         const float duration = m_model->GetAnimations()[clipIdx].secondsLength;
         if (duration > 0.001f) m_currentPhase = m_currentTimer / duration;
 
-        m_model->ComputeAnimation(clipIdx, m_currentTimer, m_currentLocalPoses);
+        m_model->ComputeAnimation(clipIdx, m_currentTimer, m_currentLocalPoses, m_cursorsA.data());
     }
 
     const bool hasRootLock = state.nodes[nodeIndex].lockRootX ||
