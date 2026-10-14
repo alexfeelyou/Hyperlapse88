@@ -1,0 +1,1510 @@
+================================================ 
+FILE: ModelRenderer.cpp 
+PATH: System\ModelRenderer.cpp 
+================================================ 
+1:﻿#include <cstring>
+2:#include "ProfilerManager.h"
+3:#include "ModelRenderer.h"
+4:#include "StringHash.h"
+6:namespace
+7:{
+8:    struct CascadeFrustumPlanes
+9:    {
+10:        DirectX::XMFLOAT4 planes[5]{};
+11:    };
+13:    struct CameraFrustumPlanes
+14:    {
+15:        DirectX::XMFLOAT4 planes[6]{};
+16:    };
+18:    struct BoundingBox
+19:    {
+20:        DirectX::XMFLOAT3 center{ 0.0f, 0.0f, 0.0f };
+21:        DirectX::XMFLOAT3 extents{ 0.0f, 0.0f, 0.0f };
+22:    };
+24:    [[nodiscard]] CascadeFrustumPlanes ExtractCascadePlanes(const DirectX::XMFLOAT4X4& M) noexcept
+25:    {
+26:        CascadeFrustumPlanes cp{};
+27:        cp.planes[0] = { M._14 + M._11, M._24 + M._21, M._34 + M._31, M._44 + M._41 };
+28:        cp.planes[1] = { M._14 - M._11, M._24 - M._21, M._34 - M._31, M._44 - M._41 };
+29:        cp.planes[2] = { M._14 + M._12, M._24 + M._22, M._34 + M._32, M._44 + M._42 };
+30:        cp.planes[3] = { M._14 - M._12, M._24 - M._22, M._34 - M._32, M._44 - M._42 };
+31:        cp.planes[4] = { M._14 - M._13, M._24 - M._23, M._34 - M._33, M._44 - M._43 };
+33:        for (auto& p : cp.planes)
+34:        {
+35:            const float len{ std::sqrt(p.x * p.x + p.y * p.y + p.z * p.z) };
+36:            if (len > 0.00001f)
+37:            {
+38:                const float invLen{ 1.0f / len };
+39:                p.x *= invLen; p.y *= invLen; p.z *= invLen; p.w *= invLen;
+40:            }
+41:        }
+42:        return cp;
+43:    }
+45:    [[nodiscard]] CameraFrustumPlanes ExtractCameraFrustumPlanes(const DirectX::XMFLOAT4X4& M) noexcept
+46:    {
+47:        CameraFrustumPlanes cp{};
+48:        cp.planes[0] = { M._14 + M._11, M._24 + M._21, M._34 + M._31, M._44 + M._41 };
+49:        cp.planes[1] = { M._14 - M._11, M._24 - M._21, M._34 - M._31, M._44 - M._41 };
+50:        cp.planes[2] = { M._14 + M._12, M._24 + M._22, M._34 + M._32, M._44 + M._42 };
+51:        cp.planes[3] = { M._14 - M._12, M._24 - M._22, M._34 - M._32, M._44 - M._42 };
+52:        cp.planes[4] = { M._13,         M._23,         M._33,         M._43 };
+53:        cp.planes[5] = { M._14 - M._13, M._24 - M._23, M._34 - M._33, M._44 - M._43 };
+55:        for (auto& p : cp.planes)
+56:        {
+57:            const float len{ std::sqrt(p.x * p.x + p.y * p.y + p.z * p.z) };
+58:            if (len > 0.00001f)
+59:            {
+60:                const float invLen{ 1.0f / len };
+61:                p.x *= invLen; p.y *= invLen; p.z *= invLen; p.w *= invLen;
+62:            }
+63:        }
+64:        return cp;
+65:    }
+67:    // 256-bit AVX2 Structure of Arrays (SoA) Frustum Culler
+68:    // Evaluates 8 bounding volumes simultaneously across 8 AVX2 lanes (__m256) with zero branching
+69:    struct alignas(32) AvxPlane final
+70:    {
+71:        __m256 pX{};
+72:        __m256 pY{};
+73:        __m256 pZ{};
+74:        __m256 pW{};
+75:        __m256 absX{};
+76:        __m256 absY{};
+77:        __m256 absZ{};
+78:    };
+80:    struct alignas(32) AvxFrustum final
+81:    {
+82:        AvxPlane          planes[6]{};
+83:        DirectX::XMFLOAT4 rawPlanes[6]{};
+84:        DirectX::XMFLOAT3 absNormals[6]{};
+85:        std::size_t       planeCount{ 6 };
+87:        void Init(const DirectX::XMFLOAT4* inPlanes, std::size_t count) noexcept
+88:        {
+89:            planeCount = count;
+90:            for (std::size_t i{ 0 }; i < count && i < 6; ++i)
+91:            {
+92:                rawPlanes[i] = inPlanes[i];
+93:                absNormals[i] = { std::abs(inPlanes[i].x), std::abs(inPlanes[i].y), std::abs(inPlanes[i].z) };
+95:                planes[i].pX = _mm256_set1_ps(inPlanes[i].x);
+96:                planes[i].pY = _mm256_set1_ps(inPlanes[i].y);
+97:                planes[i].pZ = _mm256_set1_ps(inPlanes[i].z);
+98:                planes[i].pW = _mm256_set1_ps(inPlanes[i].w);
+99:                planes[i].absX = _mm256_set1_ps(absNormals[i].x);
+100:                planes[i].absY = _mm256_set1_ps(absNormals[i].y);
+101:                planes[i].absZ = _mm256_set1_ps(absNormals[i].z);
+102:            }
+103:        }
+105:        // 8-Way AVX2 Parallel Frustum Culling
+106:        // Returns an 8-bit mask where bit `lane` is 1 if visible, 0 if culled
+107:        [[nodiscard]] inline uint32_t Cull8AABB(
+108:            __m256 cX, __m256 cY, __m256 cZ,
+109:            __m256 eX, __m256 eY, __m256 eZ) const noexcept
+110:        {
+111:            __m256 anyPlaneCulled{ _mm256_setzero_ps() };
+113:            for (std::size_t i{ 0 }; i < planeCount; ++i)
+114:            {
+115:                const __m256 dot{ _mm256_add_ps(
+116:                    _mm256_mul_ps(planes[i].pX, cX),
+117:                    _mm256_add_ps(_mm256_mul_ps(planes[i].pY, cY), _mm256_mul_ps(planes[i].pZ, cZ))) };
+118:                const __m256 dist{ _mm256_add_ps(planes[i].pW, dot) };
+119:                const __m256 rEff{ _mm256_add_ps(
+120:                    _mm256_mul_ps(planes[i].absX, eX),
+121:                    _mm256_add_ps(_mm256_mul_ps(planes[i].absY, eY), _mm256_mul_ps(planes[i].absZ, eZ))) };
+123:                const __m256 isCulled{ _mm256_cmp_ps(_mm256_add_ps(dist, rEff), _mm256_setzero_ps(), _CMP_LT_OQ) };
+124:                anyPlaneCulled = _mm256_or_ps(anyPlaneCulled, isCulled);
+125:            }
+127:            const uint32_t culledMask{ static_cast<uint32_t>(_mm256_movemask_ps(anyPlaneCulled)) };
+128:            return (~culledMask) & 0xFFu;
+129:        }
+131:        // Single AABB evaluation for dynamic shadow receiver rays
+132:        [[nodiscard]] inline bool IsVisibleAABB(const DirectX::XMFLOAT3& c, const DirectX::XMFLOAT3& e) const noexcept
+133:        {
+134:            for (std::size_t i{ 0 }; i < planeCount; ++i)
+135:            {
+136:                const float dist{ rawPlanes[i].w + rawPlanes[i].x * c.x + rawPlanes[i].y * c.y + rawPlanes[i].z * c.z };
+137:                const float rEff{ absNormals[i].x * e.x + absNormals[i].y * e.y + absNormals[i].z * e.z };
+138:                if (dist + rEff < 0.0f)
+139:                {
+140:                    return false;
+141:                }
+142:            }
+143:            return true;
+144:        }
+145:    };
+147:    // Computes tight transformed World-space AABB for static geometry (Arvo's method) or dynamic bone hierarchies
+148:    [[nodiscard]] BoundingBox CalculateMeshAABB(
+149:        const Model::Mesh& mesh,
+150:        bool useManualMatrix,
+151:        const DirectX::XMFLOAT4X4& manualMatrix,
+152:        const std::vector<DirectX::XMFLOAT4X4>* currentNodeGlobals) noexcept
+153:    {
+154:        const DirectX::XMMATRIX manualWorldMat{ DirectX::XMLoadFloat4x4(&manualMatrix) };
+156:        // Skinned mesh with active bones: evaluate dynamic bounds around all animated joints
+157:        if (!mesh.bones.empty())
+158:        {
+159:            DirectX::XMFLOAT3 minB{ FLT_MAX, FLT_MAX, FLT_MAX };
+160:            DirectX::XMFLOAT3 maxB{ -FLT_MAX, -FLT_MAX, -FLT_MAX };
+161:            bool hasValidBone{ false };
+163:            for (const auto& bone : mesh.bones)
+164:            {
+165:                DirectX::XMMATRIX nodeGlobalMat;
+166:                if (currentNodeGlobals && bone.nodeIndex >= 0 && static_cast<std::size_t>(bone.nodeIndex) < currentNodeGlobals->size())
+167:                {
+168:                    nodeGlobalMat = DirectX::XMLoadFloat4x4(&(*currentNodeGlobals)[bone.nodeIndex]);
+169:                }
+170:                else
+171:                {
+172:                    nodeGlobalMat = DirectX::XMLoadFloat4x4(&bone.node->globalTransform);
+173:                }
+175:                const DirectX::XMMATRIX boneWorld{ useManualMatrix
+176:                    ? (nodeGlobalMat * manualWorldMat)
+177:                    : DirectX::XMLoadFloat4x4(&bone.node->worldTransform) };
+179:                DirectX::XMFLOAT4X4 bw{};
+180:                DirectX::XMStoreFloat4x4(&bw, boneWorld);
+182:                minB.x = (std::min)(minB.x, bw._41);
+183:                minB.y = (std::min)(minB.y, bw._42);
+184:                minB.z = (std::min)(minB.z, bw._43);
+186:                maxB.x = (std::max)(maxB.x, bw._41);
+187:                maxB.y = (std::max)(maxB.y, bw._42);
+188:                maxB.z = (std::max)(maxB.z, bw._43);
+189:                hasValidBone = true;
+190:            }
+192:            if (hasValidBone && minB.x <= maxB.x)
+193:            {
+194:                // Scale padding by instance transform scale
+195:                const float scaleX{ DirectX::XMVectorGetX(DirectX::XMVector3Length(manualWorldMat.r[0])) };
+196:                const float scaleY{ DirectX::XMVectorGetX(DirectX::XMVector3Length(manualWorldMat.r[1])) };
+197:                const float scaleZ{ DirectX::XMVectorGetX(DirectX::XMVector3Length(manualWorldMat.r[2])) };
+198:                const float maxScale{ (std::max)({ scaleX, scaleY, scaleZ }) };
+200:                // Padding encapsulates skin surface, hair, and footwear extending beyond bone joints
+201:                const float padding{ (std::max)(0.6f, mesh.boundsRadius * 0.35f) * (maxScale > 0.0001f ? maxScale : 1.0f) };
+203:                minB.x -= padding; maxB.x += padding;
+204:                minB.y -= padding; maxB.y += padding;
+205:                minB.z -= padding; maxB.z += padding;
+207:                return {
+208:                    { (minB.x + maxB.x) * 0.5f, (minB.y + maxB.y) * 0.5f, (minB.z + maxB.z) * 0.5f },
+209:                    { (maxB.x - minB.x) * 0.5f, (maxB.y - minB.y) * 0.5f, (maxB.z - minB.z) * 0.5f }
+210:                };
+211:            }
+212:        }
+214:        // Static or unskinned mesh path: respect animated parent node if present
+215:        DirectX::XMMATRIX mWorld{};
+216:        if (useManualMatrix)
+217:        {
+218:            DirectX::XMMATRIX nodeGlobalMat;
+219:            if (currentNodeGlobals && mesh.nodeIndex >= 0 && static_cast<std::size_t>(mesh.nodeIndex) < currentNodeGlobals->size())
+220:            {
+221:                nodeGlobalMat = DirectX::XMLoadFloat4x4(&(*currentNodeGlobals)[mesh.nodeIndex]);
+222:            }
+223:            else
+224:            {
+225:                nodeGlobalMat = DirectX::XMLoadFloat4x4(&mesh.node->globalTransform);
+226:            }
+227:            mWorld = nodeGlobalMat * manualWorldMat;
+228:        }
+229:        else
+230:        {
+231:            mWorld = DirectX::XMLoadFloat4x4(&mesh.node->worldTransform);
+232:        }
+234:        const DirectX::XMVECTOR vCenter{ DirectX::XMLoadFloat3(&mesh.boundsCenter) };
+235:        DirectX::XMFLOAT3 worldCenter{};
+236:        DirectX::XMStoreFloat3(&worldCenter, DirectX::XMVector3TransformCoord(vCenter, mWorld));
+238:        DirectX::XMFLOAT3 localExtents{ mesh.boundsExtents };
+239:        if (localExtents.x <= 0.0001f && localExtents.y <= 0.0001f && localExtents.z <= 0.0001f)
+240:        {
+241:            const float r{ mesh.boundsRadius > 0.0f ? mesh.boundsRadius : 1.0f };
+242:            localExtents = { r, r, r };
+243:        }
+245:        DirectX::XMFLOAT4X4 M{};
+246:        DirectX::XMStoreFloat4x4(&M, mWorld);
+248:        const float worldExtentX{ std::abs(M._11) * localExtents.x + std::abs(M._21) * localExtents.y + std::abs(M._31) * localExtents.z };
+249:        const float worldExtentY{ std::abs(M._12) * localExtents.x + std::abs(M._22) * localExtents.y + std::abs(M._32) * localExtents.z };
+250:        const float worldExtentZ{ std::abs(M._13) * localExtents.x + std::abs(M._23) * localExtents.y + std::abs(M._33) * localExtents.z };
+252:        return { worldCenter, { worldExtentX, worldExtentY, worldExtentZ } };
+253:    }
+255:    // Hashes only the properties consumed by the active main pass shader
+256:    [[nodiscard]] uint16_t HashMaterial(const Material* mat) noexcept
+257:    {
+258:        if (!mat) return 0;
+260:        // 16-byte aligned payload capturing surface parameters
+261:        struct alignas(16) MaterialKeyData
+262:        {
+263:            void* baseMap{ nullptr };
+264:            void* normalMap{ nullptr };
+265:            void* emissiveMap{ nullptr };
+266:            void* occlusionMap{ nullptr };
+267:            void* metalnessRoughnessMap{ nullptr };
+268:            DirectX::XMFLOAT3 emissiveColor{ 0.0f, 0.0f, 0.0f };
+269:            float roughness{ 0.5f };
+270:            float metalness{ 0.0f };
+271:            float occlusionStrength{ 1.0f };
+272:            float alphaCutoff{ 0.5f };
+273:            int alphaMode{ 0 };
+274:        };
+276:        // Value-initialization guarantees all internal padding bytes are zeroed
+277:        MaterialKeyData data{};
+279:        // Common to all forward surface shaders (baseColor streamed per-instance in Slot 1)
+280:        data.baseMap = mat->baseMap.Get();
+281:        data.alphaCutoff = mat->alphaCutoff;
+282:        data.alphaMode = static_cast<int>(mat->alphaMode);
+284:        // Scope hashing strictly to properties evaluated by the active shader permutation
+285:        switch (static_cast<ShaderId>(mat->shaderId))
+286:        {
+287:        case ShaderId::Basic:
+288:            // Basic shader ignores lighting, normal mapping, PBR maps, and outlines
+289:            break;
+291:        case ShaderId::Lambert:
+292:            data.emissiveColor = mat->emissiveColor;
+293:            break;
+295:        case ShaderId::Phong:
+296:            data.normalMap = mat->normalMap.Get();
+297:            data.emissiveColor = mat->emissiveColor;
+298:            data.roughness = mat->roughness;
+299:            break;
+301:        case ShaderId::Pbr:
+302:            data.normalMap = mat->normalMap.Get();
+303:            data.emissiveMap = mat->emissiveMap.Get();
+304:            data.occlusionMap = mat->occlusionMap.Get();
+305:            data.metalnessRoughnessMap = mat->metalnessRoughnessMap.Get();
+306:            data.emissiveColor = mat->emissiveColor;
+307:            data.roughness = mat->roughness;
+308:            data.metalness = mat->metalness;
+309:            data.occlusionStrength = mat->occlusionStrength;
+310:            break;
+312:        case ShaderId::Toon:
+313:            // Surface pass only evaluates diffuse, emissive, and stepped specular
+314:            data.emissiveColor = mat->emissiveColor;
+315:            data.roughness = mat->roughness;
+316:            break;
+318:        default:
+319:            break;
+320:        }
+322:        const std::uint64_t hash{ Core::BufferHash(&data, sizeof(MaterialKeyData)) };
+323:        return static_cast<uint16_t>(hash ^ (hash >> 16) ^ (hash >> 32) ^ (hash >> 48));
+324:    }
+326:    // Hashes only the parameters consumed by OutlineShader
+327:    [[nodiscard]] uint16_t HashOutlineMaterial(const Material* mat) noexcept
+328:    {
+329:        if (!mat) return 0;
+331:        struct alignas(16) OutlineKeyData
+332:        {
+333:            void* baseMap{ nullptr };
+334:            DirectX::XMFLOAT4 outlineColor{ 0.0f, 0.0f, 0.0f, 1.0f };
+335:            float outlineWidth{ 0.0f };
+336:            float outlineFadeStart{ 0.0f };
+337:            float outlineFadeEnd{ 0.0f };
+338:            float alphaCutoff{ 0.5f };
+339:            int alphaMode{ 0 };
+340:            float padding[3]{ 0.0f, 0.0f, 0.0f };
+341:        };
+343:        OutlineKeyData data{};
+344:        data.baseMap = mat->baseMap.Get();
+345:        data.outlineColor = mat->outlineColor;
+346:        data.outlineWidth = mat->outlineWidth;
+347:        data.outlineFadeStart = mat->outlineFadeStart;
+348:        data.outlineFadeEnd = mat->outlineFadeEnd;
+349:        data.alphaCutoff = mat->alphaCutoff;
+350:        data.alphaMode = static_cast<int>(mat->alphaMode);
+352:        const std::uint64_t hash{ Core::BufferHash(&data, sizeof(OutlineKeyData)) };
+353:        return static_cast<uint16_t>(hash ^ (hash >> 16) ^ (hash >> 32) ^ (hash >> 48));
+354:    }
+356:    // Evaluates semantic property equality across active forward shader parameters
+357:    [[nodiscard]] bool AreMaterialsEquivalent(const Material* a, const Material* b, ShaderId shaderId) noexcept
+358:    {
+359:        if (a == b) return true;
+360:        if (!a || !b) return false;
+361:        if (a->baseMap.Get() != b->baseMap.Get()) return false;
+362:        if (a->alphaMode != b->alphaMode || a->alphaCutoff != b->alphaCutoff) return false;
+364:        switch (shaderId)
+365:        {
+366:        case ShaderId::Basic:
+367:            return true;
+369:        case ShaderId::Lambert:
+370:            return (a->emissiveColor.x == b->emissiveColor.x &&
+371:                a->emissiveColor.y == b->emissiveColor.y &&
+372:                a->emissiveColor.z == b->emissiveColor.z);
+374:        case ShaderId::Phong:
+375:            return (a->normalMap.Get() == b->normalMap.Get() &&
+376:                a->roughness == b->roughness &&
+377:                a->emissiveColor.x == b->emissiveColor.x &&
+378:                a->emissiveColor.y == b->emissiveColor.y &&
+379:                a->emissiveColor.z == b->emissiveColor.z);
+381:        case ShaderId::Pbr:
+382:            return (a->normalMap.Get() == b->normalMap.Get() &&
+383:                a->metalnessRoughnessMap.Get() == b->metalnessRoughnessMap.Get() &&
+384:                a->emissiveMap.Get() == b->emissiveMap.Get() &&
+385:                a->occlusionMap.Get() == b->occlusionMap.Get() &&
+386:                a->roughness == b->roughness &&
+387:                a->metalness == b->metalness &&
+388:                a->occlusionStrength == b->occlusionStrength &&
+389:                a->emissiveColor.x == b->emissiveColor.x &&
+390:                a->emissiveColor.y == b->emissiveColor.y &&
+391:                a->emissiveColor.z == b->emissiveColor.z);
+393:        case ShaderId::Toon:
+394:            return (a->roughness == b->roughness &&
+395:                a->emissiveColor.x == b->emissiveColor.x &&
+396:                a->emissiveColor.y == b->emissiveColor.y &&
+397:                a->emissiveColor.z == b->emissiveColor.z);
+399:        default:
+400:            return false;
+401:        }
+402:    }
+404:    // Evaluates semantic property equality strictly for outline parameters
+405:    [[nodiscard]] bool AreOutlineMaterialsEquivalent(const Material* a, const Material* b) noexcept
+406:    {
+407:        if (a == b) return true;
+408:        if (!a || !b) return false;
+409:        return (a->baseMap.Get() == b->baseMap.Get() &&
+410:            a->outlineColor.x == b->outlineColor.x &&
+411:            a->outlineColor.y == b->outlineColor.y &&
+412:            a->outlineColor.z == b->outlineColor.z &&
+413:            a->outlineColor.w == b->outlineColor.w &&
+414:            a->outlineWidth == b->outlineWidth &&
+415:            a->outlineFadeStart == b->outlineFadeStart &&
+416:            a->outlineFadeEnd == b->outlineFadeEnd &&
+417:            a->alphaMode == b->alphaMode &&
+418:            a->alphaCutoff == b->alphaCutoff);
+419:    }
+421:    // Compares joint indices and inverse bind matrices to confirm two meshes share identical bone layouts
+422:    [[nodiscard]] inline bool AreBonePalettesEqual(
+423:        const std::vector<Model::Bone>& a,
+424:        const std::vector<Model::Bone>& b) noexcept
+425:    {
+426:        if (&a == &b) return true;
+427:        if (a.size() != b.size()) return false;
+428:        if (a.empty()) return true;
+430:        for (std::size_t i{ 0 }; i < a.size(); ++i)
+431:        {
+432:            if (a[i].nodeIndex != b[i].nodeIndex) return false;
+433:            if (std::memcmp(&a[i].offsetTransform, &b[i].offsetTransform, sizeof(DirectX::XMFLOAT4X4)) != 0)
+434:            {
+435:                return false;
+436:            }
+437:        }
+438:        return true;
+439:    }
+440:}
+442:void ModelRenderer::SoftwareOcclusionBuffer::Clear() noexcept
+443:{
+444:    std::fill_n(depthBuffer, kTotalPixels, 1.0f);
+445:}
+447:bool ModelRenderer::SoftwareOcclusionBuffer::ProjectPoint(
+448:    const DirectX::XMFLOAT3& worldPos,
+449:    const DirectX::XMFLOAT4X4& viewProj,
+450:    float& outX, float& outY, float& outZ) noexcept
+451:{
+452:    const float w{ worldPos.x * viewProj._14 + worldPos.y * viewProj._24 + worldPos.z * viewProj._34 + viewProj._44 };
+453:    if (w <= 0.001f) return false;
+455:    const float invW{ 1.0f / w };
+456:    const float ndcX{ (worldPos.x * viewProj._11 + worldPos.y * viewProj._21 + worldPos.z * viewProj._31 + viewProj._41) * invW };
+457:    const float ndcY{ (worldPos.x * viewProj._12 + worldPos.y * viewProj._22 + worldPos.z * viewProj._32 + viewProj._42) * invW };
+458:    const float ndcZ{ (worldPos.x * viewProj._13 + worldPos.y * viewProj._23 + worldPos.z * viewProj._33 + viewProj._43) * invW };
+460:    outX = (ndcX * 0.5f + 0.5f) * static_cast<float>(kWidth - 1);
+461:    outY = (-ndcY * 0.5f + 0.5f) * static_cast<float>(kHeight - 1);
+462:    outZ = ndcZ;
+463:    return true;
+464:}
+466:void ModelRenderer::SoftwareOcclusionBuffer::RasterizeTriangle(
+467:    float x0, float y0, float z0,
+468:    float x1, float y1, float z1,
+469:    float x2, float y2, float z2) noexcept
+470:{
+471:    float area{ (x1 - x0) * (y2 - y0) - (y1 - y0) * (x2 - x0) };
+472:    if (std::abs(area) < 0.0001f)
+473:    {
+474:        return;
+475:    }
+477:    // Two-sided support for walls: ensure consistent clockwise rasterization winding
+478:    if (area < 0.0f)
+479:    {
+480:        std::swap(x1, x2);
+481:        std::swap(y1, y2);
+482:        std::swap(z1, z2);
+483:        area = -area;
+484:    }
+486:    int minX{ static_cast<int>(std::floor((std::min)({ x0, x1, x2 }))) };
+487:    int maxX{ static_cast<int>(std::ceil((std::max)({ x0, x1, x2 }))) };
+488:    int minY{ static_cast<int>(std::floor((std::min)({ y0, y1, y2 }))) };
+489:    int maxY{ static_cast<int>(std::ceil((std::max)({ y0, y1, y2 }))) };
+491:    minX = std::clamp(minX, 0, kWidth - 1);
+492:    maxX = std::clamp(maxX, 0, kWidth - 1);
+493:    minY = std::clamp(minY, 0, kHeight - 1);
+494:    maxY = std::clamp(maxY, 0, kHeight - 1);
+496:    if (minX > maxX || minY > maxY) return;
+498:    const float invArea{ 1.0f / area };
+500:    for (int y{ minY }; y <= maxY; ++y)
+501:    {
+502:        const float py{ static_cast<float>(y) + 0.5f };
+503:        const int rowOffset{ y * kWidth };
+505:        for (int x{ minX }; x <= maxX; ++x)
+506:        {
+507:            const float px{ static_cast<float>(x) + 0.5f };
+508:            const float w0{ ((x1 - px) * (y2 - py) - (y1 - py) * (x2 - px)) * invArea };
+509:            const float w1{ ((x2 - px) * (y0 - py) - (y2 - py) * (x0 - px)) * invArea };
+510:            const float w2{ 1.0f - w0 - w1 };
+512:            if (w0 >= 0.0f && w1 >= 0.0f && w2 >= 0.0f)
+513:            {
+514:                const float depth{ w0 * z0 + w1 * z1 + w2 * z2 };
+515:                const int idx{ rowOffset + x };
+516:                if (depth < depthBuffer[idx])
+517:                {
+518:                    depthBuffer[idx] = depth;
+519:                }
+520:            }
+521:        }
+522:    }
+523:}
+525:void ModelRenderer::SoftwareOcclusionBuffer::ClipAndRasterizeTriangle(
+526:    const ClipVertex& v0,
+527:    const ClipVertex& v1,
+528:    const ClipVertex& v2) noexcept
+529:{
+530:    constexpr float kNearW{ 0.05f };
+532:    auto projectAndDraw = [this](const ClipVertex& a, const ClipVertex& b, const ClipVertex& c) noexcept
+533:        {
+534:            const float invWa{ 1.0f / a.w };
+535:            const float invWb{ 1.0f / b.w };
+536:            const float invWc{ 1.0f / c.w };
+538:            const float sx0{ (a.x * invWa * 0.5f + 0.5f) * static_cast<float>(kWidth - 1) };
+539:            const float sy0{ (-a.y * invWa * 0.5f + 0.5f) * static_cast<float>(kHeight - 1) };
+540:            const float sz0{ a.z * invWa };
+542:            const float sx1{ (b.x * invWb * 0.5f + 0.5f) * static_cast<float>(kWidth - 1) };
+543:            const float sy1{ (-b.y * invWb * 0.5f + 0.5f) * static_cast<float>(kHeight - 1) };
+544:            const float sz1{ b.z * invWb };
+546:            const float sx2{ (c.x * invWc * 0.5f + 0.5f) * static_cast<float>(kWidth - 1) };
+547:            const float sy2{ (-c.y * invWc * 0.5f + 0.5f) * static_cast<float>(kHeight - 1) };
+548:            const float sz2{ c.z * invWc };
+550:            RasterizeTriangle(sx0, sy0, sz0, sx1, sy1, sz1, sx2, sy2, sz2);
+551:        };
+553:    auto lerpVertex = [](const ClipVertex& a, const ClipVertex& b, float t) noexcept -> ClipVertex
+554:        {
+555:            return {
+556:                a.x + t * (b.x - a.x),
+557:                a.y + t * (b.y - a.y),
+558:                a.z + t * (b.z - a.z),
+559:                a.w + t * (b.w - a.w)
+560:            };
+561:        };
+563:    const bool in0{ v0.w >= kNearW };
+564:    const bool in1{ v1.w >= kNearW };
+565:    const bool in2{ v2.w >= kNearW };
+566:    const int inCount{ (in0 ? 1 : 0) + (in1 ? 1 : 0) + (in2 ? 1 : 0) };
+568:    if (inCount == 3)
+569:    {
+570:        projectAndDraw(v0, v1, v2);
+571:    }
+572:    else if (inCount == 1)
+573:    {
+574:        if (in0)
+575:        {
+576:            const float t1{ (kNearW - v0.w) / (v1.w - v0.w) };
+577:            const float t2{ (kNearW - v0.w) / (v2.w - v0.w) };
+578:            projectAndDraw(v0, lerpVertex(v0, v1, t1), lerpVertex(v0, v2, t2));
+579:        }
+580:        else if (in1)
+581:        {
+582:            const float t0{ (kNearW - v1.w) / (v0.w - v1.w) };
+583:            const float t2{ (kNearW - v1.w) / (v2.w - v1.w) };
+584:            projectAndDraw(lerpVertex(v1, v0, t0), v1, lerpVertex(v1, v2, t2));
+585:        }
+586:        else
+587:        {
+588:            const float t0{ (kNearW - v2.w) / (v0.w - v2.w) };
+589:            const float t1{ (kNearW - v2.w) / (v1.w - v2.w) };
+590:            projectAndDraw(lerpVertex(v2, v0, t0), lerpVertex(v2, v1, t1), v2);
+591:        }
+592:    }
+593:    else if (inCount == 2)
+594:    {
+595:        if (!in0)
+596:        {
+597:            const float t1{ (kNearW - v0.w) / (v1.w - v0.w) };
+598:            const float t2{ (kNearW - v0.w) / (v2.w - v0.w) };
+599:            const ClipVertex v01{ lerpVertex(v0, v1, t1) };
+600:            const ClipVertex v02{ lerpVertex(v0, v2, t2) };
+601:            projectAndDraw(v01, v1, v2);
+602:            projectAndDraw(v01, v2, v02);
+603:        }
+604:        else if (!in1)
+605:        {
+606:            const float t0{ (kNearW - v1.w) / (v0.w - v1.w) };
+607:            const float t2{ (kNearW - v1.w) / (v2.w - v1.w) };
+608:            const ClipVertex v10{ lerpVertex(v1, v0, t0) };
+609:            const ClipVertex v12{ lerpVertex(v1, v2, t2) };
+610:            projectAndDraw(v0, v10, v2);
+611:            projectAndDraw(v10, v12, v2);
+612:        }
+613:        else
+614:        {
+615:            const float t0{ (kNearW - v2.w) / (v0.w - v2.w) };
+616:            const float t1{ (kNearW - v2.w) / (v1.w - v2.w) };
+617:            const ClipVertex v20{ lerpVertex(v2, v0, t0) };
+618:            const ClipVertex v21{ lerpVertex(v2, v1, t1) };
+619:            projectAndDraw(v0, v1, v21);
+620:            projectAndDraw(v0, v21, v20);
+621:        }
+622:    }
+623:}
+625:void ModelRenderer::SoftwareOcclusionBuffer::RasterizeOccluderMesh(
+626:    const Model::Mesh& mesh,
+627:    const DirectX::XMFLOAT4X4& worldMatrix,
+628:    const DirectX::XMFLOAT4X4& viewProj) noexcept
+629:{
+630:    if (mesh.vertices.empty() || mesh.indices.empty()) return;
+632:    const DirectX::XMMATRIX W{ DirectX::XMLoadFloat4x4(&worldMatrix) };
+633:    const DirectX::XMMATRIX VP{ DirectX::XMLoadFloat4x4(&viewProj) };
+634:    const DirectX::XMMATRIX WVP{ W * VP };
+635:    DirectX::XMFLOAT4X4 M{};
+636:    DirectX::XMStoreFloat4x4(&M, WVP);
+638:    const std::size_t indexCount{ mesh.indices.size() };
+639:    for (std::size_t i{ 0 }; i + 2 < indexCount; i += 3)
+640:    {
+641:        const auto& p0{ mesh.vertices[mesh.indices[i]].position };
+642:        const auto& p1{ mesh.vertices[mesh.indices[i + 1]].position };
+643:        const auto& p2{ mesh.vertices[mesh.indices[i + 2]].position };
+645:        const ClipVertex v0{
+646:            p0.x * M._11 + p0.y * M._21 + p0.z * M._31 + M._41,
+647:            p0.x * M._12 + p0.y * M._22 + p0.z * M._32 + M._42,
+648:            p0.x * M._13 + p0.y * M._23 + p0.z * M._33 + M._43,
+649:            p0.x * M._14 + p0.y * M._24 + p0.z * M._34 + M._44
+650:        };
+652:        const ClipVertex v1{
+653:            p1.x * M._11 + p1.y * M._21 + p1.z * M._31 + M._41,
+654:            p1.x * M._12 + p1.y * M._22 + p1.z * M._32 + M._42,
+655:            p1.x * M._13 + p1.y * M._23 + p1.z * M._33 + M._43,
+656:            p1.x * M._14 + p1.y * M._24 + p1.z * M._34 + M._44
+657:        };
+659:        const ClipVertex v2{
+660:            p2.x * M._11 + p2.y * M._21 + p2.z * M._31 + M._41,
+661:            p2.x * M._12 + p2.y * M._22 + p2.z * M._32 + M._42,
+662:            p2.x * M._13 + p2.y * M._23 + p2.z * M._33 + M._43,
+663:            p2.x * M._14 + p2.y * M._24 + p2.z * M._34 + M._44
+664:        };
+666:        ClipAndRasterizeTriangle(v0, v1, v2);
+667:    }
+668:}
+670:bool ModelRenderer::SoftwareOcclusionBuffer::IsOccluded(
+671:    const DirectX::XMFLOAT3& center,
+672:    const DirectX::XMFLOAT3& extents,
+673:    const DirectX::XMFLOAT4X4& viewProj) const noexcept
+674:{
+675:    const DirectX::XMFLOAT3 corners[8]{
+676:        { center.x - extents.x, center.y - extents.y, center.z - extents.z },
+677:        { center.x + extents.x, center.y - extents.y, center.z - extents.z },
+678:        { center.x + extents.x, center.y + extents.y, center.z - extents.z },
+679:        { center.x - extents.x, center.y + extents.y, center.z - extents.z },
+680:        { center.x - extents.x, center.y - extents.y, center.z + extents.z },
+681:        { center.x + extents.x, center.y - extents.y, center.z + extents.z },
+682:        { center.x + extents.x, center.y + extents.y, center.z + extents.z },
+683:        { center.x - extents.x, center.y + extents.y, center.z + extents.z }
+684:    };
+686:    float minX{ 1e9f }, maxX{ -1e9f };
+687:    float minY{ 1e9f }, maxY{ -1e9f };
+688:    float minZ{ 1e9f };
+690:    for (int i{ 0 }; i < 8; ++i)
+691:    {
+692:        float sx{ 0.0f }, sy{ 0.0f }, sz{ 0.0f };
+693:        if (!ProjectPoint(corners[i], viewProj, sx, sy, sz))
+694:        {
+695:            return false;
+696:        }
+698:        minX = (std::min)(minX, sx);
+699:        maxX = (std::max)(maxX, sx);
+700:        minY = (std::min)(minY, sy);
+701:        maxY = (std::max)(maxY, sy);
+702:        minZ = (std::min)(minZ, sz);
+703:    }
+705:    int startX{ std::clamp(static_cast<int>(std::floor(minX)), 0, kWidth - 1) };
+706:    int endX{ std::clamp(static_cast<int>(std::ceil(maxX)), 0, kWidth - 1) };
+707:    int startY{ std::clamp(static_cast<int>(std::floor(minY)), 0, kHeight - 1) };
+708:    int endY{ std::clamp(static_cast<int>(std::ceil(maxY)), 0, kHeight - 1) };
+710:    if (startX > endX || startY > endY) return false;
+712:    // Strict conservative test: every pixel in the footprint must have occluder depth closer than the occludee's nearest depth
+713:    for (int y{ startY }; y <= endY; ++y)
+714:    {
+715:        const int rowOffset{ y * kWidth };
+716:        for (int x{ startX }; x <= endX; ++x)
+717:        {
+718:            if (depthBuffer[rowOffset + x] >= minZ)
+719:            {
+720:                return false;
+721:            }
+722:        }
+723:    }
+725:    return true;
+726:}
+728:ModelRenderer::ModelRenderer(ID3D11Device* device)
+729:{
+730:    GpuResourceUtils::CreateConstantBuffer(device, sizeof(CbScene), sceneConstantBuffer.GetAddressOf());
+732:    D3D11_BUFFER_DESC idesc{};
+733:    idesc.ByteWidth = sizeof(InstanceData) * static_cast<UINT>(m_instanceCapacity);
+734:    idesc.Usage = D3D11_USAGE_DYNAMIC;
+735:    idesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+736:    idesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+737:    device->CreateBuffer(&idesc, nullptr, m_instanceBuffer.GetAddressOf());
+739:    drawInfos.reserve(2000);
+740:    m_skeletonPool.reserve(16);
+742:    shaders[static_cast<int>(ShaderId::Basic)] = std::make_unique<BasicShader>(device);
+743:    shaders[static_cast<int>(ShaderId::Lambert)] = std::make_unique<LambertShader>(device);
+744:    shaders[static_cast<int>(ShaderId::Phong)] = std::make_unique<PhongShader>(device);
+745:    shaders[static_cast<int>(ShaderId::Pbr)] = std::make_unique<PbrShader>(device);
+746:    shaders[static_cast<int>(ShaderId::Toon)] = std::make_unique<ToonShader>(device);
+748:    m_outlineShader = std::make_unique<OutlineShader>(device);
+749:    m_shadowCasterShader = std::make_unique<ShadowCasterShader>(device);
+750:    m_velocityShader = std::make_unique<VelocityShader>(device);
+751:}
+753:std::size_t ModelRenderer::AcquireSkeletonSlot(ID3D11Device* device)
+754:{
+755:    const std::size_t index{ m_skeletonPoolUsed++ };
+756:    if (index >= m_skeletonPool.size())
+757:    {
+758:        // Grows only the first time this many simultaneous meshes-with-transforms are drawn
+759:        // in one frame. Every subsequent frame at or below that count allocates nothing.
+760:        SkeletonSlot slot{};
+761:        GpuResourceUtils::CreateConstantBuffer(device, sizeof(CbSkeleton), slot.currentBuffer.GetAddressOf());
+762:        GpuResourceUtils::CreateConstantBuffer(device, sizeof(CbSkeleton), slot.previousBuffer.GetAddressOf());
+763:        m_skeletonPool.push_back(std::move(slot));
+764:    }
+765:    return index;
+766:}
+768:void ModelRenderer::ComputeAndUploadSkeleton(
+769:    ID3D11DeviceContext* dc, std::size_t slotIndex, const Model::Mesh& mesh, bool useManual,
+770:    bool needsPrevious,
+771:    const DirectX::XMFLOAT4X4& worldMatrix, const DirectX::XMFLOAT4X4& previousWorldMatrix,
+772:    const std::vector<DirectX::XMFLOAT4X4>* currentNodeGlobals,
+773:    const std::vector<DirectX::XMFLOAT4X4>* previousNodeGlobals)
+774:{
+775:    // Bypass buffer writes entirely if this slot is the shared global identity slot
+776:    if (slotIndex == m_identitySkeletonSlot) return;
+778:    SkeletonSlot& slot{ m_skeletonPool[slotIndex] };
+780:    CbSkeleton cbCurrent{};
+781:    CbSkeleton cbPrevious{}; // only populated and uploaded when needsPrevious is true
+783:    const DirectX::XMMATRIX manualWorldMat{ DirectX::XMLoadFloat4x4(&worldMatrix) };
+784:    const DirectX::XMMATRIX previousManualWorldMat{ DirectX::XMLoadFloat4x4(&previousWorldMatrix) };
+786:    if (!mesh.bones.empty())
+787:    {
+788:        for (std::size_t i{ 0 }; i < mesh.bones.size(); ++i)
+789:        {
+790:            const Model::Bone& bone{ mesh.bones[i] };
+792:            DirectX::XMMATRIX nodeGlobalMat;
+793:            if (currentNodeGlobals && bone.nodeIndex >= 0 && static_cast<std::size_t>(bone.nodeIndex) < currentNodeGlobals->size())
+794:            {
+795:                nodeGlobalMat = DirectX::XMLoadFloat4x4(&(*currentNodeGlobals)[bone.nodeIndex]);
+796:            }
+797:            else
+798:            {
+799:                nodeGlobalMat = DirectX::XMLoadFloat4x4(&bone.node->globalTransform);
+800:            }
+802:            const DirectX::XMMATRIX offsetTransform{ DirectX::XMLoadFloat4x4(&bone.offsetTransform) };
+803:            const DirectX::XMMATRIX worldTransform{ useManual
+804:                ? (nodeGlobalMat * manualWorldMat)
+805:                : DirectX::XMLoadFloat4x4(&bone.node->worldTransform) };
+806:            DirectX::XMStoreFloat4x4(&cbCurrent.boneTransforms[i], offsetTransform * worldTransform);
+808:            if (needsPrevious)
+809:            {
+810:                DirectX::XMMATRIX prevNodeGlobalMat;
+811:                if (previousNodeGlobals && bone.nodeIndex >= 0 && static_cast<std::size_t>(bone.nodeIndex) < previousNodeGlobals->size())
+812:                {
+813:                    prevNodeGlobalMat = DirectX::XMLoadFloat4x4(&(*previousNodeGlobals)[bone.nodeIndex]);
+814:                }
+815:                else
+816:                {
+817:                    prevNodeGlobalMat = nodeGlobalMat;
+818:                }
+820:                const DirectX::XMMATRIX previousWorldTransform{ useManual
+821:                    ? (prevNodeGlobalMat * previousManualWorldMat)
+822:                    : DirectX::XMLoadFloat4x4(&bone.node->worldTransform) };
+823:                DirectX::XMStoreFloat4x4(&cbPrevious.boneTransforms[i], offsetTransform * previousWorldTransform);
+824:            }
+825:        }
+826:    }
+827:    else
+828:    {
+829:        if (useManual)
+830:        {
+831:            // Unskinned meshes must track the animated node
+832:            DirectX::XMMATRIX nodeGlobalMat;
+834:            // If the AnimationComponent provided evaluated globals, use them
+835:            if (currentNodeGlobals && mesh.nodeIndex >= 0 && static_cast<std::size_t>(mesh.nodeIndex) < currentNodeGlobals->size())
+836:            {
+837:                nodeGlobalMat = DirectX::XMLoadFloat4x4(&(*currentNodeGlobals)[mesh.nodeIndex]);
+838:            }
+839:            else
+840:            {
+841:                // Fallback to static bind pose if no AnimationComponent exists
+842:                nodeGlobalMat = DirectX::XMLoadFloat4x4(&mesh.node->globalTransform);
+843:            }
+845:            DirectX::XMStoreFloat4x4(&cbCurrent.boneTransforms[0], nodeGlobalMat * manualWorldMat);
+847:            if (needsPrevious)
+848:            {
+849:                DirectX::XMMATRIX prevNodeGlobalMat;
+850:                if (previousNodeGlobals && mesh.nodeIndex >= 0 && static_cast<std::size_t>(mesh.nodeIndex) < previousNodeGlobals->size())
+851:                {
+852:                    prevNodeGlobalMat = DirectX::XMLoadFloat4x4(&(*previousNodeGlobals)[mesh.nodeIndex]);
+853:                }
+854:                else
+855:                {
+856:                    prevNodeGlobalMat = nodeGlobalMat;
+857:                }
+859:                DirectX::XMStoreFloat4x4(&cbPrevious.boneTransforms[0], prevNodeGlobalMat * previousManualWorldMat);
+860:            }
+861:        }
+862:        else
+863:        {
+864:            cbCurrent.boneTransforms[0] = mesh.node->worldTransform;
+865:            if (needsPrevious)
+866:            {
+867:                cbPrevious.boneTransforms[0] = mesh.node->worldTransform;
+868:            }
+869:        }
+870:    }
+872:    dc->UpdateSubresource(slot.currentBuffer.Get(), 0, nullptr, &cbCurrent, 0, 0);
+873:    if (needsPrevious)
+874:    {
+875:        dc->UpdateSubresource(slot.previousBuffer.Get(), 0, nullptr, &cbPrevious, 0, 0);
+876:    }
+877:}
+879:void ModelRenderer::BindSkeletonSlot(ID3D11DeviceContext* dc, std::size_t slotIndex) const noexcept
+880:{
+881:    const SkeletonSlot& slot{ m_skeletonPool[slotIndex] };
+882:    ID3D11Buffer* const currentCb{ slot.currentBuffer.Get() };
+883:    ID3D11Buffer* const previousCb{ slot.previousBuffer.Get() };
+884:    dc->VSSetConstantBuffers(6, 1, &currentCb);  
+885:    dc->VSSetConstantBuffers(9, 1, &previousCb); 
+886:}
+888:void ModelRenderer::Draw(std::shared_ptr<Model> model, const DirectX::XMFLOAT4& color, bool castShadows, const std::vector<Material>* materials)
+889:{
+890:    DrawInfo& drawInfo{ drawInfos.emplace_back() };
+891:    drawInfo.model = std::move(model);
+892:    drawInfo.color = color;
+893:    drawInfo.useManualMatrix = false;
+894:    drawInfo.castShadows = castShadows;
+895:    drawInfo.materials = materials;
+896:}
+898:void ModelRenderer::Draw(std::shared_ptr<Model> model, DirectX::XMFLOAT4 color, const DirectX::XMFLOAT4X4& worldMatrix, bool castShadows, const std::vector<Material>* materials)
+899:{
+900:    DrawInfo& drawInfo{ drawInfos.emplace_back() };
+901:    drawInfo.model = std::move(model);
+902:    drawInfo.color = color;
+903:    drawInfo.useManualMatrix = true;
+904:    drawInfo.worldMatrix = worldMatrix;
+905:    drawInfo.previousWorldMatrix = worldMatrix;
+906:    drawInfo.castShadows = castShadows;
+907:    drawInfo.materials = materials;
+908:}
+910:void ModelRenderer::Draw(std::shared_ptr<Model> model, DirectX::XMFLOAT4 color,
+911:    const DirectX::XMFLOAT4X4& worldMatrix, const DirectX::XMFLOAT4X4& previousWorldMatrix,
+912:    const std::vector<DirectX::XMFLOAT4X4>* currentNodeGlobals,
+913:    const std::vector<DirectX::XMFLOAT4X4>* previousNodeGlobals, bool castShadows,
+914:    const std::vector<Material>* materials)
+915:{
+916:    DrawInfo info{ std::move(model), currentNodeGlobals, previousNodeGlobals, color, true, worldMatrix, previousWorldMatrix, castShadows };
+917:    info.hasVelocity = true;
+918:    info.materials = materials;
+919:    drawInfos.push_back(std::move(info));
+920:}
+922:void ModelRenderer::DrawMeshVelocity(ID3D11DeviceContext* dc, const Model::Mesh& mesh, std::size_t skeletonSlot)
+923:{
+924:    UINT stride{ sizeof(Model::Vertex) };
+925:    UINT offset{ 0 };
+926:    dc->IASetVertexBuffers(0, 1, mesh.vertexBuffer.GetAddressOf(), &stride, &offset);
+927:    dc->IASetIndexBuffer(mesh.indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
+928:    dc->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+930:    BindSkeletonSlot(dc, skeletonSlot);
+932:    dc->DrawIndexed(static_cast<UINT>(mesh.indices.size()), 0, 0);
+934:    PROFILE_DRAW_CALL();
+935:    PROFILE_TRIANGLES(mesh.indices.size() / 3);
+936:}
+938:void ModelRenderer::Render(const RenderContext& rc)
+939:{
+940:    if (drawInfos.empty()) return;
+942:    ID3D11DeviceContext* const dc{ rc.deviceContext };
+943:    Microsoft::WRL::ComPtr<ID3D11Device> device{};
+944:    dc->GetDevice(device.GetAddressOf());
+946:    m_skeletonPoolUsed = 0;
+947:    m_frameArena.Reset();
+948:    dc->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+950:    // Create the global Identity Skeleton Slot once per frame for ALL static meshes to share
+951:    m_identitySkeletonSlot = AcquireSkeletonSlot(device.Get());
+952:    {
+953:        SkeletonSlot& idSlot = m_skeletonPool[m_identitySkeletonSlot];
+954:        CbSkeleton cbId{};
+955:        const DirectX::XMMATRIX identity = DirectX::XMMatrixIdentity();
+956:        for (int i = 0; i < 256; ++i)
+957:        {
+958:            DirectX::XMStoreFloat4x4(&cbId.boneTransforms[i], identity);
+959:        }
+960:        dc->UpdateSubresource(idSlot.currentBuffer.Get(), 0, nullptr, &cbId, 0, 0);
+961:        dc->UpdateSubresource(idSlot.previousBuffer.Get(), 0, nullptr, &cbId, 0, 0);
+962:    }
+964:    for (DrawInfo& drawInfo : drawInfos)
+965:    {
+966:        if (!drawInfo.model) continue;
+968:        const auto& meshes{ drawInfo.model->GetMeshes() };
+969:        drawInfo.skeletonSlots.resize(meshes.size());
+971:        for (std::size_t meshIdx{ 0 }; meshIdx < meshes.size(); ++meshIdx)
+972:        {
+973:            if (meshes[meshIdx].bones.empty())
+974:            {
+975:                drawInfo.skeletonSlots[meshIdx] = m_identitySkeletonSlot;
+976:            }
+977:            else
+978:            {
+979:                // Multi-mesh skeleton deduplication:
+980:                // If an earlier mesh in this drawInfo has an identical bone palette, reuse its uploaded slot
+981:                std::size_t sharedSlot{ kInvalidSkeletonSlot };
+982:                for (std::size_t prevIdx{ 0 }; prevIdx < meshIdx; ++prevIdx)
+983:                {
+984:                    if (drawInfo.skeletonSlots[prevIdx] != m_identitySkeletonSlot &&
+985:                        drawInfo.skeletonSlots[prevIdx] != kInvalidSkeletonSlot &&
+986:                        AreBonePalettesEqual(meshes[meshIdx].bones, meshes[prevIdx].bones))
+987:                    {
+988:                        sharedSlot = drawInfo.skeletonSlots[prevIdx];
+989:                        break;
+990:                    }
+991:                }
+993:                if (sharedSlot != kInvalidSkeletonSlot)
+994:                {
+995:                    drawInfo.skeletonSlots[meshIdx] = sharedSlot;
+996:                }
+997:                else
+998:                {
+999:                    const std::size_t slot{ AcquireSkeletonSlot(device.Get()) };
+1000:                    ComputeAndUploadSkeleton(dc, slot, meshes[meshIdx], drawInfo.useManualMatrix,
+1001:                        drawInfo.hasVelocity, drawInfo.worldMatrix, drawInfo.previousWorldMatrix,
+1002:                        drawInfo.currentNodeGlobals, drawInfo.previousNodeGlobals);
+1003:                    drawInfo.skeletonSlots[meshIdx] = slot;
+1004:                }
+1005:            }
+1006:        }
+1007:    }
+1009:    std::size_t instanceOffset = 0;
+1011:    // THE PASS DISPATCHER: Single contiguous upload per pass, zero draw-loop mapping stalls
+1012:    auto executeBatches = [&](const DrawPacket* packets, std::size_t count, Shader* forcedShader = nullptr)
+1013:        {
+1014:            if (count == 0) return;
+1016:            // Dynamic Buffer Allocation & Wrap Guard
+1017:            if (instanceOffset + count > m_instanceCapacity)
+1018:            {
+1019:                if (count > m_instanceCapacity)
+1020:                {
+1021:                    m_instanceCapacity = (std::max)(m_instanceCapacity * 2, count + 1024);
+1022:                    D3D11_BUFFER_DESC idesc{};
+1023:                    idesc.ByteWidth = sizeof(InstanceData) * static_cast<UINT>(m_instanceCapacity);
+1024:                    idesc.Usage = D3D11_USAGE_DYNAMIC;
+1025:                    idesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+1026:                    idesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+1027:                    m_instanceBuffer.Reset();
+1028:                    device->CreateBuffer(&idesc, nullptr, m_instanceBuffer.GetAddressOf());
+1029:                }
+1030:                instanceOffset = 0;
+1031:            }
+1033:            // Stream all instance transforms for the entire pass in a single map operation
+1034:            const D3D11_MAP mapType{ (instanceOffset == 0) ? D3D11_MAP_WRITE_DISCARD : D3D11_MAP_WRITE_NO_OVERWRITE };
+1035:            D3D11_MAPPED_SUBRESOURCE mapped{};
+1036:            dc->Map(m_instanceBuffer.Get(), 0, mapType, 0, &mapped);
+1037:            InstanceData* const instData{ static_cast<InstanceData*>(mapped.pData) + instanceOffset };
+1039:            const DirectX::XMMATRIX identity{ DirectX::XMMatrixIdentity() };
+1040:            for (std::size_t i{ 0 }; i < count; ++i)
+1041:            {
+1042:                const DrawPacket& p{ packets[i] };
+1043:                if (p.mesh->bones.empty())
+1044:                {
+1045:                    DirectX::XMStoreFloat4x4(&instData[i].world, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&p.worldMatrix)));
+1046:                    DirectX::XMStoreFloat4x4(&instData[i].prevWorld, DirectX::XMMatrixTranspose(DirectX::XMLoadFloat4x4(&p.prevWorldMatrix)));
+1047:                }
+1048:                else
+1049:                {
+1050:                    DirectX::XMStoreFloat4x4(&instData[i].world, identity);
+1051:                    DirectX::XMStoreFloat4x4(&instData[i].prevWorld, identity);
+1052:                }
+1054:                // Stream combined instance tint and material baseColor directly via Slot 1 vertex buffer
+1055:                const DirectX::XMFLOAT4& baseCol{ p.material ? p.material->baseColor : DirectX::XMFLOAT4{ 1.0f, 1.0f, 1.0f, 1.0f } };
+1056:                instData[i].color = {
+1057:                    p.color.x * baseCol.x,
+1058:                    p.color.y * baseCol.y,
+1059:                    p.color.z * baseCol.z,
+1060:                    p.color.w * baseCol.w
+1061:                };
+1062:            }
+1063:            dc->Unmap(m_instanceBuffer.Get(), 0);
+1065:            // Bind Slot 1 Instance Buffer once for the entire pass
+1066:            ID3D11Buffer* const instBuf{ m_instanceBuffer.Get() };
+1067:            const UINT instStride{ sizeof(InstanceData) };
+1068:            const UINT zeroOffset{ 0 };
+1069:            dc->IASetVertexBuffers(1, 1, &instBuf, &instStride, &zeroOffset);
+1071:            // Hot Dispatch Loop: Zero Map/Unmap overhead, pure state caching & dispatches
+1072:            Shader* activeShader{ forcedShader };
+1073:            ShaderId activeShaderId{ ShaderId::EnumCount };
+1074:            const Material* currentMaterial{ nullptr };
+1075:            uint16_t currentMaterialKey{ 0xFFFF };
+1076:            ID3D11Buffer* currentVB{ nullptr };
+1077:            ID3D11Buffer* currentIB{ nullptr };
+1078:            std::size_t currentSlot{ kInvalidSkeletonSlot };
+1080:            const bool isDepthOrVelocityPass{ (forcedShader == m_shadowCasterShader.get() || forcedShader == m_velocityShader.get()) };
+1082:            for (std::size_t pIdx{ 0 }; pIdx < count; )
+1083:            {
+1084:                const DrawPacket& firstPacket{ packets[pIdx] };
+1085:                std::size_t batchCount{ 1 };
+1086:                const bool isStatic{ firstPacket.mesh->bones.empty() };
+1088:                if (isStatic)
+1089:                {
+1090:                    if (isDepthOrVelocityPass)
+1091:                    {
+1092:                        // Depth/Velocity: Dissimilar materials on identical geometry coalesced into single draw
+1093:                        while (pIdx + batchCount < count &&
+1094:                            packets[pIdx + batchCount].mesh == firstPacket.mesh &&
+1095:                            packets[pIdx + batchCount].mesh->bones.empty())
+1096:                        {
+1097:                            ++batchCount;
+1098:                        }
+1099:                    }
+1100:                    else
+1101:                    {
+1102:                        // Color/Outline: Coalesce identical geometry sharing the exact same 48-bit PSO & Material state key
+1103:                        const bool isTransparent{ (((firstPacket.key >> 60) & 0xFULL) == 6) };
+1104:                        const uint64_t firstStateKey{ firstPacket.key & 0xFFFFFFFFFFFF0000ULL };
+1106:                        while (pIdx + batchCount < count &&
+1107:                            packets[pIdx + batchCount].mesh == firstPacket.mesh &&
+1108:                            (!isTransparent ? ((packets[pIdx + batchCount].key & 0xFFFFFFFFFFFF0000ULL) == firstStateKey)
+1109:                                : (packets[pIdx + batchCount].key == firstPacket.key)) &&
+1110:                            packets[pIdx + batchCount].mesh->bones.empty())
+1111:                        {
+1112:                            ++batchCount;
+1113:                        }
+1114:                    }
+1115:                }
+1117:                if (!forcedShader)
+1118:                {
+1119:                    const ShaderId packetShaderId{ static_cast<ShaderId>((firstPacket.key >> 48) & 0xFF) };
+1120:                    if (packetShaderId != activeShaderId)
+1121:                    {
+1122:                        if (activeShader) activeShader->End(rc);
+1123:                        activeShaderId = packetShaderId;
+1124:                        activeShader = shaders[static_cast<int>(packetShaderId)].get();
+1125:                        if (activeShader) activeShader->Begin(rc);
+1126:                        currentMaterial = nullptr;
+1127:                        currentMaterialKey = 0xFFFF;
+1128:                        currentVB = nullptr;
+1129:                        currentIB = nullptr;
+1130:                        currentSlot = kInvalidSkeletonSlot;
+1131:                    }
+1132:                }
+1134:                if (firstPacket.mesh->vertexBuffer.Get() != currentVB)
+1135:                {
+1136:                    ID3D11Buffer* const vb{ firstPacket.mesh->vertexBuffer.Get() };
+1137:                    const UINT stride{ sizeof(Model::Vertex) };
+1138:                    dc->IASetVertexBuffers(0, 1, &vb, &stride, &zeroOffset);
+1139:                    currentVB = vb;
+1140:                }
+1142:                if (firstPacket.mesh->indexBuffer.Get() != currentIB)
+1143:                {
+1144:                    dc->IASetIndexBuffer(firstPacket.mesh->indexBuffer.Get(), DXGI_FORMAT_R32_UINT, 0);
+1145:                    currentIB = firstPacket.mesh->indexBuffer.Get();
+1146:                }
+1148:                if (firstPacket.skeletonSlot != currentSlot)
+1149:                {
+1150:                    BindSkeletonSlot(dc, firstPacket.skeletonSlot);
+1151:                    currentSlot = firstPacket.skeletonSlot;
+1152:                }
+1154:                if (!isDepthOrVelocityPass)
+1155:                {
+1156:                    const uint16_t packetMatKey{ static_cast<uint16_t>((firstPacket.key >> 32) & 0xFFFFULL) };
+1157:                    const bool isOutline{ (forcedShader == m_outlineShader.get()) };
+1158:                    const bool needsUpdate{
+1159:                        (currentMaterial == nullptr) ||
+1160:                        (firstPacket.material != currentMaterial &&
+1161:                         (packetMatKey != currentMaterialKey ||
+1162:                          (isOutline ? !AreOutlineMaterialsEquivalent(firstPacket.material, currentMaterial)
+1163:                                     : !AreMaterialsEquivalent(firstPacket.material, currentMaterial, activeShaderId))))
+1164:                    };
+1166:                    if (needsUpdate)
+1167:                    {
+1168:                        // Transiently inject component material into mesh for uniform upload, then restore
+1169:                        Model::Mesh* const nonConstMesh{ const_cast<Model::Mesh*>(firstPacket.mesh) };
+1170:                        Material* const originalMaterial{ nonConstMesh->material };
+1171:                        nonConstMesh->material = const_cast<Material*>(firstPacket.material);
+1173:                        if (activeShader) activeShader->Update(rc, *nonConstMesh);
+1175:                        nonConstMesh->material = originalMaterial;
+1176:                        currentMaterial = firstPacket.material;
+1177:                        currentMaterialKey = packetMatKey;
+1178:                    }
+1179:                }
+1181:                dc->DrawIndexedInstanced(
+1182:                    static_cast<UINT>(firstPacket.mesh->indices.size()),
+1183:                    static_cast<UINT>(batchCount),
+1184:                    0,
+1185:                    0,
+1186:                    static_cast<UINT>(instanceOffset + pIdx)
+1187:                );
+1189:                pIdx += batchCount;
+1190:                PROFILE_DRAW_CALL();
+1191:                PROFILE_TRIANGLES(firstPacket.mesh->indices.size() / 3 * batchCount);
+1192:            }
+1194:            if (activeShader && !forcedShader)
+1195:            {
+1196:                activeShader->End(rc);
+1197:            }
+1199:            instanceOffset += count;
+1200:        };
+1202:    // Fast bitwise pointer hash eliminating stack frame buffer hashing
+1203:    auto hashPointer = [](const void* ptr) noexcept -> uint16_t
+1204:        {
+1205:            const uintptr_t val{ reinterpret_cast<uintptr_t>(ptr) };
+1206:            return static_cast<uint16_t>((val >> 4) ^ (val >> 20));
+1207:        };
+1209:    if (rc.lightManager)
+1210:    {
+1211:        const_cast<LightManager*>(rc.lightManager)->Update();
+1212:        if (rc.lightManager->GetDirectionalLight().castShadows)
+1213:        {
+1214:            rc.lightManager->UpdateCascades(*rc.camera);
+1215:        }
+1216:    }
+1218:        std::size_t totalSceneMeshCount{ 0 };
+1219:        for (const auto& drawInfo : drawInfos) if (drawInfo.model) totalSceneMeshCount += drawInfo.model->GetMeshes().size();
+1221:        // Stream Extraction Arrays
+1222:        DrawPacket* const opaquePackets{ m_frameArena.AllocateArray<DrawPacket>(totalSceneMeshCount) };
+1223:        DrawPacket* const transparentPackets{ m_frameArena.AllocateArray<DrawPacket>(totalSceneMeshCount) };
+1224:        DrawPacket* const velocityPackets{ m_frameArena.AllocateArray<DrawPacket>(totalSceneMeshCount) };
+1225:        DrawPacket* const outlinePackets{ m_frameArena.AllocateArray<DrawPacket>(totalSceneMeshCount) };
+1226:        DrawPacket* const cascadePackets[SHADOW_CASCADE_COUNT]{
+1227:            m_frameArena.AllocateArray<DrawPacket>(totalSceneMeshCount),
+1228:            m_frameArena.AllocateArray<DrawPacket>(totalSceneMeshCount),
+1229:            m_frameArena.AllocateArray<DrawPacket>(totalSceneMeshCount)
+1230:        };
+1231:        std::size_t opaqueCount{ 0 }, transparentCount{ 0 }, velocityCount{ 0 }, outlineCount{ 0 };
+1232:        std::size_t cascadeCount[SHADOW_CASCADE_COUNT]{ 0, 0, 0 };
+1234:        DirectX::XMFLOAT4X4 matViewProj{};
+1235:        {
+1236:            const DirectX::XMMATRIX V{ DirectX::XMLoadFloat4x4(&rc.camera->GetView()) };
+1237:            const DirectX::XMMATRIX P{ DirectX::XMLoadFloat4x4(&rc.camera->GetProjection()) };
+1238:            DirectX::XMStoreFloat4x4(&matViewProj, V * P);
+1239:        }
+1241:        // Precompute AVX2 Camera Frustum once per frame
+1242:        AvxFrustum cameraFrustum{};
+1243:        {
+1244:            const CameraFrustumPlanes cp{ ExtractCameraFrustumPlanes(matViewProj) };
+1245:            cameraFrustum.Init(cp.planes, 6);
+1246:        }
+1248:        // Precompute all 4 AVX2 Shadow Cascade Frustums once per frame
+1249:        AvxFrustum cascadeFrustums[SHADOW_CASCADE_COUNT]{};
+1250:        const bool hasDirectionalShadows{ rc.lightManager != nullptr && rc.lightManager->GetDirectionalLight().castShadows };
+1251:        DirectX::XMFLOAT3 lightDir{ 0.0f, -1.0f, 0.0f };
+1252:        if (hasDirectionalShadows)
+1253:        {
+1254:            const auto& dirLight{ rc.lightManager->GetDirectionalLight() };
+1255:            const float lenSq{ dirLight.direction.x * dirLight.direction.x + dirLight.direction.y * dirLight.direction.y + dirLight.direction.z * dirLight.direction.z };
+1256:            if (lenSq > 0.0001f)
+1257:            {
+1258:                const float invLen{ 1.0f / std::sqrt(lenSq) };
+1259:                lightDir = { dirLight.direction.x * invLen, dirLight.direction.y * invLen, dirLight.direction.z * invLen };
+1260:            }
+1262:            for (int i{ 0 }; i < SHADOW_CASCADE_COUNT; ++i)
+1263:            {
+1264:                const CascadeFrustumPlanes cp{ ExtractCascadePlanes(rc.lightManager->GetCascadeMatrices()[i]) };
+1265:                cascadeFrustums[i].Init(cp.planes, 5);
+1266:            }
+1267:        }
+1269:        const DirectX::XMFLOAT3 cameraEyePos{ rc.camera->GetPosition() };
+1271:        // Scene Broadphase Flattening: Contiguous SoA spatial layout in L1 cache
+1272:        const std::size_t paddedCount{ (totalSceneMeshCount + 7) & ~std::size_t{ 7 } };
+1273:        float* const soaCenterX{ m_frameArena.AllocateArray<float>(paddedCount) };
+1274:        float* const soaCenterY{ m_frameArena.AllocateArray<float>(paddedCount) };
+1275:        float* const soaCenterZ{ m_frameArena.AllocateArray<float>(paddedCount) };
+1276:        float* const soaExtentX{ m_frameArena.AllocateArray<float>(paddedCount) };
+1277:        float* const soaExtentY{ m_frameArena.AllocateArray<float>(paddedCount) };
+1278:        float* const soaExtentZ{ m_frameArena.AllocateArray<float>(paddedCount) };
+1280:        struct MeshInstanceRef
+1281:        {
+1282:            const Model::Mesh* mesh{ nullptr };
+1283:            const Material* material{ nullptr };
+1284:            std::size_t         skeletonSlot{ 0 };
+1285:            DirectX::XMFLOAT4   color{ 1.0f, 1.0f, 1.0f, 1.0f };
+1286:            DirectX::XMFLOAT4X4 worldMatrix{};
+1287:            DirectX::XMFLOAT4X4 prevWorldMatrix{};
+1288:            bool                castShadows{ true };
+1289:            bool                hasVelocity{ false };
+1290:        };
+1291:        MeshInstanceRef* const meshRefs{ m_frameArena.AllocateArray<MeshInstanceRef>(paddedCount) };
+1293:        // Zero-fill padding lanes for clean AVX2 vector loads
+1294:        for (std::size_t i{ totalSceneMeshCount }; i < paddedCount; ++i)
+1295:        {
+1296:            soaCenterX[i] = 0.0f; soaCenterY[i] = 0.0f; soaCenterZ[i] = 0.0f;
+1297:            soaExtentX[i] = 0.0f; soaExtentY[i] = 0.0f; soaExtentZ[i] = 0.0f;
+1298:        }
+1300:        std::size_t flatIndex{ 0 };
+1301:        for (const DrawInfo& drawInfo : drawInfos)
+1302:        {
+1303:            if (!drawInfo.model) continue;
+1305:            for (std::size_t meshIdx{ 0 }; meshIdx < drawInfo.model->GetMeshes().size(); ++meshIdx)
+1306:            {
+1307:                const Model::Mesh& mesh{ drawInfo.model->GetMeshes()[meshIdx] };
+1308:                const Material* const mat{ (drawInfo.materials && mesh.materialIndex >= 0 &&
+1309:                    static_cast<std::size_t>(mesh.materialIndex) < drawInfo.materials->size())
+1310:                    ? &(*drawInfo.materials)[mesh.materialIndex]
+1311:                    : mesh.material };
+1313:                DirectX::XMMATRIX mWorld, mPrevWorld;
+1314:                if (drawInfo.useManualMatrix)
+1315:                {
+1316:                    DirectX::XMMATRIX nodeGlobalMat;
+1317:                    if (drawInfo.currentNodeGlobals && mesh.nodeIndex >= 0 && static_cast<std::size_t>(mesh.nodeIndex) < drawInfo.currentNodeGlobals->size())
+1318:                    {
+1319:                        nodeGlobalMat = DirectX::XMLoadFloat4x4(&(*drawInfo.currentNodeGlobals)[mesh.nodeIndex]);
+1320:                    }
+1321:                    else
+1322:                    {
+1323:                        nodeGlobalMat = DirectX::XMLoadFloat4x4(&mesh.node->globalTransform);
+1324:                    }
+1326:                    DirectX::XMMATRIX prevNodeGlobalMat;
+1327:                    if (drawInfo.previousNodeGlobals && mesh.nodeIndex >= 0 && static_cast<std::size_t>(mesh.nodeIndex) < drawInfo.previousNodeGlobals->size())
+1328:                    {
+1329:                        prevNodeGlobalMat = DirectX::XMLoadFloat4x4(&(*drawInfo.previousNodeGlobals)[mesh.nodeIndex]);
+1330:                    }
+1331:                    else
+1332:                    {
+1333:                        prevNodeGlobalMat = nodeGlobalMat;
+1334:                    }
+1336:                    mWorld = nodeGlobalMat * DirectX::XMLoadFloat4x4(&drawInfo.worldMatrix);
+1337:                    mPrevWorld = prevNodeGlobalMat * DirectX::XMLoadFloat4x4(&drawInfo.previousWorldMatrix);
+1338:                }
+1339:                else
+1340:                {
+1341:                    mWorld = DirectX::XMLoadFloat4x4(&mesh.node->worldTransform);
+1342:                    mPrevWorld = mWorld;
+1343:                }
+1345:                // Skinned AABB deduplication: If this mesh shares a skeleton slot with an earlier mesh in the same drawInfo,
+1346:                // and has matching boundsRadius, reuse the calculated AABB to skip redundant bone transforms
+1347:                BoundingBox aabb{};
+1348:                bool aabbReused{ false };
+1349:                if (!mesh.bones.empty())
+1350:                {
+1351:                    for (std::size_t prevIdx{ 0 }; prevIdx < meshIdx; ++prevIdx)
+1352:                    {
+1353:                        if (drawInfo.skeletonSlots[meshIdx] == drawInfo.skeletonSlots[prevIdx] &&
+1354:                            std::abs(mesh.boundsRadius - drawInfo.model->GetMeshes()[prevIdx].boundsRadius) <= 0.001f)
+1355:                        {
+1356:                            const std::size_t prevFlat{ flatIndex - (meshIdx - prevIdx) };
+1357:                            aabb.center = { soaCenterX[prevFlat], soaCenterY[prevFlat], soaCenterZ[prevFlat] };
+1358:                            aabb.extents = { soaExtentX[prevFlat], soaExtentY[prevFlat], soaExtentZ[prevFlat] };
+1359:                            aabbReused = true;
+1360:                            break;
+1361:                        }
+1362:                    }
+1363:                }
+1365:                if (!aabbReused)
+1366:                {
+1367:                    aabb = CalculateMeshAABB(mesh, drawInfo.useManualMatrix, drawInfo.worldMatrix, drawInfo.currentNodeGlobals);
+1368:                }
+1370:                soaCenterX[flatIndex] = aabb.center.x;
+1371:                soaCenterY[flatIndex] = aabb.center.y;
+1372:                soaCenterZ[flatIndex] = aabb.center.z;
+1373:                soaExtentX[flatIndex] = aabb.extents.x;
+1374:                soaExtentY[flatIndex] = aabb.extents.y;
+1375:                soaExtentZ[flatIndex] = aabb.extents.z;
+1377:                MeshInstanceRef& ref{ meshRefs[flatIndex] };
+1378:                ref.mesh = &mesh;
+1379:                ref.material = mat;
+1380:                ref.skeletonSlot = drawInfo.skeletonSlots[meshIdx];
+1381:                ref.color = drawInfo.color;
+1382:                DirectX::XMStoreFloat4x4(&ref.worldMatrix, mWorld);
+1383:                DirectX::XMStoreFloat4x4(&ref.prevWorldMatrix, mPrevWorld);
+1384:                ref.castShadows = drawInfo.castShadows;
+1385:                ref.hasVelocity = drawInfo.hasVelocity;
+1387:                ++flatIndex;
+1388:            }
+1389:        }
+1391:        // Front-to-Back Occluder Sorting: Closest occluders rasterize first to maximize early-depth rejections
+1392:        m_occlusionBuffer.Clear();
+1394:        struct OccluderCandidate
+1395:        {
+1396:            std::size_t refIndex{ 0 };
+1397:            float       distanceSq{ 0.0f };
+1398:        };
+1399:        OccluderCandidate* const occluders{ m_frameArena.AllocateArray<OccluderCandidate>(totalSceneMeshCount) };
+1400:        std::size_t occluderCount{ 0 };
+1402:        for (std::size_t i{ 0 }; i < totalSceneMeshCount; ++i)
+1403:        {
+1404:            const auto& ref{ meshRefs[i] };
+1405:            if (!ref.material || !ref.material->isOccluder || ref.material->alphaMode != AlphaMode::Opaque) continue;
+1407:            const DirectX::XMFLOAT3 center{ soaCenterX[i], soaCenterY[i], soaCenterZ[i] };
+1408:            const DirectX::XMFLOAT3 extents{ soaExtentX[i], soaExtentY[i], soaExtentZ[i] };
+1410:            if (!cameraFrustum.IsVisibleAABB(center, extents)) continue;
+1412:            const float dx{ center.x - cameraEyePos.x };
+1413:            const float dy{ center.y - cameraEyePos.y };
+1414:            const float dz{ center.z - cameraEyePos.z };
+1415:            occluders[occluderCount++] = { i, dx * dx + dy * dy + dz * dz };
+1416:        }
+1418:        std::sort(occluders, occluders + occluderCount, [](const OccluderCandidate& a, const OccluderCandidate& b) noexcept {
+1419:            return a.distanceSq < b.distanceSq;
+1420:            });
+1422:        for (std::size_t i{ 0 }; i < occluderCount; ++i)
+1423:        {
+1424:            const auto& cand{ occluders[i] };
+1425:            const auto& ref{ meshRefs[cand.refIndex] };
+1426:            const DirectX::XMFLOAT3 center{ soaCenterX[cand.refIndex], soaCenterY[cand.refIndex], soaCenterZ[cand.refIndex] };
+1427:            const DirectX::XMFLOAT3 extents{ soaExtentX[cand.refIndex], soaExtentY[cand.refIndex], soaExtentZ[cand.refIndex] };
+1429:            // Hierarchical occlusion: If a closer occluder already completely covers this occluder, skip rasterization
+1430:            if (ref.material->isOccludable && m_occlusionBuffer.IsOccluded(center, extents, matViewProj))
+1431:            {
+1432:                continue;
+1433:            }
+1435:            m_occlusionBuffer.RasterizeOccluderMesh(*ref.mesh, ref.worldMatrix, matViewProj);
+1436:        }
+1438:        // 8-Way AVX2 Parallel Culling Loop: Evaluates 8 objects across SIMD lanes from L1 cache
+1439:        const DirectX::XMFLOAT3 camFront{ rc.camera->GetFront() };
+1441:        for (std::size_t batch{ 0 }; batch < totalSceneMeshCount; batch += 8)
+1442:        {
+1443:            const uint32_t activeLanes{ (batch + 8 <= totalSceneMeshCount)
+1444:                ? 0xFFu
+1445:                : static_cast<uint32_t>((1u << (totalSceneMeshCount - batch)) - 1u) };
+1447:            const __m256 cX{ _mm256_loadu_ps(&soaCenterX[batch]) };
+1448:            const __m256 cY{ _mm256_loadu_ps(&soaCenterY[batch]) };
+1449:            const __m256 cZ{ _mm256_loadu_ps(&soaCenterZ[batch]) };
+1450:            const __m256 eX{ _mm256_loadu_ps(&soaExtentX[batch]) };
+1451:            const __m256 eY{ _mm256_loadu_ps(&soaExtentY[batch]) };
+1452:            const __m256 eZ{ _mm256_loadu_ps(&soaExtentZ[batch]) };
+1454:            const uint32_t camVisibleMask{ cameraFrustum.Cull8AABB(cX, cY, cZ, eX, eY, eZ) & activeLanes };
+1456:            for (std::size_t lane{ 0 }; lane < 8; ++lane)
+1457:            {
+1458:                if ((activeLanes & (1u << lane)) == 0) break;
+1460:                const std::size_t idx{ batch + lane };
+1461:                const auto& ref{ meshRefs[idx] };
+1462:                const auto* const mat{ ref.material };
+1463:                const auto& mesh{ *ref.mesh };
+1465:                const DirectX::XMFLOAT3 center{ soaCenterX[idx], soaCenterY[idx], soaCenterZ[idx] };
+1466:                const DirectX::XMFLOAT3 extents{ soaExtentX[idx], soaExtentY[idx], soaExtentZ[idx] };
+1468:                DrawPacket packet{};
+1469:                packet.mesh = &mesh;
+1470:                packet.material = mat;
+1471:                packet.skeletonSlot = ref.skeletonSlot;
+1472:                packet.color = ref.color;
+1473:                packet.worldMatrix = ref.worldMatrix;
+1474:                packet.prevWorldMatrix = ref.prevWorldMatrix;
+1476:                // Shadows: Extruded shadow volume culling against camera frustum and occlusion buffer
+1477:                if (ref.castShadows && mat->alphaMode != AlphaMode::Blend && hasDirectionalShadows)
+1478:                {
+1479:                    const float groundDist{ (std::max)(1.0f, center.y + extents.y) };
+1480:                    const float rayDist{ (std::abs(lightDir.y) > 0.05f) ? (groundDist / std::abs(lightDir.y)) : 30.0f };
+1481:                    const float shadowExtrudeLen{ std::clamp(rayDist, 10.0f, 40.0f) };
+1482:                    const float vx{ lightDir.x * shadowExtrudeLen };
+1483:                    const float vy{ lightDir.y * shadowExtrudeLen };
+1484:                    const float vz{ lightDir.z * shadowExtrudeLen };
+1486:                    const float sMinX{ (std::min)(center.x - extents.x, center.x - extents.x + vx) };
+1487:                    const float sMaxX{ (std::max)(center.x + extents.x, center.x + extents.x + vx) };
+1488:                    const float sMinY{ (std::min)(center.y - extents.y, center.y - extents.y + vy) };
+1489:                    const float sMaxY{ (std::max)(center.y + extents.y, center.y + extents.y + vy) };
+1490:                    const float sMinZ{ (std::min)(center.z - extents.z, center.z - extents.z + vz) };
+1491:                    const float sMaxZ{ (std::max)(center.z + extents.z, center.z + extents.z + vz) };
+1493:                    const DirectX::XMFLOAT3 shadowCenter{ (sMinX + sMaxX) * 0.5f, (sMinY + sMaxY) * 0.5f, (sMinZ + sMaxZ) * 0.5f };
+1494:                    const DirectX::XMFLOAT3 shadowExtents{ (sMaxX - sMinX) * 0.5f, (sMaxY - sMinY) * 0.5f, (sMaxZ - sMinZ) * 0.5f };
+1496:                    const bool shadowInViewFrustum{ cameraFrustum.IsVisibleAABB(shadowCenter, shadowExtents) };
+1497:                    const bool shadowOccluded{ mat->isOccludable && m_occlusionBuffer.IsOccluded(shadowCenter, shadowExtents, matViewProj) };
+1499:                    if (shadowInViewFrustum && !shadowOccluded)
+1500:                    {
+1501:                        for (int c{ 0 }; c < SHADOW_CASCADE_COUNT; ++c)
+1502:                        {
+1503:                            // Skinned meshes bypass Cascade 2 to eliminate distant bone evaluation
+1504:                            if (c == 2 && !mesh.bones.empty()) continue;
+1506:                            if (cascadeFrustums[c].IsVisibleAABB(center, extents))
+1507:                            {
+1508:                                DrawPacket shadowPacket{ packet };
+1509:                                shadowPacket.key = reinterpret_cast<uint64_t>(&mesh);
+1510:                                cascadePackets[c][cascadeCount[c]++] = shadowPacket;
+1511:                            }
+1512:                        }
+1513:                    }
+1514:                }
+1516:                // Camera visibility check using precomputed 8-way AVX2 mask
+1517:                if ((camVisibleMask & (1u << lane)) == 0) continue;
+1519:                const float dx{ center.x - cameraEyePos.x };
+1520:                const float dy{ center.y - cameraEyePos.y };
+1521:                const float dz{ center.z - cameraEyePos.z };
+1522:                const float distance{ dx * camFront.x + dy * camFront.y + dz * camFront.z };
+1524:                // Sub-pixel screen size culling
+1525:                const float maxExtent{ (std::max)({ extents.x, extents.y, extents.z }) };
+1526:                const float halfHeight{ (rc.psxEnabled ? rc.psxResHeight : 1080.0f) * 0.5f };
+1527:                const float projRadiusPixels{ (maxExtent / (std::max)(distance, 0.001f)) * matViewProj._22 * halfHeight };
+1528:                const bool isEmissive{ mat->emissiveColor.x > 0.001f || mat->emissiveColor.y > 0.001f || mat->emissiveColor.z > 0.001f };
+1529:                if (distance > 0.0f && projRadiusPixels < 0.5f && !isEmissive) continue;
+1531:                // Software Occlusion Culling
+1532:                if (mat->isOccludable && m_occlusionBuffer.IsOccluded(center, extents, matViewProj))
+1533:                {
+1534:                    continue;
+1535:                }
+1537:                const float clampedDist{ std::clamp(distance, 0.0f, 1000.0f) };
+1538:                const uint16_t quantizedDepth{ static_cast<uint16_t>((clampedDist / 1000.0f) * 65535.0f) };
+1540:                uint64_t passId{ 4 };
+1541:                uint64_t translucencyLayer{ 0 };
+1542:                uint16_t depthKey{ quantizedDepth };
+1544:                if (mat->alphaMode == AlphaMode::Blend || (mat->baseColor.w > 0.01f && mat->baseColor.w < 0.99f))
+1545:                {
+1546:                    passId = 6;
+1547:                    translucencyLayer = 1;
+1548:                    depthKey = static_cast<uint16_t>(65535 - quantizedDepth); // Back-to-front
+1549:                }
+1550:                else if (mat->alphaMode == AlphaMode::Mask)
+1551:                {
+1552:                    passId = 5;
+1553:                }
+1555:                const uint64_t shaderId{ static_cast<uint64_t>(mat->shaderId) };
+1556:                packet.key = BuildDrawKey(passId, translucencyLayer, shaderId, HashMaterial(mat), hashPointer(mesh.vertexBuffer.Get()), depthKey);
+1558:                if (passId == 6) transparentPackets[transparentCount++] = packet;
+1559:                else opaquePackets[opaqueCount++] = packet;
+1561:                if (ref.hasVelocity && passId < 6)
+1562:                {
+1563:                    DrawPacket velocityPacket{ packet };
+1564:                    velocityPacket.key = reinterpret_cast<uint64_t>(&mesh);
+1565:                    velocityPackets[velocityCount++] = velocityPacket;
+1566:                }
+1568:                if (shaderId == static_cast<uint64_t>(ShaderId::Toon) && mat->enableOutline && mat->outlineWidth > 0.0f)
+1569:                {
+1570:                    const float fadeEndSq{ mat->outlineFadeEnd * mat->outlineFadeEnd };
+1571:                    const float distSq{ dx * dx + dy * dy + dz * dz };
+1572:                    if (distSq <= (fadeEndSq + 25.0f))
+1573:                    {
+1574:                        DrawPacket outlinePacket{ packet };
+1575:                        outlinePacket.key = BuildDrawKey(4, 0, static_cast<uint64_t>(ShaderId::Toon), HashOutlineMaterial(mat), hashPointer(mesh.vertexBuffer.Get()), depthKey);
+1576:                        outlinePackets[outlineCount++] = outlinePacket;
+1577:                    }
+1578:                }
+1579:            }
+1580:        }
+1581:        drawInfos.clear();
+1583:        // Independent radix/stream sorting
+1584:        auto packetSort = [](const DrawPacket& a, const DrawPacket& b) noexcept
+1585:            {
+1586:                if (a.key != b.key) return a.key < b.key;
+1587:                return a.mesh < b.mesh; // Break key ties deterministically by geometry pointer
+1588:            };
+1589:        std::sort(opaquePackets, opaquePackets + opaqueCount, packetSort);
+1590:        std::sort(transparentPackets, transparentPackets + transparentCount, packetSort);
+1591:        std::sort(outlinePackets, outlinePackets + outlineCount, packetSort);
+1592:        std::sort(velocityPackets, velocityPackets + velocityCount, packetSort);
+1593:        for (int i{ 0 }; i < SHADOW_CASCADE_COUNT; ++i) std::sort(cascadePackets[i], cascadePackets[i] + cascadeCount[i], packetSort);
+1595:        // RENDER PASSES 
+1596:        if (rc.lightManager && rc.lightManager->GetDirectionalLight().castShadows)
+1597:        {
+1598:            ID3D11RenderTargetView* originalRTV{ nullptr };
+1599:            ID3D11DepthStencilView* originalDSV{ nullptr };
+1600:            dc->OMGetRenderTargets(1, &originalRTV, &originalDSV);
+1602:            UINT numViewports{ 1 };
+1603:            D3D11_VIEWPORT originalViewport{};
+1604:            dc->RSGetViewports(&numViewports, &originalViewport);
+1606:            D3D11_VIEWPORT shadowViewport{};
+1607:            shadowViewport.Width = static_cast<float>(SHADOW_MAP_SIZE);
+1608:            shadowViewport.Height = static_cast<float>(SHADOW_MAP_SIZE);
+1609:            shadowViewport.MaxDepth = 1.0f;
+1611:            dc->OMSetBlendState(rc.renderState->GetBlendState(BlendState::Opaque), nullptr, 0xFFFFFFFF);
+1612:            dc->OMSetDepthStencilState(rc.renderState->GetDepthStencilState(DepthState::TestAndWrite), 0);
+1613:            dc->RSSetState(rc.renderState->GetRasterizerState(RasterizerState::SolidCullBack));
+1615:            m_shadowCasterShader->Begin(rc);
+1616:            for (int i{ 0 }; i < SHADOW_CASCADE_COUNT; ++i)
+1617:            {
+1618:                ID3D11DepthStencilView* const cascadeDSV{ rc.lightManager->GetCascadeDSV(i) };
+1619:                // Pure D16 hardware depth clear
+1620:                dc->ClearDepthStencilView(cascadeDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
+1621:                dc->OMSetRenderTargets(0, nullptr, cascadeDSV);
+1622:                dc->RSSetViewports(1, &shadowViewport);
+1624:                m_shadowCasterShader->SetCascadeMatrix(dc, rc.lightManager->GetCascadeMatrices()[i]);
+1625:                executeBatches(cascadePackets[i], cascadeCount[i], m_shadowCasterShader.get());
+1626:            }
+1627:            m_shadowCasterShader->End(rc);
+1629:            dc->OMSetRenderTargets(1, &originalRTV, originalDSV);
+1630:            dc->RSSetViewports(1, &originalViewport);
+1631:            if (originalRTV) originalRTV->Release();
+1632:            if (originalDSV) originalDSV->Release();
+1633:        }
+1635:        {
+1636:            static LightManager defaultLightManager;
+1637:            const LightManager* const lightManager{ rc.lightManager ? rc.lightManager : &defaultLightManager };
+1639:            CbScene cbScene{};
+1640:            cbScene.viewProjection = matViewProj;
+1641:            const DirectionalLight& dirLight{ lightManager->GetDirectionalLight() };
+1642:            cbScene.lightDirection = { dirLight.direction.x, dirLight.direction.y, dirLight.direction.z, 0.0f };
+1643:            cbScene.lightColor = { dirLight.color.x * dirLight.intensity, dirLight.color.y * dirLight.intensity, dirLight.color.z * dirLight.intensity, 1.0f };
+1644:            const DirectX::XMFLOAT3& camPos{ rc.camera->GetPosition() };
+1645:            const DirectX::XMFLOAT3& camDir{ rc.camera->GetFront() };
+1646:            cbScene.cameraPosition = { camPos.x, camPos.y, camPos.z, 1.0f };
+1647:            cbScene.cameraDirection = { camDir.x, camDir.y, camDir.z, 0.0f };
+1648:            cbScene.ambientSkyColor = lightManager->GetEffectiveSkyColor();
+1649:            cbScene.ambientGroundColor = lightManager->GetEffectiveGroundColor();
+1650:            cbScene.packedParams = { rc.psxEnabled ? 1.0f : 0.0f, (std::max)(1.0f, rc.psxResWidth), (std::max)(1.0f, rc.psxResHeight), 0.0f };
+1651:            cbScene.lightCounts = { lightManager->GetPointLightCount(), lightManager->GetSpotLightCount(), 0, 0 };
+1653:            for (int i{ 0 }; i < 8; ++i) cbScene.pointLights[i] = lightManager->GetPointLights()[i];
+1654:            for (int i{ 0 }; i < 8; ++i) cbScene.spotLights[i] = lightManager->GetSpotLights()[i];
+1656:            if (dirLight.castShadows)
+1657:            {
+1658:                for (int i{ 0 }; i < SHADOW_CASCADE_COUNT; ++i) cbScene.cascadeMatrices[i] = lightManager->GetCascadeMatrices()[i];
+1659:                cbScene.cascadeSplits = { dirLight.splitDistances[1], dirLight.splitDistances[2], dirLight.splitDistances[3], 0.0f };
+1660:                cbScene.cascadeBias = { dirLight.shadowBias[0], dirLight.shadowBias[1], dirLight.shadowBias[2], 0.0f };
+1661:                cbScene.shadowSettings = { 1.0f, dirLight.shadowAttenuation, 0.0f, 0.0f };
+1662:            }
+1663:            else cbScene.shadowSettings = { 0.0f, 1.0f, 0.0f, 0.0f };
+1665:            dc->UpdateSubresource(sceneConstantBuffer.Get(), 0, 0, &cbScene, 0, 0);
+1666:        }
+1668:        ID3D11Buffer* const sceneCbs[] = { sceneConstantBuffer.Get() };
+1669:        dc->VSSetConstantBuffers(7, 1, sceneCbs);
+1670:        dc->PSSetConstantBuffers(7, 1, sceneCbs);
+1672:        ID3D11SamplerState* const samplers[] = { rc.renderState->GetSamplerState(SamplerState::AnisotropicWrap) };
+1673:        dc->PSSetSamplers(0, 1, samplers);
+1675:        ID3D11SamplerState* const shadowSampler = rc.renderState->GetSamplerState(SamplerState::ShadowMap);
+1676:        dc->PSSetSamplers(10, 1, &shadowSampler);
+1678:        if (rc.lightManager && rc.lightManager->GetDirectionalLight().castShadows)
+1679:        {
+1680:            ID3D11ShaderResourceView* const cascadeArraySRV{ rc.lightManager->GetCascadeArraySRV() };
+1681:            dc->PSSetShaderResources(10, 1, &cascadeArraySRV);
+1682:        }
+1684:        dc->OMSetDepthStencilState(rc.renderState->GetDepthStencilState(DepthState::TestAndWrite), 0);
+1685:        dc->RSSetState(rc.renderState->GetRasterizerState(RasterizerState::SolidCullBack));
+1686:        dc->OMSetBlendState(rc.renderState->GetBlendState(BlendState::Opaque), nullptr, 0xFFFFFFFF);
+1688:        // Main Opaque
+1689:        executeBatches(opaquePackets, opaqueCount);
+1691:        // Toon Outlines
+1692:        if (outlineCount > 0)
+1693:        {
+1694:            dc->RSSetState(rc.renderState->GetRasterizerState(RasterizerState::SolidCullFront));
+1695:            m_outlineShader->Begin(rc);
+1696:            executeBatches(outlinePackets, outlineCount, m_outlineShader.get());
+1697:            m_outlineShader->End(rc);
+1698:            dc->RSSetState(rc.renderState->GetRasterizerState(RasterizerState::SolidCullBack));
+1699:        }
+1701:        // Velocity Pass
+1702:        if (rc.velocityRenderTargetView && velocityCount > 0)
+1703:        {
+1704:            ID3D11RenderTargetView* originalRTV{ nullptr };
+1705:            ID3D11DepthStencilView* originalDSV{ nullptr };
+1706:            dc->OMGetRenderTargets(1, &originalRTV, &originalDSV);
+1708:            ID3D11RenderTargetView* const velocityRTV{ rc.velocityRenderTargetView };
+1709:            dc->OMSetRenderTargets(1, &velocityRTV, originalDSV);
+1711:            constexpr float s_zeroVelocity[4]{ 0.0f, 0.0f, 0.0f, 0.0f };
+1712:            dc->ClearRenderTargetView(velocityRTV, s_zeroVelocity);
+1714:            dc->OMSetDepthStencilState(rc.renderState->GetDepthStencilState(DepthState::TestOnly), 0);
+1715:            dc->OMSetBlendState(rc.renderState->GetBlendState(BlendState::Opaque), nullptr, 0xFFFFFFFF);
+1717:            m_velocityShader->Begin(rc);
+1718:            DirectX::XMFLOAT4X4 currentViewProjection{};
+1719:            DirectX::XMStoreFloat4x4(&currentViewProjection, DirectX::XMLoadFloat4x4(&rc.camera->GetView()) * DirectX::XMLoadFloat4x4(&rc.camera->GetProjection()));
+1720:            m_velocityShader->SetViewProjections(dc, currentViewProjection, rc.camera->GetPreviousViewProjection());
+1722:            executeBatches(velocityPackets, velocityCount, m_velocityShader.get());
+1723:            m_velocityShader->End(rc);
+1725:            dc->OMSetRenderTargets(1, &originalRTV, originalDSV);
+1726:            if (originalRTV) originalRTV->Release();
+1727:            if (originalDSV) originalDSV->Release();
+1728:        }
+1730:        // Transparent Pass
+1731:        dc->OMSetBlendState(rc.renderState->GetBlendState(BlendState::Transparency), nullptr, 0xFFFFFFFF);
+1732:        dc->OMSetDepthStencilState(rc.renderState->GetDepthStencilState(DepthState::TestOnly), 0);
+1733:        executeBatches(transparentPackets, transparentCount);
+1735:        // Unbind cleanly
+1736:        ID3D11Buffer* const nullBuffers[]{ nullptr, nullptr };
+1737:        UINT nullStrides[]{ 0, 0 };
+1738:        UINT nullOffsets[]{ 0, 0 };
+1739:        dc->IASetVertexBuffers(0, 2, nullBuffers, nullStrides, nullOffsets);
+1741:        dc->VSSetConstantBuffers(7, 1, nullBuffers);
+1742:        dc->PSSetConstantBuffers(7, 1, nullBuffers);
+1743:        ID3D11SamplerState* const nullSamplers[]{ nullptr };
+1744:        dc->PSSetSamplers(0, 1, nullSamplers);
+1745:        ID3D11ShaderResourceView* const nullShadowSRV{ nullptr };
+1746:        dc->PSSetShaderResources(10, 1, &nullShadowSRV);
+1747:}
+ 

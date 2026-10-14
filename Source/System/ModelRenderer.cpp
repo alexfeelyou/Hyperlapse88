@@ -1,4 +1,5 @@
-﻿#include "ProfilerManager.h"
+﻿#include <cstring>
+#include "ProfilerManager.h"
 #include "ModelRenderer.h"
 #include "StringHash.h"
 
@@ -415,6 +416,26 @@ namespace
             a->outlineFadeEnd == b->outlineFadeEnd &&
             a->alphaMode == b->alphaMode &&
             a->alphaCutoff == b->alphaCutoff);
+    }
+
+    // Compares joint indices and inverse bind matrices to confirm two meshes share identical bone layouts
+    [[nodiscard]] inline bool AreBonePalettesEqual(
+        const std::vector<Model::Bone>& a,
+        const std::vector<Model::Bone>& b) noexcept
+    {
+        if (&a == &b) return true;
+        if (a.size() != b.size()) return false;
+        if (a.empty()) return true;
+
+        for (std::size_t i{ 0 }; i < a.size(); ++i)
+        {
+            if (a[i].nodeIndex != b[i].nodeIndex) return false;
+            if (std::memcmp(&a[i].offsetTransform, &b[i].offsetTransform, sizeof(DirectX::XMFLOAT4X4)) != 0)
+            {
+                return false;
+            }
+        }
+        return true;
     }
 }
 
@@ -955,11 +976,32 @@ void ModelRenderer::Render(const RenderContext& rc)
             }
             else
             {
-                const std::size_t slot{ AcquireSkeletonSlot(device.Get()) };
-                ComputeAndUploadSkeleton(dc, slot, meshes[meshIdx], drawInfo.useManualMatrix,
-                    drawInfo.hasVelocity, drawInfo.worldMatrix, drawInfo.previousWorldMatrix,
-                    drawInfo.currentNodeGlobals, drawInfo.previousNodeGlobals);
-                drawInfo.skeletonSlots[meshIdx] = slot;
+                // Multi-mesh skeleton deduplication:
+                // If an earlier mesh in this drawInfo has an identical bone palette, reuse its uploaded slot
+                std::size_t sharedSlot{ kInvalidSkeletonSlot };
+                for (std::size_t prevIdx{ 0 }; prevIdx < meshIdx; ++prevIdx)
+                {
+                    if (drawInfo.skeletonSlots[prevIdx] != m_identitySkeletonSlot &&
+                        drawInfo.skeletonSlots[prevIdx] != kInvalidSkeletonSlot &&
+                        AreBonePalettesEqual(meshes[meshIdx].bones, meshes[prevIdx].bones))
+                    {
+                        sharedSlot = drawInfo.skeletonSlots[prevIdx];
+                        break;
+                    }
+                }
+
+                if (sharedSlot != kInvalidSkeletonSlot)
+                {
+                    drawInfo.skeletonSlots[meshIdx] = sharedSlot;
+                }
+                else
+                {
+                    const std::size_t slot{ AcquireSkeletonSlot(device.Get()) };
+                    ComputeAndUploadSkeleton(dc, slot, meshes[meshIdx], drawInfo.useManualMatrix,
+                        drawInfo.hasVelocity, drawInfo.worldMatrix, drawInfo.previousWorldMatrix,
+                        drawInfo.currentNodeGlobals, drawInfo.previousNodeGlobals);
+                    drawInfo.skeletonSlots[meshIdx] = slot;
+                }
             }
         }
     }
@@ -1300,7 +1342,30 @@ void ModelRenderer::Render(const RenderContext& rc)
                     mPrevWorld = mWorld;
                 }
 
-                const BoundingBox aabb{ CalculateMeshAABB(mesh, drawInfo.useManualMatrix, drawInfo.worldMatrix, drawInfo.currentNodeGlobals) };
+                // Skinned AABB deduplication: If this mesh shares a skeleton slot with an earlier mesh in the same drawInfo,
+                // and has matching boundsRadius, reuse the calculated AABB to skip redundant bone transforms
+                BoundingBox aabb{};
+                bool aabbReused{ false };
+                if (!mesh.bones.empty())
+                {
+                    for (std::size_t prevIdx{ 0 }; prevIdx < meshIdx; ++prevIdx)
+                    {
+                        if (drawInfo.skeletonSlots[meshIdx] == drawInfo.skeletonSlots[prevIdx] &&
+                            std::abs(mesh.boundsRadius - drawInfo.model->GetMeshes()[prevIdx].boundsRadius) <= 0.001f)
+                        {
+                            const std::size_t prevFlat{ flatIndex - (meshIdx - prevIdx) };
+                            aabb.center = { soaCenterX[prevFlat], soaCenterY[prevFlat], soaCenterZ[prevFlat] };
+                            aabb.extents = { soaExtentX[prevFlat], soaExtentY[prevFlat], soaExtentZ[prevFlat] };
+                            aabbReused = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (!aabbReused)
+                {
+                    aabb = CalculateMeshAABB(mesh, drawInfo.useManualMatrix, drawInfo.worldMatrix, drawInfo.currentNodeGlobals);
+                }
 
                 soaCenterX[flatIndex] = aabb.center.x;
                 soaCenterY[flatIndex] = aabb.center.y;
