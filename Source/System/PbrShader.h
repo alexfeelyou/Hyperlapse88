@@ -34,7 +34,8 @@ private:
 
         // Bitmask: Bit 0 = HasMetalRoughMap, Bit 1 = HasEmissiveMap, Bit 2 = HasAOMap
         int               textureFlags{ 0 };
-        DirectX::XMFLOAT3 meshPadding{ 0.0f, 0.0f, 0.0f };
+        float             subsurfaceStrength{ 0.0f };
+        DirectX::XMFLOAT2 meshPadding{ 0.0f, 0.0f };
     };
 
     Microsoft::WRL::ComPtr<ID3D11VertexShader> m_vertexShader{};

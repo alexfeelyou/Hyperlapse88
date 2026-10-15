@@ -6,17 +6,24 @@ cbuffer CbMesh : register(b0)
     float3 emissiveColor;
     int alphaMode;
     float alphaCutoff;
-    float3 meshPadding;
+    float subsurfaceStrength;
+    float2 meshPadding;
 };
 
 Texture2D DiffuseMap : register(t0);
 SamplerState LinearSampler : register(s0);
 
-// Calculates pure diffuse light scattering
-float3 CalculateLambertLight(float3 L, float3 N, float3 radiance, float3 albedo)
+// Calculates diffuse light scattering + thin-surface foliage transmission
+float3 CalculateLambertLight(float3 L, float3 N, float3 V, float3 radiance, float3 albedo)
 {
-    float NdotL = max(dot(N, L), 0.0f);
-    return albedo * radiance * NdotL;
+    float rawNdotL = dot(N, L);
+    float NdotL = max(rawNdotL, 0.0f);
+
+    float transDot = saturate(dot(V, -L - N * 0.25f));
+    float transDot2 = transDot * transDot;
+    float transmission = (transDot2 * transDot2 + saturate(-rawNdotL) * 0.35f) * subsurfaceStrength;
+
+    return albedo * radiance * (NdotL + transmission);
 }
 
 float4 main(VS_OUT pin) : SV_TARGET
@@ -36,6 +43,7 @@ float4 main(VS_OUT pin) : SV_TARGET
     // Linearize the texture to match the engine's HDR/Gamma pipeline 
     float3 albedo = pow(abs(color.rgb), 2.2f);
     float3 N = normalize(pin.normal);
+    float3 V = normalize(cameraPosition.xyz - pin.position);
 
     float3 totalDirectLight = float3(0.0f, 0.0f, 0.0f);
 
@@ -43,7 +51,7 @@ float4 main(VS_OUT pin) : SV_TARGET
     float3 dirL = normalize(-lightDirection.xyz);
     float shadowAtten = CalculateCascadeShadow(pin.position, N, dirL);
     
-    totalDirectLight += CalculateLambertLight(dirL, N, lightColor.rgb, albedo) * shadowAtten;
+    totalDirectLight += CalculateLambertLight(dirL, N, V, lightColor.rgb, albedo) * shadowAtten;
 
     // Point Lights
     for (int i = 0; i < lightCounts.x; ++i)
@@ -59,7 +67,7 @@ float4 main(VS_OUT pin) : SV_TARGET
             attenuation = (attenuation * attenuation) / (distance * distance + 1.0f);
             
             float3 radiance = pointLights[i].colorAndIntensity.xyz * pointLights[i].colorAndIntensity.w * attenuation;
-            totalDirectLight += CalculateLambertLight(L, N, radiance, albedo);
+            totalDirectLight += CalculateLambertLight(L, N, V, radiance, albedo);
         }
     }
 
@@ -81,7 +89,7 @@ float4 main(VS_OUT pin) : SV_TARGET
             float spotAttenuation = smoothstep(cosHalfAngle, cosHalfAngle + 0.1f, currentCosAngle);
             
             float3 radiance = spotLights[j].colorAndIntensity.xyz * spotLights[j].colorAndIntensity.w * attenuation * spotAttenuation;
-            totalDirectLight += CalculateLambertLight(L, N, radiance, albedo);
+            totalDirectLight += CalculateLambertLight(L, N, V, radiance, albedo);
         }
     }
 

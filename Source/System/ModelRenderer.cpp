@@ -270,6 +270,7 @@ namespace
             float roughness{ 0.5f };
             float metalness{ 0.0f };
             float occlusionStrength{ 1.0f };
+            float subsurfaceStrength{ 0.0f };
             float alphaCutoff{ 0.5f };
             int alphaMode{ 0 };
         };
@@ -291,12 +292,14 @@ namespace
 
         case ShaderId::Lambert:
             data.emissiveColor = mat->emissiveColor;
+            data.subsurfaceStrength = mat->subsurfaceStrength;
             break;
 
         case ShaderId::Phong:
             data.normalMap = mat->normalMap.Get();
             data.emissiveColor = mat->emissiveColor;
             data.roughness = mat->roughness;
+            data.subsurfaceStrength = mat->subsurfaceStrength;
             break;
 
         case ShaderId::Pbr:
@@ -308,12 +311,14 @@ namespace
             data.roughness = mat->roughness;
             data.metalness = mat->metalness;
             data.occlusionStrength = mat->occlusionStrength;
+            data.subsurfaceStrength = mat->subsurfaceStrength;
             break;
 
         case ShaderId::Toon:
-            // Surface pass only evaluates diffuse, emissive, and stepped specular
+            // Surface pass evaluates diffuse, emissive, stepped specular, and subsurface transmission
             data.emissiveColor = mat->emissiveColor;
             data.roughness = mat->roughness;
+            data.subsurfaceStrength = mat->subsurfaceStrength;
             break;
 
         default:
@@ -368,13 +373,15 @@ namespace
             return true;
 
         case ShaderId::Lambert:
-            return (a->emissiveColor.x == b->emissiveColor.x &&
+            return (a->subsurfaceStrength == b->subsurfaceStrength &&
+                a->emissiveColor.x == b->emissiveColor.x &&
                 a->emissiveColor.y == b->emissiveColor.y &&
                 a->emissiveColor.z == b->emissiveColor.z);
 
         case ShaderId::Phong:
             return (a->normalMap.Get() == b->normalMap.Get() &&
                 a->roughness == b->roughness &&
+                a->subsurfaceStrength == b->subsurfaceStrength &&
                 a->emissiveColor.x == b->emissiveColor.x &&
                 a->emissiveColor.y == b->emissiveColor.y &&
                 a->emissiveColor.z == b->emissiveColor.z);
@@ -387,12 +394,14 @@ namespace
                 a->roughness == b->roughness &&
                 a->metalness == b->metalness &&
                 a->occlusionStrength == b->occlusionStrength &&
+                a->subsurfaceStrength == b->subsurfaceStrength &&
                 a->emissiveColor.x == b->emissiveColor.x &&
                 a->emissiveColor.y == b->emissiveColor.y &&
                 a->emissiveColor.z == b->emissiveColor.z);
 
         case ShaderId::Toon:
             return (a->roughness == b->roughness &&
+                a->subsurfaceStrength == b->subsurfaceStrength &&
                 a->emissiveColor.x == b->emissiveColor.x &&
                 a->emissiveColor.y == b->emissiveColor.y &&
                 a->emissiveColor.z == b->emissiveColor.z);

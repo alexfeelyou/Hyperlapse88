@@ -43,6 +43,7 @@ Material Material::Clone() const noexcept
     mat.metalness = metalness;
     mat.roughness = roughness;
     mat.occlusionStrength = occlusionStrength;
+    mat.subsurfaceStrength = subsurfaceStrength;
     mat.isOccluder = isOccluder;
     mat.isOccludable = isOccludable;
     mat.occluderScale = occluderScale;
@@ -224,6 +225,9 @@ void Material::DrawInspector() noexcept
 
         // Emissive Color: Visible for Lambert (1), Phong (2), PBR (3), Toon (4)
         ImGui::ColorEdit3("Emissive Color", &emissiveColor.x);
+
+        // Subsurface / Foliage Backlighting: Visible for all lit shaders (>0)
+        ImGui::SliderFloat("Subsurface / Foliage Glow", &subsurfaceStrength, 0.0f, 2.0f, "%.2f");
     }
 
     // OCCLUSION CULLING SETTINGS
@@ -274,6 +278,7 @@ void Material::Serialize(nlohmann::json& j) const
     j["Emissive"] = { emissiveColor.x, emissiveColor.y, emissiveColor.z };
     j["Roughness"] = roughness;
     j["Metalness"] = metalness;
+    j["SubsurfaceStrength"] = subsurfaceStrength;
     j["IsOccluder"] = isOccluder;
     j["IsOccludable"] = isOccludable;
     j["OccluderScale"] = occluderScale;
@@ -305,6 +310,7 @@ void Material::Deserialize(const nlohmann::json& j)
 
     roughness = j.value("Roughness", 0.5f);
     metalness = j.value("Metalness", 0.0f);
+    subsurfaceStrength = j.value("SubsurfaceStrength", 0.0f);
     isOccluder = j.value("IsOccluder", false);
     isOccludable = j.value("IsOccludable", true);
     occluderScale = j.value("OccluderScale", 0.95f);

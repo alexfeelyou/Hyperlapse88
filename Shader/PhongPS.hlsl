@@ -7,18 +7,25 @@ cbuffer CbMesh : register(b0)
     float roughness;
     int alphaMode;
     float alphaCutoff;
-    float2 meshPadding;
+    float subsurfaceStrength;
+    float meshPadding;
 };
 
 Texture2D DiffuseMap : register(t0);
 Texture2D NormalMap : register(t1);
 SamplerState LinearSampler : register(s0);
 
-// Calculates Diffuse + Blinn-Phong Specular
+// Calculates Diffuse + Thin-Surface Transmission + Blinn-Phong Specular
 float3 CalculatePhongLight(float3 L, float3 V, float3 N, float3 radiance, float3 albedo, float shininess)
 {
-    float NdotL = max(dot(N, L), 0.0f);
-    float3 diffuse = albedo * radiance * NdotL;
+    float rawNdotL = dot(N, L);
+    float NdotL = max(rawNdotL, 0.0f);
+
+    float transDot = saturate(dot(V, -L - N * 0.25f));
+    float transDot2 = transDot * transDot;
+    float transmission = (transDot2 * transDot2 + saturate(-rawNdotL) * 0.35f) * subsurfaceStrength;
+
+    float3 diffuse = albedo * radiance * (NdotL + transmission);
 
     // Blinn-Phong Specular (Half-Vector)
     float3 H = normalize(V + L);

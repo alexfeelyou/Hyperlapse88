@@ -46,6 +46,7 @@ public:
     float metalness{ 0.0f };
     float roughness{ 0.5f };
     float occlusionStrength{ 1.0f };
+    float subsurfaceStrength{ 0.0f };
 
     // Visibility & Software Occlusion Culling
     bool  isOccluder{ false };

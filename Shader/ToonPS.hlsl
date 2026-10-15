@@ -4,16 +4,17 @@ cbuffer CbMesh : register(b0)
 {
     float4 materialColor;
     float3 emissiveColor;
-    float roughness; 
-    int alphaMode; 
+    float roughness;
+    int alphaMode;
     float alphaCutoff;
-    float2 padding; 
+    float subsurfaceStrength;
+    float padding;
 };
 
 Texture2D DiffuseMap : register(t0);
 SamplerState LinearSampler : register(s0);
 
-// Calculates pure Toon light scattering using quantized Half-Lambert and stepped Specular
+// Calculates Toon light scattering with quantized Half-Lambert, stepped Specular, and Thin-Surface Backlighting
 float3 CalculateToonLight(float3 L, float3 N, float3 V, float3 radiance, float3 albedo)
 {
     // Half-Lambert Remapping: Prevents pitch-black shadows on the unlit side of the mesh
@@ -23,8 +24,15 @@ float3 CalculateToonLight(float3 L, float3 N, float3 V, float3 radiance, float3 
     // Quantized Cel-Banding: Creates a 3-tone shaded look with slight anti-aliasing on the edges
     float celDiffuse = smoothstep(0.48f, 0.52f, halfLambert) * 0.6f +
                        smoothstep(0.78f, 0.82f, halfLambert) * 0.4f;
-    
-    float3 diffuseColor = albedo * radiance * celDiffuse;
+
+    // Thin-Surface Subsurface Transmission (Polynomial x^4 Mie-like leaf/grass backlighting + backface wrap)
+    float transDot = saturate(dot(V, -L - N * 0.25f));
+    float transDot2 = transDot * transDot;
+    float transPhase = transDot2 * transDot2;
+    float backDiffuse = saturate(-NdotL) * 0.35f;
+    float transmission = (transPhase + backDiffuse) * subsurfaceStrength;
+
+    float3 diffuseColor = albedo * radiance * (celDiffuse + transmission);
 
     // Hard-Stepped Blinn-Phong Specular
     float3 H = normalize(L + V);

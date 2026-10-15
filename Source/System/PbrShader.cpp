@@ -57,7 +57,8 @@ void PbrShader::Update(const RenderContext& rc, const Model::Mesh& mesh)
         static_cast<int>(mesh.material->alphaMode),
         mesh.material->alphaCutoff,
         flags,
-        { 0.0f, 0.0f, 0.0f }
+        mesh.material->subsurfaceStrength,
+        { 0.0f, 0.0f }
     };
 
     dc->UpdateSubresource(m_meshConstantBuffer.Get(), 0, 0, &cbMesh, 0, 0);

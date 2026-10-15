@@ -28,14 +28,15 @@ public:
 
 private:
     struct CbMesh
-	{
-		DirectX::XMFLOAT4 materialColor{ 1.0f, 1.0f, 1.0f, 1.0f }; // 16 bytes
-		DirectX::XMFLOAT3 emissiveColor{ 0.0f, 0.0f, 0.0f };       // 12 bytes
-		float             roughness{ 0.5f };                       // 4 bytes
-		int               alphaMode{ 0 };                          // 4 bytes
-		float             alphaCutoff{ 0.5f };                     // 4 bytes
-		DirectX::XMFLOAT2 padding{ 0.0f, 0.0f };                   // 8 bytes
-	};
+    {
+        DirectX::XMFLOAT4 materialColor{ 1.0f, 1.0f, 1.0f, 1.0f }; // 16 bytes
+        DirectX::XMFLOAT3 emissiveColor{ 0.0f, 0.0f, 0.0f };       // 12 bytes
+        float             roughness{ 0.5f };                       // 4 bytes
+        int               alphaMode{ 0 };                          // 4 bytes
+        float             alphaCutoff{ 0.5f };                     // 4 bytes
+        float             subsurfaceStrength{ 0.0f };              // 4 bytes
+        float             padding{ 0.0f };                         // 4 bytes
+    };
 
     // Catch padding/alignment logic errors at compile time
     static_assert((sizeof(CbMesh) % 16) == 0, "CbMesh constant buffer must be 16-byte aligned!");

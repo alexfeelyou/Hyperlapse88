@@ -56,9 +56,9 @@ void PhongShader::Update(const RenderContext& rc, const Model::Mesh& mesh)
 		mesh.material->roughness,
 		static_cast<int>(mesh.material->alphaMode),
 		mesh.material->alphaCutoff,
-		{ 0.0f, 0.0f }
+		mesh.material->subsurfaceStrength,
+		0.0f
 	};
-
 	dc->UpdateSubresource(meshConstantBuffer.Get(), 0, 0, &cbMesh, 0, 0);
 
 	// シェーダーリソースビュー設定
