@@ -29,6 +29,10 @@ PostProcessManager::PostProcessManager()
     m_depthFogEffect = fog.get();
     m_effects.emplace_back(std::move(fog));
 
+    auto bloom = std::make_unique<BloomEffect>(device);
+    m_bloomEffect = bloom.get();
+    m_effects.emplace_back(std::move(bloom));
+
     auto lens = std::make_unique<LensDistortionEffect>(device);
     m_lensDistortionEffect = lens.get();
     m_effects.emplace_back(std::move(lens));
@@ -133,6 +137,10 @@ void PostProcessManager::CreateBuffers(int width, int height)
     assert(SUCCEEDED(hr) && "Failed to create Depth SRV");
 
     m_temporalAAEffect->OnResize(device, width, height);
+    for (auto& effect : m_effects)
+    {
+        effect->OnResize(device, width, height);
+    }
 }
 
 void PostProcessManager::BeginCapture()

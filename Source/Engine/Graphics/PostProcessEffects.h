@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <imgui.h>
 #include "PostProcessEffect.h"
 
@@ -308,4 +309,100 @@ private:
     Microsoft::WRL::ComPtr<ID3D11PixelShader>   m_pixelShader{};
     Microsoft::WRL::ComPtr<ID3D11Buffer>        m_constantBuffer{};
     Microsoft::WRL::ComPtr<ID3D11SamplerState>  m_linearSampler{};
+};
+
+// Multi-Scale 13-Tap Downsample & 9-Tap Tent Upsample HDR Bloom Effect
+class BloomEffect final : public PostProcessEffect
+{
+public:
+    static inline constexpr std::size_t kMipCount{ 5 };
+
+    struct Data
+    {
+        bool              enabled{ true };
+        float             threshold{ 1.0f };
+        float             softKnee{ 0.5f };
+        float             intensity{ 0.65f };
+        float             scatter{ 0.75f };
+        DirectX::XMFLOAT4 tint{ 1.0f, 0.94f, 0.82f, 1.0f };
+
+        [[nodiscard]] bool operator==(const Data& other) const noexcept
+        {
+            auto isEqual = [](float a, float b) noexcept { return std::abs(a - b) < 0.0001f; };
+            return enabled == other.enabled &&
+                isEqual(threshold, other.threshold) &&
+                isEqual(softKnee, other.softKnee) &&
+                isEqual(intensity, other.intensity) &&
+                isEqual(scatter, other.scatter) &&
+                isEqual(tint.x, other.tint.x) &&
+                isEqual(tint.y, other.tint.y) &&
+                isEqual(tint.z, other.tint.z) &&
+                isEqual(tint.w, other.tint.w);
+        }
+    };
+
+    explicit BloomEffect(ID3D11Device* device);
+    ~BloomEffect() override = default;
+
+    [[nodiscard]] bool IsEnabled() const noexcept override
+    {
+        return m_data.enabled && m_data.intensity > 0.0001f;
+    }
+
+    void Draw(ID3D11DeviceContext* dc, ID3D11ShaderResourceView* srcSRV) override;
+    void DrawGUI() noexcept override;
+    [[nodiscard]] std::string_view GetName() const noexcept override { return "Bloom"; }
+
+    [[nodiscard]] Data& GetData() noexcept { return m_data; }
+    [[nodiscard]] const Data& GetData() const noexcept { return m_data; }
+
+    void Serialize(nlohmann::json& out) const override;
+    void Deserialize(const nlohmann::json& in) override;
+    void ResetToDefault() noexcept override;
+    void OnResize(ID3D11Device* device, int width, int height) noexcept override;
+
+private:
+    struct alignas(16) CbBloom
+    {
+        DirectX::XMFLOAT2 texelSize{ 1.0f / 1920.0f, 1.0f / 1080.0f };
+        float             threshold{ 1.0f };
+        float             softKnee{ 0.5f };
+        DirectX::XMFLOAT4 bloomTintAndIntensity{ 1.0f, 0.94f, 0.82f, 0.65f };
+        float             scatter{ 0.75f };
+        int               passMode{ 0 };
+        float             padding[2]{ 0.0f, 0.0f };
+    };
+    static_assert((sizeof(CbBloom) % 16) == 0, "CbBloom constant buffer must be 16-byte aligned!");
+
+    struct MipLevel
+    {
+        Microsoft::WRL::ComPtr<ID3D11Texture2D>          texture{};
+        Microsoft::WRL::ComPtr<ID3D11RenderTargetView>   rtv{};
+        Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> srv{};
+        int                                              width{ 1 };
+        int                                              height{ 1 };
+
+        void Reset() noexcept
+        {
+            srv.Reset();
+            rtv.Reset();
+            texture.Reset();
+            width = 1;
+            height = 1;
+        }
+    };
+
+    void CreateMipChain(ID3D11Device* device, int width, int height) noexcept;
+    void UpdateConstantBuffer(ID3D11DeviceContext* dc, const CbBloom& cb) const noexcept;
+
+    Data m_data{};
+    std::array<MipLevel, kMipCount> m_mipChain{};
+    int m_width{ 1920 };
+    int m_height{ 1080 };
+
+    Microsoft::WRL::ComPtr<ID3D11PixelShader>  m_pixelShader{};
+    Microsoft::WRL::ComPtr<ID3D11Buffer>       m_constantBuffer{};
+    Microsoft::WRL::ComPtr<ID3D11SamplerState> m_linearSampler{};
+    Microsoft::WRL::ComPtr<ID3D11SamplerState> m_pointSampler{};
+    Microsoft::WRL::ComPtr<ID3D11BlendState>   m_additiveBlendState{};
 };

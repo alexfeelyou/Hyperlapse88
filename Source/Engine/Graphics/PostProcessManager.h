@@ -42,6 +42,7 @@ public:
 
     // Direct accessors to individual effect modules 
     [[nodiscard]] TemporalAAEffect& GetTemporalAA() noexcept { return *m_temporalAAEffect; }
+    [[nodiscard]] BloomEffect& GetBloom() noexcept { return *m_bloomEffect; }
     [[nodiscard]] PSXEffect& GetPSX() noexcept { return *m_psxEffect; }
     [[nodiscard]] LensDistortionEffect& GetLensDistortion() noexcept { return *m_lensDistortionEffect; }
     [[nodiscard]] RadialBlurEffect& GetRadialBlur() noexcept { return *m_radialBlurEffect; }
@@ -118,4 +119,5 @@ private:
     VignetteEffect* m_vignetteEffect{ nullptr };
     ScanlineEffect* m_scanlineEffect{ nullptr };
     DepthFogEffect* m_depthFogEffect{ nullptr };
+    BloomEffect* m_bloomEffect{ nullptr };
 };
