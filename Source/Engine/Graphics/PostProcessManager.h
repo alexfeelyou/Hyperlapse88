@@ -42,6 +42,7 @@ public:
 
     // Direct accessors to individual effect modules 
     [[nodiscard]] TemporalAAEffect& GetTemporalAA() noexcept { return *m_temporalAAEffect; }
+    [[nodiscard]] ColorGradingEffect& GetColorGrading() noexcept { return *m_colorGradingEffect; }
     [[nodiscard]] BloomEffect& GetBloom() noexcept { return *m_bloomEffect; }
     [[nodiscard]] PSXEffect& GetPSX() noexcept { return *m_psxEffect; }
     [[nodiscard]] LensDistortionEffect& GetLensDistortion() noexcept { return *m_lensDistortionEffect; }
@@ -91,7 +92,8 @@ private:
     std::array<RenderTargetResource, 2> m_pingPong{};
 
     RenderTargetResource m_velocityTarget{}; // written by ModelRenderer's velocity pass
-    std::unique_ptr<TemporalAAEffect> m_temporalAAEffect{};
+    std::unique_ptr<TemporalAAEffect>   m_temporalAAEffect{};
+    std::unique_ptr<ColorGradingEffect> m_colorGradingEffect{};
 
     // Shared Full-Screen Triangle Vertex Shader & Passthrough Blit Pixel Shader
     Microsoft::WRL::ComPtr<ID3D11VertexShader> m_fullscreenVS{};

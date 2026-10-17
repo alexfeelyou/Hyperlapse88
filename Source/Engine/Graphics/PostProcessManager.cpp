@@ -19,6 +19,7 @@ PostProcessManager::PostProcessManager()
     device->CreateSamplerState(&samplerDesc, m_pointSampler.GetAddressOf());
 
     m_temporalAAEffect = std::make_unique<TemporalAAEffect>(device);
+    m_colorGradingEffect = std::make_unique<ColorGradingEffect>(device);
 
     // Instantiate discrete passes in optimal visual execution order
     auto psx = std::make_unique<PSXEffect>(device);
@@ -272,12 +273,9 @@ void PostProcessManager::EndCapture(float dt)
     if (m_originalDSV) { m_originalDSV->Release(); m_originalDSV = nullptr; }
 }
 
-void PostProcessManager::Blit(ID3D11DeviceContext* dc, ID3D11ShaderResourceView* src, ID3D11RenderTargetView* dst)
+void PostProcessManager::Blit(ID3D11DeviceContext* dc, ID3D11ShaderResourceView* src, ID3D11RenderTargetView* /*dst*/)
 {
-    dc->PSSetShader(m_passthroughPS.Get(), nullptr, 0);
-    dc->PSSetShaderResources(0, 1, &src);
-    dc->PSSetSamplers(0, 1, m_pointSampler.GetAddressOf());
-    dc->Draw(3, 0);
+    m_colorGradingEffect->Draw(dc, src);
 }
 
 void PostProcessManager::SaveConfig(std::string_view filepath) const
@@ -299,6 +297,10 @@ void PostProcessManager::SaveConfig(std::string_view filepath) const
     nlohmann::json taaJson{};
     m_temporalAAEffect->Serialize(taaJson);
     root["Temporal_AA"] = taaJson;
+
+    nlohmann::json colorGradingJson{};
+    m_colorGradingEffect->Serialize(colorGradingJson);
+    root["Color_Grading"] = colorGradingJson;
 
     // Extract the folder path from the full filepath and ensure it exists
     // std::ofstream will silently fail if the target directory doesn't exist
@@ -354,6 +356,11 @@ void PostProcessManager::LoadConfig(std::string_view filepath)
             m_temporalAAEffect->Deserialize(root["Temporal_AA"]);
         }
 
+        if (root.contains("Color_Grading"))
+        {
+            m_colorGradingEffect->Deserialize(root["Color_Grading"]);
+        }
+
         Log::Success("Loaded post-process profile: " + std::string{ filepath });
     }
     catch (const std::exception& e)
@@ -369,4 +376,5 @@ void PostProcessManager::ResetToDefaults() noexcept
         effect->ResetToDefault();
     }
     m_temporalAAEffect->ResetToDefault();
+    m_colorGradingEffect->ResetToDefault();
 }

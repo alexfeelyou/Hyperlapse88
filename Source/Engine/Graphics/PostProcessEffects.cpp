@@ -1,8 +1,14 @@
 #include <cmath>
+#include <cstring>
+#include <filesystem>
 #include "System/Graphics.h"
 #include "PostProcessEffects.h"
 
-// Helper to generate D3D11 Samplers cleanly
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <commdlg.h>
+
+// Helper to generate D3D11 Samplers and native file dialogs cleanly
 namespace
 {
     void CreateSampler(ID3D11Device* device, D3D11_FILTER filter, ID3D11SamplerState** outSampler) noexcept
@@ -13,6 +19,25 @@ namespace
         desc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
         desc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
         device->CreateSamplerState(&desc, outSampler);
+    }
+
+    [[nodiscard]] std::string OpenLutFileDialog() noexcept
+    {
+        char filename[MAX_PATH]{ "" };
+        OPENFILENAMEA ofn{};
+        ofn.lStructSize = sizeof(ofn);
+        ofn.hwndOwner = nullptr;
+        ofn.lpstrFilter = "LUT Strip Textures (*.png;*.dds;*.tga)\0*.png;*.dds;*.tga\0All Files (*.*)\0*.*\0";
+        ofn.lpstrFile = filename;
+        ofn.nMaxFile = MAX_PATH;
+        ofn.Flags = OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_HIDEREADONLY | OFN_NOCHANGEDIR;
+        ofn.lpstrDefExt = "";
+
+        if (GetOpenFileNameA(&ofn))
+        {
+            return std::string{ filename };
+        }
+        return "";
     }
 }
 
@@ -614,4 +639,229 @@ void BloomEffect::Deserialize(const nlohmann::json& in)
 void BloomEffect::ResetToDefault() noexcept
 {
     m_data = Data{};
+}
+
+// ColorGradingEffect Implementation
+ColorGradingEffect::ColorGradingEffect(ID3D11Device* device)
+{
+    GpuResourceUtils::LoadPixelShader(device, "Data/Shader/PassthroughPS.cso", m_pixelShader.GetAddressOf());
+    GpuResourceUtils::CreateConstantBuffer(device, sizeof(CbColorGrading), m_constantBuffer.GetAddressOf());
+
+    CreateSampler(device, D3D11_FILTER_MIN_MAG_MIP_POINT, m_pointSampler.GetAddressOf());
+    CreateSampler(device, D3D11_FILTER_MIN_MAG_MIP_LINEAR, m_linearSampler.GetAddressOf());
+}
+
+bool ColorGradingEffect::LoadLutTexture(ID3D11Device* device, std::string_view filepath) noexcept
+{
+    if (filepath.empty() || !std::filesystem::exists(filepath))
+    {
+        ClearLutTexture();
+        return false;
+    }
+
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> newSRV{};
+    D3D11_TEXTURE2D_DESC texDesc{};
+    const std::string pathStr{ filepath };
+
+    if (FAILED(GpuResourceUtils::LoadTexture(device, pathStr.c_str(), newSRV.GetAddressOf(), &texDesc)))
+    {
+        ClearLutTexture();
+        return false;
+    }
+
+    // Standard unwrapped 3D LUT strips have width == height * height (e.g., 1024x32 or 256x16)
+    m_lutSize = static_cast<float>((std::max)(2u, texDesc.Height));
+    m_lutSRV = std::move(newSRV);
+    m_data.lutFilePath = pathStr;
+    m_hasCachedCb = false;
+    return true;
+}
+
+void ColorGradingEffect::ClearLutTexture() noexcept
+{
+    m_lutSRV.Reset();
+    m_data.lutFilePath.clear();
+    m_lutSize = 32.0f;
+    m_hasCachedCb = false;
+}
+
+void ColorGradingEffect::Draw(ID3D11DeviceContext* dc, ID3D11ShaderResourceView* srcSRV)
+{
+    CbColorGrading cb{};
+
+    if (m_data.enabled)
+    {
+        // Precompute EV exposure and white balance (temperature/tint) on the CPU
+        const float exposureScale{ std::exp2(m_data.exposure) };
+        const float temp{ std::clamp(m_data.temperature, -1.0f, 1.0f) * 0.20f };
+        const float gmTint{ std::clamp(m_data.tint, -1.0f, 1.0f) * 0.15f };
+
+        const float wbR{ (std::max)(0.0f, 1.0f + temp + gmTint * 0.5f) };
+        const float wbG{ (std::max)(0.0f, 1.0f - gmTint) };
+        const float wbB{ (std::max)(0.0f, 1.0f - temp + gmTint * 0.5f) };
+
+        cb.exposureAndWhiteBalance = {
+            exposureScale * wbR,
+            exposureScale * wbG,
+            exposureScale * wbB,
+            std::clamp(m_data.contrast, 0.2f, 2.5f)
+        };
+
+        // Pre-linearize sRGB shadow lift and scale by lift intensity (w)
+        const float liftStrength{ std::clamp(m_data.shadowLiftColor.w, 0.0f, 1.0f) * 0.25f };
+        cb.shadowLift = {
+            std::pow((std::max)(0.0f, m_data.shadowLiftColor.x), 2.2f) * liftStrength,
+            std::pow((std::max)(0.0f, m_data.shadowLiftColor.y), 2.2f) * liftStrength,
+            std::pow((std::max)(0.0f, m_data.shadowLiftColor.z), 2.2f) * liftStrength,
+            std::clamp(m_data.saturation, 0.0f, 2.5f)
+        };
+
+        // Pre-linearize sRGB highlight gain and scale by gain multiplier (w)
+        const float gainStrength{ (std::max)(0.0f, m_data.highlightGainColor.w) };
+        cb.highlightGain = {
+            std::pow((std::max)(0.0f, m_data.highlightGainColor.x), 2.2f) * gainStrength,
+            std::pow((std::max)(0.0f, m_data.highlightGainColor.y), 2.2f) * gainStrength,
+            std::pow((std::max)(0.0f, m_data.highlightGainColor.z), 2.2f) * gainStrength,
+            0.0f
+        };
+
+        const float activeLutIntensity{ m_lutSRV ? std::clamp(m_data.lutIntensity, 0.0f, 1.0f) : 0.0f };
+        cb.lutParams = {
+            m_lutSize,
+            1.0f / m_lutSize,
+            activeLutIntensity,
+            0.0f
+        };
+    }
+
+    if (!m_hasCachedCb || std::memcmp(&cb, &m_cachedCb, sizeof(CbColorGrading)) != 0)
+    {
+        dc->UpdateSubresource(m_constantBuffer.Get(), 0, nullptr, &cb, 0, 0);
+        m_cachedCb = cb;
+        m_hasCachedCb = true;
+    }
+
+    ID3D11ShaderResourceView* const srvs[]{ srcSRV, m_lutSRV.Get() };
+    ID3D11SamplerState* const samplers[]{ m_pointSampler.Get(), m_linearSampler.Get() };
+
+    dc->PSSetShader(m_pixelShader.Get(), nullptr, 0);
+    dc->PSSetConstantBuffers(0, 1, m_constantBuffer.GetAddressOf());
+    dc->PSSetShaderResources(0, 2, srvs);
+    dc->PSSetSamplers(0, 2, samplers);
+    dc->Draw(3, 0);
+}
+
+void ColorGradingEffect::DrawGUI() noexcept
+{
+    ImGui::Checkbox("Enable Color Grading", &m_data.enabled);
+    if (!m_data.enabled) return;
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::TextDisabled("EXPOSURE & WHITE BALANCE");
+    ImGui::SliderFloat("Exposure (EV)", &m_data.exposure, -3.0f, 3.0f, "%.2f");
+    ImGui::SliderFloat("Temperature (Warmth)", &m_data.temperature, -1.0f, 1.0f, "%.2f");
+    ImGui::SliderFloat("Tint (Green/Magenta)", &m_data.tint, -1.0f, 1.0f, "%.2f");
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::TextDisabled("WATERCOLOR PALETTE (LIFT & GAIN)");
+    ImGui::ColorEdit3("Shadow Lift Tint", &m_data.shadowLiftColor.x);
+    ImGui::SliderFloat("Shadow Lift Amount", &m_data.shadowLiftColor.w, 0.0f, 1.0f, "%.2f");
+    ImGui::ColorEdit3("Highlight Gain Tint", &m_data.highlightGainColor.x);
+    ImGui::SliderFloat("Highlight Gain", &m_data.highlightGainColor.w, 0.1f, 2.0f, "%.2f");
+    ImGui::SliderFloat("Contrast", &m_data.contrast, 0.5f, 1.8f, "%.2f");
+    ImGui::SliderFloat("Saturation", &m_data.saturation, 0.0f, 2.0f, "%.2f");
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::TextDisabled("3D COLOR LUT STRIP (OPTIONAL 1024x32 / 256x16)");
+    ImGui::TextColored(
+        m_lutSRV ? ImVec4{ 0.2f, 0.9f, 0.2f, 1.0f } : ImVec4{ 0.6f, 0.6f, 0.6f, 1.0f },
+        m_lutSRV ? "LUT Strip: Loaded (%.0fx%.0fx%.0f)" : "LUT Strip: None (Procedural Grade Only)",
+        m_lutSize, m_lutSize, m_lutSize
+    );
+
+    if (ImGui::Button("Browse LUT..."))
+    {
+        const std::string newPath{ OpenLutFileDialog() };
+        if (!newPath.empty())
+        {
+            LoadLutTexture(Graphics::Instance().GetDevice(), newPath);
+        }
+    }
+    if (m_lutSRV)
+    {
+        ImGui::SameLine();
+        if (ImGui::Button("Clear LUT"))
+        {
+            ClearLutTexture();
+        }
+        ImGui::SliderFloat("LUT Intensity", &m_data.lutIntensity, 0.0f, 1.0f, "%.2f");
+    }
+}
+
+void ColorGradingEffect::Serialize(nlohmann::json& out) const
+{
+    out["enabled"] = m_data.enabled;
+    out["exposure"] = m_data.exposure;
+    out["temperature"] = m_data.temperature;
+    out["tint"] = m_data.tint;
+    out["contrast"] = m_data.contrast;
+    out["saturation"] = m_data.saturation;
+    out["shadowLiftColor"] = {
+        m_data.shadowLiftColor.x, m_data.shadowLiftColor.y,
+        m_data.shadowLiftColor.z, m_data.shadowLiftColor.w
+    };
+    out["highlightGainColor"] = {
+        m_data.highlightGainColor.x, m_data.highlightGainColor.y,
+        m_data.highlightGainColor.z, m_data.highlightGainColor.w
+    };
+    out["lutIntensity"] = m_data.lutIntensity;
+    out["lutFilePath"] = m_data.lutFilePath;
+}
+
+void ColorGradingEffect::Deserialize(const nlohmann::json& in)
+{
+    m_data.enabled = in.value("enabled", true);
+    m_data.exposure = in.value("exposure", 0.15f);
+    m_data.temperature = in.value("temperature", 0.12f);
+    m_data.tint = in.value("tint", 0.0f);
+    m_data.contrast = in.value("contrast", 1.06f);
+    m_data.saturation = in.value("saturation", 1.12f);
+
+    if (in.contains("shadowLiftColor") && in["shadowLiftColor"].is_array() && in["shadowLiftColor"].size() == 4)
+    {
+        m_data.shadowLiftColor.x = in["shadowLiftColor"][0];
+        m_data.shadowLiftColor.y = in["shadowLiftColor"][1];
+        m_data.shadowLiftColor.z = in["shadowLiftColor"][2];
+        m_data.shadowLiftColor.w = in["shadowLiftColor"][3];
+    }
+
+    if (in.contains("highlightGainColor") && in["highlightGainColor"].is_array() && in["highlightGainColor"].size() == 4)
+    {
+        m_data.highlightGainColor.x = in["highlightGainColor"][0];
+        m_data.highlightGainColor.y = in["highlightGainColor"][1];
+        m_data.highlightGainColor.z = in["highlightGainColor"][2];
+        m_data.highlightGainColor.w = in["highlightGainColor"][3];
+    }
+
+    m_data.lutIntensity = in.value("lutIntensity", 1.0f);
+    const std::string loadedLutPath{ in.value("lutFilePath", "") };
+    if (!loadedLutPath.empty())
+    {
+        LoadLutTexture(Graphics::Instance().GetDevice(), loadedLutPath);
+    }
+    else
+    {
+        ClearLutTexture();
+    }
+    m_hasCachedCb = false;
+}
+
+void ColorGradingEffect::ResetToDefault() noexcept
+{
+    ClearLutTexture();
+    m_data = Data{};
+    m_hasCachedCb = false;
 }

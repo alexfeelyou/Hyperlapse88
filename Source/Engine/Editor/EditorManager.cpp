@@ -879,6 +879,16 @@ void EditorManager::DrawInspector(Scene* currentScene) noexcept
         ImGui::Separator();
 
         Graphics::Instance().GetLightManager().DrawEnvironmentGUI();
+
+        ImGui::Spacing();
+        if (ImGui::Button("Open Post-Processing & Color Grading..."))
+        {
+            m_showPostProcess = true;
+            ImGui::SetWindowFocus(s_windowPostProcess);
+        }
+
+        ImGui::Spacing();
+        ImGui::Separator();
         ImGui::Text("Active Scene: %s", currentScene->GetSceneName().data());
         ImGui::TextDisabled("Save Path: %s", currentScene->GetSceneSavePath().data());
         ImGui::TextDisabled("PostProcess: %s", currentScene->GetPostProcessProfilePath().data());
@@ -1045,7 +1055,13 @@ void EditorManager::DrawPostProcess(Scene* currentScene) noexcept
             ImGui::Separator();
 
             ImGui::BeginDisabled(!masterEnabled);
-            
+
+            if (ImGui::CollapsingHeader("Tonemapping & Color Grading", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                ppm->GetColorGrading().DrawGUI();
+            }
+            ImGui::Spacing();
+
             if (ImGui::CollapsingHeader("Temporal AA"))
             {
                 ppm->GetTemporalAA().DrawGUI();
