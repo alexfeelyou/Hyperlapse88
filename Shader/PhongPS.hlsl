@@ -38,7 +38,7 @@ float3 CalculatePhongLight(float3 L, float3 V, float3 N, float3 radiance, float3
     return diffuse + specular;
 }
 
-float4 main(VS_OUT pin) : SV_TARGET
+float4 main(VS_OUT pin, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 {
     float4 texColor = DiffuseMap.Sample(LinearSampler, pin.texcoord);
     float4 color = texColor * materialColor * pin.color;
@@ -57,6 +57,7 @@ float4 main(VS_OUT pin) : SV_TARGET
     
     // Normal Mapping
     float3 N = normalize(pin.normal);
+    N = isFrontFace ? N : -N; // Orient normal towards the viewer for two-sided foliage cards
     float tangentLenSq = dot(pin.tangent.xyz, pin.tangent.xyz);
     if (tangentLenSq > 0.0001f)
     {

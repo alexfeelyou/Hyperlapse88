@@ -55,7 +55,7 @@ float3 CalculateToonLight(float3 L, float3 N, float3 V, float3 radiance, float3 
     return diffuseColor + specularColor;
 }
 
-float4 main(VS_OUT pin) : SV_TARGET
+float4 main(VS_OUT pin, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 {
     float4 texColor = DiffuseMap.Sample(LinearSampler, pin.texcoord);
     float4 color = texColor * materialColor * pin.color;
@@ -71,6 +71,7 @@ float4 main(VS_OUT pin) : SV_TARGET
 
     float3 albedo = pow(abs(color.rgb), 2.2f);
     float3 N = normalize(pin.normal);
+    N = isFrontFace ? N : -N; // Orient normal towards the viewer for two-sided foliage cards
     float3 V = normalize(cameraPosition.xyz - pin.position); // View vector for specular
 
     float3 totalDirectLight = float3(0.0f, 0.0f, 0.0f);
