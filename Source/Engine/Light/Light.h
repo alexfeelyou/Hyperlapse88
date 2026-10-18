@@ -114,6 +114,14 @@ public:
         return { m_groundColor.x * m_groundIntensity, m_groundColor.y * m_groundIntensity, m_groundColor.z * m_groundIntensity, 1.0f };
     }
 
+    // Mutators for real-time atmospheric lighting harmonization
+    void SetSkyColor(const DirectX::XMFLOAT3& color) noexcept { m_skyColor = color; }
+    void SetSkyIntensity(float intensity) noexcept { m_skyIntensity = intensity; }
+    void SetGroundColor(const DirectX::XMFLOAT3& color) noexcept { m_groundColor = color; }
+    void SetGroundIntensity(float intensity) noexcept { m_groundIntensity = intensity; }
+    void SetDirectionalLightColor(const DirectX::XMFLOAT3& color) noexcept { m_directionalLight.color = color; }
+    void SetDirectionalLightIntensity(float intensity) noexcept { m_directionalLight.intensity = intensity; }
+
     [[nodiscard]] ID3D11ShaderResourceView* GetSkyboxSRV() const noexcept { return m_skyboxSRV.Get(); }
     [[nodiscard]] bool HasSkybox() const noexcept { return m_skyboxSRV != nullptr; }
 

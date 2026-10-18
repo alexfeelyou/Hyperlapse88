@@ -466,6 +466,8 @@ public:
     void Deserialize(const nlohmann::json& in) override;
     void ResetToDefault() noexcept override;
 
+    void SetManager(class PostProcessManager* manager) noexcept { m_manager = manager; }
+
 private:
     struct alignas(16) CbColorGrading
     {
@@ -486,6 +488,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D11SamplerState>       m_pointSampler{};
     Microsoft::WRL::ComPtr<ID3D11SamplerState>       m_linearSampler{};
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_lutSRV{};
+    class PostProcessManager* m_manager{ nullptr };
 };
 
 // Half-Resolution Screen-Space Ambient Obscurance (SSAO) with Bilateral Upsampling

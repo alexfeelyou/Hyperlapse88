@@ -727,6 +727,9 @@
     <ClInclude Include="Source\Engine\Components\SocketComponent.h">
       <Filter>Source\Engine\Components</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Engine\Graphics\AtmosphereProfile.h">
+      <Filter>Source\Engine\Graphics</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Shader\Basic.hlsli">

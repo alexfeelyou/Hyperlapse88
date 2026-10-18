@@ -1,3 +1,5 @@
+#include <imgui.h>
+#include "Light.h"
 #include "PostProcessManager.h"
 
 PostProcessManager::PostProcessManager()
@@ -20,6 +22,7 @@ PostProcessManager::PostProcessManager()
 
     m_temporalAAEffect = std::make_unique<TemporalAAEffect>(device);
     m_colorGradingEffect = std::make_unique<ColorGradingEffect>(device);
+    m_colorGradingEffect->SetManager(this);
 
     // Instantiate discrete passes in optimal visual execution order
     auto psx = std::make_unique<PSXEffect>(device);
@@ -154,6 +157,9 @@ void PostProcessManager::CreateBuffers(int width, int height)
 
 void PostProcessManager::BeginCapture()
 {
+    // Update LightManager ambient colors and sun intensity before 3D scene rasterization
+    HarmonizeAtmosphere();
+
     auto dc = Graphics::Instance().GetDeviceContext();
 
     // Save previous RTV / DSV and Viewport so we can cleanly restore them in EndCapture
@@ -189,6 +195,9 @@ void PostProcessManager::BeginCapture()
 
 void PostProcessManager::EndCapture(float dt)
 {
+    // Update post-process parameters (Fog, Shafts, Bloom, Color Grading)
+    HarmonizeAtmosphere();
+
     auto dc = Graphics::Instance().GetDeviceContext();
 
     // Advance simulation time
@@ -286,9 +295,182 @@ void PostProcessManager::Blit(ID3D11DeviceContext* dc, ID3D11ShaderResourceView*
     m_colorGradingEffect->Draw(dc, src);
 }
 
+void PostProcessManager::HarmonizeAtmosphere() noexcept
+{
+    // Fast return if master automation is toggled off or preset is set to full manual override
+    if (!m_autoHarmonizeAtmosphere || m_atmospherePreset == AtmospherePreset::Custom)
+    {
+        return;
+    }
+
+    auto& lightManager = Graphics::Instance().GetLightManager();
+    const auto& dirLight = lightManager.GetDirectionalLight();
+
+    // Calculate normalized solar elevation from direction vector: h = -dir.y in [-1.0, 1.0]
+    DirectX::XMVECTOR vDir = DirectX::XMLoadFloat3(&dirLight.direction);
+    vDir = DirectX::XMVector3Normalize(vDir);
+    DirectX::XMFLOAT3 normDir{};
+    DirectX::XMStoreFloat3(&normDir, vDir);
+    const float solarElevation = -normDir.y;
+
+    const AtmosphereParameters params = AtmosphereProfile::Evaluate(m_atmospherePreset, solarElevation);
+
+    // Harmonize LightManager forward scene lighting
+    if (m_harmonizeAmbient)
+    {
+        lightManager.SetSkyColor(params.skyAmbientColor);
+        lightManager.SetSkyIntensity(params.skyAmbientIntensity);
+        lightManager.SetGroundColor(params.groundAmbientColor);
+        lightManager.SetGroundIntensity(params.groundAmbientIntensity);
+    }
+
+    if (m_harmonizeSunLight)
+    {
+        lightManager.SetDirectionalLightColor(params.sunColor);
+        lightManager.SetDirectionalLightIntensity(params.sunIntensity * (std::max)(0.0f, m_sunIntensityTrim));
+    }
+
+    // Harmonize Depth Fog (Mie Halo & Horizon) with non-destructive distance & harshness trims
+    if (m_harmonizeFog && m_depthFogEffect)
+    {
+        auto& fog = m_depthFogEffect->GetData();
+        fog.color = params.fogColor;
+        fog.sunInscatterColor = params.sunInscatterColor;
+        fog.sunInscatterIntensity = params.sunInscatterIntensity * (std::max)(0.0f, m_mieInscatterTrim);
+        fog.sunInscatterExponent = params.sunInscatterExponent;
+        fog.heightFalloff = params.heightFalloff;
+        fog.startDistance = params.startDistance * (std::max)(0.1f, m_fogDistanceTrim);
+        fog.endDistance = (std::max)(fog.startDistance + 1.0f, params.endDistance * (std::max)(0.1f, m_fogDistanceTrim));
+    }
+
+    // Harmonize Volumetric Sun Shafts & Optical Flare with intensity trims
+    if (m_harmonizeShafts && m_sunShaftEffect)
+    {
+        auto& shafts = m_sunShaftEffect->GetData();
+        shafts.shaftColor = params.shaftColor;
+        shafts.shaftIntensity = params.shaftIntensity * (std::max)(0.0f, m_shaftIntensityTrim);
+        shafts.density = params.shaftDensity;
+        shafts.decay = params.shaftDecay;
+        shafts.flareIntensity = params.flareIntensity * (std::max)(0.0f, m_flareIntensityTrim);
+    }
+
+    // Harmonize HDR Bloom Bleed with non-destructive intensity scaling
+    if (m_harmonizeBloom && m_bloomEffect)
+    {
+        auto& bloom = m_bloomEffect->GetData();
+        bloom.tint = params.bloomTint;
+        bloom.intensity = params.bloomIntensity * (std::max)(0.0f, m_bloomIntensityTrim);
+        bloom.threshold = params.bloomThreshold;
+        bloom.scatter = params.bloomScatter;
+    }
+
+    // Harmonize ACES Filmic Watercolor Color Grading with exposure & saturation offsets
+    if (m_harmonizeColorGrading && m_colorGradingEffect)
+    {
+        auto& grade = m_colorGradingEffect->GetData();
+        grade.exposure = params.exposure + m_exposureTrim;
+        grade.temperature = params.temperature;
+        grade.tint = params.tint;
+        grade.contrast = params.contrast;
+        grade.saturation = params.saturation * (std::max)(0.0f, m_saturationTrim);
+        grade.shadowLiftColor = params.shadowLiftColor;
+        grade.highlightGainColor = params.highlightGainColor;
+    }
+}
+
+void PostProcessManager::DrawAtmosphereGUI() noexcept
+{
+    ImGui::TextColored(ImVec4{ 0.2f, 0.85f, 1.0f, 1.0f }, "SOLAR ATMOSPHERE HARMONIZER");
+    ImGui::Checkbox("Auto-Drive Atmosphere from Sun", &m_autoHarmonizeAtmosphere);
+
+    const char* const presetNames[] = {
+        "Stylized Watercolor (Default)",
+        "Vibrant Fantasy",
+        "Clear Natural Daylight",
+        "Custom (Manual Override)"
+    };
+
+    int currentPreset = static_cast<int>(m_atmospherePreset);
+    if (ImGui::Combo("Atmosphere Preset", &currentPreset, presetNames, IM_ARRAYSIZE(presetNames)))
+    {
+        m_atmospherePreset = static_cast<AtmospherePreset>(currentPreset);
+        HarmonizeAtmosphere();
+    }
+
+    const auto& dirLight = Graphics::Instance().GetLightManager().GetDirectionalLight();
+    const float elevation = -dirLight.direction.y;
+    char gaugeBuf[64];
+    sprintf_s(gaugeBuf, sizeof(gaugeBuf), "Solar Elevation: %+.2f (%s)", elevation,
+        elevation >= 0.05f ? "Day" : (elevation >= -0.05f ? "Twilight" : "Night"));
+    ImGui::ProgressBar((elevation + 1.0f) * 0.5f, ImVec2{ -1.0f, 0.0f }, gaugeBuf);
+
+    if (!m_autoHarmonizeAtmosphere || m_atmospherePreset == AtmospherePreset::Custom)
+    {
+        ImGui::TextDisabled("Atmosphere automation paused (All sliders are 100% manual).");
+        return;
+    }
+
+    // Subsystem Decoupling Masks: Allows disabling automation per subsystem without fighting sliders
+    if (ImGui::TreeNodeEx("Subsystem Automation Masks", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::Checkbox("Ambient Dome Fill (Sky/Ground)", &m_harmonizeAmbient);
+        ImGui::Checkbox("Sun Light (Color/Intensity)", &m_harmonizeSunLight);
+        ImGui::Checkbox("Depth Fog & Mie Inscattering", &m_harmonizeFog);
+        ImGui::Checkbox("Volumetric Sun Shafts & Flare", &m_harmonizeShafts);
+        ImGui::Checkbox("HDR Bloom Bleed", &m_harmonizeBloom);
+        ImGui::Checkbox("Filmic Color Grading", &m_harmonizeColorGrading);
+        ImGui::TreePop();
+    }
+
+    // Non-Destructive Artist Trims: Modulates curve without overwriting manual intent
+    if (ImGui::TreeNodeEx("Artist Trims & Modifiers (Curve Scaling)", ImGuiTreeNodeFlags_DefaultOpen))
+    {
+        ImGui::SliderFloat("Fog Distance Scale", &m_fogDistanceTrim, 0.2f, 3.0f, "%.2fx");
+        ImGui::SliderFloat("Mie Glow Harshness", &m_mieInscatterTrim, 0.0f, 2.5f, "%.2fx");
+        ImGui::SliderFloat("Bloom Intensity Scale", &m_bloomIntensityTrim, 0.0f, 2.5f, "%.2fx");
+        ImGui::SliderFloat("Sun Shaft Intensity Scale", &m_shaftIntensityTrim, 0.0f, 2.5f, "%.2fx");
+        ImGui::SliderFloat("Lens Flare Intensity Scale", &m_flareIntensityTrim, 0.0f, 2.5f, "%.2fx");
+        ImGui::SliderFloat("Sun Light Intensity Scale", &m_sunIntensityTrim, 0.0f, 2.5f, "%.2fx");
+        ImGui::SliderFloat("Exposure Trim (EV)", &m_exposureTrim, -2.0f, 2.0f, "%+.2f EV");
+        ImGui::SliderFloat("Saturation Scale", &m_saturationTrim, 0.5f, 1.5f, "%.2fx");
+
+        if (ImGui::Button("Reset Trims to 1.0x"))
+        {
+            m_fogDistanceTrim = 1.0f;
+            m_mieInscatterTrim = 1.0f;
+            m_bloomIntensityTrim = 1.0f;
+            m_shaftIntensityTrim = 1.0f;
+            m_flareIntensityTrim = 1.0f;
+            m_sunIntensityTrim = 1.0f;
+            m_exposureTrim = 0.0f;
+            m_saturationTrim = 1.0f;
+            HarmonizeAtmosphere();
+        }
+        ImGui::TreePop();
+    }
+}
+
 void PostProcessManager::SaveConfig(std::string_view filepath) const
 {
     nlohmann::json root;
+
+    root["Atmosphere_AutoHarmonize"] = m_autoHarmonizeAtmosphere;
+    root["Atmosphere_HarmonizeAmbient"] = m_harmonizeAmbient;
+    root["Atmosphere_HarmonizeSunLight"] = m_harmonizeSunLight;
+    root["Atmosphere_HarmonizeFog"] = m_harmonizeFog;
+    root["Atmosphere_HarmonizeShafts"] = m_harmonizeShafts;
+    root["Atmosphere_HarmonizeBloom"] = m_harmonizeBloom;
+    root["Atmosphere_HarmonizeColorGrading"] = m_harmonizeColorGrading;
+    root["Atmosphere_Preset"] = static_cast<int>(m_atmospherePreset);
+
+    root["Atmosphere_FogDistanceTrim"] = m_fogDistanceTrim;
+    root["Atmosphere_MieInscatterTrim"] = m_mieInscatterTrim;
+    root["Atmosphere_BloomIntensityTrim"] = m_bloomIntensityTrim;
+    root["Atmosphere_ShaftIntensityTrim"] = m_shaftIntensityTrim;
+    root["Atmosphere_FlareIntensityTrim"] = m_flareIntensityTrim;
+    root["Atmosphere_SunIntensityTrim"] = m_sunIntensityTrim;
+    root["Atmosphere_ExposureTrim"] = m_exposureTrim;
+    root["Atmosphere_SaturationTrim"] = m_saturationTrim;
 
     for (const auto& effect : m_effects)
     {
@@ -348,6 +530,24 @@ void PostProcessManager::LoadConfig(std::string_view filepath)
         nlohmann::json root;
         file >> root; // Parse the JSON
 
+        m_autoHarmonizeAtmosphere = root.value("Atmosphere_AutoHarmonize", true);
+        m_harmonizeAmbient = root.value("Atmosphere_HarmonizeAmbient", true);
+        m_harmonizeSunLight = root.value("Atmosphere_HarmonizeSunLight", true);
+        m_harmonizeFog = root.value("Atmosphere_HarmonizeFog", true);
+        m_harmonizeShafts = root.value("Atmosphere_HarmonizeShafts", true);
+        m_harmonizeBloom = root.value("Atmosphere_HarmonizeBloom", true);
+        m_harmonizeColorGrading = root.value("Atmosphere_HarmonizeColorGrading", true);
+        m_atmospherePreset = static_cast<AtmospherePreset>(root.value("Atmosphere_Preset", 0));
+
+        m_fogDistanceTrim = root.value("Atmosphere_FogDistanceTrim", 1.0f);
+        m_mieInscatterTrim = root.value("Atmosphere_MieInscatterTrim", 1.0f);
+        m_bloomIntensityTrim = root.value("Atmosphere_BloomIntensityTrim", 1.0f);
+        m_shaftIntensityTrim = root.value("Atmosphere_ShaftIntensityTrim", 1.0f);
+        m_flareIntensityTrim = root.value("Atmosphere_FlareIntensityTrim", 1.0f);
+        m_sunIntensityTrim = root.value("Atmosphere_SunIntensityTrim", 1.0f);
+        m_exposureTrim = root.value("Atmosphere_ExposureTrim", 0.0f);
+        m_saturationTrim = root.value("Atmosphere_SaturationTrim", 1.0f);
+
         for (auto& effect : m_effects)
         {
             std::string key{ effect->GetName() };
@@ -379,10 +579,30 @@ void PostProcessManager::LoadConfig(std::string_view filepath)
 
 void PostProcessManager::ResetToDefaults() noexcept
 {
+    m_autoHarmonizeAtmosphere = true;
+    m_harmonizeAmbient = true;
+    m_harmonizeSunLight = true;
+    m_harmonizeFog = true;
+    m_harmonizeShafts = true;
+    m_harmonizeBloom = true;
+    m_harmonizeColorGrading = true;
+    m_atmospherePreset = AtmospherePreset::StylizedWatercolor;
+
+    m_fogDistanceTrim = 1.0f;
+    m_mieInscatterTrim = 1.0f;
+    m_bloomIntensityTrim = 1.0f;
+    m_shaftIntensityTrim = 1.0f;
+    m_flareIntensityTrim = 1.0f;
+    m_sunIntensityTrim = 1.0f;
+    m_exposureTrim = 0.0f;
+    m_saturationTrim = 1.0f;
+
     for (auto& effect : m_effects)
     {
         effect->ResetToDefault();
     }
     m_temporalAAEffect->ResetToDefault();
     m_colorGradingEffect->ResetToDefault();
+
+    HarmonizeAtmosphere();
 }

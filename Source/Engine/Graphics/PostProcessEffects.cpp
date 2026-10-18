@@ -5,6 +5,7 @@
 #include "CameraController.h"
 #include "Camera.h"
 #include "Light.h"
+#include "PostProcessManager.h"
 #include "PostProcessEffects.h"
 
 #define WIN32_LEAN_AND_MEAN
@@ -756,6 +757,14 @@ void ColorGradingEffect::Draw(ID3D11DeviceContext* dc, ID3D11ShaderResourceView*
 
 void ColorGradingEffect::DrawGUI() noexcept
 {
+    // Embed the Master Atmosphere Harmonizer controls directly at the top of the panel
+    if (m_manager)
+    {
+        m_manager->DrawAtmosphereGUI();
+        ImGui::Spacing();
+        ImGui::Separator();
+    }
+
     ImGui::Checkbox("Enable Color Grading", &m_data.enabled);
     if (!m_data.enabled) return;
 
