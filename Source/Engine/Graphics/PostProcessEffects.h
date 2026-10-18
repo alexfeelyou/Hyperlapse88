@@ -487,3 +487,96 @@ private:
     Microsoft::WRL::ComPtr<ID3D11SamplerState>       m_linearSampler{};
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_lutSRV{};
 };
+
+// Half-Resolution Screen-Space Ambient Obscurance (SSAO) with Bilateral Upsampling
+class SsaoEffect final : public PostProcessEffect
+{
+public:
+    struct Data
+    {
+        bool              enabled{ true };
+        float             radius{ 0.55f };
+        float             intensity{ 1.25f };
+        float             bias{ 0.025f };
+        float             fadeDistance{ 120.0f };
+        float             directLightPreservation{ 0.85f };
+        DirectX::XMFLOAT4 aoColor{ 0.08f, 0.10f, 0.16f, 1.0f }; // Crevice shadow tint
+
+        [[nodiscard]] bool operator==(const Data& other) const noexcept
+        {
+            auto isEqual = [](float a, float b) noexcept { return std::abs(a - b) < 0.0001f; };
+            return enabled == other.enabled &&
+                isEqual(radius, other.radius) &&
+                isEqual(intensity, other.intensity) &&
+                isEqual(bias, other.bias) &&
+                isEqual(fadeDistance, other.fadeDistance) &&
+                isEqual(directLightPreservation, other.directLightPreservation) &&
+                isEqual(aoColor.x, other.aoColor.x) &&
+                isEqual(aoColor.y, other.aoColor.y) &&
+                isEqual(aoColor.z, other.aoColor.z) &&
+                isEqual(aoColor.w, other.aoColor.w);
+        }
+    };
+
+    explicit SsaoEffect(ID3D11Device* device);
+    ~SsaoEffect() override = default;
+
+    [[nodiscard]] bool IsEnabled() const noexcept override
+    {
+        return m_data.enabled && m_data.intensity > 0.0001f && m_data.radius > 0.001f;
+    }
+
+    void Draw(ID3D11DeviceContext* dc, ID3D11ShaderResourceView* srcSRV) override;
+    void DrawGUI() noexcept override;
+    [[nodiscard]] std::string_view GetName() const noexcept override { return "Screen-Space AO"; }
+
+    [[nodiscard]] Data& GetData() noexcept { return m_data; }
+    [[nodiscard]] const Data& GetData() const noexcept { return m_data; }
+
+    void Serialize(nlohmann::json& out) const override;
+    void Deserialize(const nlohmann::json& in) override;
+    void ResetToDefault() noexcept override;
+    void OnResize(ID3D11Device* device, int width, int height) noexcept override;
+
+private:
+    struct alignas(16) CbSsao
+    {
+        DirectX::XMFLOAT4 projParams{ 1.0f, 1.0f, 0.1f, 1000.0f };   // x: tanHalfFov*aspect, y: tanHalfFov, z: nearZ, w: farZ
+        DirectX::XMFLOAT4 texelSizes{ 1.0f / 960.0f, 1.0f / 540.0f, 1.0f / 1920.0f, 1.0f / 1080.0f }; // xy: halfResInv, zw: fullResInv
+        DirectX::XMFLOAT4 aoParams{ 0.55f, 1.25f, 0.025f, 120.0f };  // x: radius, y: intensity, z: bias, w: fadeDistance
+        DirectX::XMFLOAT4 aoColorAndPreserve{ 0.01f, 0.01f, 0.03f, 0.85f }; // rgb: linear aoColor, w: directLightPreservation
+        int               passMode{ 0 };                             // 0: Raw AO, 1: Bilateral Blur, 2: Bilateral Upsample & Composite
+        float             padding[3]{ 0.0f, 0.0f, 0.0f };
+    };
+    static_assert((sizeof(CbSsao) % 16) == 0, "CbSsao constant buffer must be 16-byte aligned!");
+
+    struct HalfResTarget
+    {
+        Microsoft::WRL::ComPtr<ID3D11Texture2D>          texture{};
+        Microsoft::WRL::ComPtr<ID3D11RenderTargetView>   rtv{};
+        Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> srv{};
+
+        void Reset() noexcept
+        {
+            srv.Reset();
+            rtv.Reset();
+            texture.Reset();
+        }
+    };
+
+    void CreateBuffers(ID3D11Device* device, int width, int height) noexcept;
+    void UpdateConstantBuffer(ID3D11DeviceContext* dc, const CbSsao& cb) const noexcept;
+
+    Data          m_data{};
+    HalfResTarget m_aoRawTarget{};
+    HalfResTarget m_aoBlurTarget{};
+    int           m_width{ 1920 };
+    int           m_height{ 1080 };
+    int           m_halfWidth{ 960 };
+    int           m_halfHeight{ 540 };
+
+    Microsoft::WRL::ComPtr<ID3D11PixelShader>  m_pixelShader{};
+    Microsoft::WRL::ComPtr<ID3D11Buffer>       m_constantBuffer{};
+    Microsoft::WRL::ComPtr<ID3D11SamplerState> m_pointSampler{};
+    Microsoft::WRL::ComPtr<ID3D11SamplerState> m_linearSampler{};
+};

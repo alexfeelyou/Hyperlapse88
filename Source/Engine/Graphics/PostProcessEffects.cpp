@@ -2,6 +2,8 @@
 #include <cstring>
 #include <filesystem>
 #include "System/Graphics.h"
+#include "CameraController.h"
+#include "Camera.h"
 #include "PostProcessEffects.h"
 
 #define WIN32_LEAN_AND_MEAN
@@ -864,4 +866,227 @@ void ColorGradingEffect::ResetToDefault() noexcept
     ClearLutTexture();
     m_data = Data{};
     m_hasCachedCb = false;
+}
+
+// SsaoEffect Implementation
+SsaoEffect::SsaoEffect(ID3D11Device* device)
+{
+    GpuResourceUtils::LoadPixelShader(device, "Data/Shader/SsaoPS.cso", m_pixelShader.GetAddressOf());
+
+    D3D11_BUFFER_DESC cbDesc{};
+    cbDesc.ByteWidth = sizeof(CbSsao);
+    cbDesc.Usage = D3D11_USAGE_DYNAMIC;
+    cbDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    cbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    device->CreateBuffer(&cbDesc, nullptr, m_constantBuffer.GetAddressOf());
+
+    CreateSampler(device, D3D11_FILTER_MIN_MAG_MIP_POINT, m_pointSampler.GetAddressOf());
+    CreateSampler(device, D3D11_FILTER_MIN_MAG_MIP_LINEAR, m_linearSampler.GetAddressOf());
+
+    CreateBuffers(device, m_width, m_height);
+}
+
+void SsaoEffect::CreateBuffers(ID3D11Device* device, int width, int height) noexcept
+{
+    m_width = (std::max)(1, width);
+    m_height = (std::max)(1, height);
+    m_halfWidth = (std::max)(1, m_width / 2);
+    m_halfHeight = (std::max)(1, m_height / 2);
+
+    m_aoRawTarget.Reset();
+    m_aoBlurTarget.Reset();
+
+    // Single-channel 8-bit R8_UNORM at half-resolution 
+    D3D11_TEXTURE2D_DESC desc{};
+    desc.Width = static_cast<UINT>(m_halfWidth);
+    desc.Height = static_cast<UINT>(m_halfHeight);
+    desc.MipLevels = 1;
+    desc.ArraySize = 1;
+    desc.Format = DXGI_FORMAT_R8_UNORM;
+    desc.SampleDesc.Count = 1;
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+
+    auto allocateHalfRes = [&](HalfResTarget& target) noexcept
+        {
+            device->CreateTexture2D(&desc, nullptr, target.texture.GetAddressOf());
+            device->CreateRenderTargetView(target.texture.Get(), nullptr, target.rtv.GetAddressOf());
+            device->CreateShaderResourceView(target.texture.Get(), nullptr, target.srv.GetAddressOf());
+        };
+
+    allocateHalfRes(m_aoRawTarget);
+    allocateHalfRes(m_aoBlurTarget);
+}
+
+void SsaoEffect::OnResize(ID3D11Device* device, int width, int height) noexcept
+{
+    if (width <= 0 || height <= 0) return;
+    if (width == m_width && height == m_height) return;
+    CreateBuffers(device, width, height);
+}
+
+void SsaoEffect::UpdateConstantBuffer(ID3D11DeviceContext* dc, const CbSsao& cb) const noexcept
+{
+    D3D11_MAPPED_SUBRESOURCE mapped{};
+    if (SUCCEEDED(dc->Map(m_constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
+    {
+        *static_cast<CbSsao*>(mapped.pData) = cb;
+        dc->Unmap(m_constantBuffer.Get(), 0);
+    }
+}
+
+void SsaoEffect::Draw(ID3D11DeviceContext* dc, ID3D11ShaderResourceView* srcSRV)
+{
+    // Cache destination ping-pong RTV and full-screen viewport bound by PostProcessManager
+    ID3D11RenderTargetView* destRTV{ nullptr };
+    dc->OMGetRenderTargets(1, &destRTV, nullptr);
+
+    UINT vpCount{ 1 };
+    D3D11_VIEWPORT destViewport{};
+    dc->RSGetViewports(&vpCount, &destViewport);
+
+    ID3D11ShaderResourceView* const nullSRV[]{ nullptr };
+
+    float tanHalfFov{ std::tan(DirectX::XMConvertToRadians(45.0f) * 0.5f) };
+    float aspect{ static_cast<float>(m_width) / static_cast<float>(m_height) };
+    float nearZ{ 0.1f };
+    float farZ{ 1000.0f };
+
+    if (const auto camera{ CameraController::Instance().GetActiveCamera() })
+    {
+        tanHalfFov = std::tan(camera->GetFovY() * 0.5f);
+        aspect = camera->GetAspectRatio();
+        nearZ = camera->GetNearZ();
+        farZ = camera->GetFarZ();
+    }
+
+    CbSsao cb{};
+    cb.projParams = { tanHalfFov * aspect, tanHalfFov, nearZ, farZ };
+    cb.texelSizes = {
+        1.0f / static_cast<float>(m_halfWidth),
+        1.0f / static_cast<float>(m_halfHeight),
+        1.0f / static_cast<float>(m_width),
+        1.0f / static_cast<float>(m_height)
+    };
+    cb.aoParams = {
+        std::clamp(m_data.radius, 0.05f, 5.0f),
+        std::clamp(m_data.intensity, 0.0f, 4.0f),
+        std::clamp(m_data.bias, 0.001f, 0.2f),
+        (std::max)(5.0f, m_data.fadeDistance)
+    };
+    cb.aoColorAndPreserve = {
+        std::pow((std::max)(0.0f, m_data.aoColor.x), 2.2f),
+        std::pow((std::max)(0.0f, m_data.aoColor.y), 2.2f),
+        std::pow((std::max)(0.0f, m_data.aoColor.z), 2.2f),
+        std::clamp(m_data.directLightPreservation, 0.0f, 2.0f)
+    };
+
+    dc->PSSetShader(m_pixelShader.Get(), nullptr, 0);
+    dc->PSSetConstantBuffers(0, 1, m_constantBuffer.GetAddressOf());
+
+    ID3D11SamplerState* const samplers[]{ m_pointSampler.Get(), m_linearSampler.Get() };
+    dc->PSSetSamplers(0, 2, samplers);
+
+    D3D11_VIEWPORT halfVP{};
+    halfVP.Width = static_cast<float>(m_halfWidth);
+    halfVP.Height = static_cast<float>(m_halfHeight);
+    halfVP.MinDepth = 0.0f;
+    halfVP.MaxDepth = 1.0f;
+    dc->RSSetViewports(1, &halfVP);
+
+    // PASS 0: Half-Resolution 8-Tap Spiral AO Generation (reads Depth SRV at t1)
+    ID3D11RenderTargetView* const rawRTV{ m_aoRawTarget.rtv.Get() };
+    dc->OMSetRenderTargets(1, &rawRTV, nullptr);
+
+    cb.passMode = 0;
+    UpdateConstantBuffer(dc, cb);
+    dc->Draw(3, 0);
+
+    // PASS 1A: Half-Resolution 4-Tap Horizontal Slope-Aware Bilateral Blur (Raw -> Blur)
+    ID3D11RenderTargetView* const blurRTV{ m_aoBlurTarget.rtv.Get() };
+    dc->OMSetRenderTargets(1, &blurRTV, nullptr);
+
+    cb.passMode = 1;
+    UpdateConstantBuffer(dc, cb);
+
+    ID3D11ShaderResourceView* const rawSRV{ m_aoRawTarget.srv.Get() };
+    dc->PSSetShaderResources(3, 1, &rawSRV);
+    dc->Draw(3, 0);
+    dc->PSSetShaderResources(3, 1, nullSRV);
+
+    // PASS 1B: Half-Resolution 4-Tap Vertical Slope-Aware Bilateral Blur (Blur -> Raw)
+    dc->OMSetRenderTargets(1, &rawRTV, nullptr);
+
+    cb.passMode = 2;
+    UpdateConstantBuffer(dc, cb);
+
+    ID3D11ShaderResourceView* const blurSRV{ m_aoBlurTarget.srv.Get() };
+    dc->PSSetShaderResources(3, 1, &blurSRV);
+    dc->Draw(3, 0);
+    dc->PSSetShaderResources(3, 1, nullSRV);
+
+    // PASS 2: Full-Resolution 2x2 Exact Bilateral Upsample & Radiance-Preserving Composite
+    dc->OMSetRenderTargets(1, &destRTV, nullptr);
+    dc->RSSetViewports(1, &destViewport);
+
+    cb.passMode = 3;
+    UpdateConstantBuffer(dc, cb);
+
+    dc->PSSetShaderResources(0, 1, &srcSRV);
+    dc->PSSetShaderResources(3, 1, &rawSRV);
+    dc->Draw(3, 0);
+
+    // Cleanly unbind slot 3 SRV
+    dc->PSSetShaderResources(3, 1, nullSRV);
+
+    if (destRTV)
+    {
+        destRTV->Release();
+    }
+}
+
+void SsaoEffect::DrawGUI() noexcept
+{
+    ImGui::Checkbox("Enable Screen-Space AO", &m_data.enabled);
+    if (!m_data.enabled) return;
+
+    ImGui::ColorEdit3("Crevice Tint Color", &m_data.aoColor.x);
+    ImGui::SliderFloat("AO Intensity", &m_data.intensity, 0.0f, 3.0f, "%.2f");
+    ImGui::SliderFloat("Sample Radius (m)", &m_data.radius, 0.1f, 2.5f, "%.2f");
+    ImGui::SliderFloat("Surface Bias", &m_data.bias, 0.005f, 0.10f, "%.3f");
+    ImGui::SliderFloat("Direct Light Preservation", &m_data.directLightPreservation, 0.0f, 1.5f, "%.2f");
+    ImGui::SliderFloat("Fade Distance", &m_data.fadeDistance, 20.0f, 500.0f, "%.0f");
+}
+
+void SsaoEffect::Serialize(nlohmann::json& out) const
+{
+    out["enabled"] = m_data.enabled;
+    out["radius"] = m_data.radius;
+    out["intensity"] = m_data.intensity;
+    out["bias"] = m_data.bias;
+    out["fadeDistance"] = m_data.fadeDistance;
+    out["directLightPreservation"] = m_data.directLightPreservation;
+    out["aoColor"] = { m_data.aoColor.x, m_data.aoColor.y, m_data.aoColor.z, m_data.aoColor.w };
+}
+
+void SsaoEffect::Deserialize(const nlohmann::json& in)
+{
+    m_data.enabled = in.value("enabled", true);
+    m_data.radius = in.value("radius", 0.55f);
+    m_data.intensity = in.value("intensity", 1.25f);
+    m_data.bias = in.value("bias", 0.025f);
+    m_data.fadeDistance = in.value("fadeDistance", 120.0f);
+    m_data.directLightPreservation = in.value("directLightPreservation", 0.85f);
+    if (in.contains("aoColor") && in["aoColor"].is_array() && in["aoColor"].size() == 4)
+    {
+        m_data.aoColor.x = in["aoColor"][0];
+        m_data.aoColor.y = in["aoColor"][1];
+        m_data.aoColor.z = in["aoColor"][2];
+        m_data.aoColor.w = in["aoColor"][3];
+    }
+}
+
+void SsaoEffect::ResetToDefault() noexcept
+{
+    m_data = Data{};
 }

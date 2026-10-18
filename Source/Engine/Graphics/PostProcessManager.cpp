@@ -26,6 +26,10 @@ PostProcessManager::PostProcessManager()
     m_psxEffect = psx.get();
     m_effects.emplace_back(std::move(psx));
 
+    auto ssao = std::make_unique<SsaoEffect>(device);
+    m_ssaoEffect = ssao.get();
+    m_effects.emplace_back(std::move(ssao));
+
     auto fog = std::make_unique<DepthFogEffect>(device);
     m_depthFogEffect = fog.get();
     m_effects.emplace_back(std::move(fog));
