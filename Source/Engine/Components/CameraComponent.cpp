@@ -60,10 +60,22 @@ CameraComponent::CameraComponent()
     ApplyProjectionSettings();
 }
 
+CameraComponent::~CameraComponent()
+{
+    CameraController::Instance().ClearGameCamera(m_camera);
+}
+
 void CameraComponent::OnAttach(GameObject* owner) noexcept
 {
     IComponent::OnAttach(owner);
     VirtualCameraComponent::EnsureSharedGizmoLoaded();
+
+    CameraController::Instance().SetGameCamera(m_camera);
+}
+
+void CameraComponent::OnDisable() noexcept
+{
+    CameraController::Instance().ClearGameCamera(m_camera);
 }
 
 void CameraComponent::AddTrauma(float amount) noexcept
@@ -238,6 +250,12 @@ void CameraComponent::LateUpdate(float dt)
         }
     }
 
+    // Keep the engine-wide active gameplay camera synchronized with this Camera Brain for post-process passes
+    if (CameraController::Instance().GetGameCamera() != m_camera)
+    {
+        CameraController::Instance().SetGameCamera(m_camera);
+    }
+
     m_isDirty = false;
 }
 
@@ -312,11 +330,7 @@ void CameraComponent::DrawGizmo(const GizmoContext& ctx) noexcept
         if ((dx * dx + dy * dy + dz * dz) < 0.01f) return;
     }
 
-    const DirectX::XMFLOAT3 worldRotRad{
-        DirectX::XMConvertToRadians(rot.x),
-        DirectX::XMConvertToRadians(rot.y),
-        DirectX::XMConvertToRadians(rot.z)
-    };
+    const DirectX::XMFLOAT3 worldRotRad{ rot };
 
     constexpr float r{ 1.0f }, g{ 0.85f }, b{ 0.0f }, a{ 1.0f };
     constexpr DirectX::XMFLOAT4 gizmoColor{ r, g, b, a };

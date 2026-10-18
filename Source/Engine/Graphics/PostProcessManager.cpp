@@ -34,6 +34,10 @@ PostProcessManager::PostProcessManager()
     m_depthFogEffect = fog.get();
     m_effects.emplace_back(std::move(fog));
 
+    auto sunShaft = std::make_unique<SunShaftEffect>(device);
+    m_sunShaftEffect = sunShaft.get();
+    m_effects.emplace_back(std::move(sunShaft));
+
     auto bloom = std::make_unique<BloomEffect>(device);
     m_bloomEffect = bloom.get();
     m_effects.emplace_back(std::move(bloom));

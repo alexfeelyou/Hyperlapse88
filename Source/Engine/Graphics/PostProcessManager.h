@@ -44,6 +44,7 @@ public:
     [[nodiscard]] TemporalAAEffect& GetTemporalAA() noexcept { return *m_temporalAAEffect; }
     [[nodiscard]] ColorGradingEffect& GetColorGrading() noexcept { return *m_colorGradingEffect; }
     [[nodiscard]] SsaoEffect& GetSSAO() noexcept { return *m_ssaoEffect; }
+    [[nodiscard]] SunShaftEffect& GetSunShafts() noexcept { return *m_sunShaftEffect; }
     [[nodiscard]] BloomEffect& GetBloom() noexcept { return *m_bloomEffect; }
     [[nodiscard]] PSXEffect& GetPSX() noexcept { return *m_psxEffect; }
     [[nodiscard]] LensDistortionEffect& GetLensDistortion() noexcept { return *m_lensDistortionEffect; }
@@ -118,6 +119,7 @@ private:
     // Non-owning fast pointers directly aliasing elements in m_effects
     PSXEffect* m_psxEffect{ nullptr };
     SsaoEffect* m_ssaoEffect{ nullptr };
+    SunShaftEffect* m_sunShaftEffect{ nullptr };
     LensDistortionEffect* m_lensDistortionEffect{ nullptr };
     RadialBlurEffect* m_radialBlurEffect{ nullptr };
     VignetteEffect* m_vignetteEffect{ nullptr };

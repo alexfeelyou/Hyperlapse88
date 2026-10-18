@@ -4,6 +4,7 @@
 #include "System/Graphics.h"
 #include "CameraController.h"
 #include "Camera.h"
+#include "Light.h"
 #include "PostProcessEffects.h"
 
 #define WIN32_LEAN_AND_MEAN
@@ -1087,6 +1088,285 @@ void SsaoEffect::Deserialize(const nlohmann::json& in)
 }
 
 void SsaoEffect::ResetToDefault() noexcept
+{
+    m_data = Data{};
+}
+
+// SunShaftEffect Implementation
+SunShaftEffect::SunShaftEffect(ID3D11Device* device)
+{
+    GpuResourceUtils::LoadPixelShader(device, "Data/Shader/SunShaftPS.cso", m_pixelShader.GetAddressOf());
+
+    D3D11_BUFFER_DESC cbDesc{};
+    cbDesc.ByteWidth = sizeof(CbSunShaft);
+    cbDesc.Usage = D3D11_USAGE_DYNAMIC;
+    cbDesc.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
+    cbDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
+    device->CreateBuffer(&cbDesc, nullptr, m_constantBuffer.GetAddressOf());
+
+    CreateSampler(device, D3D11_FILTER_MIN_MAG_MIP_POINT, m_pointSampler.GetAddressOf());
+    CreateSampler(device, D3D11_FILTER_MIN_MAG_MIP_LINEAR, m_linearSampler.GetAddressOf());
+
+    CreateBuffers(device, m_width, m_height);
+}
+
+void SunShaftEffect::CreateBuffers(ID3D11Device* device, int width, int height) noexcept
+{
+    m_width = (std::max)(1, width);
+    m_height = (std::max)(1, height);
+    m_quarterWidth = (std::max)(1, m_width / 4);
+    m_quarterHeight = (std::max)(1, m_height / 4);
+
+    m_shaftTargetA.Reset();
+    m_shaftTargetB.Reset();
+
+    // Single-channel 8-bit R8_UNORM at quarter-resolution (~126 KB per target at 1080p)
+    D3D11_TEXTURE2D_DESC desc{};
+    desc.Width = static_cast<UINT>(m_quarterWidth);
+    desc.Height = static_cast<UINT>(m_quarterHeight);
+    desc.MipLevels = 1;
+    desc.ArraySize = 1;
+    desc.Format = DXGI_FORMAT_R8_UNORM;
+    desc.SampleDesc.Count = 1;
+    desc.Usage = D3D11_USAGE_DEFAULT;
+    desc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+
+    auto allocateQuarterRes = [&](QuarterResTarget& target) noexcept
+        {
+            device->CreateTexture2D(&desc, nullptr, target.texture.GetAddressOf());
+            device->CreateRenderTargetView(target.texture.Get(), nullptr, target.rtv.GetAddressOf());
+            device->CreateShaderResourceView(target.texture.Get(), nullptr, target.srv.GetAddressOf());
+        };
+
+    allocateQuarterRes(m_shaftTargetA);
+    allocateQuarterRes(m_shaftTargetB);
+}
+
+void SunShaftEffect::OnResize(ID3D11Device* device, int width, int height) noexcept
+{
+    if (width <= 0 || height <= 0) return;
+    if (width == m_width && height == m_height) return;
+    CreateBuffers(device, width, height);
+}
+
+void SunShaftEffect::UpdateConstantBuffer(ID3D11DeviceContext* dc, const CbSunShaft& cb) const noexcept
+{
+    D3D11_MAPPED_SUBRESOURCE mapped{};
+    if (SUCCEEDED(dc->Map(m_constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mapped)))
+    {
+        *static_cast<CbSunShaft*>(mapped.pData) = cb;
+        dc->Unmap(m_constantBuffer.Get(), 0);
+    }
+}
+
+void SunShaftEffect::Draw(ID3D11DeviceContext* dc, ID3D11ShaderResourceView* srcSRV)
+{
+    // Cache destination ping-pong RTV and fullscreen viewport bound by PostProcessManager
+    ID3D11RenderTargetView* destRTV{ nullptr };
+    dc->OMGetRenderTargets(1, &destRTV, nullptr);
+
+    UINT vpCount{ 1 };
+    D3D11_VIEWPORT destViewport{};
+    dc->RSGetViewports(&vpCount, &destViewport);
+
+    ID3D11ShaderResourceView* const nullSRV[]{ nullptr };
+
+    // Extract normalized vector pointing TOWARD the sun (-lightDirection)
+    const DirectionalLight& dirLight{ Graphics::Instance().GetLightManager().GetDirectionalLight() };
+    DirectX::XMVECTOR toSunWorld{ DirectX::XMVectorSet(-dirLight.direction.x, -dirLight.direction.y, -dirLight.direction.z, 0.0f) };
+    if (DirectX::XMVectorGetX(DirectX::XMVector3LengthSq(toSunWorld)) > 0.0001f)
+    {
+        toSunWorld = DirectX::XMVector3Normalize(toSunWorld);
+    }
+    else
+    {
+        toSunWorld = DirectX::XMVectorSet(0.0f, 0.707f, 0.707f, 0.0f);
+    }
+
+    float aspect{ static_cast<float>(m_width) / static_cast<float>(m_height) };
+    float sunU{ 0.5f };
+    float sunV{ 0.3f };
+    float sunVisibilityFade{ 0.0f };
+
+    if (const auto camera{ CameraController::Instance().GetActiveCamera() })
+    {
+        aspect = camera->GetAspectRatio();
+        const float tanHalfFov{ (std::max)(0.001f, std::tan(camera->GetFovY() * 0.5f)) };
+        const DirectX::XMMATRIX viewMat{ DirectX::XMLoadFloat4x4(&camera->GetView()) };
+
+        // Transform sun direction into camera view space (+X right, +Y up, +Z forward)
+        DirectX::XMFLOAT3 sunView{};
+        DirectX::XMStoreFloat3(&sunView, DirectX::XMVector3TransformNormal(toSunWorld, viewMat));
+
+        // Smoothly fade out shafts & flare when the camera turns away from the sun (sunView.z <= 0)
+        const float forwardFade{ std::clamp((sunView.z - 0.05f) / 0.35f, 0.0f, 1.0f) };
+        const float smoothForward{ forwardFade * forwardFade * (3.0f - 2.0f * forwardFade) };
+
+        // Project using unjittered focal length so TAA Halton jitter never vibrates the sun/flare position
+        const float safeViewZ{ (std::max)(0.1f, sunView.z) };
+        const float ndcX{ sunView.x / (safeViewZ * tanHalfFov * aspect) };
+        const float ndcY{ sunView.y / (safeViewZ * tanHalfFov) };
+
+        sunU = ndcX * 0.5f + 0.5f;
+        sunV = -ndcY * 0.5f + 0.5f;
+
+        // Smoothly attenuate when the projected sun moves far beyond the viewport border
+        const float offscreenDx{ (std::max)(0.0f, std::abs(sunU - 0.5f) - 0.5f) };
+        const float offscreenDy{ (std::max)(0.0f, std::abs(sunV - 0.5f) - 0.5f) };
+        const float offscreenDist{ std::sqrt(offscreenDx * offscreenDx + offscreenDy * offscreenDy) };
+        const float borderFade{ std::clamp(1.0f - (offscreenDist / 0.85f), 0.0f, 1.0f) };
+
+        sunVisibilityFade = smoothForward * borderFade * borderFade;
+    }
+
+    // Modulate shaft color by directional light color and pre-linearize from sRGB on the CPU
+    const float safeRadius{ std::clamp(m_data.sunRadius, 0.05f, 1.5f) };
+    CbSunShaft cb{};
+    cb.sunScreenAndAspect = { sunU, sunV, aspect, sunVisibilityFade };
+    cb.shaftParams = {
+        std::clamp(m_data.density, 0.1f, 1.5f),
+        std::clamp(m_data.decay, 0.70f, 0.99f),
+        1.0f / (safeRadius * safeRadius),
+        1.0f
+    };
+    cb.shaftColorAndIntensity = {
+        std::pow((std::max)(0.0f, m_data.shaftColor.x * dirLight.color.x), 2.2f),
+        std::pow((std::max)(0.0f, m_data.shaftColor.y * dirLight.color.y), 2.2f),
+        std::pow((std::max)(0.0f, m_data.shaftColor.z * dirLight.color.z), 2.2f),
+        (std::max)(0.0f, m_data.shaftIntensity)
+    };
+    cb.flareParams = {
+        (std::max)(0.0f, m_data.flareIntensity),
+        std::clamp(m_data.glareStreakScale, 0.2f, 3.0f),
+        1.0f / static_cast<float>(m_quarterWidth),
+        1.0f / static_cast<float>(m_quarterHeight)
+    };
+
+    dc->PSSetShader(m_pixelShader.Get(), nullptr, 0);
+    dc->PSSetConstantBuffers(0, 1, m_constantBuffer.GetAddressOf());
+
+    ID3D11SamplerState* const samplers[]{ m_pointSampler.Get(), m_linearSampler.Get() };
+    dc->PSSetSamplers(0, 2, samplers);
+
+    // Execute quarter-resolution occlusion & cascaded radial passes only when the sun is in front of the camera
+    if (sunVisibilityFade > 0.0001f)
+    {
+        D3D11_VIEWPORT quarterVP{};
+        quarterVP.Width = static_cast<float>(m_quarterWidth);
+        quarterVP.Height = static_cast<float>(m_quarterHeight);
+        quarterVP.MinDepth = 0.0f;
+        quarterVP.MaxDepth = 1.0f;
+        dc->RSSetViewports(1, &quarterVP);
+
+        // PASS 0: Quarter-Res Sky/Depth Occlusion Corona Mask -> Target A
+        ID3D11RenderTargetView* const rtvA{ m_shaftTargetA.rtv.Get() };
+        dc->OMSetRenderTargets(1, &rtvA, nullptr);
+
+        cb.passMode = 0;
+        UpdateConstantBuffer(dc, cb);
+        dc->PSSetShaderResources(0, 1, &srcSRV);
+        dc->Draw(3, 0);
+        dc->PSSetShaderResources(0, 1, nullSRV);
+
+        // PASS 1A: Quarter-Res Fine 12-Tap Radial Epipolar Blur (Target A -> Target B)
+        ID3D11RenderTargetView* const rtvB{ m_shaftTargetB.rtv.Get() };
+        dc->OMSetRenderTargets(1, &rtvB, nullptr);
+
+        cb.passMode = 1;
+        cb.shaftParams.w = 1.0f / 48.0f; // Fine subdivision stride
+        UpdateConstantBuffer(dc, cb);
+
+        ID3D11ShaderResourceView* const srvA{ m_shaftTargetA.srv.Get() };
+        dc->PSSetShaderResources(3, 1, &srvA);
+        dc->Draw(3, 0);
+        dc->PSSetShaderResources(3, 1, nullSRV);
+
+        // PASS 1B: Quarter-Res Coarse 12-Tap Radial Epipolar Blur (Target B -> Target A, 12x12 = 144 effective taps)
+        dc->OMSetRenderTargets(1, &rtvA, nullptr);
+
+        cb.passMode = 2;
+        cb.shaftParams.w = 4.0f / 48.0f; // Coarse 4x stride
+        UpdateConstantBuffer(dc, cb);
+
+        ID3D11ShaderResourceView* const srvB{ m_shaftTargetB.srv.Get() };
+        dc->PSSetShaderResources(3, 1, &srvB);
+        dc->Draw(3, 0);
+        dc->PSSetShaderResources(3, 1, nullSRV);
+    }
+
+    // PASS 2: Full-Resolution Volumetric Sun Shaft + Depth-Occluded Lens Flare Composite -> destRTV
+    dc->OMSetRenderTargets(1, &destRTV, nullptr);
+    dc->RSSetViewports(1, &destViewport);
+
+    cb.passMode = 3;
+    UpdateConstantBuffer(dc, cb);
+
+    ID3D11ShaderResourceView* const finalShaftSRV{ m_shaftTargetA.srv.Get() };
+    dc->PSSetShaderResources(0, 1, &srcSRV);
+    dc->PSSetShaderResources(3, 1, &finalShaftSRV);
+    dc->Draw(3, 0);
+
+    // Cleanly unbind slot 3 SRV
+    dc->PSSetShaderResources(3, 1, nullSRV);
+
+    if (destRTV)
+    {
+        destRTV->Release();
+    }
+}
+
+void SunShaftEffect::DrawGUI() noexcept
+{
+    ImGui::Checkbox("Enable Volumetric Sun & Flare", &m_data.enabled);
+    if (!m_data.enabled) return;
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::TextDisabled("VOLUMETRIC SUN SHAFTS (GOD RAYS)");
+    ImGui::ColorEdit3("Shaft Tint Color", &m_data.shaftColor.x);
+    ImGui::SliderFloat("Shaft Intensity (HDR)", &m_data.shaftIntensity, 0.0f, 4.0f, "%.2f");
+    ImGui::SliderFloat("Ray Density (Length)", &m_data.density, 0.1f, 1.4f, "%.2f");
+    ImGui::SliderFloat("Ray Decay", &m_data.decay, 0.75f, 0.99f, "%.3f");
+    ImGui::SliderFloat("Sun Corona Radius", &m_data.sunRadius, 0.10f, 1.20f, "%.2f");
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::TextDisabled("OPTICAL LENS FLARE & ANAMORPHIC GLARE");
+    ImGui::SliderFloat("Lens Flare Intensity", &m_data.flareIntensity, 0.0f, 3.0f, "%.2f");
+    ImGui::SliderFloat("Anamorphic Streak Width", &m_data.glareStreakScale, 0.2f, 2.5f, "%.2f");
+}
+
+void SunShaftEffect::Serialize(nlohmann::json& out) const
+{
+    out["enabled"] = m_data.enabled;
+    out["shaftColor"] = { m_data.shaftColor.x, m_data.shaftColor.y, m_data.shaftColor.z, m_data.shaftColor.w };
+    out["shaftIntensity"] = m_data.shaftIntensity;
+    out["density"] = m_data.density;
+    out["decay"] = m_data.decay;
+    out["sunRadius"] = m_data.sunRadius;
+    out["flareIntensity"] = m_data.flareIntensity;
+    out["glareStreakScale"] = m_data.glareStreakScale;
+}
+
+void SunShaftEffect::Deserialize(const nlohmann::json& in)
+{
+    m_data.enabled = in.value("enabled", true);
+    if (in.contains("shaftColor") && in["shaftColor"].is_array() && in["shaftColor"].size() == 4)
+    {
+        m_data.shaftColor.x = in["shaftColor"][0];
+        m_data.shaftColor.y = in["shaftColor"][1];
+        m_data.shaftColor.z = in["shaftColor"][2];
+        m_data.shaftColor.w = in["shaftColor"][3];
+    }
+    m_data.shaftIntensity = in.value("shaftIntensity", 1.15f);
+    m_data.density = in.value("density", 0.85f);
+    m_data.decay = in.value("decay", 0.94f);
+    m_data.sunRadius = in.value("sunRadius", 0.38f);
+    m_data.flareIntensity = in.value("flareIntensity", 0.65f);
+    m_data.glareStreakScale = in.value("glareStreakScale", 1.0f);
+}
+
+void SunShaftEffect::ResetToDefault() noexcept
 {
     m_data = Data{};
 }

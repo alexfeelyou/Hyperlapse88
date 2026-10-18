@@ -580,3 +580,98 @@ private:
     Microsoft::WRL::ComPtr<ID3D11SamplerState> m_pointSampler{};
     Microsoft::WRL::ComPtr<ID3D11SamplerState> m_linearSampler{};
 };
+
+// Quarter-Resolution Cascaded Volumetric Sun Shafts (God Rays) & Depth-Occluded Lens Flare
+class SunShaftEffect final : public PostProcessEffect
+{
+public:
+    struct Data
+    {
+        bool              enabled{ true };
+        DirectX::XMFLOAT4 shaftColor{ 1.0f, 0.84f, 0.52f, 1.0f }; // Warm Zelda golden-amber tint
+        float             shaftIntensity{ 1.15f };                // HDR additive multiplier
+        float             density{ 0.85f };                       // Radial ray march length
+        float             decay{ 0.94f };                         // Per-tap exponential dissipation
+        float             sunRadius{ 0.38f };                     // Screen-space corona mask radius
+        float             flareIntensity{ 0.65f };                // Anamorphic streak + iris ghosts
+        float             glareStreakScale{ 1.0f };               // Horizontal anamorphic flare width
+
+        [[nodiscard]] bool operator==(const Data& other) const noexcept
+        {
+            auto isEqual = [](float a, float b) noexcept { return std::abs(a - b) < 0.0001f; };
+            return enabled == other.enabled &&
+                isEqual(shaftColor.x, other.shaftColor.x) &&
+                isEqual(shaftColor.y, other.shaftColor.y) &&
+                isEqual(shaftColor.z, other.shaftColor.z) &&
+                isEqual(shaftColor.w, other.shaftColor.w) &&
+                isEqual(shaftIntensity, other.shaftIntensity) &&
+                isEqual(density, other.density) &&
+                isEqual(decay, other.decay) &&
+                isEqual(sunRadius, other.sunRadius) &&
+                isEqual(flareIntensity, other.flareIntensity) &&
+                isEqual(glareStreakScale, other.glareStreakScale);
+        }
+    };
+
+    explicit SunShaftEffect(ID3D11Device* device);
+    ~SunShaftEffect() override = default;
+
+    [[nodiscard]] bool IsEnabled() const noexcept override
+    {
+        return m_data.enabled && (m_data.shaftIntensity > 0.0001f || m_data.flareIntensity > 0.0001f);
+    }
+
+    void Draw(ID3D11DeviceContext* dc, ID3D11ShaderResourceView* srcSRV) override;
+    void DrawGUI() noexcept override;
+    [[nodiscard]] std::string_view GetName() const noexcept override { return "Volumetric Sun & Flare"; }
+
+    [[nodiscard]] Data& GetData() noexcept { return m_data; }
+    [[nodiscard]] const Data& GetData() const noexcept { return m_data; }
+
+    void Serialize(nlohmann::json& out) const override;
+    void Deserialize(const nlohmann::json& in) override;
+    void ResetToDefault() noexcept override;
+    void OnResize(ID3D11Device* device, int width, int height) noexcept override;
+
+private:
+    struct alignas(16) CbSunShaft
+    {
+        DirectX::XMFLOAT4 sunScreenAndAspect{ 0.5f, 0.3f, 1.7777f, 1.0f }; // xy: sunUV, z: aspect, w: sunVisibilityFade
+        DirectX::XMFLOAT4 shaftParams{ 0.85f, 0.94f, 6.92f, 1.0f };        // x: density, y: decay, z: invRadiusSq, w: stepScale
+        DirectX::XMFLOAT4 shaftColorAndIntensity{ 1.0f, 0.7f, 0.3f, 1.15f }; // rgb: linear shaft color, w: shaftIntensity
+        DirectX::XMFLOAT4 flareParams{ 0.65f, 1.0f, 1.0f / 480.0f, 1.0f / 270.0f }; // x: flareIntensity, y: streakScale, zw: quarterTexelSize
+        int               passMode{ 0 };                                   // 0: Mask, 1: Radial Blur Fine, 2: Radial Blur Coarse, 3: Composite
+        float             padding[3]{ 0.0f, 0.0f, 0.0f };
+    };
+    static_assert((sizeof(CbSunShaft) % 16) == 0, "CbSunShaft constant buffer must be 16-byte aligned!");
+
+    struct QuarterResTarget
+    {
+        Microsoft::WRL::ComPtr<ID3D11Texture2D>          texture{};
+        Microsoft::WRL::ComPtr<ID3D11RenderTargetView>   rtv{};
+        Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> srv{};
+
+        void Reset() noexcept
+        {
+            srv.Reset();
+            rtv.Reset();
+            texture.Reset();
+        }
+    };
+
+    void CreateBuffers(ID3D11Device* device, int width, int height) noexcept;
+    void UpdateConstantBuffer(ID3D11DeviceContext* dc, const CbSunShaft& cb) const noexcept;
+
+    Data             m_data{};
+    QuarterResTarget m_shaftTargetA{};
+    QuarterResTarget m_shaftTargetB{};
+    int              m_width{ 1920 };
+    int              m_height{ 1080 };
+    int              m_quarterWidth{ 480 };
+    int              m_quarterHeight{ 270 };
+
+    Microsoft::WRL::ComPtr<ID3D11PixelShader>  m_pixelShader{};
+    Microsoft::WRL::ComPtr<ID3D11Buffer>       m_constantBuffer{};
+    Microsoft::WRL::ComPtr<ID3D11SamplerState> m_pointSampler{};
+    Microsoft::WRL::ComPtr<ID3D11SamplerState> m_linearSampler{};
+};
