@@ -21,8 +21,11 @@ private:
     struct alignas(16) SkymapConstants
     {
         DirectX::XMFLOAT4X4 inverseViewProjection{};
-        DirectX::XMFLOAT4 cameraPosition{};
+        DirectX::XMFLOAT4   cameraPosition{};
+        DirectX::XMFLOAT4   sunDirectionAndCosRadius{ 0.0f, 0.707f, 0.707f, 0.9992f };
+        DirectX::XMFLOAT4   sunColorAndCorona{ 1.0f, 0.9f, 0.7f, 1.5f };
     };
+    static_assert((sizeof(SkymapConstants) % 16) == 0, "SkymapConstants must be 16-byte aligned!");
 
     struct Vertex { DirectX::XMFLOAT3 position; };
 

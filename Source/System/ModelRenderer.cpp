@@ -924,6 +924,7 @@ void ModelRenderer::Render(const RenderContext& rc)
             uint16_t currentMaterialKey{ 0xFFFF };
             ID3D11Buffer* currentVB{ nullptr };
             ID3D11Buffer* currentIB{ nullptr };
+            bool currentCullNone{ false };
 
             const bool isDepthOrVelocityPass{ (forcedShader == m_shadowCasterShader.get() || forcedShader == m_velocityShader.get()) };
 
@@ -959,6 +960,15 @@ void ModelRenderer::Render(const RenderContext& rc)
 
                 if (!forcedShader)
                 {
+                    // AlphaMode::Mask (passId == 5) uses SolidCullNone so two-sided foliage/hair cards render backfaces with SV_IsFrontFace
+                    const bool wantCullNone{ firstPacket.material && firstPacket.material->alphaMode == AlphaMode::Mask };
+                    if (wantCullNone != currentCullNone)
+                    {
+                        dc->RSSetState(rc.renderState->GetRasterizerState(
+                            wantCullNone ? RasterizerState::SolidCullNone : RasterizerState::SolidCullBack));
+                        currentCullNone = wantCullNone;
+                    }
+
                     const ShaderId packetShaderId{ static_cast<ShaderId>((firstPacket.key >> 48) & 0xFF) };
                     if (packetShaderId != activeShaderId)
                     {
@@ -1030,6 +1040,10 @@ void ModelRenderer::Render(const RenderContext& rc)
             if (activeShader && !forcedShader)
             {
                 activeShader->End(rc);
+            }
+            if (currentCullNone && !forcedShader)
+            {
+                dc->RSSetState(rc.renderState->GetRasterizerState(RasterizerState::SolidCullBack));
             }
 
             instanceOffset += count;

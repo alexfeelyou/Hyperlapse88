@@ -36,7 +36,15 @@ cbuffer CbScene : register(b7)
 Texture2DArray CascadeShadowMapArray : register(t10);
 SamplerComparisonState ShadowSampler : register(s10);
 
-// Single unified hardware PCF lookup across Texture2DArray slices
+// High-frequency spatial hash for zero-cost stochastic cascade selection resolved by TAA
+float SpatialShadowDither(float3 p)
+{
+    float3 d = frac(p * float3(443.897f, 441.423f, 437.195f));
+    d += dot(d, d.yzx + 19.19f);
+    return frac((d.x + d.y) * d.z);
+}
+
+// Single unified hardware PCF lookup across Texture2DArray slices with smooth boundary rolloff
 float CalculateCascadeShadow(float3 worldPos, float3 normal, float3 dirToLight)
 {
     if (shadowSettings.x < 0.5f)
@@ -49,11 +57,28 @@ float CalculateCascadeShadow(float3 worldPos, float3 normal, float3 dirToLight)
     if (viewZ > cascadeSplits.z || viewZ < 0.0f)
         return 1.0f;
 
+    // Smooth distance fade-out at the outer boundary (prevents pop-in line at cascadeSplits.z)
+    float fadeStart = cascadeSplits.z * 0.85f;
+    float shadowFade = saturate((cascadeSplits.z - viewZ) * rcp(max(cascadeSplits.z - fadeStart, 0.001f)));
+
+    // Stochastic Dithered Cascade Selection (Zero extra texture taps, antialiased by TAA)
     int cascadeIndex = 0;
-    if (viewZ > cascadeSplits.y)
+    float dither = SpatialShadowDither(worldPos);
+
+    float split0Transition = cascadeSplits.x * 0.85f;
+    float blend0 = saturate((viewZ - split0Transition) * rcp(max(cascadeSplits.x - split0Transition, 0.001f)));
+
+    float split1Transition = cascadeSplits.y * 0.85f;
+    float blend1 = saturate((viewZ - split1Transition) * rcp(max(cascadeSplits.y - split1Transition, 0.001f)));
+
+    if (viewZ > cascadeSplits.y || (viewZ > split1Transition && dither < blend1))
+    {
         cascadeIndex = 2;
-    else if (viewZ > cascadeSplits.x)
+    }
+    else if (viewZ > cascadeSplits.x || (viewZ > split0Transition && dither < blend0))
+    {
         cascadeIndex = 1;
+    }
 
     // Slope-scaled normal offset bias to eliminate surface acne
     float NdotL = saturate(dot(normal, dirToLight));
@@ -73,7 +98,8 @@ float CalculateCascadeShadow(float3 worldPos, float3 normal, float3 dirToLight)
             float3(uv, float(cascadeIndex)),
             testDepth
         );
-        return lerp(shadowSettings.y, 1.0f, litFactor);
+        float shadow = lerp(shadowSettings.y, 1.0f, litFactor);
+        return lerp(1.0f, shadow, shadowFade);
     }
 
     return 1.0f;
