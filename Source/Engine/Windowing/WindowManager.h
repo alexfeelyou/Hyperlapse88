@@ -48,6 +48,6 @@ private:
 
 private:
     std::vector<std::unique_ptr<platform::Window>> windows;
-    platform::Window* debugWindow = nullptr;
-    bool m_vsync{ true };
+    platform::Window* debugWindow{ nullptr };
+    bool m_vsync{ false }; // Default to false so diagnostic uncap runs at true unthrottled hardware speed
 };

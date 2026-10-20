@@ -7,6 +7,8 @@ namespace
 #else
     inline constexpr bool s_isDebugMode{ false };
 #endif
+
+    inline constexpr const char* s_applicationTitle{ "Hyperlapse 88" };
 }
 
 static WNDPROC s_OriginalWndProc = nullptr;
@@ -69,8 +71,7 @@ Framework::Framework()
 
     if (!AudioManager::Instance().Initialize()) {}
 
-    auto mainWin = WindowManager::Instance().CreateGameWindow("Hyperlapse 88", 1600, 900);
-
+    auto mainWin = WindowManager::Instance().CreateGameWindow(s_applicationTitle, 1600, 900);
     SDL_Window* sdlWin = mainWin->GetSDLWindow();
     SDL_ShowWindow(sdlWin);
 
@@ -215,16 +216,42 @@ void Framework::ForceUpdateRender()
 
 void Framework::CalculateFrameStats(float dt)
 {
-    static int frames = 0;
-    static float timeAccumulator = 0.0f;
-
-    frames++;
-    timeAccumulator += dt;
-
-    if (timeAccumulator >= 1.0f)
+    // In Release builds, avoid mutating the window title to keep it clean for players
+    if constexpr (!s_isDebugMode)
     {
-        frames = 0;
-        timeAccumulator -= 1.0f;
+        return;
+    }
+
+    static int s_frames{ 0 };
+    static float s_timeAccumulator{ 0.0f };
+
+    ++s_frames;
+    s_timeAccumulator += dt;
+
+    // Refresh telemetry string once every 1.0 second
+    if (s_timeAccumulator >= 1.0f)
+    {
+        const float fps{ static_cast<float>(s_frames) / s_timeAccumulator };
+        const float frameTimeMs{ (fps > 0.0f) ? (1000.0f / fps) : 0.0f };
+
+        char titleBuffer[128]{};
+        std::snprintf(
+            titleBuffer,
+            sizeof(titleBuffer),
+            "%s | FPS: %.1f | Frame Time: %.2f ms [%s]",
+            s_applicationTitle,
+            fps,
+            frameTimeMs,
+            WindowManager::Instance().IsVSync() ? "VSync ON" : "Uncapped"
+        );
+
+        if (platform::Window* const mainWin{ GetMainWindow() })
+        {
+            mainWin->SetTitle(titleBuffer);
+        }
+
+        s_frames = 0;
+        s_timeAccumulator = 0.0f;
     }
 }
 

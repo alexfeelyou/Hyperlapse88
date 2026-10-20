@@ -1147,6 +1147,14 @@ void EditorManager::DrawMenuBar(Scene* currentScene) noexcept
         if (ImGui::BeginMenu("Graphics"))
         {
             ImGui::MenuItem("Post-Processing", nullptr, &m_showPostProcess);
+            ImGui::Separator();
+
+            bool isVsyncActive{ WindowManager::Instance().IsVSync() };
+            if (ImGui::MenuItem("VSync (Lock Refresh)", nullptr, &isVsyncActive))
+            {
+                WindowManager::Instance().SetVSync(isVsyncActive);
+            }
+
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Time")) { ImGui::EndMenu(); }
@@ -2449,6 +2457,13 @@ void EditorManager::DrawProfiler() const noexcept
             ImGui::TextDisabled("PERFORMANCE");
             ImGui::Text("FPS: %.1f", metrics.fps);
             ImGui::Text("Frame: %.2f ms", (1000.0f / (std::max)(metrics.fps, 1.0f)));
+
+            // Inline diagnostic toggle for immediate VSync testing
+            bool isVsyncActive{ WindowManager::Instance().IsVSync() };
+            if (ImGui::Checkbox("VSync##ProfilerVsyncToggle", &isVsyncActive))
+            {
+                WindowManager::Instance().SetVSync(isVsyncActive);
+            }
 
             ImGui::TableSetColumnIndex(1);
             ImGui::TextDisabled("MEMORY");

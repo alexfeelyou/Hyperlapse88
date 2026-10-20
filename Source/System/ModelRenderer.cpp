@@ -1588,7 +1588,8 @@ void ModelRenderer::Render(const RenderContext& rc)
         for (int i{ 0 }; i < SHADOW_CASCADE_COUNT; ++i) std::sort(cascadePackets[i], cascadePackets[i] + cascadeCount[i], packetSort);
 
         // RENDER PASSES 
-        if (rc.lightManager && rc.lightManager->GetDirectionalLight().castShadows)
+        const bool hasShadowCasters{ (cascadeCount[0] > 0) || (cascadeCount[1] > 0) || (cascadeCount[2] > 0) };
+        if (rc.lightManager && rc.lightManager->GetDirectionalLight().castShadows && hasShadowCasters)
         {
             ID3D11RenderTargetView* originalRTV{ nullptr };
             ID3D11DepthStencilView* originalDSV{ nullptr };
@@ -1610,6 +1611,9 @@ void ModelRenderer::Render(const RenderContext& rc)
             m_shadowCasterShader->Begin(rc);
             for (int i{ 0 }; i < SHADOW_CASCADE_COUNT; ++i)
             {
+                // Skip clearing and setting up passes for cascades with zero geometry
+                if (cascadeCount[i] == 0) continue;
+
                 ID3D11DepthStencilView* const cascadeDSV{ rc.lightManager->GetCascadeDSV(i) };
                 // Pure D16 hardware depth clear
                 dc->ClearDepthStencilView(cascadeDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
