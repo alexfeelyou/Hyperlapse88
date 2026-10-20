@@ -60,13 +60,18 @@ public:
     // Safely clears the active inspector target to prevent dangling pointers
     void ClearSelection() noexcept {
         m_selectedObject = nullptr;
+        m_selectedObjects.clear();
+        m_selectionAnchor = nullptr;
         m_selectedComponent = nullptr;
+        m_deferredDeselectNode = nullptr;
         m_timelinePanel.SetTarget(nullptr, 0);
         m_animGraphPanel.SetTarget(nullptr);
     }
 
-	// Accessors for the currently selected GameObject and Component
-	[[nodiscard]] GameObject* GetSelectedObject() const noexcept { return m_selectedObject; }
+    // Accessors for the currently selected GameObject and Component
+    [[nodiscard]] GameObject* GetSelectedObject() const noexcept { return m_selectedObject; }
+    [[nodiscard]] const std::vector<GameObject*>& GetSelectedObjects() const noexcept { return m_selectedObjects; }
+    [[nodiscard]] bool IsObjectSelected(const GameObject* node) const noexcept;
     [[nodiscard]] IComponent* GetSelectedComponent() const noexcept { return m_selectedComponent; }
     void SetSelectedComponent(IComponent* comp) noexcept { m_selectedComponent = comp; }
 
@@ -93,9 +98,26 @@ private:
     void DrawSceneView(Scene* currentScene, Camera* activeCamera) noexcept;
     void EnsureSceneRenderTarget(UINT width, UINT height) noexcept;
     void DrawMenuBar(Scene* currentScene) noexcept;
-    void DrawHierarchyNode(GameObject* node) noexcept;
-    GameObject* m_selectedObject{ nullptr }; // Tracks what the user clicked on
-	IComponent* m_selectedComponent{ nullptr }; // Tracks what the user clicked on
+    void DrawHierarchyNode(GameObject* node, Scene* currentScene) noexcept;
+    void DuplicateGameObject(GameObject* target, Scene* currentScene) noexcept;
+    void DuplicateSelected(Scene* currentScene) noexcept;
+    void GroupSelected(Scene* currentScene) noexcept;
+    void ParentSelectedToActive() noexcept;
+    void UnparentSelected(Scene* currentScene) noexcept;
+    void ToggleActiveSelected() noexcept;
+    void DeleteSelected() noexcept;
+    void ReparentNodes(const std::vector<GameObject*>& nodes, GameObject* newParent) noexcept;
+    void SetSelectedObject(GameObject* target, bool isToggle = false) noexcept;
+    void ApplySelection(GameObject* target, bool isCtrl, bool isShift) noexcept;
+    GameObject* m_selectedObject{ nullptr }; // Primary selected GameObject (for Inspector/Gizmo)
+    std::vector<GameObject*> m_selectedObjects{}; // Multi-selection collection
+    GameObject* m_selectionAnchor{ nullptr }; // Range anchor for Shift-selection
+    std::vector<GameObject*> m_linearHierarchyNodes{}; // Frame cache of visible hierarchy order
+    GameObject* m_pendingClickNode{ nullptr };
+    GameObject* m_deferredDeselectNode{ nullptr }; // Node to single-select on mouse up if no drag occurred
+    bool m_pendingCtrl{ false };
+    bool m_pendingShift{ false };
+    IComponent* m_selectedComponent{ nullptr }; // Tracks what the user clicked on
     void DrawHierarchy(Scene* currentScene) noexcept;
     void DrawInspector(Scene* currentScene) noexcept;
     void DrawConsole() const noexcept;

@@ -1,17 +1,17 @@
 {
     "EnvironmentIllumination": {
         "GroundColor": [
-            0.20000000298023224,
-            0.20000000298023224,
-            0.20000000298023224
+            0.4780147969722748,
+            0.46439704298973083,
+            0.2583921253681183
         ],
-        "GroundIntensity": 0.5,
+        "GroundIntensity": 0.47399505972862244,
         "SkyColor": [
-            0.6000000238418579,
-            0.6000000238418579,
-            0.6499999761581421
+            0.399196058511734,
+            0.6739950776100159,
+            0.9135931134223938
         ],
-        "SkyIntensity": 0.5,
+        "SkyIntensity": 0.7979901432991028,
         "SkyboxPaths": [
             "Data/Skybox/px.png",
             "Data/Skybox/nx.png",
@@ -37,15 +37,13 @@
                     "ShadowBias": [
                         4.999999873689376e-05,
                         9.999999747378752e-05,
-                        0.0005000000237487257,
-                        0.0010000000474974513
+                        0.0005000000237487257
                     ],
                     "SplitDistances": [
                         0.10000000149011612,
                         25.0,
                         100.0,
-                        250.0,
-                        500.0
+                        250.0
                     ],
                     "Type": "DirectionalLightComponent"
                 }
@@ -57,174 +55,6 @@
             "PosZ": 0.0,
             "RotX": 33.0,
             "RotY": -50.0,
-            "RotZ": 0.0,
-            "ScaleX": 1.0,
-            "ScaleY": 1.0,
-            "ScaleZ": 1.0
-        },
-        {
-            "Children": [],
-            "Components": [
-                {
-                    "Color": [
-                        1.0,
-                        1.0,
-                        1.0,
-                        1.0
-                    ],
-                    "Materials": [
-                        {
-                            "AlphaCutoff": 0.5,
-                            "AlphaMode": 0,
-                            "BaseColor": [
-                                0.48627451062202454,
-                                0.6825383901596069,
-                                0.7843137383460999,
-                                1.0
-                            ],
-                            "Emissive": [
-                                0.0,
-                                0.0,
-                                0.0
-                            ],
-                            "EnableOutline": true,
-                            "Metalness": 0.20000000298023224,
-                            "Name": "Blue_Mat",
-                            "OutlineColor": [
-                                0.05000000074505806,
-                                0.05000000074505806,
-                                0.05000000074505806,
-                                1.0
-                            ],
-                            "OutlineFadeEnd": 28.0,
-                            "OutlineFadeStart": 12.0,
-                            "OutlineWidth": 0.014999999664723873,
-                            "Roughness": 0.10700000077486038,
-                            "ShaderId": 1,
-                            "TexBase": "",
-                            "TexNormal": ""
-                        },
-                        {
-                            "AlphaCutoff": 0.5,
-                            "AlphaMode": 0,
-                            "BaseColor": [
-                                1.0,
-                                1.0,
-                                1.0,
-                                1.0
-                            ],
-                            "Emissive": [
-                                0.0,
-                                0.0,
-                                0.0
-                            ],
-                            "EnableOutline": true,
-                            "Metalness": 0.20000000298023224,
-                            "Name": "GridWhite_01_Mat",
-                            "OutlineColor": [
-                                0.05000000074505806,
-                                0.05000000074505806,
-                                0.05000000074505806,
-                                1.0
-                            ],
-                            "OutlineFadeEnd": 28.0,
-                            "OutlineFadeStart": 12.0,
-                            "OutlineWidth": 0.014999999664723873,
-                            "Roughness": 0.09600000083446503,
-                            "ShaderId": 1,
-                            "TexBase": "",
-                            "TexNormal": ""
-                        },
-                        {
-                            "AlphaCutoff": 0.5,
-                            "AlphaMode": 0,
-                            "BaseColor": [
-                                0.30000001192092896,
-                                0.6000000238418579,
-                                0.8999999761581421,
-                                1.0
-                            ],
-                            "Emissive": [
-                                0.0,
-                                0.0,
-                                0.0
-                            ],
-                            "EnableOutline": true,
-                            "Metalness": 0.20000000298023224,
-                            "Name": "GridBlue_01_Mat",
-                            "OutlineColor": [
-                                0.05000000074505806,
-                                0.05000000074505806,
-                                0.05000000074505806,
-                                1.0
-                            ],
-                            "OutlineFadeEnd": 28.0,
-                            "OutlineFadeStart": 12.0,
-                            "OutlineWidth": 0.014999999664723873,
-                            "Roughness": 0.10499999672174454,
-                            "ShaderId": 1,
-                            "TexBase": "",
-                            "TexNormal": ""
-                        },
-                        {
-                            "AlphaCutoff": 0.5,
-                            "AlphaMode": 0,
-                            "BaseColor": [
-                                1.0,
-                                0.6000000238418579,
-                                0.0,
-                                1.0
-                            ],
-                            "Emissive": [
-                                0.0,
-                                0.0,
-                                0.0
-                            ],
-                            "EnableOutline": true,
-                            "Metalness": 0.20000000298023224,
-                            "Name": "GridOrange_01_Mat",
-                            "OutlineColor": [
-                                0.05000000074505806,
-                                0.05000000074505806,
-                                0.05000000074505806,
-                                1.0
-                            ],
-                            "OutlineFadeEnd": 28.0,
-                            "OutlineFadeStart": 12.0,
-                            "OutlineWidth": 0.014999999664723873,
-                            "Roughness": 0.10000000149011612,
-                            "ShaderId": 1,
-                            "TexBase": "",
-                            "TexNormal": ""
-                        }
-                    ],
-                    "ModelPath": "C:\\Users\\2240823\\Documents\\School\\GameDev\\Hyperlapse 88\\Data\\Model\\Stage\\Greybox.glb",
-                    "Type": "MeshComponent"
-                },
-                {
-                    "CollidesWith": 4294967295,
-                    "IsTrigger": false,
-                    "Layer": 1,
-                    "LocalOffsetX": 0.0,
-                    "LocalOffsetY": 1.995894432067871,
-                    "LocalOffsetZ": 0.0,
-                    "LocalRotX": 0.0,
-                    "LocalRotY": 0.0,
-                    "LocalRotZ": 0.0,
-                    "ProxyExtX": 22.02230453491211,
-                    "ProxyExtY": 22.02230453491211,
-                    "ProxyExtZ": 22.02230453491211,
-                    "ShapeType": 3,
-                    "Type": "StaticMeshColliderComponent"
-                }
-            ],
-            "IsActive": true,
-            "Name": "Stage",
-            "PosX": 0.0,
-            "PosY": 0.0,
-            "PosZ": 0.0,
-            "RotX": 0.0,
-            "RotY": 0.0,
             "RotZ": 0.0,
             "ScaleX": 1.0,
             "ScaleY": 1.0,
@@ -303,81 +133,6 @@
             "ScaleZ": 1.0
         },
         {
-            "Children": [],
-            "Components": [
-                {
-                    "Color": [
-                        1.0,
-                        1.0,
-                        1.0,
-                        1.0
-                    ],
-                    "Materials": [
-                        {
-                            "AlphaCutoff": 0.5,
-                            "AlphaMode": 0,
-                            "BaseColor": [
-                                1.0,
-                                1.0,
-                                1.0,
-                                1.0
-                            ],
-                            "Emissive": [
-                                0.0,
-                                0.0,
-                                0.0
-                            ],
-                            "EnableOutline": true,
-                            "Metalness": 0.4000000059604645,
-                            "Name": "Texture.004",
-                            "OutlineColor": [
-                                0.05000000074505806,
-                                0.05000000074505806,
-                                0.05000000074505806,
-                                1.0
-                            ],
-                            "OutlineFadeEnd": 28.0,
-                            "OutlineFadeStart": 12.0,
-                            "OutlineWidth": 0.014999999664723873,
-                            "Roughness": 0.33701401948928833,
-                            "ShaderId": 2,
-                            "TexBase": "",
-                            "TexNormal": ""
-                        }
-                    ],
-                    "ModelPath": "C:\\Users\\2240823\\Documents\\School\\GameDev\\Hyperlapse 88\\Data\\Model\\Character\\ENEMY_mdl_EnemyNone.glb",
-                    "Type": "MeshComponent"
-                },
-                {
-                    "CollidesWith": 4294967295,
-                    "IsTrigger": false,
-                    "Layer": 1,
-                    "LocalOffsetX": -0.00022343918681144714,
-                    "LocalOffsetY": 0.0013952208682894707,
-                    "LocalOffsetZ": 0.026610039174556732,
-                    "LocalRotX": 0.0,
-                    "LocalRotY": 0.0,
-                    "LocalRotZ": 0.0,
-                    "ProxyExtX": 0.01510247215628624,
-                    "ProxyExtY": 0.03020494431257248,
-                    "ProxyExtZ": 0.03020494431257248,
-                    "ShapeType": 3,
-                    "Type": "StaticMeshColliderComponent"
-                }
-            ],
-            "IsActive": true,
-            "Name": "Mushroom",
-            "PosX": 5.243218421936035,
-            "PosY": 0.0,
-            "PosZ": 0.0,
-            "RotX": -0.0,
-            "RotY": 0.0,
-            "RotZ": -0.0,
-            "ScaleX": 4.459000110626221,
-            "ScaleY": 15.409000396728516,
-            "ScaleZ": 4.408999919891357
-        },
-        {
             "Children": [
                 {
                     "Children": [],
@@ -405,8 +160,11 @@
                                         0.0
                                     ],
                                     "EnableOutline": true,
+                                    "IsOccludable": true,
+                                    "IsOccluder": false,
                                     "Metalness": 0.0,
                                     "Name": "Base_Material",
+                                    "OccluderScale": 0.949999988079071,
                                     "OutlineColor": [
                                         0.05000000074505806,
                                         0.05000000074505806,
@@ -418,8 +176,18 @@
                                     "OutlineWidth": 0.017999999225139618,
                                     "Roughness": 0.550000011920929,
                                     "ShaderId": 4,
+                                    "SubsurfaceStrength": 0.0,
                                     "TexBase": "",
-                                    "TexNormal": ""
+                                    "TexNormal": "",
+                                    "UVOffset": [
+                                        0.0,
+                                        0.0
+                                    ],
+                                    "UVProjectionMode": 0,
+                                    "UVTiling": [
+                                        1.0,
+                                        1.0
+                                    ]
                                 }
                             ],
                             "ModelPath": "C:\\Users\\2240823\\Documents\\School\\GameDev\\Hyperlapse 88\\Data\\Model\\Weapon\\WPN_SCYTHE_PLAYER.glb",
@@ -486,8 +254,11 @@
                                 0.0
                             ],
                             "EnableOutline": true,
+                            "IsOccludable": true,
+                            "IsOccluder": false,
                             "Metalness": 0.4000000059604645,
                             "Name": "Base_Material",
+                            "OccluderScale": 0.949999988079071,
                             "OutlineColor": [
                                 0.05000000074505806,
                                 0.05000000074505806,
@@ -499,8 +270,18 @@
                             "OutlineWidth": 0.003000000026077032,
                             "Roughness": 0.3499999940395355,
                             "ShaderId": 4,
+                            "SubsurfaceStrength": 0.0,
                             "TexBase": "",
-                            "TexNormal": ""
+                            "TexNormal": "",
+                            "UVOffset": [
+                                0.0,
+                                0.0
+                            ],
+                            "UVProjectionMode": 0,
+                            "UVTiling": [
+                                1.0,
+                                1.0
+                            ]
                         }
                     ],
                     "ModelPath": "C:\\Users\\2240823\\Documents\\School\\GameDev\\Hyperlapse 88\\Data\\Model\\Character\\PlayerFix2.glb",
@@ -3189,8 +2970,11 @@
                                 0.0
                             ],
                             "EnableOutline": true,
-                            "Metalness": 0.20000000298023224,
-                            "Name": "ProBuilderDefault",
+                            "IsOccludable": true,
+                            "IsOccluder": false,
+                            "Metalness": 0.0,
+                            "Name": "Material",
+                            "OccluderScale": 0.949999988079071,
                             "OutlineColor": [
                                 0.05000000074505806,
                                 0.05000000074505806,
@@ -3200,43 +2984,141 @@
                             "OutlineFadeEnd": 28.0,
                             "OutlineFadeStart": 12.0,
                             "OutlineWidth": 0.014999999664723873,
-                            "Roughness": 0.0560000017285347,
+                            "Roughness": 0.5,
                             "ShaderId": 1,
-                            "TexBase": "",
-                            "TexNormal": ""
+                            "SubsurfaceStrength": 0.0,
+                            "TexBase": "C:\\Users\\2240823\\Documents\\School\\GameDev\\Hyperlapse 88\\Data\\Texture\\Prototype Textures\\Light\\texture_08.png",
+                            "TexNormal": "",
+                            "UVOffset": [
+                                0.5,
+                                0.5
+                            ],
+                            "UVProjectionMode": 1,
+                            "UVTiling": [
+                                0.5,
+                                0.5
+                            ]
                         }
                     ],
-                    "ModelPath": "C:\\Users\\2240823\\Documents\\School\\GameDev\\Hyperlapse 88\\Data\\Model\\Stage\\ExampleStage.glb",
+                    "ModelPath": "C:\\Users\\2240823\\Documents\\School\\GameDev\\Hyperlapse 88\\Data\\Model\\Stage\\GBX.glb",
                     "Type": "MeshComponent"
                 },
                 {
                     "CollidesWith": 4294967295,
                     "IsTrigger": false,
                     "Layer": 1,
-                    "LocalOffsetX": 30.000001907348633,
-                    "LocalOffsetY": 1.2832409143447876,
-                    "LocalOffsetZ": 1.9073486328125e-06,
+                    "LocalOffsetX": 0.0,
+                    "LocalOffsetY": 0.0,
+                    "LocalOffsetZ": 0.0,
                     "LocalRotX": 0.0,
                     "LocalRotY": 0.0,
                     "LocalRotZ": 0.0,
-                    "ProxyExtX": 75.47509765625,
-                    "ProxyExtY": 75.47509765625,
-                    "ProxyExtZ": 75.47509765625,
+                    "ProxyExtX": 1.7320507764816284,
+                    "ProxyExtY": 1.7320507764816284,
+                    "ProxyExtZ": 1.7320507764816284,
                     "ShapeType": 3,
                     "Type": "StaticMeshColliderComponent"
                 }
             ],
             "IsActive": true,
-            "Name": "Playground",
+            "Name": "Floor_Entrance",
             "PosX": 0.0,
-            "PosY": 0.0,
-            "PosZ": -189.4677276611328,
+            "PosY": -0.1123555600643158,
+            "PosZ": 0.0,
             "RotX": -0.0,
             "RotY": 0.0,
             "RotZ": -0.0,
-            "ScaleX": 3.3499999046325684,
-            "ScaleY": 2.799999952316284,
-            "ScaleZ": 4.699999809265137
+            "ScaleX": 4.985748767852783,
+            "ScaleY": 0.11100950837135315,
+            "ScaleZ": 6.429999828338623
+        },
+        {
+            "Children": [],
+            "Components": [
+                {
+                    "Color": [
+                        1.0,
+                        1.0,
+                        1.0,
+                        1.0
+                    ],
+                    "Materials": [
+                        {
+                            "AlphaCutoff": 0.5,
+                            "AlphaMode": 0,
+                            "BaseColor": [
+                                1.0,
+                                1.0,
+                                1.0,
+                                1.0
+                            ],
+                            "Emissive": [
+                                0.0,
+                                0.0,
+                                0.0
+                            ],
+                            "EnableOutline": true,
+                            "IsOccludable": true,
+                            "IsOccluder": true,
+                            "Metalness": 0.0,
+                            "Name": "Material",
+                            "OccluderScale": 0.949999988079071,
+                            "OutlineColor": [
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                0.05000000074505806,
+                                1.0
+                            ],
+                            "OutlineFadeEnd": 28.0,
+                            "OutlineFadeStart": 12.0,
+                            "OutlineWidth": 0.014999999664723873,
+                            "Roughness": 0.5,
+                            "ShaderId": 1,
+                            "SubsurfaceStrength": 0.0,
+                            "TexBase": "C:\\Users\\2240823\\Documents\\School\\GameDev\\Hyperlapse 88\\Data\\Texture\\Prototype Textures\\Orange\\greybox_orange_grid.png",
+                            "TexNormal": "",
+                            "UVOffset": [
+                                0.5,
+                                0.5
+                            ],
+                            "UVProjectionMode": 1,
+                            "UVTiling": [
+                                0.5,
+                                0.5
+                            ]
+                        }
+                    ],
+                    "ModelPath": "C:\\Users\\2240823\\Documents\\School\\GameDev\\Hyperlapse 88\\Data\\Model\\Stage\\GBX.glb",
+                    "Type": "MeshComponent"
+                },
+                {
+                    "CollidesWith": 4294967295,
+                    "IsTrigger": false,
+                    "Layer": 1,
+                    "LocalOffsetX": 0.0,
+                    "LocalOffsetY": 0.0,
+                    "LocalOffsetZ": 0.0,
+                    "LocalRotX": 0.0,
+                    "LocalRotY": 0.0,
+                    "LocalRotZ": 0.0,
+                    "ProxyExtX": 1.7320507764816284,
+                    "ProxyExtY": 1.7320507764816284,
+                    "ProxyExtZ": 1.7320507764816284,
+                    "ShapeType": 3,
+                    "Type": "StaticMeshColliderComponent"
+                }
+            ],
+            "IsActive": true,
+            "Name": "Wall_Entrance",
+            "PosX": -0.06957781314849854,
+            "PosY": 2.480621814727783,
+            "PosZ": 6.333311557769775,
+            "RotX": -0.0,
+            "RotY": 89.9999771118164,
+            "RotZ": -0.0,
+            "ScaleX": 0.11099619418382645,
+            "ScaleY": 2.65187406539917,
+            "ScaleZ": 5.424248218536377
         }
     ]
 }
