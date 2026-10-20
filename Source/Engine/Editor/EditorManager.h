@@ -20,6 +20,17 @@
 #include "SceneSerializer.h"
 #include "SceneTitle.h"
 #include "WindowManager.h"
+#include <string_view>
+
+// Interface for polymorphic undo/redo command execution
+class IUndoAction
+{
+public:
+    virtual ~IUndoAction() = default;
+    virtual void Undo(Scene* scene) = 0;
+    virtual void Redo(Scene* scene) = 0;
+    [[nodiscard]] virtual std::string_view GetName() const noexcept = 0;
+};
 
 // Scoped state machine for the engine's runtime
 enum class EditorMode : std::uint8_t
@@ -68,6 +79,16 @@ public:
         m_animGraphPanel.SetTarget(nullptr);
     }
 
+    // Transactional Undo / Redo Pipeline
+    void Undo(Scene* currentScene) noexcept;
+    void Redo(Scene* currentScene) noexcept;
+    [[nodiscard]] bool CanUndo() const noexcept;
+    [[nodiscard]] bool CanRedo() const noexcept;
+    [[nodiscard]] std::string_view GetUndoActionName() const noexcept;
+    [[nodiscard]] std::string_view GetRedoActionName() const noexcept;
+    void PushUndoAction(std::unique_ptr<class IUndoAction> action) noexcept;
+    void ClearUndoHistory() noexcept;
+
     // Accessors for the currently selected GameObject and Component
     [[nodiscard]] GameObject* GetSelectedObject() const noexcept { return m_selectedObject; }
     [[nodiscard]] const std::vector<GameObject*>& GetSelectedObjects() const noexcept { return m_selectedObjects; }
@@ -91,7 +112,7 @@ private:
     static constexpr std::string_view s_editorPrefsPath{ "UserSettings/EditorPreferences.json" };
 
     EditorManager() = default;
-    ~EditorManager() = default;
+    ~EditorManager();
 
     void ApplyStyle() const noexcept;
     void DrawDockSpace(Scene* currentScene) noexcept;
@@ -118,6 +139,17 @@ private:
     bool m_pendingCtrl{ false };
     bool m_pendingShift{ false };
     IComponent* m_selectedComponent{ nullptr }; // Tracks what the user clicked on
+
+    // Undo / Redo Transaction Buffers
+    static constexpr std::size_t s_maxUndoHistory{ 64 };
+    std::vector<std::unique_ptr<class IUndoAction>> m_undoStack{};
+    std::vector<std::unique_ptr<class IUndoAction>> m_redoStack{};
+
+    // Inspector Edit Memento State
+    nlohmann::json m_inspectorSnapshotBefore{};
+    GameObject* m_inspectorEditingObject{ nullptr };
+    bool m_isInspectorEditing{ false };
+
     void DrawHierarchy(Scene* currentScene) noexcept;
     void DrawInspector(Scene* currentScene) noexcept;
     void DrawConsole() const noexcept;

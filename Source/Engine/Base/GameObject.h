@@ -42,6 +42,9 @@ public:
     // Hierarchy / Tree Operations 
     void AddChild(std::unique_ptr<GameObject> child);
 
+    // Removes and returns unique ownership of a specific child node without destroying it
+    [[nodiscard]] std::unique_ptr<GameObject> RemoveChild(GameObject* child) noexcept;
+
     // Creates an exact deep-copy duplicate of this GameObject, its components, and its children
     [[nodiscard]] std::unique_ptr<GameObject> Clone() const;
 

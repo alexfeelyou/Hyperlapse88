@@ -34,12 +34,289 @@ namespace
 
 namespace
 {
+    [[nodiscard]] nlohmann::json SnapshotGameObject(const GameObject* node)
+    {
+        if (!node) return nlohmann::json{};
+
+        nlohmann::json j{};
+        j["Name"] = node->GetName();
+        j["IsActive"] = node->IsActive();
+        j["PosX"] = node->transform.position.x;
+        j["PosY"] = node->transform.position.y;
+        j["PosZ"] = node->transform.position.z;
+        j["RotX"] = node->transform.rotation.x;
+        j["RotY"] = node->transform.rotation.y;
+        j["RotZ"] = node->transform.rotation.z;
+        j["ScaleX"] = node->transform.scale.x;
+        j["ScaleY"] = node->transform.scale.y;
+        j["ScaleZ"] = node->transform.scale.z;
+
+        nlohmann::json compArray = nlohmann::json::array();
+        for (const auto& comp : node->GetComponents())
+        {
+            if (!comp) continue;
+            nlohmann::json compJson{};
+            compJson["Type"] = comp->GetTypeName();
+            comp->Serialize(compJson);
+            compArray.push_back(std::move(compJson));
+        }
+        j["Components"] = std::move(compArray);
+
+        return j;
+    }
+
+    void ApplyGameObjectSnapshot(GameObject* node, const nlohmann::json& j)
+    {
+        if (!node || !j.is_object() || j.empty()) return;
+
+        node->SetName(j.value("Name", node->GetName()));
+        node->SetActive(j.value("IsActive", node->IsActive()));
+        node->transform.position = {
+            j.value("PosX", node->transform.position.x),
+            j.value("PosY", node->transform.position.y),
+            j.value("PosZ", node->transform.position.z)
+        };
+        node->transform.rotation = {
+            j.value("RotX", node->transform.rotation.x),
+            j.value("RotY", node->transform.rotation.y),
+            j.value("RotZ", node->transform.rotation.z)
+        };
+        node->transform.scale = {
+            j.value("ScaleX", node->transform.scale.x),
+            j.value("ScaleY", node->transform.scale.y),
+            j.value("ScaleZ", node->transform.scale.z)
+        };
+
+        if (j.contains("Components"))
+        {
+            for (const auto& compJson : j["Components"])
+            {
+                const std::string type{ compJson.value("Type", "") };
+                for (const auto& comp : node->GetComponents())
+                {
+                    if (comp && comp->GetTypeName() == type)
+                    {
+                        comp->Deserialize(compJson);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    class TransformGizmoAction final : public IUndoAction
+    {
+    public:
+        TransformGizmoAction(GameObject* target,
+            const DirectX::XMFLOAT3& oldPos, const DirectX::XMFLOAT3& oldRot, const DirectX::XMFLOAT3& oldScale,
+            const DirectX::XMFLOAT3& newPos, const DirectX::XMFLOAT3& newRot, const DirectX::XMFLOAT3& newScale)
+            : m_target{ target }
+            , m_oldPos{ oldPos }, m_oldRot{ oldRot }, m_oldScale{ oldScale }
+            , m_newPos{ newPos }, m_newRot{ newRot }, m_newScale{ newScale }
+        {}
+
+        void Undo(Scene*) override
+        {
+            if (!m_target || m_target->IsDestroyed()) return;
+            m_target->transform.position = m_oldPos;
+            m_target->transform.rotation = m_oldRot;
+            m_target->transform.scale = m_oldScale;
+        }
+
+        void Redo(Scene*) override
+        {
+            if (!m_target || m_target->IsDestroyed()) return;
+            m_target->transform.position = m_newPos;
+            m_target->transform.rotation = m_newRot;
+            m_target->transform.scale = m_newScale;
+        }
+
+        [[nodiscard]] std::string_view GetName() const noexcept override { return "Transform Gizmo"; }
+
+    private:
+        GameObject* m_target{ nullptr };
+        DirectX::XMFLOAT3 m_oldPos{};
+        DirectX::XMFLOAT3 m_oldRot{};
+        DirectX::XMFLOAT3 m_oldScale{};
+        DirectX::XMFLOAT3 m_newPos{};
+        DirectX::XMFLOAT3 m_newRot{};
+        DirectX::XMFLOAT3 m_newScale{};
+    };
+
+    class InspectorEditAction final : public IUndoAction
+    {
+    public:
+        InspectorEditAction(GameObject* target, nlohmann::json beforeState, nlohmann::json afterState)
+            : m_target{ target }
+        {
+            // Direct assignment avoids nlohmann::json initializer_list wrapping the object into an array
+            m_beforeState = std::move(beforeState);
+            m_afterState = std::move(afterState);
+        }
+
+        void Undo(Scene*) override
+        {
+            if (!m_target || m_target->IsDestroyed()) return;
+            ApplyGameObjectSnapshot(m_target, m_beforeState);
+        }
+
+        void Redo(Scene*) override
+        {
+            if (!m_target || m_target->IsDestroyed()) return;
+            ApplyGameObjectSnapshot(m_target, m_afterState);
+        }
+
+        [[nodiscard]] std::string_view GetName() const noexcept override { return "Inspector Edit"; }
+
+    private:
+        GameObject* m_target{ nullptr };
+        nlohmann::json m_beforeState{};
+        nlohmann::json m_afterState{};
+    };
+
+    struct ReparentRecord
+    {
+        GameObject* node{ nullptr };
+        GameObject* oldParent{ nullptr };
+        DirectX::XMFLOAT3 oldPos{};
+        DirectX::XMFLOAT3 oldRot{};
+        DirectX::XMFLOAT3 oldScale{};
+        GameObject* newParent{ nullptr };
+        DirectX::XMFLOAT3 newPos{};
+        DirectX::XMFLOAT3 newRot{};
+        DirectX::XMFLOAT3 newScale{};
+    };
+
+    class ReparentAction final : public IUndoAction
+    {
+    public:
+        explicit ReparentAction(std::vector<ReparentRecord> records, std::string_view name = "Reparent")
+            : m_records{ std::move(records) }
+            , m_name{ name }
+        {}
+
+        void Undo(Scene*) override
+        {
+            for (const auto& rec : m_records)
+            {
+                if (rec.node && rec.oldParent && !rec.node->IsDestroyed() && !rec.oldParent->IsDestroyed())
+                {
+                    rec.node->SetParent(rec.oldParent);
+                    rec.node->transform.position = rec.oldPos;
+                    rec.node->transform.rotation = rec.oldRot;
+                    rec.node->transform.scale = rec.oldScale;
+                }
+            }
+        }
+
+        void Redo(Scene*) override
+        {
+            for (const auto& rec : m_records)
+            {
+                if (rec.node && rec.newParent && !rec.node->IsDestroyed() && !rec.newParent->IsDestroyed())
+                {
+                    rec.node->SetParent(rec.newParent);
+                    rec.node->transform.position = rec.newPos;
+                    rec.node->transform.rotation = rec.newRot;
+                    rec.node->transform.scale = rec.newScale;
+                }
+            }
+        }
+
+        [[nodiscard]] std::string_view GetName() const noexcept override { return m_name; }
+
+    private:
+        std::vector<ReparentRecord> m_records{};
+        std::string m_name{};
+    };
+
+    class CreateObjectAction final : public IUndoAction
+    {
+    public:
+        CreateObjectAction(GameObject* parent, GameObject* rawNode)
+            : m_parent{ parent }
+            , m_rawNode{ rawNode }
+        {}
+
+        void Undo(Scene*) override
+        {
+            if (m_parent && m_rawNode && !m_ownedNode)
+            {
+                m_ownedNode = m_parent->RemoveChild(m_rawNode);
+            }
+        }
+
+        void Redo(Scene*) override
+        {
+            if (m_parent && m_ownedNode)
+            {
+                m_rawNode = m_ownedNode.get();
+                m_parent->AddChild(std::move(m_ownedNode));
+            }
+        }
+
+        [[nodiscard]] std::string_view GetName() const noexcept override { return "Create GameObject"; }
+
+    private:
+        GameObject* m_parent{ nullptr };
+        GameObject* m_rawNode{ nullptr };
+        std::unique_ptr<GameObject> m_ownedNode{ nullptr };
+    };
+
+    struct DeletedRecord
+    {
+        GameObject* parent{ nullptr };
+        GameObject* rawNode{ nullptr };
+        std::unique_ptr<GameObject> storage{ nullptr };
+    };
+
+    class DeleteObjectsAction final : public IUndoAction
+    {
+    public:
+        explicit DeleteObjectsAction(std::vector<DeletedRecord> records)
+            : m_records{ std::move(records) }
+        {}
+
+        void Undo(Scene*) override
+        {
+            for (auto& rec : m_records)
+            {
+                if (rec.parent && rec.storage)
+                {
+                    rec.rawNode = rec.storage.get();
+                    rec.parent->AddChild(std::move(rec.storage));
+                }
+            }
+        }
+
+        void Redo(Scene*) override
+        {
+            for (auto& rec : m_records)
+            {
+                if (rec.parent && rec.rawNode && !rec.storage)
+                {
+                    rec.storage = rec.parent->RemoveChild(rec.rawNode);
+                }
+            }
+        }
+
+        [[nodiscard]] std::string_view GetName() const noexcept override { return "Delete GameObject(s)"; }
+
+    private:
+        std::vector<DeletedRecord> m_records{};
+    };
+}
+
+namespace
+{
     enum class ToolbarIcon : std::uint8_t
     {
         Play = 0,
         Pause,
         Stop,
-        Maximize
+        Maximize,
+        Undo,
+        Redo
     };
 
     [[nodiscard]] bool DrawToolbarIconButton(
@@ -138,11 +415,43 @@ namespace
             }
             break;
         }
+        case ToolbarIcon::Undo:
+        {
+            constexpr float r{ 4.0f };
+            drawList->PathArcTo(ImVec2{ center.x + 1.0f, center.y + 1.0f }, r, DirectX::XM_PI * 1.15f, DirectX::XM_2PI * 0.95f, 6);
+            drawList->PathStroke(iconColor, 0, 1.8f);
+
+            const ImVec2 tip{ center.x - 3.5f, center.y + 0.5f };
+            drawList->AddTriangleFilled(
+                tip,
+                ImVec2{ tip.x + 3.5f, tip.y - 3.5f },
+                ImVec2{ tip.x + 4.0f, tip.y + 2.0f },
+                iconColor
+            );
+            break;
+        }
+        case ToolbarIcon::Redo:
+        {
+            constexpr float r{ 4.0f };
+            drawList->PathArcTo(ImVec2{ center.x - 1.0f, center.y + 1.0f }, r, -DirectX::XM_2PI * 0.45f, -DirectX::XM_PI * 0.15f, 6);
+            drawList->PathStroke(iconColor, 0, 1.8f);
+
+            const ImVec2 tip{ center.x + 3.5f, center.y + 0.5f };
+            drawList->AddTriangleFilled(
+                tip,
+                ImVec2{ tip.x - 4.0f, tip.y + 2.0f },
+                ImVec2{ tip.x - 3.5f, tip.y - 3.5f },
+                iconColor
+            );
+            break;
+        }
         }
 
         return isClicked;
     }
 }
+
+EditorManager::~EditorManager() = default;
 
 EditorManager& EditorManager::Instance() noexcept
 {
@@ -354,12 +663,40 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
     }
 
     constexpr ImVec2 buttonSize{ 34.0f, 22.0f };
-    const float totalToolbarWidth{ (buttonSize.x * 3.0f) + (ImGui::GetStyle().ItemSpacing.x * 2.0f) };
+    const float totalToolbarWidth{ (buttonSize.x * 5.0f) + (ImGui::GetStyle().ItemSpacing.x * 4.0f) };
 
     if (s_isSceneMaximized) ImGui::SetCursorPosY(8.0f);
 
     const float availWidth{ ImGui::GetContentRegionAvail().x };
     ImGui::SetCursorPosX((availWidth * 0.5f) - (totalToolbarWidth * 0.5f));
+
+    // Toolbar Undo Button
+    ImGui::BeginDisabled(!CanUndo());
+    if (DrawToolbarIconButton("##ToolbarUndoBtn", ToolbarIcon::Undo, false, ImVec4{ 0.3f, 0.3f, 0.3f, 1.0f }, buttonSize))
+    {
+        Undo(currentScene);
+    }
+    ImGui::EndDisabled();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+    {
+        ImGui::SetTooltip("Undo (Ctrl+Z)");
+    }
+
+    ImGui::SameLine();
+
+    // Toolbar Redo Button
+    ImGui::BeginDisabled(!CanRedo());
+    if (DrawToolbarIconButton("##ToolbarRedoBtn", ToolbarIcon::Redo, false, ImVec4{ 0.3f, 0.3f, 0.3f, 1.0f }, buttonSize))
+    {
+        Redo(currentScene);
+    }
+    ImGui::EndDisabled();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+    {
+        ImGui::SetTooltip("Redo (Ctrl+Y)");
+    }
+
+    ImGui::SameLine();
 
     static bool s_skipGizmoThisFrame{ false };
 
@@ -516,6 +853,21 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
         ImGuizmo::SetOrthographic(false);
         ImGuizmo::Manipulate(&view._11, &proj._11, m_gizmoOperation, m_gizmoMode, &targetMatrix._11);
 
+        static bool s_wasGizmoUsing{ false };
+        static DirectX::XMFLOAT3 s_gizmoPrePos{};
+        static DirectX::XMFLOAT3 s_gizmoPreRot{};
+        static DirectX::XMFLOAT3 s_gizmoPreScale{};
+        static GameObject* s_gizmoTarget{ nullptr };
+
+        if (!s_wasGizmoUsing && ImGuizmo::IsUsing())
+        {
+            s_wasGizmoUsing = true;
+            s_gizmoTarget = m_selectedObject;
+            s_gizmoPrePos = m_selectedObject->transform.position;
+            s_gizmoPreRot = m_selectedObject->transform.rotation;
+            s_gizmoPreScale = m_selectedObject->transform.scale;
+        }
+
         if (ImGuizmo::IsUsing())
         {
             DirectX::XMMATRIX matNewWorld{ DirectX::XMLoadFloat4x4(&targetMatrix) };
@@ -612,6 +964,27 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
                 }
             }
         }
+        else if (s_wasGizmoUsing)
+        {
+            s_wasGizmoUsing = false;
+            if (s_gizmoTarget && s_gizmoTarget == m_selectedObject)
+            {
+                const auto& curPos = m_selectedObject->transform.position;
+                const auto& curRot = m_selectedObject->transform.rotation;
+                const auto& curScale = m_selectedObject->transform.scale;
+
+                if (curPos.x != s_gizmoPrePos.x || curPos.y != s_gizmoPrePos.y || curPos.z != s_gizmoPrePos.z ||
+                    curRot.x != s_gizmoPreRot.x || curRot.y != s_gizmoPreRot.y || curRot.z != s_gizmoPreRot.z ||
+                    curScale.x != s_gizmoPreScale.x || curScale.y != s_gizmoPreScale.y || curScale.z != s_gizmoPreScale.z)
+                {
+                    PushUndoAction(std::make_unique<TransformGizmoAction>(
+                        m_selectedObject,
+                        s_gizmoPrePos, s_gizmoPreRot, s_gizmoPreScale,
+                        curPos, curRot, curScale));
+                }
+            }
+            s_gizmoTarget = nullptr;
+        }
     }
 
     const ImVec2 windowSize{ ImGui::GetWindowSize() };
@@ -670,16 +1043,54 @@ void EditorManager::DrawMenuBar(Scene* currentScene) noexcept
             ImGui::EndMenu();
         }
 
+        if (ImGui::BeginMenu("Edit"))
+        {
+            const std::string undoLabel = CanUndo()
+                ? "Undo " + std::string(GetUndoActionName())
+                : "Undo";
+            const std::string redoLabel = CanRedo()
+                ? "Redo " + std::string(GetRedoActionName())
+                : "Redo";
+
+            if (ImGui::MenuItem(undoLabel.c_str(), "Ctrl+Z", false, CanUndo()))
+            {
+                Undo(currentScene);
+            }
+            if (ImGui::MenuItem(redoLabel.c_str(), "Ctrl+Y", false, CanRedo()))
+            {
+                Redo(currentScene);
+            }
+
+            ImGui::Separator();
+
+            if (ImGui::MenuItem("Duplicate", "Ctrl+D", false, m_selectedObject != nullptr))
+            {
+                DuplicateSelected(currentScene);
+            }
+            if (ImGui::MenuItem("Group Selected", "Ctrl+G", false, !m_selectedObjects.empty()))
+            {
+                GroupSelected(currentScene);
+            }
+            if (ImGui::MenuItem("Delete", "Del", false, !m_selectedObjects.empty() || m_selectedObject != nullptr))
+            {
+                DeleteSelected();
+            }
+
+            ImGui::EndMenu();
+        }
+
         if (ImGui::BeginMenu("Scene"))
         {
             if (ImGui::MenuItem("Title"))
             {
-                ClearSelection(); 
+                ClearSelection();
+                ClearUndoHistory();
                 Framework::Instance()->ChangeScene([]() { return std::make_unique<SceneTitle>(); });
             }
             if (ImGui::MenuItem("Game"))
             {
-                ClearSelection(); 
+                ClearSelection();
+                ClearUndoHistory();
                 Framework::Instance()->ChangeScene([]() { return std::make_unique<SceneGame>(); });
             }
             ImGui::EndMenu();
@@ -701,6 +1112,73 @@ void EditorManager::DrawMenuBar(Scene* currentScene) noexcept
 
         ImGui::EndMenuBar();
     }
+}
+
+void EditorManager::Undo(Scene* currentScene) noexcept
+{
+    if (m_undoStack.empty() || !currentScene) return;
+
+    // Abort any open inspector session so the undo itself is not recorded as a new edit
+    m_isInspectorEditing = false;
+
+    auto action{ std::move(m_undoStack.back()) };
+    m_undoStack.pop_back();
+
+    action->Undo(currentScene);
+    m_redoStack.push_back(std::move(action));
+}
+
+void EditorManager::Redo(Scene* currentScene) noexcept
+{
+    if (m_redoStack.empty() || !currentScene) return;
+
+    // Abort any open inspector session so the redo itself is not recorded as a new edit
+    m_isInspectorEditing = false;
+
+    auto action{ std::move(m_redoStack.back()) };
+    m_redoStack.pop_back();
+
+    action->Redo(currentScene);
+    m_undoStack.push_back(std::move(action));
+}
+
+[[nodiscard]] bool EditorManager::CanUndo() const noexcept
+{
+    return !m_undoStack.empty();
+}
+
+[[nodiscard]] bool EditorManager::CanRedo() const noexcept
+{
+    return !m_redoStack.empty();
+}
+
+[[nodiscard]] std::string_view EditorManager::GetUndoActionName() const noexcept
+{
+    return m_undoStack.empty() ? "" : m_undoStack.back()->GetName();
+}
+
+[[nodiscard]] std::string_view EditorManager::GetRedoActionName() const noexcept
+{
+    return m_redoStack.empty() ? "" : m_redoStack.back()->GetName();
+}
+
+void EditorManager::PushUndoAction(std::unique_ptr<IUndoAction> action) noexcept
+{
+    if (!action) return;
+
+    if (m_undoStack.size() >= s_maxUndoHistory)
+    {
+        m_undoStack.erase(m_undoStack.begin());
+    }
+
+    m_undoStack.push_back(std::move(action));
+    m_redoStack.clear();
+}
+
+void EditorManager::ClearUndoHistory() noexcept
+{
+    m_undoStack.clear();
+    m_redoStack.clear();
 }
 
 bool EditorManager::IsObjectSelected(const GameObject* node) const noexcept
@@ -827,6 +1305,13 @@ void EditorManager::DuplicateSelected(Scene* currentScene) noexcept
 
     if (!m_selectedObjects.empty())
     {
+        for (auto* cloneObj : m_selectedObjects)
+        {
+            if (cloneObj && cloneObj->GetParent())
+            {
+                PushUndoAction(std::make_unique<CreateObjectAction>(cloneObj->GetParent(), cloneObj));
+            }
+        }
         m_selectedObject = m_selectedObjects.back();
         m_selectionAnchor = m_selectedObjects.front();
     }
@@ -1024,10 +1509,33 @@ void EditorManager::ReparentNodes(const std::vector<GameObject*>& nodes, GameObj
         }
     }
 
-    // Apply reparenting with coordinate preservation
+    std::vector<ReparentRecord> records{};
+    records.reserve(topLevelNodes.size());
+
     for (auto* node : topLevelNodes)
     {
-        node->SetParent(newParent);
+        ReparentRecord rec{};
+        rec.node = node;
+        rec.oldParent = node->GetParent();
+        rec.oldPos = node->transform.position;
+        rec.oldRot = node->transform.rotation;
+        rec.oldScale = node->transform.scale;
+        rec.newParent = newParent;
+        records.push_back(rec);
+    }
+
+    // Apply reparenting with coordinate preservation
+    for (std::size_t i{ 0 }; i < topLevelNodes.size(); ++i)
+    {
+        topLevelNodes[i]->SetParent(newParent);
+        records[i].newPos = topLevelNodes[i]->transform.position;
+        records[i].newRot = topLevelNodes[i]->transform.rotation;
+        records[i].newScale = topLevelNodes[i]->transform.scale;
+    }
+
+    if (!records.empty())
+    {
+        PushUndoAction(std::make_unique<ReparentAction>(std::move(records)));
     }
 }
 
@@ -1078,24 +1586,43 @@ void EditorManager::ToggleActiveSelected() noexcept
 
 void EditorManager::DeleteSelected() noexcept
 {
+    std::vector<GameObject*> targets{};
     if (m_selectedObjects.empty())
     {
-        if (m_selectedObject)
-        {
-            m_selectedObject->Destroy();
-            ClearSelection();
-        }
-        return;
+        if (m_selectedObject) targets.push_back(m_selectedObject);
+    }
+    else
+    {
+        targets = m_selectedObjects;
     }
 
-    for (auto* obj : m_selectedObjects)
+    if (targets.empty()) return;
+
+    std::vector<DeletedRecord> records{};
+    records.reserve(targets.size());
+
+    for (auto* obj : targets)
     {
-        if (obj && !obj->IsDestroyed())
+        if (!obj || obj->IsDestroyed() || !obj->GetParent()) continue;
+
+        GameObject* parent = obj->GetParent();
+        auto extracted = parent->RemoveChild(obj);
+        if (extracted)
         {
-            obj->Destroy();
+            DeletedRecord rec{};
+            rec.parent = parent;
+            rec.rawNode = obj;
+            rec.storage = std::move(extracted);
+            records.push_back(std::move(rec));
         }
     }
+
     ClearSelection();
+
+    if (!records.empty())
+    {
+        PushUndoAction(std::make_unique<DeleteObjectsAction>(std::move(records)));
+    }
 }
 
 void EditorManager::DrawHierarchyNode(GameObject* node, Scene* currentScene) noexcept
@@ -1291,7 +1818,9 @@ void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
             {
                 auto emptyObj = std::make_unique<GameObject>("Empty");
                 auto* rawPtr = emptyObj.get();
-                currentScene->GetRootGameObject()->AddChild(std::move(emptyObj));
+                auto* rootObj = currentScene->GetRootGameObject();
+                rootObj->AddChild(std::move(emptyObj));
+                PushUndoAction(std::make_unique<CreateObjectAction>(rootObj, rawPtr));
                 m_selectedObjects.clear();
                 m_selectedObjects.push_back(rawPtr);
                 m_selectedObject = rawPtr;
@@ -1360,7 +1889,16 @@ void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
         const bool canHandleShortcuts{ !io.WantTextInput && m_editorMode != EditorMode::Play };
         if (canHandleShortcuts)
         {
-            if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_D, false))
+            if (io.KeyCtrl && !io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z, false))
+            {
+                Undo(currentScene);
+            }
+            else if ((io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Y, false)) ||
+                (io.KeyCtrl && io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z, false)))
+            {
+                Redo(currentScene);
+            }
+            else if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_D, false))
             {
                 DuplicateSelected(currentScene);
             }
@@ -1445,7 +1983,9 @@ void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
             {
                 auto emptyObj{ std::make_unique<GameObject>("Empty") };
                 auto* rawPtr{ emptyObj.get() };
-                currentScene->GetRootGameObject()->AddChild(std::move(emptyObj));
+                auto* rootObj = currentScene->GetRootGameObject();
+                rootObj->AddChild(std::move(emptyObj));
+                PushUndoAction(std::make_unique<CreateObjectAction>(rootObj, rawPtr));
                 m_selectedObjects.clear();
                 m_selectedObjects.push_back(rawPtr);
                 m_selectedObject = rawPtr;
@@ -1535,7 +2075,65 @@ void EditorManager::DrawInspector(Scene* currentScene) noexcept
             ImGui::TextDisabled("MULTI-SELECTION (%zu OBJECTS)", m_selectedObjects.size());
             ImGui::Separator();
         }
+
+        // Interaction-gated memento: serialize only when an edit begins or ends, never per frame
+        const ImGuiContext& imguiCtx{ *GImGui };
+        const ImGuiWindow* inspectorWindow{ ImGui::GetCurrentWindow() };
+
+        // A selection switch invalidates any session that was recorded for the previous object
+        if (m_inspectorEditingObject != m_selectedObject)
+        {
+            m_isInspectorEditing = false;
+            m_inspectorEditingObject = m_selectedObject;
+            m_inspectorSnapshotBefore = nullptr;
+        }
+
+        // Open a session on the press frame (before widgets consume the click) or when a widget is already active
+        const bool pressedOnInspector{
+            ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows)
+            && (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Right)) };
+        const bool widgetAlreadyActive{
+            imguiCtx.ActiveId != 0 && imguiCtx.ActiveIdWindow && inspectorWindow
+            && imguiCtx.ActiveIdWindow->RootWindow == inspectorWindow->RootWindow };
+
+        if (!m_isInspectorEditing && (pressedOnInspector || widgetAlreadyActive))
+        {
+            m_inspectorSnapshotBefore = SnapshotGameObject(m_selectedObject);
+            m_isInspectorEditing = true;
+        }
+
         m_selectedObject->DrawInspector();
+
+        // The session ends once no widget is active, no popup is open and the mouse is released
+        const bool interactionFinished{
+            imguiCtx.ActiveId == 0 && imguiCtx.OpenPopupStack.Size == 0
+            && !ImGui::IsMouseDown(ImGuiMouseButton_Left) && !ImGui::IsMouseDown(ImGuiMouseButton_Right) };
+
+        if (m_isInspectorEditing && interactionFinished)
+        {
+            m_isInspectorEditing = false;
+
+            // Copy-init so nlohmann does not wrap the snapshot in a one-element array
+            nlohmann::json afterState = SnapshotGameObject(m_selectedObject);
+            if (afterState != m_inspectorSnapshotBefore)
+            {
+                PushUndoAction(std::make_unique<InspectorEditAction>(
+                    m_selectedObject,
+                    std::move(m_inspectorSnapshotBefore),
+                    std::move(afterState)));
+            }
+            m_inspectorSnapshotBefore = nullptr;
+        }
+        else if (m_isInspectorEditing)
+        {
+            const ImGuiContext& g{ *GImGui };
+            const ImGuiWindow* curWindow{ ImGui::GetCurrentWindow() };
+            const bool isActivelyDragging{ g.ActiveId != 0 && g.ActiveIdWindow == curWindow && ImGui::IsMouseDown(ImGuiMouseButton_Left) };
+            if (!isActivelyDragging)
+            {
+                m_isInspectorEditing = false;
+            }
+        }
     }
     else if (currentScene)
     {
@@ -1699,7 +2297,7 @@ void EditorManager::DrawPostProcess(Scene* currentScene) noexcept
                 ppm->SaveConfig(configPath);
             }
             ImGui::SameLine();
-            if (ImGui::Button("Undo"))
+            if (ImGui::Button("Reload Saved"))
             {
                 ppm->LoadConfig(configPath);
             }

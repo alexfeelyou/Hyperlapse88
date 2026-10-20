@@ -186,6 +186,26 @@ void GameObject::AddChild(std::unique_ptr<GameObject> child)
     m_children.push_back(std::move(child));
 }
 
+[[nodiscard]] std::unique_ptr<GameObject> GameObject::RemoveChild(GameObject* child) noexcept
+{
+    if (!child) return nullptr;
+
+    const auto it = std::find_if(m_children.begin(), m_children.end(),
+        [child](const std::unique_ptr<GameObject>& ptr) noexcept {
+            return ptr.get() == child;
+        });
+
+    if (it == m_children.end()) return nullptr;
+
+    std::unique_ptr<GameObject> extracted{ std::move(*it) };
+    m_children.erase(it);
+
+    extracted->m_parent = nullptr;
+    extracted->transform.parent = nullptr;
+
+    return extracted;
+}
+
 void GameObject::SetParent(GameObject* newParent) noexcept
 {
     if (!newParent || newParent == this || m_parent == newParent) return;
