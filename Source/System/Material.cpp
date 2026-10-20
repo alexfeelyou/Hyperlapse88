@@ -1,4 +1,5 @@
 #include <imgui.h>
+#include "System/AssetManager.h"
 #include "System/GpuResourceUtils.h"
 #include "System/Graphics.h"
 #include "Material.h"
@@ -132,11 +133,11 @@ void Material::DrawInspector() noexcept
         if (!newPath.empty())
         {
             auto* device{ Graphics::Instance().GetDevice() };
-            static Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> s_garbageBin{};
-            s_garbageBin = baseMap;
-
-            GpuResourceUtils::LoadTexture(device, newPath.c_str(), baseMap.ReleaseAndGetAddressOf());
-            baseTextureFileName = newPath;
+            if (auto srv{ Engine::System::AssetManager::Instance().GetOrLoadTexture(device, newPath) })
+            {
+                baseMap = std::move(srv);
+                baseTextureFileName = newPath;
+            }
         }
     }
     ImGui::EndGroup();
@@ -169,10 +170,11 @@ void Material::DrawInspector() noexcept
                 if (!newPath.empty())
                 {
                     auto* device{ Graphics::Instance().GetDevice() };
-                    static Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> s_normalGarbageBin{};
-                    s_normalGarbageBin = normalMap;
-                    GpuResourceUtils::LoadTexture(device, newPath.c_str(), normalMap.ReleaseAndGetAddressOf());
-                    normalTextureFileName = newPath;
+                    if (auto srv{ Engine::System::AssetManager::Instance().GetOrLoadTexture(device, newPath) })
+                    {
+                        normalMap = std::move(srv);
+                        normalTextureFileName = newPath;
+                    }
                 }
             }
             ImGui::EndGroup();
@@ -198,10 +200,11 @@ void Material::DrawInspector() noexcept
                 if (!newPath.empty())
                 {
                     auto* device{ Graphics::Instance().GetDevice() };
-                    static Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> s_ormGarbageBin{};
-                    s_ormGarbageBin = metalnessRoughnessMap;
-                    GpuResourceUtils::LoadTexture(device, newPath.c_str(), metalnessRoughnessMap.ReleaseAndGetAddressOf());
-                    metalnessRoughnessTextureFileName = newPath;
+                    if (auto srv{ Engine::System::AssetManager::Instance().GetOrLoadTexture(device, newPath) })
+                    {
+                        metalnessRoughnessMap = std::move(srv);
+                        metalnessRoughnessTextureFileName = newPath;
+                    }
                 }
             }
             ImGui::EndGroup();
@@ -225,10 +228,11 @@ void Material::DrawInspector() noexcept
             if (!newPath.empty())
             {
                 auto* device{ Graphics::Instance().GetDevice() };
-                static Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> s_emissiveGarbageBin{};
-                s_emissiveGarbageBin = emissiveMap;
-                GpuResourceUtils::LoadTexture(device, newPath.c_str(), emissiveMap.ReleaseAndGetAddressOf());
-                emissiveTextureFileName = newPath;
+                if (auto srv{ Engine::System::AssetManager::Instance().GetOrLoadTexture(device, newPath) })
+                {
+                    emissiveMap = std::move(srv);
+                    emissiveTextureFileName = newPath;
+                }
             }
         }
         ImGui::EndGroup();
@@ -359,17 +363,21 @@ void Material::Deserialize(const nlohmann::json& j)
     if (!newBaseTex.empty() && (newBaseTex != baseTextureFileName || !baseMap))
     {
         auto* device{ Graphics::Instance().GetDevice() };
-        baseMap.Reset();
-        GpuResourceUtils::LoadTexture(device, newBaseTex.c_str(), baseMap.GetAddressOf());
-        baseTextureFileName = newBaseTex;
+        if (auto srv{ Engine::System::AssetManager::Instance().GetOrLoadTexture(device, newBaseTex) })
+        {
+            baseMap = std::move(srv);
+            baseTextureFileName = newBaseTex;
+        }
     }
 
     if (!newNormalTex.empty() && (newNormalTex != normalTextureFileName || !normalMap))
     {
         auto* device{ Graphics::Instance().GetDevice() };
-        normalMap.Reset();
-        GpuResourceUtils::LoadTexture(device, newNormalTex.c_str(), normalMap.GetAddressOf());
-        normalTextureFileName = newNormalTex;
+        if (auto srv{ Engine::System::AssetManager::Instance().GetOrLoadTexture(device, newNormalTex) })
+        {
+            normalMap = std::move(srv);
+            normalTextureFileName = newNormalTex;
+        }
     }
 
     enableOutline = j.value("EnableOutline", true);

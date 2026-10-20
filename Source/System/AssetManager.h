@@ -5,6 +5,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <wrl/client.h>
 
 #include "System/Model.h"
 
@@ -26,6 +27,9 @@ namespace Engine::System
         // Loads a model from disk or returns the cached instance if already loaded
         [[nodiscard]] std::shared_ptr<Model> GetOrLoadModel(ID3D11Device* device, std::string_view filepath);
 
+        // Loads a texture from disk or returns the cached SRV instance if already loaded
+        [[nodiscard]] Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> GetOrLoadTexture(ID3D11Device* device, std::string_view filepath);
+
         // Clears all unreferenced assets from the cache
         void UnloadUnusedAssets() noexcept;
 
@@ -38,5 +42,8 @@ namespace Engine::System
 
         // Cache mapping file paths to loaded Model instances
         std::unordered_map<std::string, std::shared_ptr<Model>> m_modelCache{};
+
+        // Cache mapping file paths to loaded Texture Shader Resource Views
+        std::unordered_map<std::string, Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>> m_textureCache{};
     };
 }

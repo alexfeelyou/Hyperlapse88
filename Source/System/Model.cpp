@@ -5,6 +5,7 @@
 #include <cereal/types/string.hpp>
 #include <cereal/types/vector.hpp>
 #include "Misc.h"
+#include "AssetManager.h"
 #include "GLTFImporter.h"
 #include "GpuResourceUtils.h"
 #include "Model.h"
@@ -239,9 +240,8 @@ Model::Model(ID3D11Device* device, const char* filename, float sampleRate)
 			{
 				// ベーステクスチャ読み込み
 				std::filesystem::path diffuseTexturePath(dirpath / material.baseTextureFileName);
-				HRESULT hr = GpuResourceUtils::LoadTexture(device, diffuseTexturePath.string().c_str(),
-					material.baseMap.GetAddressOf());
-				_ASSERT_EXPR(SUCCEEDED(hr), HRTrace(hr));
+				material.baseMap = Engine::System::AssetManager::Instance().GetOrLoadTexture(device, diffuseTexturePath.string());
+				_ASSERT_EXPR(material.baseMap != nullptr, "AssetManager: Failed to load diffuse texture");
 			}
 		}
 
@@ -258,9 +258,8 @@ Model::Model(ID3D11Device* device, const char* filename, float sampleRate)
 			{
 				// 法線テクスチャ読み込み
 				std::filesystem::path texturePath(dirpath / material.normalTextureFileName);
-				HRESULT hr = GpuResourceUtils::LoadTexture(device, texturePath.string().c_str(),
-					material.normalMap.GetAddressOf());
-				_ASSERT_EXPR(SUCCEEDED(hr), HRTrace(hr));
+				material.normalMap = Engine::System::AssetManager::Instance().GetOrLoadTexture(device, texturePath.string());
+				_ASSERT_EXPR(material.normalMap != nullptr, "AssetManager: Failed to load normal texture");
 			}
 		}
 	}
