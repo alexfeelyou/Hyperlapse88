@@ -74,7 +74,7 @@ private:
     physx::PxRigidStatic* m_physxActor{ nullptr };
     std::vector<physx::PxShape*> m_attachedShapes{};
 
-    DirectX::XMFLOAT3 m_lastFramePos{ 0.0f, 0.0f, 0.0f };
-    DirectX::XMFLOAT3 m_lastFrameRot{ 0.0f, 0.0f, 0.0f };
-    DirectX::XMFLOAT3 m_lastFrameScale{ 1.0f, 1.0f, 1.0f };
+    DirectX::XMFLOAT3 m_lastWorldPos{ 0.0f, 0.0f, 0.0f };
+    DirectX::XMFLOAT4 m_lastWorldRotQuat{ 0.0f, 0.0f, 0.0f, 1.0f };
+    DirectX::XMFLOAT3 m_lastWorldScale{ 1.0f, 1.0f, 1.0f };
 };

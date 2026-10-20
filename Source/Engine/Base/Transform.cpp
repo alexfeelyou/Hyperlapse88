@@ -45,6 +45,8 @@
         return localFloat4x4;
     }
 
+    // Force parent to evaluate its world hierarchy first so parentCurrentVersion is accurate
+    const DirectX::XMFLOAT4X4 parentWorldFloat4x4{ parent->GetWorldMatrix() };
     const std::uint32_t parentCurrentVersion{ parent->GetVersion() };
     const bool parentChanged{ m_cachedParentVersion != parentCurrentVersion };
 
@@ -54,13 +56,13 @@
     }
 
     const DirectX::XMMATRIX matLocal{ DirectX::XMLoadFloat4x4(&localFloat4x4) };
-    const DirectX::XMFLOAT4X4 parentWorldFloat4x4{ parent->GetWorldMatrix() };
     const DirectX::XMMATRIX matParentWorld{ DirectX::XMLoadFloat4x4(&parentWorldFloat4x4) };
 
     const DirectX::XMMATRIX matWorld{ matLocal * matParentWorld };
 
     DirectX::XMStoreFloat4x4(&m_cachedWorldMatrix, matWorld);
     m_cachedParentVersion = parentCurrentVersion;
+    ++m_version;
 
     return m_cachedWorldMatrix;
 }
