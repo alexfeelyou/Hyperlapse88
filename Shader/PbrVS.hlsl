@@ -30,6 +30,14 @@ VS_OUT main(
     
     vout.position = worldPos.xyz;
     vout.color = instanceColor;
+
+    float3 instanceScale = float3(
+        length(instanceWorld[0].xyz),
+        length(instanceWorld[1].xyz),
+        length(instanceWorld[2].xyz)
+    );
+    vout.boxPos = localPos.xyz * instanceScale;
+    vout.boxNormal = localNormal;
     
     return vout;
 }

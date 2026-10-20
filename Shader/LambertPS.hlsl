@@ -7,7 +7,10 @@ cbuffer CbMesh : register(b0)
     int alphaMode;
     float alphaCutoff;
     float subsurfaceStrength;
-    float2 meshPadding;
+    int uvProjectionMode;
+    float meshPadding;
+    float2 uvTiling;
+    float2 uvOffset;
 };
 
 Texture2D DiffuseMap : register(t0);
@@ -28,7 +31,11 @@ float3 CalculateLambertLight(float3 L, float3 N, float3 V, float3 radiance, floa
 
 float4 main(VS_OUT pin, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 {
-    float4 texColor = DiffuseMap.Sample(LinearSampler, pin.texcoord);
+    float2 uv = (uvProjectionMode == 1) ?
+        CalculateBoxUV(pin.boxPos, pin.boxNormal, uvTiling, uvOffset) :
+        (pin.texcoord * uvTiling + uvOffset);
+
+    float4 texColor = DiffuseMap.Sample(LinearSampler, uv);
     float4 color = texColor * materialColor * pin.color;
 
     if (alphaMode == 1)

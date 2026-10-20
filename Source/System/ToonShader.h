@@ -35,7 +35,9 @@ private:
         int               alphaMode{ 0 };                          // 4 bytes
         float             alphaCutoff{ 0.5f };                     // 4 bytes
         float             subsurfaceStrength{ 0.0f };              // 4 bytes
-        float             padding{ 0.0f };                         // 4 bytes
+        int               uvProjectionMode{ 0 };                   // 4 bytes
+        DirectX::XMFLOAT2 uvTiling{ 1.0f, 1.0f };                  // 8 bytes
+        DirectX::XMFLOAT2 uvOffset{ 0.0f, 0.0f };                  // 8 bytes
     };
 
     // Catch padding/alignment logic errors at compile time

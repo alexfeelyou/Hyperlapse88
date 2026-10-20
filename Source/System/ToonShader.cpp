@@ -51,7 +51,9 @@ void ToonShader::Update(const RenderContext& rc, const Model::Mesh& mesh)
          static_cast<int>(mesh.material->alphaMode),
          mesh.material->alphaCutoff,
          mesh.material->subsurfaceStrength,
-         0.0f
+         static_cast<int>(mesh.material->uvProjectionMode),
+         mesh.material->uvTiling,
+         mesh.material->uvOffset
     };
     dc->UpdateSubresource(m_meshConstantBuffer.Get(), 0, 0, &cbMesh, 0, 0);
 

@@ -13,7 +13,10 @@ cbuffer CbMesh : register(b0)
     float alphaCutoff;
     int textureFlags;
     float subsurfaceStrength;
-    float2 meshPadding;
+    int uvProjectionMode;
+    float meshPadding;
+    float2 uvTiling;
+    float2 uvOffset;
 };
 
 Texture2D DiffuseMap : register(t0);
@@ -94,7 +97,11 @@ float3 CalculateDirectLight(float3 L, float3 V, float3 N, float3 radiance, float
 
 float4 main(VS_OUT pin, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 {
-    float4 albedoTex = DiffuseMap.Sample(LinearSampler, pin.texcoord);
+    float2 uv = (uvProjectionMode == 1) ?
+        CalculateBoxUV(pin.boxPos, pin.boxNormal, uvTiling, uvOffset) :
+        (pin.texcoord * uvTiling + uvOffset);
+
+    float4 albedoTex = DiffuseMap.Sample(LinearSampler, uv);
     float4 albedo = albedoTex * materialColor * pin.color;
 
     if (alphaMode == 1)
@@ -112,7 +119,7 @@ float4 main(VS_OUT pin, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     float roughness = matRoughness;
     if (textureFlags & (1 << 0))
     {
-        float4 mrSample = MetalRoughMap.Sample(LinearSampler, pin.texcoord);
+        float4 mrSample = MetalRoughMap.Sample(LinearSampler, uv);
         roughness = mrSample.g * matRoughness;
         metallic = mrSample.b * matMetallic;
     }
@@ -122,14 +129,14 @@ float4 main(VS_OUT pin, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
     float3 emissive = emissiveColorBase;
     if (textureFlags & (1 << 1))
     {
-        float3 emTex = EmissiveMap.Sample(LinearSampler, pin.texcoord).rgb;
+        float3 emTex = EmissiveMap.Sample(LinearSampler, uv).rgb;
         emissive *= pow(abs(emTex), 2.2f);
     }
 
     float ao = 1.0f;
     if (textureFlags & (1 << 2))
     {
-        ao = lerp(1.0f, AOMap.Sample(LinearSampler, pin.texcoord).r, occlusionStrength);
+        ao = lerp(1.0f, AOMap.Sample(LinearSampler, uv).r, occlusionStrength);
     }
 
     float3 N = normalize(pin.normal);
@@ -141,7 +148,7 @@ float4 main(VS_OUT pin, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
         float3 B = normalize(cross(N, T) * pin.tangent.w);
         float3x3 TBN = float3x3(T, B, N);
         
-        float3 localNormal = NormalMap.Sample(LinearSampler, pin.texcoord).xyz * 2.0f - 1.0f;
+        float3 localNormal = NormalMap.Sample(LinearSampler, uv).xyz * 2.0f - 1.0f;
         N = normalize(mul(localNormal, TBN));
     }
 

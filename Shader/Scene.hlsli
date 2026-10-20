@@ -104,3 +104,28 @@ float CalculateCascadeShadow(float3 worldPos, float3 normal, float3 dirToLight)
 
     return 1.0f;
 }
+
+// Dominant-Axis Box Projection (Anchored on Translate/Rotate, Tiles on Scale, Non-Mirrored)
+float2 CalculateBoxUV(float3 pos, float3 normal, float2 tiling, float2 offset)
+{
+    float3 absN = abs(normal);
+    float2 projUV;
+    
+    if (absN.y >= absN.x && absN.y >= absN.z)
+    {
+        // Top / Bottom: Horizontal plane (Floors & Ceilings)
+        projUV = (normal.y >= 0.0f) ? float2(pos.x, -pos.z) : float2(pos.x, pos.z);
+    }
+    else if (absN.x >= absN.z)
+    {
+        // Left / Right walls: project onto ZY plane
+        projUV = (normal.x >= 0.0f) ? float2(pos.z, -pos.y) : float2(-pos.z, -pos.y);
+    }
+    else
+    {
+        // Front / Back walls: project onto XY plane (Front face Nz < 0 maps left-to-right as +pos.x)
+        projUV = (normal.z >= 0.0f) ? float2(-pos.x, -pos.y) : float2(pos.x, -pos.y);
+    }
+    
+    return projUV * tiling + offset;
+}

@@ -38,6 +38,9 @@ Material Material::Clone() const noexcept
     mat.shaderId = shaderId;
     mat.alphaMode = alphaMode;
     mat.alphaCutoff = alphaCutoff;
+    mat.uvProjectionMode = uvProjectionMode;
+    mat.uvTiling = uvTiling;
+    mat.uvOffset = uvOffset;
     mat.baseColor = baseColor;
     mat.emissiveColor = emissiveColor;
     mat.metalness = metalness;
@@ -83,6 +86,27 @@ void Material::DrawInspector() noexcept
     if (alphaMode == AlphaMode::Mask)
     {
         ImGui::SliderFloat("Alpha Cutoff", &alphaCutoff, 0.0f, 1.0f);
+    }
+
+    // UV Projection & Tiling Mode
+    ImGui::Spacing();
+    static constexpr const char* const s_projectionModes[]{ "Mesh UV", "Box Projection (Greybox)" };
+    int currentProjMode{ static_cast<int>(uvProjectionMode) };
+    if (ImGui::Combo("UV Mode", &currentProjMode, s_projectionModes, IM_ARRAYSIZE(s_projectionModes)))
+    {
+        uvProjectionMode = static_cast<UVProjectionMode>(currentProjMode);
+    }
+
+    if (uvProjectionMode == UVProjectionMode::BoxProjection)
+    {
+        ImGui::DragFloat2("Grid Tiling (1/m)", &uvTiling.x, 0.05f, 0.001f, 50.0f, "%.2f");
+        ImGui::DragFloat2("UV Offset", &uvOffset.x, 0.05f, -50.0f, 50.0f, "%.2f");
+        ImGui::TextDisabled("Anchored to actor; scales/multiplies with transform dimensions");
+    }
+    else
+    {
+        ImGui::DragFloat2("UV Tiling", &uvTiling.x, 0.05f, 0.001f, 50.0f, "%.2f");
+        ImGui::DragFloat2("UV Offset", &uvOffset.x, 0.05f, -50.0f, 50.0f, "%.2f");
     }
 
     // ALBEDO / DIFFUSE (Visible on all shaders) 
@@ -273,6 +297,9 @@ void Material::Serialize(nlohmann::json& j) const
     j["ShaderId"] = shaderId;
     j["AlphaMode"] = static_cast<int>(alphaMode);
     j["AlphaCutoff"] = alphaCutoff;
+    j["UVProjectionMode"] = static_cast<int>(uvProjectionMode);
+    j["UVTiling"] = { uvTiling.x, uvTiling.y };
+    j["UVOffset"] = { uvOffset.x, uvOffset.y };
 
     j["BaseColor"] = { baseColor.x, baseColor.y, baseColor.z, baseColor.w };
     j["Emissive"] = { emissiveColor.x, emissiveColor.y, emissiveColor.z };
@@ -298,6 +325,15 @@ void Material::Deserialize(const nlohmann::json& j)
     shaderId = j.value("ShaderId", 2);
     alphaMode = static_cast<AlphaMode>(j.value("AlphaMode", 0));
     alphaCutoff = j.value("AlphaCutoff", 0.5f);
+    uvProjectionMode = static_cast<UVProjectionMode>(j.value("UVProjectionMode", 0));
+    if (j.contains("UVTiling"))
+    {
+        uvTiling = { j["UVTiling"][0], j["UVTiling"][1] };
+    }
+    if (j.contains("UVOffset"))
+    {
+        uvOffset = { j["UVOffset"][0], j["UVOffset"][1] };
+    }
 
     if (j.contains("BaseColor"))
     {
