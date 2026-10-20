@@ -449,32 +449,42 @@ namespace
         }
         case ToolbarIcon::Undo:
         {
+            constexpr float strokeWidth{ 1.8f };
+            const ImVec2 tip{ center.x - 5.5f, center.y - 3.0f };
+            const ImVec2 arcCenter{ center.x + 1.5f, center.y + 1.0f };
             constexpr float r{ 4.0f };
-            drawList->PathArcTo(ImVec2{ center.x + 1.0f, center.y + 1.0f }, r, DirectX::XM_PI * 1.15f, DirectX::XM_2PI * 0.95f, 6);
-            drawList->PathStroke(iconColor, 0, 1.8f);
 
-            const ImVec2 tip{ center.x - 3.5f, center.y + 0.5f };
-            drawList->AddTriangleFilled(
-                tip,
-                ImVec2{ tip.x + 3.5f, tip.y - 3.5f },
-                ImVec2{ tip.x + 4.0f, tip.y + 2.0f },
-                iconColor
-            );
+            // Open chevron arrowhead pointing left 
+            drawList->PathLineTo(ImVec2{ tip.x + 3.2f, tip.y - 3.0f });
+            drawList->PathLineTo(tip);
+            drawList->PathLineTo(ImVec2{ tip.x + 3.2f, tip.y + 3.0f });
+            drawList->PathStroke(iconColor, 0, strokeWidth);
+
+            // Hook shaft: horizontal top line smoothly joining 90-degree arc and down-left tail
+            drawList->PathLineTo(tip);
+            drawList->PathArcTo(arcCenter, r, -DirectX::XM_PIDIV2, DirectX::XM_PI * 0.35f, 10);
+            drawList->PathLineTo(ImVec2{ center.x + 1.4f, center.y + 5.5f });
+            drawList->PathStroke(iconColor, 0, strokeWidth);
             break;
         }
         case ToolbarIcon::Redo:
         {
+            constexpr float strokeWidth{ 1.8f };
+            const ImVec2 tip{ center.x + 5.5f, center.y - 3.0f };
+            const ImVec2 arcCenter{ center.x - 1.5f, center.y + 1.0f };
             constexpr float r{ 4.0f };
-            drawList->PathArcTo(ImVec2{ center.x - 1.0f, center.y + 1.0f }, r, -DirectX::XM_2PI * 0.45f, -DirectX::XM_PI * 0.15f, 6);
-            drawList->PathStroke(iconColor, 0, 1.8f);
 
-            const ImVec2 tip{ center.x + 3.5f, center.y + 0.5f };
-            drawList->AddTriangleFilled(
-                tip,
-                ImVec2{ tip.x - 4.0f, tip.y + 2.0f },
-                ImVec2{ tip.x - 3.5f, tip.y - 3.5f },
-                iconColor
-            );
+            // Open chevron arrowhead pointing right 
+            drawList->PathLineTo(ImVec2{ tip.x - 3.2f, tip.y - 3.0f });
+            drawList->PathLineTo(tip);
+            drawList->PathLineTo(ImVec2{ tip.x - 3.2f, tip.y + 3.0f });
+            drawList->PathStroke(iconColor, 0, strokeWidth);
+
+            // Hook shaft: horizontal top line smoothly joining 90-degree arc and down-right tail
+            drawList->PathLineTo(tip);
+            drawList->PathArcTo(arcCenter, r, -DirectX::XM_PIDIV2, -DirectX::XM_PI * 1.35f, 10);
+            drawList->PathLineTo(ImVec2{ center.x - 1.4f, center.y + 5.5f });
+            drawList->PathStroke(iconColor, 0, strokeWidth);
             break;
         }
         }
