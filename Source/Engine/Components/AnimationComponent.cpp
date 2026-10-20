@@ -931,6 +931,14 @@ void AnimationComponent::Deserialize(const nlohmann::json& j)
         m_stateHashes.push_back(Core::RuntimeHash(state.name));
         m_states.push_back(state);
     }
+    if (m_currentStateIndex >= m_states.size())
+    {
+        m_currentStateIndex = 0;
+    }
+    if (m_currentStateIndex < m_states.size() && m_currentNodeIndex >= m_states[m_currentStateIndex].nodes.size())
+    {
+        m_currentNodeIndex = 0;
+    }
     RebuildSlotTable();
 }
 

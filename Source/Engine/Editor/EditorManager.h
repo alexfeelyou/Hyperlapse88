@@ -77,6 +77,10 @@ public:
         m_deferredDeselectNode = nullptr;
         m_timelinePanel.SetTarget(nullptr, 0);
         m_animGraphPanel.SetTarget(nullptr);
+        m_gameObjectTransaction.isEditing = false;
+        m_gameObjectTransaction.ownerWindowId = 0;
+        m_gameObjectTransaction.target = nullptr;
+        m_gameObjectTransaction.snapshotBefore = nullptr;
     }
 
     // Transactional Undo / Redo Pipeline
@@ -88,6 +92,12 @@ public:
     [[nodiscard]] std::string_view GetRedoActionName() const noexcept;
     void PushUndoAction(std::unique_ptr<class IUndoAction> action) noexcept;
     void ClearUndoHistory() noexcept;
+
+    // Multi-Panel Transaction Tracking Interface
+    void BeginGameObjectTransaction(GameObject* target) noexcept;
+    void EndGameObjectTransaction(GameObject* target, std::string_view actionName = "Edit Object") noexcept;
+    void BeginPostProcessTransaction(class PostProcessManager* target) noexcept;
+    void EndPostProcessTransaction(class PostProcessManager* target, std::string_view actionName = "Post-Processing Edit") noexcept;
 
     // Accessors for the currently selected GameObject and Component
     [[nodiscard]] GameObject* GetSelectedObject() const noexcept { return m_selectedObject; }
@@ -145,10 +155,17 @@ private:
     std::vector<std::unique_ptr<class IUndoAction>> m_undoStack{};
     std::vector<std::unique_ptr<class IUndoAction>> m_redoStack{};
 
-    // Inspector Edit Memento State
-    nlohmann::json m_inspectorSnapshotBefore{};
-    GameObject* m_inspectorEditingObject{ nullptr };
-    bool m_isInspectorEditing{ false };
+    // Multi-Panel Transaction Memento State
+    struct TransactionSession
+    {
+        nlohmann::json snapshotBefore{};
+        void* target{ nullptr };
+        ImGuiID ownerWindowId{ 0 };
+        bool isEditing{ false };
+    };
+
+    TransactionSession m_gameObjectTransaction{};
+    TransactionSession m_postProcessTransaction{};
 
     void DrawHierarchy(Scene* currentScene) noexcept;
     void DrawInspector(Scene* currentScene) noexcept;

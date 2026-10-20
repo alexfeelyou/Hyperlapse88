@@ -83,10 +83,14 @@ public:
         return m_effects;
     }
 
-	// Direct access to the velocity buffer RTV for ModelRenderer's velocity pass
+    // Direct access to the velocity buffer RTV for ModelRenderer's velocity pass
     [[nodiscard]] ID3D11RenderTargetView* GetVelocityRTV() const noexcept { return m_velocityTarget.rtv.Get(); }
 
-	// Serialization Interface for saving/loading the entire post-process graph
+    // In-memory serialization for transactional undo/redo and persistence
+    void Serialize(nlohmann::json& out) const;
+    void Deserialize(const nlohmann::json& in);
+
+    // Serialization Interface for saving/loading the entire post-process graph
     void SaveConfig(std::string_view filepath) const;
     void LoadConfig(std::string_view filepath);
     void ResetToDefaults() noexcept;

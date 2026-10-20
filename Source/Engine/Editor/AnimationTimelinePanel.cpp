@@ -117,10 +117,14 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
         return;
     }
 
+    GameObject* targetOwner{ m_targetComponent->GetOwner() };
+    EditorManager::Instance().BeginGameObjectTransaction(targetOwner);
+
     auto& states{ m_targetComponent->GetStates() };
     if (states.empty())
     {
         ImGui::TextDisabled("Animation Component has no states initialized.");
+        EditorManager::Instance().EndGameObjectTransaction(targetOwner, "Animation Timeline Edit");
         ImGui::End();
         return;
     }
@@ -200,6 +204,7 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
     if (state.nodes.empty())
     {
         ImGui::TextDisabled("This state has no nodes to evaluate.");
+        EditorManager::Instance().EndGameObjectTransaction(targetOwner, "Animation Timeline Edit");
         ImGui::End();
         return;
     }
@@ -676,6 +681,8 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
         ImGui::EndChild();
         ImGui::PopStyleColor();
     }
+
+    EditorManager::Instance().EndGameObjectTransaction(targetOwner, "Animation Timeline Edit");
 
     ImGui::End();
 }

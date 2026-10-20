@@ -146,10 +146,10 @@ namespace
     class InspectorEditAction final : public IUndoAction
     {
     public:
-        InspectorEditAction(GameObject* target, nlohmann::json beforeState, nlohmann::json afterState)
+        InspectorEditAction(GameObject* target, nlohmann::json beforeState, nlohmann::json afterState, std::string_view actionName = "Inspector Edit")
             : m_target{ target }
+            , m_name{ actionName }
         {
-            // Direct assignment avoids nlohmann::json initializer_list wrapping the object into an array
             m_beforeState = std::move(beforeState);
             m_afterState = std::move(afterState);
         }
@@ -166,12 +166,44 @@ namespace
             ApplyGameObjectSnapshot(m_target, m_afterState);
         }
 
-        [[nodiscard]] std::string_view GetName() const noexcept override { return "Inspector Edit"; }
+        [[nodiscard]] std::string_view GetName() const noexcept override { return m_name; }
 
     private:
         GameObject* m_target{ nullptr };
         nlohmann::json m_beforeState{};
         nlohmann::json m_afterState{};
+        std::string m_name{ "Inspector Edit" };
+    };
+
+    class PostProcessEditAction final : public IUndoAction
+    {
+    public:
+        PostProcessEditAction(nlohmann::json beforeState, nlohmann::json afterState, std::string_view actionName = "Post-Processing Edit")
+            : m_name{ actionName }
+        {
+            // Direct assignment avoids nlohmann::json initializer_list constructor wrapping the object into a 1-element array
+            m_beforeState = std::move(beforeState);
+            m_afterState = std::move(afterState);
+        }
+
+        void Undo(Scene* scene) override
+        {
+            if (!scene || !scene->GetPostProcessManager()) return;
+            scene->GetPostProcessManager()->Deserialize(m_beforeState);
+        }
+
+        void Redo(Scene* scene) override
+        {
+            if (!scene || !scene->GetPostProcessManager()) return;
+            scene->GetPostProcessManager()->Deserialize(m_afterState);
+        }
+
+        [[nodiscard]] std::string_view GetName() const noexcept override { return m_name; }
+
+    private:
+        nlohmann::json m_beforeState{};
+        nlohmann::json m_afterState{};
+        std::string m_name{ "Post-Processing Edit" };
     };
 
     struct ReparentRecord
@@ -1118,8 +1150,9 @@ void EditorManager::Undo(Scene* currentScene) noexcept
 {
     if (m_undoStack.empty() || !currentScene) return;
 
-    // Abort any open inspector session so the undo itself is not recorded as a new edit
-    m_isInspectorEditing = false;
+    // Abort any open sessions so the undo invocation is not captured as a modification
+    m_gameObjectTransaction.isEditing = false;
+    m_postProcessTransaction.isEditing = false;
 
     auto action{ std::move(m_undoStack.back()) };
     m_undoStack.pop_back();
@@ -1132,14 +1165,225 @@ void EditorManager::Redo(Scene* currentScene) noexcept
 {
     if (m_redoStack.empty() || !currentScene) return;
 
-    // Abort any open inspector session so the redo itself is not recorded as a new edit
-    m_isInspectorEditing = false;
+    // Abort any open sessions so the redo invocation is not captured as a modification
+    m_gameObjectTransaction.isEditing = false;
+    m_postProcessTransaction.isEditing = false;
 
     auto action{ std::move(m_redoStack.back()) };
     m_redoStack.pop_back();
 
     action->Redo(currentScene);
     m_undoStack.push_back(std::move(action));
+}
+
+void EditorManager::BeginGameObjectTransaction(GameObject* target) noexcept
+{
+    if (!target || m_editorMode == EditorMode::Play) return;
+
+    const ImGuiContext& imguiCtx{ *GImGui };
+    const ImGuiWindow* curWindow{ ImGui::GetCurrentWindow() };
+    if (!curWindow) return;
+
+    const ImGuiID rootWindowId{ curWindow->RootWindow ? curWindow->RootWindow->ID : curWindow->ID };
+
+    // Prevent cross-panel transaction collisions: if another window owns an active session, do not interfere
+    if (m_gameObjectTransaction.isEditing && m_gameObjectTransaction.ownerWindowId != rootWindowId)
+    {
+        const bool ownerStillActive{
+            (imguiCtx.ActiveId != 0 && imguiCtx.ActiveIdWindow && imguiCtx.ActiveIdWindow->RootWindow
+                && imguiCtx.ActiveIdWindow->RootWindow->ID == m_gameObjectTransaction.ownerWindowId)
+            || (ImGui::IsMouseDown(ImGuiMouseButton_Left) || ImGui::IsMouseDown(ImGuiMouseButton_Right))
+        };
+        if (ownerStillActive)
+        {
+            return;
+        }
+
+        // Finalize stale session if mouse was released outside the original window
+        m_gameObjectTransaction.isEditing = false;
+        if (auto* prevTarget = static_cast<GameObject*>(m_gameObjectTransaction.target))
+        {
+            nlohmann::json afterState = SnapshotGameObject(prevTarget);
+            if (afterState != m_gameObjectTransaction.snapshotBefore)
+            {
+                PushUndoAction(std::make_unique<InspectorEditAction>(
+                    prevTarget,
+                    std::move(m_gameObjectTransaction.snapshotBefore),
+                    std::move(afterState),
+                    "Edit Object"));
+            }
+        }
+        m_gameObjectTransaction.snapshotBefore = nullptr;
+        m_gameObjectTransaction.target = nullptr;
+        m_gameObjectTransaction.ownerWindowId = 0;
+    }
+
+    if (m_gameObjectTransaction.target != target)
+    {
+        m_gameObjectTransaction.isEditing = false;
+        m_gameObjectTransaction.target = target;
+        m_gameObjectTransaction.ownerWindowId = 0;
+        m_gameObjectTransaction.snapshotBefore = nullptr;
+    }
+
+    const bool pressedOnWindow{
+        ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows)
+        && (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Right)) };
+
+    const bool widgetAlreadyActive{
+        imguiCtx.ActiveId != 0 && imguiCtx.ActiveIdWindow && curWindow
+        && imguiCtx.ActiveIdWindow->RootWindow == curWindow->RootWindow };
+
+    if (!m_gameObjectTransaction.isEditing && (pressedOnWindow || widgetAlreadyActive))
+    {
+        m_gameObjectTransaction.snapshotBefore = SnapshotGameObject(target);
+        m_gameObjectTransaction.target = target;
+        m_gameObjectTransaction.ownerWindowId = rootWindowId;
+        m_gameObjectTransaction.isEditing = true;
+    }
+}
+
+void EditorManager::EndGameObjectTransaction(GameObject* target, std::string_view actionName) noexcept
+{
+    if (!target || !m_gameObjectTransaction.isEditing) return;
+
+    const ImGuiContext& imguiCtx{ *GImGui };
+    const ImGuiWindow* curWindow{ ImGui::GetCurrentWindow() };
+    if (!curWindow) return;
+
+    const ImGuiID rootWindowId{ curWindow->RootWindow ? curWindow->RootWindow->ID : curWindow->ID };
+    if (m_gameObjectTransaction.ownerWindowId != rootWindowId)
+    {
+        return; // Only the window that began the transaction is permitted to commit it
+    }
+
+    const bool isInteractingInWindow{
+        (imguiCtx.ActiveId != 0 && imguiCtx.ActiveIdWindow && curWindow && imguiCtx.ActiveIdWindow->RootWindow == curWindow->RootWindow)
+        || (imguiCtx.OpenPopupStack.Size > 0)
+        || (ImGui::IsMouseDown(ImGuiMouseButton_Left) || ImGui::IsMouseDown(ImGuiMouseButton_Right))
+    };
+
+    if (!isInteractingInWindow)
+    {
+        m_gameObjectTransaction.isEditing = false;
+        m_gameObjectTransaction.ownerWindowId = 0;
+        m_gameObjectTransaction.target = nullptr;
+        nlohmann::json afterState = SnapshotGameObject(target);
+        if (afterState != m_gameObjectTransaction.snapshotBefore)
+        {
+            PushUndoAction(std::make_unique<InspectorEditAction>(
+                target,
+                std::move(m_gameObjectTransaction.snapshotBefore),
+                std::move(afterState),
+                actionName));
+        }
+        m_gameObjectTransaction.snapshotBefore = nullptr;
+    }
+}
+
+void EditorManager::BeginPostProcessTransaction(PostProcessManager* target) noexcept
+{
+    if (!target || m_editorMode == EditorMode::Play) return;
+
+    const ImGuiContext& imguiCtx{ *GImGui };
+    const ImGuiWindow* curWindow{ ImGui::GetCurrentWindow() };
+    if (!curWindow) return;
+
+    const ImGuiID rootWindowId{ curWindow->RootWindow ? curWindow->RootWindow->ID : curWindow->ID };
+
+    if (m_postProcessTransaction.isEditing && m_postProcessTransaction.ownerWindowId != rootWindowId)
+    {
+        const bool ownerStillActive{
+            (imguiCtx.ActiveId != 0 && imguiCtx.ActiveIdWindow && curWindow && imguiCtx.ActiveIdWindow->RootWindow
+                && imguiCtx.ActiveIdWindow->RootWindow->ID == m_postProcessTransaction.ownerWindowId)
+            || (ImGui::IsMouseDown(ImGuiMouseButton_Left) || ImGui::IsMouseDown(ImGuiMouseButton_Right))
+        };
+        if (ownerStillActive)
+        {
+            return;
+        }
+
+        m_postProcessTransaction.isEditing = false;
+        if (auto* prevTarget = static_cast<PostProcessManager*>(m_postProcessTransaction.target))
+        {
+            nlohmann::json afterState{};
+            prevTarget->Serialize(afterState);
+            if (afterState != m_postProcessTransaction.snapshotBefore)
+            {
+                PushUndoAction(std::make_unique<PostProcessEditAction>(
+                    std::move(m_postProcessTransaction.snapshotBefore),
+                    std::move(afterState),
+                    "Post-Processing Edit"));
+            }
+        }
+        m_postProcessTransaction.snapshotBefore = nullptr;
+        m_postProcessTransaction.target = nullptr;
+        m_postProcessTransaction.ownerWindowId = 0;
+    }
+
+    if (m_postProcessTransaction.target != target)
+    {
+        m_postProcessTransaction.isEditing = false;
+        m_postProcessTransaction.target = target;
+        m_postProcessTransaction.ownerWindowId = 0;
+        m_postProcessTransaction.snapshotBefore = nullptr;
+    }
+
+    const bool pressedOnWindow{
+        ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows)
+        && (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Right)) };
+
+    const bool widgetAlreadyActive{
+        imguiCtx.ActiveId != 0 && imguiCtx.ActiveIdWindow && curWindow
+        && imguiCtx.ActiveIdWindow->RootWindow == curWindow->RootWindow };
+
+    if (!m_postProcessTransaction.isEditing && (pressedOnWindow || widgetAlreadyActive))
+    {
+        nlohmann::json j{};
+        target->Serialize(j);
+        m_postProcessTransaction.snapshotBefore = std::move(j);
+        m_postProcessTransaction.target = target;
+        m_postProcessTransaction.ownerWindowId = rootWindowId;
+        m_postProcessTransaction.isEditing = true;
+    }
+}
+
+void EditorManager::EndPostProcessTransaction(PostProcessManager* target, std::string_view actionName) noexcept
+{
+    if (!target || !m_postProcessTransaction.isEditing) return;
+
+    const ImGuiContext& imguiCtx{ *GImGui };
+    const ImGuiWindow* curWindow{ ImGui::GetCurrentWindow() };
+    if (!curWindow) return;
+
+    const ImGuiID rootWindowId{ curWindow->RootWindow ? curWindow->RootWindow->ID : curWindow->ID };
+    if (m_postProcessTransaction.ownerWindowId != rootWindowId)
+    {
+        return;
+    }
+
+    const bool isInteractingInWindow{
+        (imguiCtx.ActiveId != 0 && imguiCtx.ActiveIdWindow && curWindow && imguiCtx.ActiveIdWindow->RootWindow == curWindow->RootWindow)
+        || (imguiCtx.OpenPopupStack.Size > 0)
+        || (ImGui::IsMouseDown(ImGuiMouseButton_Left) || ImGui::IsMouseDown(ImGuiMouseButton_Right))
+    };
+
+    if (!isInteractingInWindow)
+    {
+        m_postProcessTransaction.isEditing = false;
+        m_postProcessTransaction.ownerWindowId = 0;
+        m_postProcessTransaction.target = nullptr;
+        nlohmann::json afterState{};
+        target->Serialize(afterState);
+        if (afterState != m_postProcessTransaction.snapshotBefore)
+        {
+            PushUndoAction(std::make_unique<PostProcessEditAction>(
+                std::move(m_postProcessTransaction.snapshotBefore),
+                std::move(afterState),
+                actionName));
+        }
+        m_postProcessTransaction.snapshotBefore = nullptr;
+    }
 }
 
 [[nodiscard]] bool EditorManager::CanUndo() const noexcept
@@ -2076,64 +2320,9 @@ void EditorManager::DrawInspector(Scene* currentScene) noexcept
             ImGui::Separator();
         }
 
-        // Interaction-gated memento: serialize only when an edit begins or ends, never per frame
-        const ImGuiContext& imguiCtx{ *GImGui };
-        const ImGuiWindow* inspectorWindow{ ImGui::GetCurrentWindow() };
-
-        // A selection switch invalidates any session that was recorded for the previous object
-        if (m_inspectorEditingObject != m_selectedObject)
-        {
-            m_isInspectorEditing = false;
-            m_inspectorEditingObject = m_selectedObject;
-            m_inspectorSnapshotBefore = nullptr;
-        }
-
-        // Open a session on the press frame (before widgets consume the click) or when a widget is already active
-        const bool pressedOnInspector{
-            ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows)
-            && (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Right)) };
-        const bool widgetAlreadyActive{
-            imguiCtx.ActiveId != 0 && imguiCtx.ActiveIdWindow && inspectorWindow
-            && imguiCtx.ActiveIdWindow->RootWindow == inspectorWindow->RootWindow };
-
-        if (!m_isInspectorEditing && (pressedOnInspector || widgetAlreadyActive))
-        {
-            m_inspectorSnapshotBefore = SnapshotGameObject(m_selectedObject);
-            m_isInspectorEditing = true;
-        }
-
+        BeginGameObjectTransaction(m_selectedObject);
         m_selectedObject->DrawInspector();
-
-        // The session ends once no widget is active, no popup is open and the mouse is released
-        const bool interactionFinished{
-            imguiCtx.ActiveId == 0 && imguiCtx.OpenPopupStack.Size == 0
-            && !ImGui::IsMouseDown(ImGuiMouseButton_Left) && !ImGui::IsMouseDown(ImGuiMouseButton_Right) };
-
-        if (m_isInspectorEditing && interactionFinished)
-        {
-            m_isInspectorEditing = false;
-
-            // Copy-init so nlohmann does not wrap the snapshot in a one-element array
-            nlohmann::json afterState = SnapshotGameObject(m_selectedObject);
-            if (afterState != m_inspectorSnapshotBefore)
-            {
-                PushUndoAction(std::make_unique<InspectorEditAction>(
-                    m_selectedObject,
-                    std::move(m_inspectorSnapshotBefore),
-                    std::move(afterState)));
-            }
-            m_inspectorSnapshotBefore = nullptr;
-        }
-        else if (m_isInspectorEditing)
-        {
-            const ImGuiContext& g{ *GImGui };
-            const ImGuiWindow* curWindow{ ImGui::GetCurrentWindow() };
-            const bool isActivelyDragging{ g.ActiveId != 0 && g.ActiveIdWindow == curWindow && ImGui::IsMouseDown(ImGuiMouseButton_Left) };
-            if (!isActivelyDragging)
-            {
-                m_isInspectorEditing = false;
-            }
-        }
+        EndGameObjectTransaction(m_selectedObject, "Inspector Edit");
     }
     else if (currentScene)
     {
@@ -2289,6 +2478,7 @@ void EditorManager::DrawPostProcess(Scene* currentScene) noexcept
         if (currentScene && currentScene->GetPostProcessManager())
         {
             auto* ppm = currentScene->GetPostProcessManager();
+            BeginPostProcessTransaction(ppm);
 
             const std::string_view configPath{ currentScene->GetPostProcessProfilePath() };
 
@@ -2341,6 +2531,8 @@ void EditorManager::DrawPostProcess(Scene* currentScene) noexcept
                 ImGui::Spacing();
             }
             ImGui::EndDisabled();
+
+            EndPostProcessTransaction(ppm, "Post-Processing Edit");
         }
         else
         {

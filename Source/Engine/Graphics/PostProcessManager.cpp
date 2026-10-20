@@ -450,10 +450,9 @@ void PostProcessManager::DrawAtmosphereGUI() noexcept
     }
 }
 
-void PostProcessManager::SaveConfig(std::string_view filepath) const
+void PostProcessManager::Serialize(nlohmann::json& root) const
 {
-    nlohmann::json root;
-
+    root["Master_Enabled"] = m_isEnabled;
     root["Atmosphere_AutoHarmonize"] = m_autoHarmonizeAtmosphere;
     root["Atmosphere_HarmonizeAmbient"] = m_harmonizeAmbient;
     root["Atmosphere_HarmonizeSunLight"] = m_harmonizeSunLight;
@@ -474,23 +473,28 @@ void PostProcessManager::SaveConfig(std::string_view filepath) const
 
     for (const auto& effect : m_effects)
     {
-        nlohmann::json effectJson;
+        nlohmann::json effectJson{};
         effect->Serialize(effectJson);
 
-        // Convert the human-readable name into a safe JSON key (e.g., "Radial Blur" -> "Radial_Blur")
         std::string key{ effect->GetName() };
         std::replace(key.begin(), key.end(), ' ', '_');
 
-        root[key] = effectJson;
+        root[key] = std::move(effectJson);
     }
 
     nlohmann::json taaJson{};
     m_temporalAAEffect->Serialize(taaJson);
-    root["Temporal_AA"] = taaJson;
+    root["Temporal_AA"] = std::move(taaJson);
 
     nlohmann::json colorGradingJson{};
     m_colorGradingEffect->Serialize(colorGradingJson);
-    root["Color_Grading"] = colorGradingJson;
+    root["Color_Grading"] = std::move(colorGradingJson);
+}
+
+void PostProcessManager::SaveConfig(std::string_view filepath) const
+{
+    nlohmann::json root{};
+    Serialize(root);
 
     // Extract the folder path from the full filepath and ensure it exists
     // std::ofstream will silently fail if the target directory doesn't exist
@@ -516,9 +520,59 @@ void PostProcessManager::SaveConfig(std::string_view filepath) const
     }
 }
 
+void PostProcessManager::Deserialize(const nlohmann::json& in)
+{
+    if (in.empty()) return;
+
+    // Defensively unwrap single-element array wrappers or validate object type to prevent type_error.306
+    const nlohmann::json& root = (in.is_array() && !in.empty() && in.front().is_object()) ? in.front() : in;
+    if (!root.is_object()) return;
+
+    m_isEnabled = root.value("Master_Enabled", m_isEnabled);
+    m_autoHarmonizeAtmosphere = root.value("Atmosphere_AutoHarmonize", true);
+    m_harmonizeAmbient = root.value("Atmosphere_HarmonizeAmbient", true);
+    m_harmonizeSunLight = root.value("Atmosphere_HarmonizeSunLight", true);
+    m_harmonizeFog = root.value("Atmosphere_HarmonizeFog", true);
+    m_harmonizeShafts = root.value("Atmosphere_HarmonizeShafts", true);
+    m_harmonizeBloom = root.value("Atmosphere_HarmonizeBloom", true);
+    m_harmonizeColorGrading = root.value("Atmosphere_HarmonizeColorGrading", true);
+    m_atmospherePreset = static_cast<AtmospherePreset>(root.value("Atmosphere_Preset", 0));
+
+    m_fogDistanceTrim = root.value("Atmosphere_FogDistanceTrim", 1.0f);
+    m_mieInscatterTrim = root.value("Atmosphere_MieInscatterTrim", 1.0f);
+    m_bloomIntensityTrim = root.value("Atmosphere_BloomIntensityTrim", 1.0f);
+    m_shaftIntensityTrim = root.value("Atmosphere_ShaftIntensityTrim", 1.0f);
+    m_flareIntensityTrim = root.value("Atmosphere_FlareIntensityTrim", 1.0f);
+    m_sunIntensityTrim = root.value("Atmosphere_SunIntensityTrim", 1.0f);
+    m_exposureTrim = root.value("Atmosphere_ExposureTrim", 0.0f);
+    m_saturationTrim = root.value("Atmosphere_SaturationTrim", 1.0f);
+
+    for (auto& effect : m_effects)
+    {
+        std::string key{ effect->GetName() };
+        std::replace(key.begin(), key.end(), ' ', '_');
+        if (root.contains(key))
+        {
+            effect->Deserialize(root[key]);
+        }
+    }
+
+    if (root.contains("Temporal_AA"))
+    {
+        m_temporalAAEffect->Deserialize(root["Temporal_AA"]);
+    }
+
+    if (root.contains("Color_Grading"))
+    {
+        m_colorGradingEffect->Deserialize(root["Color_Grading"]);
+    }
+
+    HarmonizeAtmosphere();
+}
+
 void PostProcessManager::LoadConfig(std::string_view filepath)
 {
-    std::ifstream file{ std::string{filepath} };
+    std::ifstream file{ std::string{ filepath } };
     if (!file.is_open())
     {
         Log::Warn("Profile not found, keeping defaults: " + std::string{ filepath });
@@ -527,48 +581,9 @@ void PostProcessManager::LoadConfig(std::string_view filepath)
 
     try
     {
-        nlohmann::json root;
-        file >> root; // Parse the JSON
-
-        m_autoHarmonizeAtmosphere = root.value("Atmosphere_AutoHarmonize", true);
-        m_harmonizeAmbient = root.value("Atmosphere_HarmonizeAmbient", true);
-        m_harmonizeSunLight = root.value("Atmosphere_HarmonizeSunLight", true);
-        m_harmonizeFog = root.value("Atmosphere_HarmonizeFog", true);
-        m_harmonizeShafts = root.value("Atmosphere_HarmonizeShafts", true);
-        m_harmonizeBloom = root.value("Atmosphere_HarmonizeBloom", true);
-        m_harmonizeColorGrading = root.value("Atmosphere_HarmonizeColorGrading", true);
-        m_atmospherePreset = static_cast<AtmospherePreset>(root.value("Atmosphere_Preset", 0));
-
-        m_fogDistanceTrim = root.value("Atmosphere_FogDistanceTrim", 1.0f);
-        m_mieInscatterTrim = root.value("Atmosphere_MieInscatterTrim", 1.0f);
-        m_bloomIntensityTrim = root.value("Atmosphere_BloomIntensityTrim", 1.0f);
-        m_shaftIntensityTrim = root.value("Atmosphere_ShaftIntensityTrim", 1.0f);
-        m_flareIntensityTrim = root.value("Atmosphere_FlareIntensityTrim", 1.0f);
-        m_sunIntensityTrim = root.value("Atmosphere_SunIntensityTrim", 1.0f);
-        m_exposureTrim = root.value("Atmosphere_ExposureTrim", 0.0f);
-        m_saturationTrim = root.value("Atmosphere_SaturationTrim", 1.0f);
-
-        for (auto& effect : m_effects)
-        {
-            std::string key{ effect->GetName() };
-            std::replace(key.begin(), key.end(), ' ', '_');
-
-            if (root.contains(key))
-            {
-                effect->Deserialize(root[key]);
-            }
-        }
-
-        if (root.contains("Temporal_AA"))
-        {
-            m_temporalAAEffect->Deserialize(root["Temporal_AA"]);
-        }
-
-        if (root.contains("Color_Grading"))
-        {
-            m_colorGradingEffect->Deserialize(root["Color_Grading"]);
-        }
-
+        nlohmann::json root{};
+        file >> root;
+        Deserialize(root);
         Log::Success("Loaded post-process profile: " + std::string{ filepath });
     }
     catch (const std::exception& e)
