@@ -85,6 +85,8 @@ void LightManager::Update() noexcept
                 const auto* const dirLightComp{ static_cast<const DirectionalLightComponent*>(light) };
                 m_directionalLight.castShadows = dirLightComp->CastsShadows();
                 m_directionalLight.shadowAttenuation = dirLightComp->GetShadowAttenuation();
+                m_directionalLight.shadowDistance = dirLightComp->GetShadowDistance();
+                m_directionalLight.splitLambda = dirLightComp->GetSplitLambda();
                 m_directionalLight.shadowBias = dirLightComp->GetShadowBias();
                 m_directionalLight.splitDistances = dirLightComp->GetSplitDistances();
 
@@ -128,6 +130,22 @@ void LightManager::UpdateCascades(const Camera& camera) noexcept
 {
     if (!m_directionalLight.castShadows) return;
 
+    // Dynamically update split distances based on current camera near plane and PSSM lambda
+    m_directionalLight.splitDistances[0] = (std::max)(0.01f, camera.GetNearZ());
+    m_directionalLight.splitDistances[SHADOW_CASCADE_COUNT] = (std::max)(m_directionalLight.splitDistances[0] + 1.0f, m_directionalLight.shadowDistance);
+
+    const float nearClipDist{ m_directionalLight.splitDistances[0] };
+    const float farClipDist{ m_directionalLight.splitDistances[SHADOW_CASCADE_COUNT] };
+    const float splitRatio{ farClipDist / nearClipDist };
+
+    for (int i{ 1 }; i < SHADOW_CASCADE_COUNT; ++i)
+    {
+        const float p{ static_cast<float>(i) / static_cast<float>(SHADOW_CASCADE_COUNT) };
+        const float logZ{ nearClipDist * std::pow(splitRatio, p) };
+        const float uniformZ{ nearClipDist + (farClipDist - nearClipDist) * p };
+        m_directionalLight.splitDistances[i] = m_directionalLight.splitLambda * logZ + (1.0f - m_directionalLight.splitLambda) * uniformZ;
+    }
+
     const float fovY{ camera.GetFovY() };
     const float aspect{ camera.GetAspectRatio() };
     const DirectX::XMVECTOR camPos{ DirectX::XMLoadFloat3(&camera.GetPosition()) };
@@ -137,13 +155,19 @@ void LightManager::UpdateCascades(const Camera& camera) noexcept
 
     DirectX::XMVECTOR lightDir{ DirectX::XMVector3Normalize(DirectX::XMLoadFloat3(&m_directionalLight.direction)) };
 
+    // Prevent singularity when directional light aligns with the vertical axis
     DirectX::XMVECTOR upVec{ DirectX::XMVectorSet(0.0f, 1.0f, 0.0f, 0.0f) };
-    if (std::abs(m_directionalLight.direction.y) > 0.999f)
+    if (std::abs(m_directionalLight.direction.y) > 0.99f)
     {
         upVec = DirectX::XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
     }
 
+    // Origin-anchored light view matrix for absolute world-space texel coordinate projections
+    const DirectX::XMMATRIX lightViewZero{ DirectX::XMMatrixLookToLH(DirectX::XMVectorZero(), lightDir, upVec) };
+    const DirectX::XMMATRIX invLightViewZero{ DirectX::XMMatrixTranspose(lightViewZero) };
+
     const float tanHalfFov{ std::tan(fovY * 0.5f) };
+    constexpr float kMaxCasterDistance{ 400.0f }; // Pulls near plane back to retain upstream building casters
 
     for (int i{ 0 }; i < SHADOW_CASCADE_COUNT; ++i)
     {
@@ -185,32 +209,34 @@ void LightManager::UpdateCascades(const Camera& camera) noexcept
         }
         sphereRadius = std::ceil(sphereRadius);
 
-        // Stabilized light view matrix centered on the bounding sphere
-        const DirectX::XMVECTOR lightPos{ DirectX::XMVectorSubtract(sphereCenter, DirectX::XMVectorScale(lightDir, sphereRadius * 2.0f)) };
-        DirectX::XMMATRIX lightView{ DirectX::XMMatrixLookAtLH(lightPos, sphereCenter, upVec) };
+        // Transform bounding sphere center to light view space for true sub-texel snapping
+        const DirectX::XMVECTOR centerLightSpace{ DirectX::XMVector3TransformCoord(sphereCenter, lightViewZero) };
+        const float cx{ DirectX::XMVectorGetX(centerLightSpace) };
+        const float cy{ DirectX::XMVectorGetY(centerLightSpace) };
+        const float cz{ DirectX::XMVectorGetZ(centerLightSpace) };
 
         // Metric World-Space Texel Grid Snapping
         const float worldUnitsPerTexel{ (sphereRadius * 2.0f) / static_cast<float>(SHADOW_MAP_SIZE) };
-        const DirectX::XMVECTOR centerLightSpace{ DirectX::XMVector3TransformCoord(sphereCenter, lightView) };
-
-        const float cx{ DirectX::XMVectorGetX(centerLightSpace) };
-        const float cy{ DirectX::XMVectorGetY(centerLightSpace) };
         const float snappedX{ std::floor(cx / worldUnitsPerTexel) * worldUnitsPerTexel };
         const float snappedY{ std::floor(cy / worldUnitsPerTexel) * worldUnitsPerTexel };
 
-        const float deltaX{ snappedX - cx };
-        const float deltaY{ snappedY - cy };
+        // Reconstruct snapped target in world space
+        const DirectX::XMVECTOR snappedTargetLight{ DirectX::XMVectorSet(snappedX, snappedY, cz, 1.0f) };
+        const DirectX::XMVECTOR snappedTargetWorld{ DirectX::XMVector3TransformCoord(snappedTargetLight, invLightViewZero) };
 
-        // Apply metric delta to light view translation directly to anchor world texels
-        DirectX::XMFLOAT4X4 viewFloat;
-        DirectX::XMStoreFloat4x4(&viewFloat, lightView);
-        viewFloat._41 += deltaX;
-        viewFloat._42 += deltaY;
-        lightView = DirectX::XMLoadFloat4x4(&viewFloat);
+        // Pull light eye backward along -lightDir to encompass all off-screen casters
+        const DirectX::XMVECTOR lightEyeWorld{ DirectX::XMVectorSubtract(snappedTargetWorld, DirectX::XMVectorScale(lightDir, kMaxCasterDistance)) };
 
-        const float minZ{ 0.0f };
-        const float maxZ{ sphereRadius * 4.0f };
-        const DirectX::XMMATRIX lightProj{ DirectX::XMMatrixOrthographicOffCenterLH(-sphereRadius, sphereRadius, -sphereRadius, sphereRadius, minZ, maxZ) };
+        DirectX::XMMATRIX lightView{ DirectX::XMMatrixLookAtLH(lightEyeWorld, snappedTargetWorld, upVec) };
+
+        // Orthographic projection encompassing the sphere plus the pulled-back caster volume
+        const float nearZClip{ 0.0f };
+        const float farZClip{ kMaxCasterDistance + sphereRadius * 2.0f };
+        const DirectX::XMMATRIX lightProj{ DirectX::XMMatrixOrthographicOffCenterLH(
+            -sphereRadius, sphereRadius,
+            -sphereRadius, sphereRadius,
+            nearZClip, farZClip
+        ) };
 
         DirectX::XMStoreFloat4x4(&m_cascadeMatrices[i], lightView * lightProj);
     }

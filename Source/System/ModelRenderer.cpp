@@ -7,7 +7,7 @@ namespace
 {
     struct CascadeFrustumPlanes
     {
-        DirectX::XMFLOAT4 planes[5]{};
+        DirectX::XMFLOAT4 planes[6]{};
     };
 
     struct CameraFrustumPlanes
@@ -24,11 +24,12 @@ namespace
     [[nodiscard]] CascadeFrustumPlanes ExtractCascadePlanes(const DirectX::XMFLOAT4X4& M) noexcept
     {
         CascadeFrustumPlanes cp{};
-        cp.planes[0] = { M._14 + M._11, M._24 + M._21, M._34 + M._31, M._44 + M._41 };
-        cp.planes[1] = { M._14 - M._11, M._24 - M._21, M._34 - M._31, M._44 - M._41 };
-        cp.planes[2] = { M._14 + M._12, M._24 + M._22, M._34 + M._32, M._44 + M._42 };
-        cp.planes[3] = { M._14 - M._12, M._24 - M._22, M._34 - M._32, M._44 - M._42 };
-        cp.planes[4] = { M._14 - M._13, M._24 - M._23, M._34 - M._33, M._44 - M._43 };
+        cp.planes[0] = { M._14 + M._11, M._24 + M._21, M._34 + M._31, M._44 + M._41 }; // Left
+        cp.planes[1] = { M._14 - M._11, M._24 - M._21, M._34 - M._31, M._44 - M._41 }; // Right
+        cp.planes[2] = { M._14 + M._12, M._24 + M._22, M._34 + M._32, M._44 + M._42 }; // Bottom
+        cp.planes[3] = { M._14 - M._12, M._24 - M._22, M._34 - M._32, M._44 - M._42 }; // Top
+        cp.planes[4] = { M._13,         M._23,         M._33,         M._43 };         // Near (DX Z >= 0)
+        cp.planes[5] = { M._14 - M._13, M._24 - M._23, M._34 - M._33, M._44 - M._43 }; // Far (DX Z <= 1)
 
         for (auto& p : cp.planes)
         {
@@ -1112,7 +1113,7 @@ void ModelRenderer::Render(const RenderContext& rc)
             for (int i{ 0 }; i < SHADOW_CASCADE_COUNT; ++i)
             {
                 const CascadeFrustumPlanes cp{ ExtractCascadePlanes(rc.lightManager->GetCascadeMatrices()[i]) };
-                cascadeFrustums[i].Init(cp.planes, 5);
+                cascadeFrustums[i].Init(cp.planes, 6);
             }
         }
 
@@ -1447,45 +1448,22 @@ void ModelRenderer::Render(const RenderContext& rc)
                 packet.worldMatrix = ref.worldMatrix;
                 packet.prevWorldMatrix = ref.prevWorldMatrix;
 
-                // Shadows: Extruded shadow volume culling against camera frustum and occlusion buffer
+                // Directional Shadow Caster Submission: Caster intersects the extended light-space cascade volume
                 if (ref.castShadows && mat->alphaMode != AlphaMode::Blend && hasDirectionalShadows)
                 {
-                    const float groundDist{ (std::max)(1.0f, center.y + extents.y) };
-                    const float rayDist{ (std::abs(lightDir.y) > 0.05f) ? (groundDist / std::abs(lightDir.y)) : 30.0f };
-                    const float shadowExtrudeLen{ std::clamp(rayDist, 10.0f, 40.0f) };
-                    const float vx{ lightDir.x * shadowExtrudeLen };
-                    const float vy{ lightDir.y * shadowExtrudeLen };
-                    const float vz{ lightDir.z * shadowExtrudeLen };
-
-                    const float sMinX{ (std::min)(center.x - extents.x, center.x - extents.x + vx) };
-                    const float sMaxX{ (std::max)(center.x + extents.x, center.x + extents.x + vx) };
-                    const float sMinY{ (std::min)(center.y - extents.y, center.y - extents.y + vy) };
-                    const float sMaxY{ (std::max)(center.y + extents.y, center.y + extents.y + vy) };
-                    const float sMinZ{ (std::min)(center.z - extents.z, center.z - extents.z + vz) };
-                    const float sMaxZ{ (std::max)(center.z + extents.z, center.z + extents.z + vz) };
-
-                    const DirectX::XMFLOAT3 shadowCenter{ (sMinX + sMaxX) * 0.5f, (sMinY + sMaxY) * 0.5f, (sMinZ + sMaxZ) * 0.5f };
-                    const DirectX::XMFLOAT3 shadowExtents{ (sMaxX - sMinX) * 0.5f, (sMaxY - sMinY) * 0.5f, (sMaxZ - sMinZ) * 0.5f };
-
-                    const bool shadowInViewFrustum{ cameraFrustum.IsVisibleAABB(shadowCenter, shadowExtents) };
-                    const bool shadowOccluded{ mat->isOccludable && m_occlusionBuffer.IsOccluded(shadowCenter, shadowExtents, matViewProj) };
-
-                    if (shadowInViewFrustum && !shadowOccluded)
+                    for (int c{ 0 }; c < SHADOW_CASCADE_COUNT; ++c)
                     {
-                        for (int c{ 0 }; c < SHADOW_CASCADE_COUNT; ++c)
-                        {
-                            // Skinned meshes bypass Cascade 2 to eliminate distant bone evaluation
-                            if (c == 2 && !mesh.bones.empty()) continue;
+                        // Skinned meshes bypass Cascade 2 to eliminate distant bone evaluation 
+                        if (c == 2 && !mesh.bones.empty()) continue;
 
-                            if (cascadeFrustums[c].IsVisibleAABB(center, extents))
-                            {
-                                const uint32_t currentBones{ ensureCurrentBones(idx) };
-                                DrawPacket shadowPacket{ packet };
-                                shadowPacket.boneOffset = currentBones;
-                                shadowPacket.prevBoneOffset = currentBones;
-                                shadowPacket.key = reinterpret_cast<uint64_t>(&mesh);
-                                cascadePackets[c][cascadeCount[c]++] = shadowPacket;
-                            }
+                        if (cascadeFrustums[c].IsVisibleAABB(center, extents))
+                        {
+                            const uint32_t currentBones{ ensureCurrentBones(idx) };
+                            DrawPacket shadowPacket{ packet };
+                            shadowPacket.boneOffset = currentBones;
+                            shadowPacket.prevBoneOffset = currentBones;
+                            shadowPacket.key = reinterpret_cast<uint64_t>(&mesh);
+                            cascadePackets[c][cascadeCount[c]++] = shadowPacket;
                         }
                     }
                 }

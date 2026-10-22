@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cmath>
 #include <imgui.h>
 #include "GameObject.h"
 #include "LightComponent.h"
@@ -55,17 +56,45 @@ void DirectionalLightComponent::DrawInspector()
     {
         ImGui::SliderFloat("Attenuation", &m_shadowAttenuation, 0.0f, 1.0f);
 
-        if (ImGui::TreeNodeEx("Cascade Splits & Bias", ImGuiTreeNodeFlags_DefaultOpen))
+        if (ImGui::TreeNodeEx("Cascade Settings", ImGuiTreeNodeFlags_DefaultOpen))
         {
-            ImGui::DragFloat("Near Plane", &m_splitDistances[0], 0.1f, 0.1f, m_splitDistances[1]);
-            ImGui::DragFloat("Split 1", &m_splitDistances[1], 1.0f, m_splitDistances[0], m_splitDistances[2]);
-            ImGui::DragFloat("Split 2", &m_splitDistances[2], 1.0f, m_splitDistances[1], m_splitDistances[3]);
-            ImGui::DragFloat("Far Plane", &m_splitDistances[3], 1.0f, m_splitDistances[2], 2000.0f);
+            bool splitsDirty{ false };
+            splitsDirty |= ImGui::DragFloat("Shadow Distance", &m_shadowDistance, 1.0f, 10.0f, 1000.0f, "%.1f m");
+            splitsDirty |= ImGui::SliderFloat("Split Lambda", &m_splitLambda, 0.0f, 1.0f, "%.2f (Log-Linear)");
+
+            if (splitsDirty)
+            {
+                CalculateSplitDistances(m_splitDistances[0]);
+            }
+
+            ImGui::Spacing();
+            ImGui::TextDisabled("Auto PSSM Splits:");
+            ImGui::TextDisabled("  Slice 0: %.1f m - %.1f m", m_splitDistances[0], m_splitDistances[1]);
+            ImGui::TextDisabled("  Slice 1: %.1f m - %.1f m", m_splitDistances[1], m_splitDistances[2]);
+            ImGui::TextDisabled("  Slice 2: %.1f m - %.1f m", m_splitDistances[2], m_splitDistances[3]);
 
             ImGui::Spacing();
             ImGui::DragFloat3("Depth Bias", m_shadowBias.data(), 0.0001f, 0.0f, 0.02f, "%.4f");
             ImGui::TreePop();
         }
+    }
+}
+
+void DirectionalLightComponent::CalculateSplitDistances(float nearZ) noexcept
+{
+    m_splitDistances[0] = (std::max)(0.01f, nearZ);
+    m_splitDistances[SHADOW_CASCADE_COUNT] = (std::max)(m_splitDistances[0] + 1.0f, m_shadowDistance);
+
+    const float n{ m_splitDistances[0] };
+    const float f{ m_splitDistances[SHADOW_CASCADE_COUNT] };
+    const float ratio{ f / n };
+
+    for (int i{ 1 }; i < SHADOW_CASCADE_COUNT; ++i)
+    {
+        const float p{ static_cast<float>(i) / static_cast<float>(SHADOW_CASCADE_COUNT) };
+        const float logZ{ n * std::pow(ratio, p) };
+        const float uniformZ{ n + (f - n) * p };
+        m_splitDistances[i] = m_splitLambda * logZ + (1.0f - m_splitLambda) * uniformZ;
     }
 }
 
@@ -76,6 +105,8 @@ void DirectionalLightComponent::Serialize(nlohmann::json& outJson) const
 
     outJson["CastShadows"] = m_castShadows;
     outJson["ShadowAttenuation"] = m_shadowAttenuation;
+    outJson["ShadowDistance"] = m_shadowDistance;
+    outJson["SplitLambda"] = m_splitLambda;
     outJson["ShadowBias"] = m_shadowBias;
     outJson["SplitDistances"] = m_splitDistances;
 }
@@ -90,6 +121,8 @@ void DirectionalLightComponent::Deserialize(const nlohmann::json& inJson)
 
     m_castShadows = inJson.value("CastShadows", true);
     m_shadowAttenuation = inJson.value("ShadowAttenuation", 0.5f);
+    m_shadowDistance = inJson.value("ShadowDistance", 150.0f);
+    m_splitLambda = inJson.value("SplitLambda", 0.85f);
 
     if (inJson.contains("ShadowBias"))
     {
@@ -102,11 +135,12 @@ void DirectionalLightComponent::Deserialize(const nlohmann::json& inJson)
     if (inJson.contains("SplitDistances"))
     {
         const auto& splitJson{ inJson["SplitDistances"] };
-        for (std::size_t i{ 0 }; i < m_splitDistances.size() && i < splitJson.size(); ++i)
+        if (splitJson.size() > 3 && !inJson.contains("ShadowDistance"))
         {
-            m_splitDistances[i] = splitJson[i].get<float>();
+            m_shadowDistance = splitJson[3].get<float>();
         }
     }
+    CalculateSplitDistances(0.1f);
 }
 REGISTER_COMPONENT(DirectionalLightComponent)
 

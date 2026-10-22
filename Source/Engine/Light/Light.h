@@ -34,8 +34,10 @@ struct DirectionalLight
     // Cascaded Shadow Map Parameters
     bool  castShadows{ true };
     float shadowAttenuation{ 0.5f };
-    std::array<float, SHADOW_CASCADE_COUNT> shadowBias{ 0.001f, 0.002f, 0.004f };
-    std::array<float, SHADOW_CASCADE_COUNT + 1> splitDistances{ 0.1f, 15.0f, 60.0f, 200.0f };
+    float shadowDistance{ 150.0f };
+    float splitLambda{ 0.85f };
+    std::array<float, SHADOW_CASCADE_COUNT> shadowBias{ 0.0005f, 0.0012f, 0.0025f };
+    std::array<float, SHADOW_CASCADE_COUNT + 1> splitDistances{ 0.1f, 8.5f, 26.0f, 150.0f };
 };
 
 struct PointLightData

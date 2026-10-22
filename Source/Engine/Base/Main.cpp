@@ -114,7 +114,7 @@ int main(int argc, char* argv[])
 
         // VSync Configuration:
         // Must be false during uncapped throughput testing to allow DXGI tearing.
-        constexpr bool s_enableVsync{ false };
+        constexpr bool s_enableVsync{ true };
         WindowManager::Instance().SetVSync(s_enableVsync);
 
         FramePacer pacer{ s_targetFps };
