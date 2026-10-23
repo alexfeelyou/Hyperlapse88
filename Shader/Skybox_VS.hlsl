@@ -8,6 +8,8 @@ cbuffer SKYMAP_CONSTANT_BUFFER : register(b7)
 {
     row_major float4x4 inverseViewProjection;
     float4 cameraPosition;
+    float4 sunDirectionAndCosRadius;
+    float4 sunColorAndCorona;
 };
 
 VS_OUT main(float3 position : POSITION)

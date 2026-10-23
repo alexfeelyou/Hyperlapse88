@@ -11,7 +11,7 @@ class CameraComponent final : public IComponent
 {
 public:
     CameraComponent();
-    ~CameraComponent() override = default;
+    ~CameraComponent() override;
 
     CameraComponent(const CameraComponent&) = delete;
     CameraComponent& operator=(const CameraComponent&) = delete;
@@ -19,7 +19,9 @@ public:
     CameraComponent& operator=(CameraComponent&&) = default;
 
     void OnAttach(class GameObject* owner) noexcept override;
-    void Update(float dt) override;
+    void OnDisable() noexcept override;
+    void Update(float dt) override {}
+    void LateUpdate(float dt) override;
     void DrawInspector() override;
     void DrawGizmo(const GizmoContext& ctx) noexcept override;
 

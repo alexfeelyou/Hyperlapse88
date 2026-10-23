@@ -49,14 +49,17 @@ void PhongShader::Update(const RenderContext& rc, const Model::Mesh& mesh)
 {
 	ID3D11DeviceContext* dc = rc.deviceContext;
 
-	// メッシュ用定数バッファ更新
+	// メッシュ用定数バッファ更新 (baseColor is streamed per-instance via Slot 1 vertex buffer)
 	const CbMesh cbMesh{
-		mesh.material->baseColor,
+		{ 1.0f, 1.0f, 1.0f, 1.0f },
 		mesh.material->emissiveColor,
 		mesh.material->roughness,
 		static_cast<int>(mesh.material->alphaMode),
 		mesh.material->alphaCutoff,
-		{ 0.0f, 0.0f }
+		mesh.material->subsurfaceStrength,
+		static_cast<int>(mesh.material->uvProjectionMode),
+		mesh.material->uvTiling,
+		mesh.material->uvOffset
 	};
 	dc->UpdateSubresource(meshConstantBuffer.Get(), 0, 0, &cbMesh, 0, 0);
 

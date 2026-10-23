@@ -12,12 +12,11 @@ cbuffer CbMesh : register(b0)
     int alphaMode;
     float alphaCutoff;
     int textureFlags;
-    float3 meshPadding;
-};
-
-cbuffer CbObject : register(b2)
-{
-    float4 objectColor;
+    float subsurfaceStrength;
+    int uvProjectionMode;
+    float meshPadding;
+    float2 uvTiling;
+    float2 uvOffset;
 };
 
 Texture2D DiffuseMap : register(t0);
@@ -69,7 +68,7 @@ float3 FresnelSchlickRoughness(float cosTheta, float3 F0, float roughness)
     return F0 + (max(float3(1.0f - roughness, 1.0f - roughness, 1.0f - roughness), F0) - F0) * pow(clamp(1.0f - cosTheta, 0.0f, 1.0f), 5.0f);
 }
 
-// Reusable Direct Lighting Processor
+// Reusable Direct Lighting Processor with Thin-Surface Subsurface Transmission
 float3 CalculateDirectLight(float3 L, float3 V, float3 N, float3 radiance, float3 albedo, float roughness, float metallic, float3 F0)
 {
     float3 H = normalize(V + L);
@@ -77,22 +76,33 @@ float3 CalculateDirectLight(float3 L, float3 V, float3 N, float3 radiance, float
     float G = GeometrySmith(N, V, L, roughness);
     float3 F = FresnelSchlick(max(dot(H, V), 0.0f), F0);
         
+    float rawNdotL = dot(N, L);
+    float NdotL = max(rawNdotL, 0.0f);
+
     float3 numerator = NDF * G * F;
-    float denominator = 4.0f * max(dot(N, V), 0.0f) * max(dot(N, L), 0.0f) + 0.0001f;
+    float denominator = 4.0f * max(dot(N, V), 0.0f) * NdotL + 0.0001f;
     float3 specular = numerator / denominator;
         
     float3 kS = F;
     float3 kD = float3(1.0f, 1.0f, 1.0f) - kS;
     kD *= 1.0f - metallic;
 
-    float NdotL = max(dot(N, L), 0.0f);
-    return (kD * albedo / PI + specular) * radiance * NdotL;
+    // Energy-conserving dielectric subsurface transmission (metals do not transmit light)
+    float transDot = saturate(dot(V, -L - N * 0.25f));
+    float transDot2 = transDot * transDot;
+    float transmission = (transDot2 * transDot2 + saturate(-rawNdotL) * 0.35f) * subsurfaceStrength * (1.0f - metallic);
+
+    return (kD * albedo / PI + specular) * radiance * NdotL + (albedo / PI) * radiance * transmission;
 }
 
-float4 main(VS_OUT pin) : SV_TARGET
+float4 main(VS_OUT pin, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 {
-    float4 albedoTex = DiffuseMap.Sample(LinearSampler, pin.texcoord);
-    float4 albedo = albedoTex * materialColor * objectColor;
+    float2 uv = (uvProjectionMode == 1) ?
+        CalculateBoxUV(pin.boxPos, pin.boxNormal, uvTiling, uvOffset) :
+        (pin.texcoord * uvTiling + uvOffset);
+
+    float4 albedoTex = DiffuseMap.Sample(LinearSampler, uv);
+    float4 albedo = albedoTex * materialColor * pin.color;
 
     if (alphaMode == 1)
     {
@@ -109,7 +119,7 @@ float4 main(VS_OUT pin) : SV_TARGET
     float roughness = matRoughness;
     if (textureFlags & (1 << 0))
     {
-        float4 mrSample = MetalRoughMap.Sample(LinearSampler, pin.texcoord);
+        float4 mrSample = MetalRoughMap.Sample(LinearSampler, uv);
         roughness = mrSample.g * matRoughness;
         metallic = mrSample.b * matMetallic;
     }
@@ -119,17 +129,18 @@ float4 main(VS_OUT pin) : SV_TARGET
     float3 emissive = emissiveColorBase;
     if (textureFlags & (1 << 1))
     {
-        float3 emTex = EmissiveMap.Sample(LinearSampler, pin.texcoord).rgb;
+        float3 emTex = EmissiveMap.Sample(LinearSampler, uv).rgb;
         emissive *= pow(abs(emTex), 2.2f);
     }
 
     float ao = 1.0f;
     if (textureFlags & (1 << 2))
     {
-        ao = lerp(1.0f, AOMap.Sample(LinearSampler, pin.texcoord).r, occlusionStrength);
+        ao = lerp(1.0f, AOMap.Sample(LinearSampler, uv).r, occlusionStrength);
     }
 
     float3 N = normalize(pin.normal);
+    N = isFrontFace ? N : -N; // Orient normal towards the viewer for two-sided foliage cards
     float tangentLenSq = dot(pin.tangent.xyz, pin.tangent.xyz);
     if (tangentLenSq > 0.0001f)
     {
@@ -137,7 +148,7 @@ float4 main(VS_OUT pin) : SV_TARGET
         float3 B = normalize(cross(N, T) * pin.tangent.w);
         float3x3 TBN = float3x3(T, B, N);
         
-        float3 localNormal = NormalMap.Sample(LinearSampler, pin.texcoord).xyz * 2.0f - 1.0f;
+        float3 localNormal = NormalMap.Sample(LinearSampler, uv).xyz * 2.0f - 1.0f;
         N = normalize(mul(localNormal, TBN));
     }
 
@@ -147,8 +158,8 @@ float4 main(VS_OUT pin) : SV_TARGET
 
     float3 totalDirectLighting = float3(0.0f, 0.0f, 0.0f);
 
-    // Directional Light
-    float3 dirL = normalize(lightDirection.xyz);
+    // Directional Light (negated so dirL points toward the sun, matching Lambert/Phong/Toon)
+    float3 dirL = normalize(-lightDirection.xyz);
     float shadowAtten = CalculateCascadeShadow(pin.position, N, dirL); // Evaluate shadow
     
     float3 dirRadiance = lightColor.rgb * PI * shadowAtten;
@@ -216,8 +227,8 @@ float4 main(VS_OUT pin) : SV_TARGET
     
     float3 ambient = (kD_ambient * diffuseAmbient + specularAmbient) * ao;
 
-    float3 finalColor = ambient + totalDirectLighting + emissive;
-    finalColor = pow(abs(finalColor), float3(1.0f / 2.2f, 1.0f / 2.2f, 1.0f / 2.2f));
+    // Output pure unbounded linear HDR radiance (sanitized for unsigned R11G11B10_FLOAT)
+    float3 finalColor = max(0.0f, ambient + totalDirectLighting + emissive);
 
     return float4(finalColor, albedo.a);
 }

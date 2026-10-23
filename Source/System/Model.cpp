@@ -5,18 +5,32 @@
 #include <cereal/types/string.hpp>
 #include <cereal/types/vector.hpp>
 #include "Misc.h"
+#include "AssetManager.h"
 #include "GLTFImporter.h"
 #include "GpuResourceUtils.h"
 #include "Model.h"
 
 const std::vector<D3D11_INPUT_ELEMENT_DESC> Model::InputElementDescs =
 {
-	{ "POSITION",     0, DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-	{ "NORMAL",       0, DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-	{ "TANGENT",      0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-	{ "TEXCOORD",     0, DXGI_FORMAT_R32G32_FLOAT,       0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-	{ "BONE_WEIGHTS", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-	{ "BONE_INDICES", 0, DXGI_FORMAT_R32G32B32A32_UINT,  0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+	// Slot 0: Per-Vertex Data
+	{ "POSITION",                0, DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+	{ "NORMAL",                  0, DXGI_FORMAT_R32G32B32_FLOAT,    0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+	{ "TANGENT",                 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+	{ "TEXCOORD",                0, DXGI_FORMAT_R32G32_FLOAT,       0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+	{ "BONE_WEIGHTS",            0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+	{ "BONE_INDICES",            0, DXGI_FORMAT_R32G32B32A32_UINT,  0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0 },
+
+	// Slot 1: Per-Instance Data (Advance per 1 instance)
+	{ "INSTANCE_TRANSFORM",      0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_INSTANCE_DATA, 1 },
+	{ "INSTANCE_TRANSFORM",      1, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_INSTANCE_DATA, 1 },
+	{ "INSTANCE_TRANSFORM",      2, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_INSTANCE_DATA, 1 },
+	{ "INSTANCE_TRANSFORM",      3, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_INSTANCE_DATA, 1 },
+	{ "INSTANCE_PREV_TRANSFORM", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_INSTANCE_DATA, 1 },
+	{ "INSTANCE_PREV_TRANSFORM", 1, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_INSTANCE_DATA, 1 },
+	{ "INSTANCE_PREV_TRANSFORM", 2, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_INSTANCE_DATA, 1 },
+	{ "INSTANCE_PREV_TRANSFORM", 3, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_INSTANCE_DATA, 1 },
+	{ "INSTANCE_COLOR",          0, DXGI_FORMAT_R32G32B32A32_FLOAT, 1, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_INSTANCE_DATA, 1 },
+	{ "INSTANCE_BONE_OFFSETS",   0, DXGI_FORMAT_R32G32B32A32_UINT,  1, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_INSTANCE_DATA, 1 }
 };
 
 namespace DirectX
@@ -226,9 +240,8 @@ Model::Model(ID3D11Device* device, const char* filename, float sampleRate)
 			{
 				// ベーステクスチャ読み込み
 				std::filesystem::path diffuseTexturePath(dirpath / material.baseTextureFileName);
-				HRESULT hr = GpuResourceUtils::LoadTexture(device, diffuseTexturePath.string().c_str(),
-					material.baseMap.GetAddressOf());
-				_ASSERT_EXPR(SUCCEEDED(hr), HRTrace(hr));
+				material.baseMap = Engine::System::AssetManager::Instance().GetOrLoadTexture(device, diffuseTexturePath.string());
+				_ASSERT_EXPR(material.baseMap != nullptr, "AssetManager: Failed to load diffuse texture");
 			}
 		}
 
@@ -245,9 +258,8 @@ Model::Model(ID3D11Device* device, const char* filename, float sampleRate)
 			{
 				// 法線テクスチャ読み込み
 				std::filesystem::path texturePath(dirpath / material.normalTextureFileName);
-				HRESULT hr = GpuResourceUtils::LoadTexture(device, texturePath.string().c_str(),
-					material.normalMap.GetAddressOf());
-				_ASSERT_EXPR(SUCCEEDED(hr), HRTrace(hr));
+				material.normalMap = Engine::System::AssetManager::Instance().GetOrLoadTexture(device, texturePath.string());
+				_ASSERT_EXPR(material.normalMap != nullptr, "AssetManager: Failed to load normal texture");
 			}
 		}
 	}
@@ -402,7 +414,11 @@ void Model::ComputeBounds() noexcept
 			(minMesh.y + maxMesh.y) * 0.5f,
 			(minMesh.z + maxMesh.z) * 0.5f
 		};
-
+		mesh.boundsExtents = {
+			(maxMesh.x - minMesh.x) * 0.5f,
+			(maxMesh.y - minMesh.y) * 0.5f,
+			(maxMesh.z - minMesh.z) * 0.5f
+		};
 		float maxDistSq = 0.0f;
 		for (const auto& v : mesh.vertices)
 		{
@@ -417,6 +433,9 @@ void Model::ComputeBounds() noexcept
 		if (!mesh.bones.empty())
 		{
 			mesh.boundsRadius *= 1.4f;
+			mesh.boundsExtents.x *= 1.4f;
+			mesh.boundsExtents.y *= 1.4f;
+			mesh.boundsExtents.z *= 1.4f;
 		}
 
 		minModel.x = (std::min)(minModel.x, minMesh.x);
@@ -432,6 +451,11 @@ void Model::ComputeBounds() noexcept
 		(minModel.x + maxModel.x) * 0.5f,
 		(minModel.y + maxModel.y) * 0.5f,
 		(minModel.z + maxModel.z) * 0.5f
+	};
+	m_boundsExtents = {
+		(maxModel.x - minModel.x) * 0.5f,
+		(maxModel.y - minModel.y) * 0.5f,
+		(maxModel.z - minModel.z) * 0.5f
 	};
 
 	float maxModelDistSq = 0.0f;
@@ -456,11 +480,12 @@ void Model::UpdateTransform(const DirectX::XMFLOAT4X4& worldTransform)
 
 	for (Node& node : nodes)
 	{
-		// ローカル行列算出
-		DirectX::XMMATRIX S = DirectX::XMMatrixScaling(node.scale.x, node.scale.y, node.scale.z);
-		DirectX::XMMATRIX R = DirectX::XMMatrixRotationQuaternion(DirectX::XMLoadFloat4(&node.rotation));
-		DirectX::XMMATRIX T = DirectX::XMMatrixTranslation(node.position.x, node.position.y, node.position.z);
-		DirectX::XMMATRIX LocalTransform = S * R * T;
+		// Direct single-pass affine matrix composition: S * R * T without intermediate matrix multiplies
+		DirectX::XMMATRIX LocalTransform{ DirectX::XMMatrixRotationQuaternion(DirectX::XMLoadFloat4(&node.rotation)) };
+		LocalTransform.r[0] = DirectX::XMVectorMultiply(LocalTransform.r[0], DirectX::XMVectorReplicate(node.scale.x));
+		LocalTransform.r[1] = DirectX::XMVectorMultiply(LocalTransform.r[1], DirectX::XMVectorReplicate(node.scale.y));
+		LocalTransform.r[2] = DirectX::XMVectorMultiply(LocalTransform.r[2], DirectX::XMVectorReplicate(node.scale.z));
+		LocalTransform.r[3] = DirectX::XMVectorSet(node.position.x, node.position.y, node.position.z, 1.0f);
 
 		// グローバル行列算出
 		DirectX::XMMATRIX ParentGlobalTransform;
@@ -484,80 +509,186 @@ void Model::UpdateTransform(const DirectX::XMFLOAT4X4& worldTransform)
 	}
 }
 
-void Model::ComputeAnimation(int animationIndex, int nodeIndex, float time, NodePose& nodePose) const
+namespace
 {
-	const Animation& animation = animations.at(animationIndex);
-	const NodeAnim& nodeAnim = animation.nodeAnims.at(nodeIndex);
-
-	// 位置
-	for (size_t index = 0; index < nodeAnim.positionKeyframes.size() - 1; ++index)
+	template <typename KeyframeType>
+	[[nodiscard]] std::size_t FindKeyframeSegment(
+		const std::vector<KeyframeType>& keyframes,
+		float time,
+		uint32_t* hint = nullptr) noexcept
 	{
-		// 現在の時間がどのキーフレームの間にいるか判定する
-		const VectorKeyframe& keyframe0 = nodeAnim.positionKeyframes.at(index);
-		const VectorKeyframe& keyframe1 = nodeAnim.positionKeyframes.at(index + 1);
-		if (time >= keyframe0.seconds && time <= keyframe1.seconds)
-		{
-			// 再生時間とキーフレームの時間から補完率を算出する
-			float rate = (time - keyframe0.seconds) / (keyframe1.seconds - keyframe0.seconds);
+		const std::size_t count{ keyframes.size() };
+		if (count <= 2) return 0;
 
-			// 前のキーフレームと次のキーフレームの姿勢を補完
-			DirectX::XMVECTOR V0 = DirectX::XMLoadFloat3(&keyframe0.value);
-			DirectX::XMVECTOR V1 = DirectX::XMLoadFloat3(&keyframe1.value);
-			DirectX::XMVECTOR V = DirectX::XMVectorLerp(V0, V1, rate);
-			// 計算結果をノードに格納
-			DirectX::XMStoreFloat3(&nodePose.position, V);
+		// Temporal O(1) Fast Path: Check if playback is within current or immediate next segment
+		if (hint && *hint < static_cast<uint32_t>(count - 1))
+		{
+			const std::size_t currentIdx{ static_cast<std::size_t>(*hint) };
+
+			// Time is still within the cached segment
+			if (time >= keyframes[currentIdx].seconds && time < keyframes[currentIdx + 1].seconds)
+			{
+				return currentIdx;
+			}
+
+			// Time has monotonically advanced to the immediately following segment
+			if (currentIdx + 2 < count &&
+				time >= keyframes[currentIdx + 1].seconds &&
+				time < keyframes[currentIdx + 2].seconds)
+			{
+				*hint = static_cast<uint32_t>(currentIdx + 1);
+				return currentIdx + 1;
+			}
+		}
+
+		// Fallback O(log K): Binary search on animation loop wrap, scrub, or large jump
+		auto it{ std::upper_bound(keyframes.begin(), keyframes.end(), time,
+			[](float t, const KeyframeType& k) noexcept {
+				return t < k.seconds;
+			}) };
+
+		std::size_t resultIdx{ 0 };
+		if (it == keyframes.begin())
+		{
+			resultIdx = 0;
+		}
+		else
+		{
+			const std::size_t idx{ static_cast<std::size_t>(std::distance(keyframes.begin(), it)) - 1 };
+			resultIdx = (idx < count - 1) ? idx : count - 2;
+		}
+
+		if (hint)
+		{
+			*hint = static_cast<uint32_t>(resultIdx);
+		}
+		return resultIdx;
+	}
+}
+
+void Model::ComputeAnimation(int animationIndex, int nodeIndex, float time, NodePose& nodePose, TrackCursors* cursor) const
+{
+	if (animationIndex < 0 || static_cast<std::size_t>(animationIndex) >= animations.size()) return;
+	const Animation& animation{ animations[animationIndex] };
+	if (nodeIndex < 0 || static_cast<std::size_t>(nodeIndex) >= animation.nodeAnims.size()) return;
+	const NodeAnim& nodeAnim{ animation.nodeAnims[nodeIndex] };
+
+	// Position track evaluation
+	if (!nodeAnim.positionKeyframes.empty())
+	{
+		if (nodeAnim.positionKeyframes.size() == 1 || time <= nodeAnim.positionKeyframes.front().seconds)
+		{
+			nodePose.position = nodeAnim.positionKeyframes.front().value;
+			if (cursor) cursor->pos = 0;
+		}
+		else if (time >= nodeAnim.positionKeyframes.back().seconds)
+		{
+			nodePose.position = nodeAnim.positionKeyframes.back().value;
+			if (cursor && nodeAnim.positionKeyframes.size() >= 2)
+			{
+				cursor->pos = static_cast<uint32_t>(nodeAnim.positionKeyframes.size() - 2);
+			}
+		}
+		else
+		{
+			const std::size_t idx{ FindKeyframeSegment(nodeAnim.positionKeyframes, time, cursor ? &cursor->pos : nullptr) };
+			const auto& k0{ nodeAnim.positionKeyframes[idx] };
+			const auto& k1{ nodeAnim.positionKeyframes[idx + 1] };
+			const float duration{ k1.seconds - k0.seconds };
+			const float rate{ (duration > 0.00001f) ? std::clamp((time - k0.seconds) / duration, 0.0f, 1.0f) : 0.0f };
+
+			const DirectX::XMVECTOR v0{ DirectX::XMLoadFloat3(&k0.value) };
+			const DirectX::XMVECTOR v1{ DirectX::XMLoadFloat3(&k1.value) };
+			DirectX::XMStoreFloat3(&nodePose.position, DirectX::XMVectorLerp(v0, v1, rate));
 		}
 	}
-	// 回転
-	for (size_t index = 0; index < nodeAnim.rotationKeyframes.size() - 1; ++index)
+	else if (static_cast<std::size_t>(nodeIndex) < nodes.size())
 	{
-		// 現在の時間がどのキーフレームの間にいるか判定する
-		const QuaternionKeyframe& keyframe0 = nodeAnim.rotationKeyframes.at(index);
-		const QuaternionKeyframe& keyframe1 = nodeAnim.rotationKeyframes.at(index + 1);
-		if (time >= keyframe0.seconds && time <= keyframe1.seconds)
-		{
-			// 再生時間とキーフレームの時間から補完率を算出する
-			float rate = (time - keyframe0.seconds) / (keyframe1.seconds - keyframe0.seconds);
+		nodePose.position = nodes[nodeIndex].position;
+	}
 
-			// 前のキーフレームと次のキーフレームの姿勢を補完
-			DirectX::XMVECTOR Q0 = DirectX::XMLoadFloat4(&keyframe0.value);
-			DirectX::XMVECTOR Q1 = DirectX::XMLoadFloat4(&keyframe1.value);
-			DirectX::XMVECTOR Q = DirectX::XMQuaternionSlerp(Q0, Q1, rate);
-			// 計算結果をノードに格納
-			DirectX::XMStoreFloat4(&nodePose.rotation, Q);
+	// Rotation track evaluation
+	if (!nodeAnim.rotationKeyframes.empty())
+	{
+		if (nodeAnim.rotationKeyframes.size() == 1 || time <= nodeAnim.rotationKeyframes.front().seconds)
+		{
+			nodePose.rotation = nodeAnim.rotationKeyframes.front().value;
+			if (cursor) cursor->rot = 0;
+		}
+		else if (time >= nodeAnim.rotationKeyframes.back().seconds)
+		{
+			nodePose.rotation = nodeAnim.rotationKeyframes.back().value;
+			if (cursor && nodeAnim.rotationKeyframes.size() >= 2)
+			{
+				cursor->rot = static_cast<uint32_t>(nodeAnim.rotationKeyframes.size() - 2);
+			}
+		}
+		else
+		{
+			const std::size_t idx{ FindKeyframeSegment(nodeAnim.rotationKeyframes, time, cursor ? &cursor->rot : nullptr) };
+			const auto& k0{ nodeAnim.rotationKeyframes[idx] };
+			const auto& k1{ nodeAnim.rotationKeyframes[idx + 1] };
+			const float duration{ k1.seconds - k0.seconds };
+			const float rate{ (duration > 0.00001f) ? std::clamp((time - k0.seconds) / duration, 0.0f, 1.0f) : 0.0f };
+
+			const DirectX::XMVECTOR q0{ DirectX::XMLoadFloat4(&k0.value) };
+			const DirectX::XMVECTOR q1{ DirectX::XMLoadFloat4(&k1.value) };
+			DirectX::XMStoreFloat4(&nodePose.rotation, DirectX::XMQuaternionSlerp(q0, q1, rate));
 		}
 	}
-	// スケール
-	for (size_t index = 0; index < nodeAnim.scaleKeyframes.size() - 1; ++index)
+	else if (static_cast<std::size_t>(nodeIndex) < nodes.size())
 	{
-		// 現在の時間がどのキーフレームの間にいるか判定する
-		const VectorKeyframe& keyframe0 = nodeAnim.scaleKeyframes.at(index);
-		const VectorKeyframe& keyframe1 = nodeAnim.scaleKeyframes.at(index + 1);
-		if (time >= keyframe0.seconds && time <= keyframe1.seconds)
-		{
-			// 再生時間とキーフレームの時間から補完率を算出する
-			float rate = (time - keyframe0.seconds) / (keyframe1.seconds - keyframe0.seconds);
+		nodePose.rotation = nodes[nodeIndex].rotation;
+	}
 
-			// 前のキーフレームと次のキーフレームの姿勢を補完
-			DirectX::XMVECTOR V0 = DirectX::XMLoadFloat3(&keyframe0.value);
-			DirectX::XMVECTOR V1 = DirectX::XMLoadFloat3(&keyframe1.value);
-			DirectX::XMVECTOR V = DirectX::XMVectorLerp(V0, V1, rate);
-			// 計算結果をノードに格納
-			DirectX::XMStoreFloat3(&nodePose.scale, V);
+	// Scale track evaluation
+	if (!nodeAnim.scaleKeyframes.empty())
+	{
+		if (nodeAnim.scaleKeyframes.size() == 1 || time <= nodeAnim.scaleKeyframes.front().seconds)
+		{
+			nodePose.scale = nodeAnim.scaleKeyframes.front().value;
+			if (cursor) cursor->scale = 0;
 		}
+		else if (time >= nodeAnim.scaleKeyframes.back().seconds)
+		{
+			nodePose.scale = nodeAnim.scaleKeyframes.back().value;
+			if (cursor && nodeAnim.scaleKeyframes.size() >= 2)
+			{
+				cursor->scale = static_cast<uint32_t>(nodeAnim.scaleKeyframes.size() - 2);
+			}
+		}
+		else
+		{
+			const std::size_t idx{ FindKeyframeSegment(nodeAnim.scaleKeyframes, time, cursor ? &cursor->scale : nullptr) };
+			const auto& k0{ nodeAnim.scaleKeyframes[idx] };
+			const auto& k1{ nodeAnim.scaleKeyframes[idx + 1] };
+			const float duration{ k1.seconds - k0.seconds };
+			const float rate{ (duration > 0.00001f) ? std::clamp((time - k0.seconds) / duration, 0.0f, 1.0f) : 0.0f };
+
+			const DirectX::XMVECTOR v0{ DirectX::XMLoadFloat3(&k0.value) };
+			const DirectX::XMVECTOR v1{ DirectX::XMLoadFloat3(&k1.value) };
+			DirectX::XMStoreFloat3(&nodePose.scale, DirectX::XMVectorLerp(v0, v1, rate));
+		}
+	}
+	else if (static_cast<std::size_t>(nodeIndex) < nodes.size())
+	{
+		nodePose.scale = nodes[nodeIndex].scale;
 	}
 }
 
 // アニメーション計算
-void Model::ComputeAnimation(int animationIndex, float time, std::vector<NodePose>& nodePoses) const
+void Model::ComputeAnimation(int animationIndex, float time, std::vector<NodePose>& nodePoses, TrackCursors* cursors) const
 {
+	if (animationIndex < 0 || static_cast<std::size_t>(animationIndex) >= animations.size()) return;
 	if (nodePoses.size() != nodes.size())
 	{
 		nodePoses.resize(nodes.size());
 	}
-	for (size_t nodeIndex = 0; nodeIndex < nodePoses.size(); ++nodeIndex)
+	const Animation& anim{ animations[animationIndex] };
+	const std::size_t animNodeCount{ (std::min)(anim.nodeAnims.size(), nodePoses.size()) };
+	for (size_t nodeIndex = 0; nodeIndex < animNodeCount; ++nodeIndex)
 	{
-		ComputeAnimation(animationIndex, static_cast<int>(nodeIndex), time, nodePoses.at(nodeIndex));
+		ComputeAnimation(animationIndex, static_cast<int>(nodeIndex), time, nodePoses[nodeIndex], cursors ? &cursors[nodeIndex] : nullptr);
 	}
 }
 

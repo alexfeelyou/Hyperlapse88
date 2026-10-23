@@ -12,22 +12,24 @@ cbuffer CbTemporalAA : register(b0)
     float2 texelSize;
 };
 
-// Fast YCoCg conversions using additions and bit-shifts
+// Reversible Karis HDR-weighted YCoCg conversions: compresses [0, inf) luma into [0, 1) to eliminate HDR fireflies
 float3 RGBToYCoCg(float3 c)
 {
-    return float3(
+    float3 ycocg = float3(
          0.25f * c.r + 0.5f * c.g + 0.25f * c.b,
          0.50f * c.r - 0.50f * c.b,
         -0.25f * c.r + 0.5f * c.g - 0.25f * c.b
     );
+    return ycocg * rcp(1.0f + max(0.0f, ycocg.x));
 }
 
 float3 YCoCgToRGB(float3 c)
 {
+    float3 ycocg = c * rcp(max(1.0f - c.x, 0.0001f));
     return float3(
-        c.x + c.y - c.z,
-        c.x + c.z,
-        c.x - c.y - c.z
+        ycocg.x + ycocg.y - ycocg.z,
+        ycocg.x + ycocg.z,
+        ycocg.x - ycocg.y - ycocg.z
     );
 }
 
@@ -81,16 +83,18 @@ float4 main(float4 position : SV_POSITION, float2 uv : TEXCOORD0) : SV_TARGET
     float3 history = HistoryColor.SampleLevel(LinearSampler, previousUV, 0).rgb;
     float3 yHistory = RGBToYCoCg(history);
     
-    // Clamp inside the local 5-tap neighborhood constraints
+    // Clamp inside the local 5-tap perceptual neighborhood constraints
     yHistory = clamp(yHistory, yMin, yMax);
-    history = YCoCgToRGB(yHistory);
 
-    // Temporal Blend & Sharpen
+    // Temporal Blend & Sharpen in compressed perceptual YCoCg space to prevent HDR negative lobe ringing
     const float blendWeight = offScreen ? 0.0f : historyWeight;
-    float3 resolved = lerp(cCenter, history, blendWeight);
+    float3 yResolved = lerp(yCenter, yHistory, blendWeight);
 
-    const float3 localAverage = (cTop + cBottom + cLeft + cRight) * 0.25f;
-    resolved += (resolved - localAverage) * sharpenAmount;
+    const float3 yLocalAverage = (yTop + yBottom + yLeft + yRight) * 0.25f;
+    yResolved += (yResolved - yLocalAverage) * sharpenAmount;
+
+    // Expand back to unbounded linear HDR RGB
+    float3 resolved = YCoCgToRGB(yResolved);
 
     return float4(max(0.0f, resolved), 1.0f);
 }

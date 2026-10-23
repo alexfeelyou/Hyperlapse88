@@ -4,9 +4,85 @@
 #include <SDL3/SDL.h> 
 #include <thread>
 #include <windows.h>
+#include <timeapi.h>
+#pragma comment(lib, "winmm.lib")
 #include "Framework.h"
 #include "ProfilerManager.h"
 #include "WindowManager.h"
+
+namespace
+{
+    // High-precision frame pacer implementing hybrid sleep-spin wait to eliminate input latency and drift
+    class FramePacer final
+    {
+    public:
+        explicit FramePacer(double targetFps) noexcept
+            : m_targetFps{ targetFps }
+            , m_frequency{ SDL_GetPerformanceFrequency() }
+            , m_lastTime{ SDL_GetPerformanceCounter() }
+            , m_nextFrameTicks{ m_lastTime }
+        {}
+
+        // Paces the frame boundary and returns the sanitized delta time in seconds
+        [[nodiscard]] float Pace() noexcept
+        {
+            // When targetFps <= 0.0, software rate limiting is bypassed for uncapped throughput
+            if (m_targetFps > 0.0)
+            {
+                const auto targetTicksPerFrame{ static_cast<Uint64>(static_cast<double>(m_frequency) / m_targetFps) };
+                m_nextFrameTicks += targetTicksPerFrame;
+
+                const Uint64 currentTicks{ SDL_GetPerformanceCounter() };
+
+                // Catch-up clamp: if a major hitch occurred, advance nextFrameTicks to prevent catch-up bursts
+                if (currentTicks > m_nextFrameTicks + targetTicksPerFrame)
+                {
+                    m_nextFrameTicks = currentTicks;
+                }
+                else
+                {
+                    // 2 ms margin threshold to ensure the OS timer never oversleeps past the frame boundary
+                    const Uint64 sleepThreshold{ (m_frequency * 2) / 1000 };
+
+                    while (true)
+                    {
+                        const Uint64 now{ SDL_GetPerformanceCounter() };
+                        if (now >= m_nextFrameTicks)
+                        {
+                            break;
+                        }
+
+                        const Uint64 remaining{ m_nextFrameTicks - now };
+                        if (remaining > sleepThreshold)
+                        {
+                            const double remainingMs{ static_cast<double>(remaining - sleepThreshold) * 1000.0 / static_cast<double>(m_frequency) };
+                            std::this_thread::sleep_for(std::chrono::duration<double, std::milli>(remainingMs));
+                        }
+                    }
+                }
+            }
+
+            // Sample time precisely at the start of frame simulation
+            const Uint64 currentTime{ SDL_GetPerformanceCounter() };
+            float elapsedTime{ static_cast<float>(currentTime - m_lastTime) / static_cast<float>(m_frequency) };
+            m_lastTime = currentTime;
+
+            // Clamp max delta time to 100 ms to prevent physics explosions during breakpoints or window drags
+            if (elapsedTime > 0.10f)
+            {
+                elapsedTime = 0.10f;
+            }
+
+            return elapsedTime;
+        }
+
+    private:
+        double m_targetFps{ 0.0 };
+        Uint64 m_frequency{ 0 };
+        Uint64 m_lastTime{ 0 };
+        Uint64 m_nextFrameTicks{ 0 };
+    };
+}
 
 int main(int argc, char* argv[])
 {
@@ -19,19 +95,34 @@ int main(int argc, char* argv[])
 
     try
     {
+        // Enforce 1 ms OS timer resolution across the entire process lifetime
+        struct ScopedTimerResolution final
+        {
+            ScopedTimerResolution() noexcept { timeBeginPeriod(1); }
+            ~ScopedTimerResolution() noexcept { timeEndPeriod(1); }
+            ScopedTimerResolution(const ScopedTimerResolution&) = delete;
+            ScopedTimerResolution& operator=(const ScopedTimerResolution&) = delete;
+        };
+        const ScopedTimerResolution timerResolution{};
+
         auto framework = std::make_unique<Framework>();
 
-        bool running = true;
-        Uint64 lastTime = SDL_GetPerformanceCounter();
-        const Uint64 frequency = SDL_GetPerformanceFrequency();
+        // Engine Frame Pacing Configuration:
+        // Set s_targetFps to 0.0 for pure uncapped throughput diagnostics.
+        // Set s_targetFps to 120.0 (or 60.0) for smooth, drift-free production gameplay.
+        constexpr double s_targetFps{ 0.0 };
 
-        // 0.0 disables the cap entirely for uncapped testing
-        constexpr double targetFPS = 120.0;
+        // VSync Configuration:
+        // Must be false during uncapped throughput testing to allow DXGI tearing.
+        constexpr bool s_enableVsync{ true };
+        WindowManager::Instance().SetVSync(s_enableVsync);
+
+        FramePacer pacer{ s_targetFps };
+        bool running{ true };
 
         while (running)
         {
-            Uint64 frameStart = SDL_GetPerformanceCounter();
-
+            const float elapsedTime{ pacer.Pace() };
 
             SDL_Event event;
             while (SDL_PollEvent(&event))
@@ -46,22 +137,14 @@ int main(int argc, char* argv[])
                 {
                     SDL_Window* resizedWin = SDL_GetWindowFromID(event.window.windowID);
                     if (resizedWin) {
-                        // Tell DirectX to rebuild the swap chain buffers
                         WindowManager::Instance().HandleResize(resizedWin, event.window.data1, event.window.data2);
 
-                        // Tell the game logic to update Camera FOV and post-processing resolutions
                         if (framework) {
                             framework->OnResize(event.window.data1, event.window.data2);
                         }
                     }
                 }
             }
-
-            Uint64 currentTime = SDL_GetPerformanceCounter();
-            float elapsedTime = (float)(currentTime - lastTime) / (float)frequency;
-            lastTime = currentTime;
-
-            if (elapsedTime > 0.05f) elapsedTime = 0.05f;
 
             if (framework)
             {
@@ -74,34 +157,6 @@ int main(int argc, char* argv[])
             if (!WindowManager::Instance().HasWindows())
             {
                 running = false;
-            }
-
-            // High-Precision Hybrid Frame Limiter
-            if (targetFPS > 0.0)
-            {
-                const Uint64 targetTicksPerFrame{ static_cast<Uint64>(frequency / targetFPS) };
-
-                while (true)
-                {
-                    const Uint64 now{ SDL_GetPerformanceCounter() };
-                    const Uint64 ticksPassed{ now - frameStart };
-
-                    if (ticksPassed >= targetTicksPerFrame)
-                    {
-                        break;
-                    }
-
-                    const Uint64 remaining{ targetTicksPerFrame - ticksPassed };
-
-                    const Uint64 sleepThreshold{ (frequency * 2) / 1000 };
-
-                    if (remaining > sleepThreshold)
-                    {
-                        const double remainingMs{ static_cast<double>(remaining - sleepThreshold) * 1000.0 / static_cast<double>(frequency) };
-                        std::this_thread::sleep_for(std::chrono::duration<double, std::milli>(remainingMs));
-                    }
-                    // For the final <2ms, the loop spinlocks (busy-waits) for pinpoint microsecond accuracy
-                }
             }
         }
     }

@@ -14,6 +14,12 @@ enum class AlphaMode : std::uint8_t
     Blend
 };
 
+enum class UVProjectionMode : std::uint8_t
+{
+    MeshUV = 0,
+    BoxProjection
+};
+
 class Material
 {
 public:
@@ -26,6 +32,9 @@ public:
     Material(Material&&) = default;
     Material& operator=(Material&&) = default;
 
+    // Explicit clone creates an independent material instance (duplicates COM pointers via AddRef)
+    [[nodiscard]] Material Clone() const noexcept;
+
     // Renders the ImGui UI for this specific material
     void DrawInspector() noexcept;
 
@@ -36,6 +45,9 @@ public:
     int shaderId{ 2 };
     AlphaMode alphaMode{ AlphaMode::Opaque };
     float alphaCutoff{ 0.5f };
+    UVProjectionMode  uvProjectionMode{ UVProjectionMode::MeshUV };
+    DirectX::XMFLOAT2 uvTiling{ 1.0f, 1.0f };
+    DirectX::XMFLOAT2 uvOffset{ 0.0f, 0.0f };
 
     // Core PBR / Color Data 
     DirectX::XMFLOAT4 baseColor{ 1.0f, 1.0f, 1.0f, 1.0f };
@@ -43,6 +55,12 @@ public:
     float metalness{ 0.0f };
     float roughness{ 0.5f };
     float occlusionStrength{ 1.0f };
+    float subsurfaceStrength{ 0.0f };
+
+    // Visibility & Software Occlusion Culling
+    bool  isOccluder{ false };
+    bool  isOccludable{ true };
+    float occluderScale{ 0.95f };
 
     // Outline Data (Toon Shader Only)
     bool              enableOutline{ true };

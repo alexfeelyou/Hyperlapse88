@@ -1,45 +1,40 @@
-cbuffer CbSkeleton : register(b6)
+struct BoneMatrix
 {
-	row_major float4x4	boneTransforms[256];
+    row_major float4x4 transform;
 };
 
-float4 SkinningPosition(float4 position, float4 boneWeights, uint4 boneIndices)
-{
-	float4 p = float4(0, 0, 0, 0);
+// Unified Bone Palette StructuredBuffer for Multi-Character Skinned Instancing
+StructuredBuffer<BoneMatrix> g_BonePalette : register(t14);
 
-	[unroll]
-	for (int i = 0; i < 4; i++)
-	{
-		p += (boneWeights[i] * mul(position, boneTransforms[boneIndices[i]]));
-	}
-	return p;
-}
-
-float3 SkinningVector(float3 vec, float4 boneWeights, uint4 boneIndices)
-{
-	float3 v = float3(0, 0, 0);
-
-	[unroll]
-	for (int i = 0; i < 4; i++)
-	{
-		v += boneWeights[i] * mul(float4(vec, 0), boneTransforms[boneIndices[i]]).xyz;
-	}
-	return v;
-}
-
-cbuffer CbSkeletonPrev : register(b9)
-{
-    row_major float4x4 previousBoneTransforms[256];
-}
-
-float4 SkinningPositionPrevious(float4 position, float4 boneWeights, uint4 boneIndices)
+float4 SkinningPosition(float4 position, float4 boneWeights, uint4 boneIndices, uint boneOffset)
 {
     float4 p = float4(0, 0, 0, 0);
-
-	[unroll]
+    [unroll]
     for (int i = 0; i < 4; i++)
     {
-        p += (boneWeights[i] * mul(position, previousBoneTransforms[boneIndices[i]]));
+        p += (boneWeights[i] * mul(position, g_BonePalette[boneOffset + boneIndices[i]].transform));
+    }
+    return p;
+}
+
+float3 SkinningVector(float3 vec, float4 boneWeights, uint4 boneIndices, uint boneOffset)
+{
+    float3 v = float3(0, 0, 0);
+    [unroll]
+    for (int i = 0; i < 4; i++)
+    {
+        v += boneWeights[i] * mul(float4(vec, 0), g_BonePalette[boneOffset + boneIndices[i]].transform).xyz;
+    }
+    return v;
+}
+
+float4 SkinningPositionPrevious(float4 position, float4 boneWeights, uint4 boneIndices, uint prevBoneOffset)
+{
+    float4 p = float4(0, 0, 0, 0);
+    [unroll]
+    for (int i = 0; i < 4; i++)
+    {
+        p += (boneWeights[i] * mul(position, g_BonePalette[prevBoneOffset + boneIndices[i]].transform));
     }
     return p;
 }

@@ -69,6 +69,7 @@ public:
 		Microsoft::WRL::ComPtr<ID3D11Buffer>	indexBuffer;
 
 		DirectX::XMFLOAT3 boundsCenter{ 0.0f, 0.0f, 0.0f };
+		DirectX::XMFLOAT3 boundsExtents{ 0.0f, 0.0f, 0.0f };
 		float boundsRadius{ 0.0f };
 
 		template<class Archive>
@@ -120,6 +121,14 @@ public:
 		DirectX::XMFLOAT3	scale = { 1, 1, 1 };
 	};
 
+	// Temporal sampling cache for O(1) monotonic frame advancement
+	struct TrackCursors
+	{
+		uint32_t pos{ 0 };
+		uint32_t rot{ 0 };
+		uint32_t scale{ 0 };
+	};
+
 	// アニメーション追加読み込み
 	void AppendAnimations(const char* filename);
 
@@ -148,6 +157,7 @@ public:
 
 	// バウンディング情報取得
 	[[nodiscard]] const DirectX::XMFLOAT3& GetBoundsCenter() const noexcept { return m_boundsCenter; }
+	[[nodiscard]] const DirectX::XMFLOAT3& GetBoundsExtents() const noexcept { return m_boundsExtents; }
 	[[nodiscard]] float GetBoundsRadius() const noexcept { return m_boundsRadius; }
 
 	// ノードインデックス取得
@@ -157,8 +167,8 @@ public:
 	void UpdateTransform(const DirectX::XMFLOAT4X4& worldTransform);
 
 	// アニメーション計算
-	void ComputeAnimation(int animationIndex, int nodeIndex, float time, NodePose& nodePose) const;
-	void ComputeAnimation(int animationIndex, float time, std::vector<NodePose>& nodePoses) const;
+	void ComputeAnimation(int animationIndex, int nodeIndex, float time, NodePose& nodePose, TrackCursors* cursor = nullptr) const;
+	void ComputeAnimation(int animationIndex, float time, std::vector<NodePose>& nodePoses, TrackCursors* cursors = nullptr) const;
 
 	// ノードポーズ設定
 	void SetNodePoses(const std::vector<NodePose>& nodePoses);
@@ -184,5 +194,6 @@ private:
 
 private:
 	DirectX::XMFLOAT3 m_boundsCenter{ 0.0f, 0.0f, 0.0f };
+	DirectX::XMFLOAT3 m_boundsExtents{ 0.0f, 0.0f, 0.0f };
 	float             m_boundsRadius{ 1.0f };
 };

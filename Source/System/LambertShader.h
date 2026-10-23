@@ -24,8 +24,13 @@ private:
 		DirectX::XMFLOAT3 emissiveColor{ 0.0f, 0.0f, 0.0f };       // 12 bytes
 		int               alphaMode{ 0 };                          // 4 bytes
 		float             alphaCutoff{ 0.5f };                     // 4 bytes
-		DirectX::XMFLOAT3 padding{ 0.0f, 0.0f, 0.0f };             // 12 bytes
+		float             subsurfaceStrength{ 0.0f };              // 4 bytes
+		int               uvProjectionMode{ 0 };                   // 4 bytes
+		float             meshPadding{ 0.0f };                     // 4 bytes
+		DirectX::XMFLOAT2 uvTiling{ 1.0f, 1.0f };                  // 8 bytes
+		DirectX::XMFLOAT2 uvOffset{ 0.0f, 0.0f };                  // 8 bytes
 	};
+	static_assert((sizeof(CbMesh) % 16) == 0, "CbMesh must be 16-byte aligned!");
 
 	Microsoft::WRL::ComPtr<ID3D11VertexShader>		vertexShader;
 	Microsoft::WRL::ComPtr<ID3D11PixelShader>		pixelShader;

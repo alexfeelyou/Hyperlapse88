@@ -60,10 +60,22 @@ CameraComponent::CameraComponent()
     ApplyProjectionSettings();
 }
 
+CameraComponent::~CameraComponent()
+{
+    CameraController::Instance().ClearGameCamera(m_camera);
+}
+
 void CameraComponent::OnAttach(GameObject* owner) noexcept
 {
     IComponent::OnAttach(owner);
     VirtualCameraComponent::EnsureSharedGizmoLoaded();
+
+    CameraController::Instance().SetGameCamera(m_camera);
+}
+
+void CameraComponent::OnDisable() noexcept
+{
+    CameraController::Instance().ClearGameCamera(m_camera);
 }
 
 void CameraComponent::AddTrauma(float amount) noexcept
@@ -72,7 +84,7 @@ void CameraComponent::AddTrauma(float amount) noexcept
     m_trauma = std::clamp(m_trauma + amount, 0.0f, 1.0f);
 }
 
-void CameraComponent::Update(float dt)
+void CameraComponent::LateUpdate(float dt)
 {
     if (!GetOwner()) return;
 
@@ -124,10 +136,16 @@ void CameraComponent::Update(float dt)
 
         if (!m_activeVirtualCamera) m_blendTimer = m_blendDuration;
         m_activeVirtualCamera = bestVCam;
-        previewSnap = true; 
+        previewSnap = true;
     }
 
-    if (m_activeVirtualCamera) m_activeVirtualCamera->SetActiveShot(true);
+    if (m_activeVirtualCamera)
+    {
+        m_activeVirtualCamera->SetActiveShot(true);
+        // Guarantee the active virtual camera steps its follow rig for the current frame
+        // prior to reading its world transform
+        m_activeVirtualCamera->Step(dt);
+    }
 
     DirectX::XMFLOAT3 targetPos{};
     DirectX::XMFLOAT3 targetRot{};
@@ -232,6 +250,12 @@ void CameraComponent::Update(float dt)
         }
     }
 
+    // Keep the engine-wide active gameplay camera synchronized with this Camera Brain for post-process passes
+    if (CameraController::Instance().GetGameCamera() != m_camera)
+    {
+        CameraController::Instance().SetGameCamera(m_camera);
+    }
+
     m_isDirty = false;
 }
 
@@ -306,11 +330,7 @@ void CameraComponent::DrawGizmo(const GizmoContext& ctx) noexcept
         if ((dx * dx + dy * dy + dz * dz) < 0.01f) return;
     }
 
-    const DirectX::XMFLOAT3 worldRotRad{
-        DirectX::XMConvertToRadians(rot.x),
-        DirectX::XMConvertToRadians(rot.y),
-        DirectX::XMConvertToRadians(rot.z)
-    };
+    const DirectX::XMFLOAT3 worldRotRad{ rot };
 
     constexpr float r{ 1.0f }, g{ 0.85f }, b{ 0.0f }, a{ 1.0f };
     constexpr DirectX::XMFLOAT4 gizmoColor{ r, g, b, a };

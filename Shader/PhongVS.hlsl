@@ -2,22 +2,43 @@
 #include "Phong.hlsli"
 
 VS_OUT main(
-	float4 position		: POSITION,
-	float4 boneWeights	: BONE_WEIGHTS,
-	uint4  boneIndices	: BONE_INDICES,
-	float2 texcoord		: TEXCOORD,
-	float4 tangent		: TANGENT,
-	float3 normal		: NORMAL)
+	float4 position : POSITION,
+	float4 boneWeights : BONE_WEIGHTS,
+	uint4 boneIndices : BONE_INDICES,
+	float2 texcoord : TEXCOORD,
+	float4 tangent : TANGENT,
+	float3 normal : NORMAL,
+	float4x4 instanceWorld : INSTANCE_TRANSFORM,
+	float4x4 instancePrevWorld : INSTANCE_PREV_TRANSFORM,
+	float4 instanceColor : INSTANCE_COLOR,
+	uint4 instanceBoneOffsets : INSTANCE_BONE_OFFSETS)
 {
-	VS_OUT vout = (VS_OUT)0;
+    VS_OUT vout = (VS_OUT) 0;
 
-	position = SkinningPosition(position, boneWeights, boneIndices);
-	vout.vertex = mul(position, viewProjection);
-	vout.texcoord = texcoord;
-	vout.normal = SkinningVector(normal, boneWeights, boneIndices);
-	vout.tangent.xyz = SkinningVector(tangent.xyz, boneWeights, boneIndices);
-    vout.tangent.w = tangent.w;
-    vout.position = position;
+    float4 localPos = SkinningPosition(position, boneWeights, boneIndices, instanceBoneOffsets.x);
+    float4 worldPos = mul(localPos, instanceWorld);
 	
-	return vout;
+    vout.vertex = mul(worldPos, viewProjection);
+    vout.texcoord = texcoord;
+	
+    float3 localNormal = SkinningVector(normal, boneWeights, boneIndices, instanceBoneOffsets.x);
+    vout.normal = normalize(mul(localNormal, (float3x3) instanceWorld));
+	
+    float3 localTangent = SkinningVector(tangent.xyz, boneWeights, boneIndices, instanceBoneOffsets.x);
+    vout.tangent.xyz = normalize(mul(localTangent, (float3x3) instanceWorld));
+    vout.tangent.w = tangent.w;
+    
+    vout.position = worldPos.xyz;
+    vout.color = instanceColor;
+
+    // Derive object scale from instance matrix basis vector lengths to anchor UVs to the actor
+    float3 instanceScale = float3(
+        length(instanceWorld[0].xyz),
+        length(instanceWorld[1].xyz),
+        length(instanceWorld[2].xyz)
+    );
+    vout.boxPos = localPos.xyz * instanceScale;
+    vout.boxNormal = localNormal;
+	
+    return vout;
 }

@@ -93,39 +93,69 @@ void StaticMeshColliderComponent::Update(const float dt)
         if (!m_physxActor) return;
     }
 
-    const Transform& t{ m_owner->transform };
+    const bool isTriangleMesh{ m_config.shapeType == ColliderShapeType::TriangleMesh };
+    if (isTriangleMesh && m_attachedShapes.empty())
+    {
+        if (const auto* meshComp{ m_owner->GetComponent<MeshComponent>() }; meshComp && meshComp->GetModel())
+        {
+            RebuildPhysics();
+            if (!m_physxActor || m_attachedShapes.empty()) return;
+        }
+    }
 
-    // Early-out if the transform hasn't changed to save CPU cycles on matrix math.
-    const bool isTransformDirty{
-        !IsFloatEqual(t.position.x, m_lastFramePos.x) ||
-        !IsFloatEqual(t.position.y, m_lastFramePos.y) ||
-        !IsFloatEqual(t.position.z, m_lastFramePos.z) ||
-        !IsFloatEqual(t.rotation.x, m_lastFrameRot.x) ||
-        !IsFloatEqual(t.rotation.y, m_lastFrameRot.y) ||
-        !IsFloatEqual(t.rotation.z, m_lastFrameRot.z)
+    const DirectX::XMFLOAT4X4 worldMatrix{ m_owner->transform.GetWorldMatrix() };
+    const DirectX::XMMATRIX matWorld{ DirectX::XMLoadFloat4x4(&worldMatrix) };
+
+    DirectX::XMVECTOR vWorldScale, vWorldRotQuat, vWorldTrans;
+    if (!DirectX::XMMatrixDecompose(&vWorldScale, &vWorldRotQuat, &vWorldTrans, matWorld))
+    {
+        return;
+    }
+
+    DirectX::XMFLOAT3 worldPos{};
+    DirectX::XMFLOAT4 worldRotQuat{};
+    DirectX::XMFLOAT3 worldScale{};
+    DirectX::XMStoreFloat3(&worldPos, vWorldTrans);
+    DirectX::XMStoreFloat4(&worldRotQuat, vWorldRotQuat);
+    DirectX::XMStoreFloat3(&worldScale, vWorldScale);
+
+    worldScale.x = (std::max)(0.0001f, std::abs(worldScale.x));
+    worldScale.y = (std::max)(0.0001f, std::abs(worldScale.y));
+    worldScale.z = (std::max)(0.0001f, std::abs(worldScale.z));
+
+    const bool isScaleDirty{
+        !IsFloatEqual(worldScale.x, m_lastWorldScale.x) ||
+        !IsFloatEqual(worldScale.y, m_lastWorldScale.y) ||
+        !IsFloatEqual(worldScale.z, m_lastWorldScale.z)
     };
 
-    if (isTransformDirty)
+    if (isScaleDirty)
     {
-        const DirectX::XMVECTOR q{ DirectX::XMQuaternionRotationRollPitchYaw(
-            DirectX::XMConvertToRadians(t.rotation.x),
-            DirectX::XMConvertToRadians(t.rotation.y),
-            DirectX::XMConvertToRadians(t.rotation.z)
-        ) };
+        RebuildPhysics();
+        return;
+    }
 
-        DirectX::XMFLOAT4 qF{};
-        DirectX::XMStoreFloat4(&qF, q);
+    const bool isPoseDirty{
+        !IsFloatEqual(worldPos.x, m_lastWorldPos.x) ||
+        !IsFloatEqual(worldPos.y, m_lastWorldPos.y) ||
+        !IsFloatEqual(worldPos.z, m_lastWorldPos.z) ||
+        !IsFloatEqual(worldRotQuat.x, m_lastWorldRotQuat.x) ||
+        !IsFloatEqual(worldRotQuat.y, m_lastWorldRotQuat.y) ||
+        !IsFloatEqual(worldRotQuat.z, m_lastWorldRotQuat.z) ||
+        !IsFloatEqual(worldRotQuat.w, m_lastWorldRotQuat.w)
+    };
 
+    if (isPoseDirty)
+    {
         const physx::PxTransform newPose{
-            physx::PxVec3{ t.position.x, t.position.y, t.position.z },
-            physx::PxQuat{ qF.x, qF.y, qF.z, qF.w }
+            physx::PxVec3{ worldPos.x, worldPos.y, worldPos.z },
+            physx::PxQuat{ worldRotQuat.x, worldRotQuat.y, worldRotQuat.z, worldRotQuat.w }
         };
 
-        // Update the global pose of the rigid body directly without destroying/recreating it
         m_physxActor->setGlobalPose(newPose);
 
-        m_lastFramePos = t.position;
-        m_lastFrameRot = t.rotation;
+        m_lastWorldPos = worldPos;
+        m_lastWorldRotQuat = worldRotQuat;
     }
 }
 
@@ -167,19 +197,29 @@ void StaticMeshColliderComponent::RebuildPhysics() noexcept
     }
     m_attachedShapes.clear();
 
-    const Transform& t{ m_owner->transform };
-    const DirectX::XMVECTOR q{ DirectX::XMQuaternionRotationRollPitchYaw(
-        DirectX::XMConvertToRadians(t.rotation.x),
-        DirectX::XMConvertToRadians(t.rotation.y),
-        DirectX::XMConvertToRadians(t.rotation.z)
-    ) };
+    const DirectX::XMFLOAT4X4 worldMatrix{ m_owner->transform.GetWorldMatrix() };
+    const DirectX::XMMATRIX matWorld{ DirectX::XMLoadFloat4x4(&worldMatrix) };
 
-    DirectX::XMFLOAT4 qF{};
-    DirectX::XMStoreFloat4(&qF, q);
+    DirectX::XMVECTOR vWorldScale, vWorldRotQuat, vWorldTrans;
+    if (!DirectX::XMMatrixDecompose(&vWorldScale, &vWorldRotQuat, &vWorldTrans, matWorld))
+    {
+        return;
+    }
+
+    DirectX::XMFLOAT3 worldPos{};
+    DirectX::XMFLOAT4 worldRotQuat{};
+    DirectX::XMFLOAT3 worldScale{};
+    DirectX::XMStoreFloat3(&worldPos, vWorldTrans);
+    DirectX::XMStoreFloat4(&worldRotQuat, vWorldRotQuat);
+    DirectX::XMStoreFloat3(&worldScale, vWorldScale);
+
+    worldScale.x = (std::max)(0.0001f, std::abs(worldScale.x));
+    worldScale.y = (std::max)(0.0001f, std::abs(worldScale.y));
+    worldScale.z = (std::max)(0.0001f, std::abs(worldScale.z));
 
     m_physxActor = physics->createRigidStatic(physx::PxTransform{
-        physx::PxVec3{ t.position.x, t.position.y, t.position.z },
-        physx::PxQuat{ qF.x, qF.y, qF.z, qF.w }
+        physx::PxVec3{ worldPos.x, worldPos.y, worldPos.z },
+        physx::PxQuat{ worldRotQuat.x, worldRotQuat.y, worldRotQuat.z, worldRotQuat.w }
         });
 
     // Identify if this is a Triangle Mesh
@@ -209,24 +249,24 @@ void StaticMeshColliderComponent::RebuildPhysics() noexcept
     {
     case ColliderShapeType::Box:
     {
-        const float hX{ (std::max)(0.001f, m_config.proxyExtents.x * t.scale.x * 0.5f) };
-        const float hY{ (std::max)(0.001f, m_config.proxyExtents.y * t.scale.y * 0.5f) };
-        const float hZ{ (std::max)(0.001f, m_config.proxyExtents.z * t.scale.z * 0.5f) };
+        const float hX{ (std::max)(0.001f, m_config.proxyExtents.x * worldScale.x * 0.5f) };
+        const float hY{ (std::max)(0.001f, m_config.proxyExtents.y * worldScale.y * 0.5f) };
+        const float hZ{ (std::max)(0.001f, m_config.proxyExtents.z * worldScale.z * 0.5f) };
         primaryShape = physics->createShape(physx::PxBoxGeometry{ hX, hY, hZ }, *material);
         primaryShape->setLocalPose(relativePose);
         break;
     }
     case ColliderShapeType::Sphere:
     {
-        const float radius{ (std::max)(0.001f, m_config.proxyExtents.x * t.scale.x) };
+        const float radius{ (std::max)(0.001f, m_config.proxyExtents.x * worldScale.x) };
         primaryShape = physics->createShape(physx::PxSphereGeometry{ radius }, *material);
         primaryShape->setLocalPose(relativePose);
         break;
     }
     case ColliderShapeType::Capsule:
     {
-        const float radius{ (std::max)(0.001f, m_config.proxyExtents.x * t.scale.x) };
-        const float halfHeight{ (std::max)(0.001f, m_config.proxyExtents.y * t.scale.y * 0.5f) };
+        const float radius{ (std::max)(0.001f, m_config.proxyExtents.x * worldScale.x) };
+        const float halfHeight{ (std::max)(0.001f, m_config.proxyExtents.y * worldScale.y * 0.5f) };
         primaryShape = physics->createShape(physx::PxCapsuleGeometry{ radius, halfHeight }, *material);
 
         const physx::PxTransform uprightPose{
@@ -243,7 +283,7 @@ void StaticMeshColliderComponent::RebuildPhysics() noexcept
         {
             const auto& cookedMeshes{ PhysicsManager::Instance().GetOrCreateTriangleMeshes(meshComp->GetModel().get()) };
             const physx::PxMeshScale pxScale{
-                physx::PxVec3{ t.scale.x, t.scale.y, t.scale.z },
+                physx::PxVec3{ worldScale.x, worldScale.y, worldScale.z },
                 physx::PxQuat{ physx::PxIdentity }
             };
 
@@ -277,9 +317,9 @@ void StaticMeshColliderComponent::RebuildPhysics() noexcept
         scene->addActor(*m_physxActor);
     }
 
-    m_lastFramePos = t.position;
-    m_lastFrameRot = t.rotation;
-    m_lastFrameScale = t.scale;
+    m_lastWorldPos = worldPos;
+    m_lastWorldRotQuat = worldRotQuat;
+    m_lastWorldScale = worldScale;
 }
 
 void StaticMeshColliderComponent::Render(ModelRenderer* renderer)
@@ -291,15 +331,9 @@ void StaticMeshColliderComponent::DrawGizmo(const GizmoContext& ctx) noexcept
     // Fast-fail if Static Physics Gizmos are toggled off
     if (!(ctx.categoryMask & static_cast<std::uint32_t>(GizmoCategory::StaticPhysics))) return;
 
-    if (!m_owner || !ctx.shapes || m_attachedShapes.empty()) return;
+    if (!m_owner || !ctx.shapes || m_attachedShapes.empty() || !m_physxActor) return;
 
     const Transform& t{ m_owner->transform };
-    const DirectX::XMFLOAT3 radRot{
-        DirectX::XMConvertToRadians(t.rotation.x),
-        DirectX::XMConvertToRadians(t.rotation.y),
-        DirectX::XMConvertToRadians(t.rotation.z)
-    };
-
     constexpr DirectX::XMFLOAT4 debugColor{ 0.2f, 1.0f, 0.2f, 0.4f };
 
     const DirectX::XMFLOAT4X4 worldFloat4x4{ t.GetWorldMatrix() };
@@ -321,8 +355,12 @@ void StaticMeshColliderComponent::DrawGizmo(const GizmoContext& ctx) noexcept
     DirectX::XMVECTOR vScale, vRotQuat, vTrans;
     DirectX::XMMatrixDecompose(&vScale, &vRotQuat, &vTrans, compWorld);
 
-    DirectX::XMFLOAT3 wPos, wRot;
+    DirectX::XMFLOAT3 wPos, wRot, wScale;
     DirectX::XMStoreFloat3(&wPos, vTrans);
+    DirectX::XMStoreFloat3(&wScale, vScale);
+    wScale.x = std::abs(wScale.x);
+    wScale.y = std::abs(wScale.y);
+    wScale.z = std::abs(wScale.z);
 
     const DirectX::XMFLOAT4X4 mRot{ [&]() {
         DirectX::XMFLOAT4X4 temp;
@@ -345,23 +383,23 @@ void StaticMeshColliderComponent::DrawGizmo(const GizmoContext& ctx) noexcept
     case ColliderShapeType::Box:
     {
         const DirectX::XMFLOAT3 halfExtents{
-            (std::max)(0.001f, m_config.proxyExtents.x * t.scale.x * 0.5f),
-            (std::max)(0.001f, m_config.proxyExtents.y * t.scale.y * 0.5f),
-            (std::max)(0.001f, m_config.proxyExtents.z * t.scale.z * 0.5f)
+            (std::max)(0.001f, m_config.proxyExtents.x * wScale.x * 0.5f),
+            (std::max)(0.001f, m_config.proxyExtents.y * wScale.y * 0.5f),
+            (std::max)(0.001f, m_config.proxyExtents.z * wScale.z * 0.5f)
         };
         ctx.shapes->DrawBox(wPos, wRot, halfExtents, debugColor);
         break;
     }
     case ColliderShapeType::Sphere:
     {
-        const float radius{ (std::max)(0.001f, m_config.proxyExtents.x * t.scale.x) };
+        const float radius{ (std::max)(0.001f, m_config.proxyExtents.x * wScale.x) };
         ctx.shapes->DrawSphere(wPos, radius, debugColor);
         break;
     }
     case ColliderShapeType::Capsule:
     {
-        const float radius{ (std::max)(0.001f, m_config.proxyExtents.x * t.scale.x) };
-        const float height{ (std::max)(0.001f, m_config.proxyExtents.y * t.scale.y) };
+        const float radius{ (std::max)(0.001f, m_config.proxyExtents.x * wScale.x) };
+        const float height{ (std::max)(0.001f, m_config.proxyExtents.y * wScale.y) };
 
         DirectX::XMFLOAT4X4 transformMatrix{};
         DirectX::XMStoreFloat4x4(&transformMatrix, compWorld);

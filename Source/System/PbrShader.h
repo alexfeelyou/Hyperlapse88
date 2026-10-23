@@ -34,8 +34,13 @@ private:
 
         // Bitmask: Bit 0 = HasMetalRoughMap, Bit 1 = HasEmissiveMap, Bit 2 = HasAOMap
         int               textureFlags{ 0 };
-        DirectX::XMFLOAT3 meshPadding{ 0.0f, 0.0f, 0.0f };
+        float             subsurfaceStrength{ 0.0f };
+        int               uvProjectionMode{ 0 };
+        float             meshPadding{ 0.0f };
+        DirectX::XMFLOAT2 uvTiling{ 1.0f, 1.0f };
+        DirectX::XMFLOAT2 uvOffset{ 0.0f, 0.0f };
     };
+    static_assert((sizeof(CbMesh) % 16) == 0, "CbMesh must be 16-byte aligned!");
 
     Microsoft::WRL::ComPtr<ID3D11VertexShader> m_vertexShader{};
     Microsoft::WRL::ComPtr<ID3D11PixelShader>  m_pixelShader{};

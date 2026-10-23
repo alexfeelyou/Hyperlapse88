@@ -1,4 +1,5 @@
 #include <imgui.h>
+#include "System/AssetManager.h"
 #include "System/GpuResourceUtils.h"
 #include "System/Graphics.h"
 #include "Material.h"
@@ -31,6 +32,43 @@ namespace
     }
 }
 
+Material Material::Clone() const noexcept
+{
+    Material mat{};
+    mat.name = name;
+    mat.shaderId = shaderId;
+    mat.alphaMode = alphaMode;
+    mat.alphaCutoff = alphaCutoff;
+    mat.uvProjectionMode = uvProjectionMode;
+    mat.uvTiling = uvTiling;
+    mat.uvOffset = uvOffset;
+    mat.baseColor = baseColor;
+    mat.emissiveColor = emissiveColor;
+    mat.metalness = metalness;
+    mat.roughness = roughness;
+    mat.occlusionStrength = occlusionStrength;
+    mat.subsurfaceStrength = subsurfaceStrength;
+    mat.isOccluder = isOccluder;
+    mat.isOccludable = isOccludable;
+    mat.occluderScale = occluderScale;
+    mat.enableOutline = enableOutline;
+    mat.outlineWidth = outlineWidth;
+    mat.outlineFadeStart = outlineFadeStart;
+    mat.outlineFadeEnd = outlineFadeEnd;
+    mat.outlineColor = outlineColor;
+    mat.baseTextureFileName = baseTextureFileName;
+    mat.normalTextureFileName = normalTextureFileName;
+    mat.emissiveTextureFileName = emissiveTextureFileName;
+    mat.occlusionTextureFileName = occlusionTextureFileName;
+    mat.metalnessRoughnessTextureFileName = metalnessRoughnessTextureFileName;
+    mat.baseMap = baseMap;
+    mat.normalMap = normalMap;
+    mat.emissiveMap = emissiveMap;
+    mat.occlusionMap = occlusionMap;
+    mat.metalnessRoughnessMap = metalnessRoughnessMap;
+    return mat;
+}
+
 void Material::DrawInspector() noexcept
 {
     // Shader Selection Dropdown
@@ -49,6 +87,27 @@ void Material::DrawInspector() noexcept
     if (alphaMode == AlphaMode::Mask)
     {
         ImGui::SliderFloat("Alpha Cutoff", &alphaCutoff, 0.0f, 1.0f);
+    }
+
+    // UV Projection & Tiling Mode
+    ImGui::Spacing();
+    static constexpr const char* const s_projectionModes[]{ "Mesh UV", "Box Projection (Greybox)" };
+    int currentProjMode{ static_cast<int>(uvProjectionMode) };
+    if (ImGui::Combo("UV Mode", &currentProjMode, s_projectionModes, IM_ARRAYSIZE(s_projectionModes)))
+    {
+        uvProjectionMode = static_cast<UVProjectionMode>(currentProjMode);
+    }
+
+    if (uvProjectionMode == UVProjectionMode::BoxProjection)
+    {
+        ImGui::DragFloat2("Grid Tiling (1/m)", &uvTiling.x, 0.05f, 0.001f, 50.0f, "%.2f");
+        ImGui::DragFloat2("UV Offset", &uvOffset.x, 0.05f, -50.0f, 50.0f, "%.2f");
+        ImGui::TextDisabled("Anchored to actor; scales/multiplies with transform dimensions");
+    }
+    else
+    {
+        ImGui::DragFloat2("UV Tiling", &uvTiling.x, 0.05f, 0.001f, 50.0f, "%.2f");
+        ImGui::DragFloat2("UV Offset", &uvOffset.x, 0.05f, -50.0f, 50.0f, "%.2f");
     }
 
     // ALBEDO / DIFFUSE (Visible on all shaders) 
@@ -74,11 +133,11 @@ void Material::DrawInspector() noexcept
         if (!newPath.empty())
         {
             auto* device{ Graphics::Instance().GetDevice() };
-            static Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> s_garbageBin{};
-            s_garbageBin = baseMap;
-
-            GpuResourceUtils::LoadTexture(device, newPath.c_str(), baseMap.ReleaseAndGetAddressOf());
-            baseTextureFileName = newPath;
+            if (auto srv{ Engine::System::AssetManager::Instance().GetOrLoadTexture(device, newPath) })
+            {
+                baseMap = std::move(srv);
+                baseTextureFileName = newPath;
+            }
         }
     }
     ImGui::EndGroup();
@@ -111,10 +170,11 @@ void Material::DrawInspector() noexcept
                 if (!newPath.empty())
                 {
                     auto* device{ Graphics::Instance().GetDevice() };
-                    static Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> s_normalGarbageBin{};
-                    s_normalGarbageBin = normalMap;
-                    GpuResourceUtils::LoadTexture(device, newPath.c_str(), normalMap.ReleaseAndGetAddressOf());
-                    normalTextureFileName = newPath;
+                    if (auto srv{ Engine::System::AssetManager::Instance().GetOrLoadTexture(device, newPath) })
+                    {
+                        normalMap = std::move(srv);
+                        normalTextureFileName = newPath;
+                    }
                 }
             }
             ImGui::EndGroup();
@@ -140,10 +200,11 @@ void Material::DrawInspector() noexcept
                 if (!newPath.empty())
                 {
                     auto* device{ Graphics::Instance().GetDevice() };
-                    static Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> s_ormGarbageBin{};
-                    s_ormGarbageBin = metalnessRoughnessMap;
-                    GpuResourceUtils::LoadTexture(device, newPath.c_str(), metalnessRoughnessMap.ReleaseAndGetAddressOf());
-                    metalnessRoughnessTextureFileName = newPath;
+                    if (auto srv{ Engine::System::AssetManager::Instance().GetOrLoadTexture(device, newPath) })
+                    {
+                        metalnessRoughnessMap = std::move(srv);
+                        metalnessRoughnessTextureFileName = newPath;
+                    }
                 }
             }
             ImGui::EndGroup();
@@ -167,10 +228,11 @@ void Material::DrawInspector() noexcept
             if (!newPath.empty())
             {
                 auto* device{ Graphics::Instance().GetDevice() };
-                static Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> s_emissiveGarbageBin{};
-                s_emissiveGarbageBin = emissiveMap;
-                GpuResourceUtils::LoadTexture(device, newPath.c_str(), emissiveMap.ReleaseAndGetAddressOf());
-                emissiveTextureFileName = newPath;
+                if (auto srv{ Engine::System::AssetManager::Instance().GetOrLoadTexture(device, newPath) })
+                {
+                    emissiveMap = std::move(srv);
+                    emissiveTextureFileName = newPath;
+                }
             }
         }
         ImGui::EndGroup();
@@ -191,7 +253,28 @@ void Material::DrawInspector() noexcept
 
         // Emissive Color: Visible for Lambert (1), Phong (2), PBR (3), Toon (4)
         ImGui::ColorEdit3("Emissive Color", &emissiveColor.x);
+
+        // Subsurface / Foliage Backlighting: Visible for all lit shaders (>0)
+        ImGui::SliderFloat("Subsurface / Foliage Glow", &subsurfaceStrength, 0.0f, 2.0f, "%.2f");
     }
+
+    // OCCLUSION CULLING SETTINGS
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::TextDisabled("OCCLUSION CULLING");
+    if (alphaMode == AlphaMode::Opaque)
+    {
+        ImGui::Checkbox("Treat as Occluder", &isOccluder);
+        if (isOccluder)
+        {
+            ImGui::SliderFloat("Occluder Scale", &occluderScale, 0.5f, 1.0f);
+        }
+    }
+    else
+    {
+        ImGui::TextDisabled("Treat as Occluder (Opaque only)");
+    }
+    ImGui::Checkbox("Allow Being Occluded", &isOccludable);
 
     // TOON OUTLINE (Conditional visibility) 
     // Visible only for Toon (4)
@@ -218,12 +301,18 @@ void Material::Serialize(nlohmann::json& j) const
     j["ShaderId"] = shaderId;
     j["AlphaMode"] = static_cast<int>(alphaMode);
     j["AlphaCutoff"] = alphaCutoff;
+    j["UVProjectionMode"] = static_cast<int>(uvProjectionMode);
+    j["UVTiling"] = { uvTiling.x, uvTiling.y };
+    j["UVOffset"] = { uvOffset.x, uvOffset.y };
 
     j["BaseColor"] = { baseColor.x, baseColor.y, baseColor.z, baseColor.w };
     j["Emissive"] = { emissiveColor.x, emissiveColor.y, emissiveColor.z };
     j["Roughness"] = roughness;
     j["Metalness"] = metalness;
-
+    j["SubsurfaceStrength"] = subsurfaceStrength;
+    j["IsOccluder"] = isOccluder;
+    j["IsOccludable"] = isOccludable;
+    j["OccluderScale"] = occluderScale;
     j["TexBase"] = baseTextureFileName;
     j["TexNormal"] = normalTextureFileName;
 
@@ -240,6 +329,15 @@ void Material::Deserialize(const nlohmann::json& j)
     shaderId = j.value("ShaderId", 2);
     alphaMode = static_cast<AlphaMode>(j.value("AlphaMode", 0));
     alphaCutoff = j.value("AlphaCutoff", 0.5f);
+    uvProjectionMode = static_cast<UVProjectionMode>(j.value("UVProjectionMode", 0));
+    if (j.contains("UVTiling"))
+    {
+        uvTiling = { j["UVTiling"][0], j["UVTiling"][1] };
+    }
+    if (j.contains("UVOffset"))
+    {
+        uvOffset = { j["UVOffset"][0], j["UVOffset"][1] };
+    }
 
     if (j.contains("BaseColor"))
     {
@@ -252,6 +350,35 @@ void Material::Deserialize(const nlohmann::json& j)
 
     roughness = j.value("Roughness", 0.5f);
     metalness = j.value("Metalness", 0.0f);
+    subsurfaceStrength = j.value("SubsurfaceStrength", 0.0f);
+    isOccluder = j.value("IsOccluder", false);
+    isOccludable = j.value("IsOccludable", true);
+    occluderScale = j.value("OccluderScale", 0.95f);
+
+    // Restore texture paths
+    const std::string newBaseTex{ j.value("TexBase", "") };
+    const std::string newNormalTex{ j.value("TexNormal", "") };
+
+    // Reload texture descriptors if saved paths differ or texture is missing
+    if (!newBaseTex.empty() && (newBaseTex != baseTextureFileName || !baseMap))
+    {
+        auto* device{ Graphics::Instance().GetDevice() };
+        if (auto srv{ Engine::System::AssetManager::Instance().GetOrLoadTexture(device, newBaseTex) })
+        {
+            baseMap = std::move(srv);
+            baseTextureFileName = newBaseTex;
+        }
+    }
+
+    if (!newNormalTex.empty() && (newNormalTex != normalTextureFileName || !normalMap))
+    {
+        auto* device{ Graphics::Instance().GetDevice() };
+        if (auto srv{ Engine::System::AssetManager::Instance().GetOrLoadTexture(device, newNormalTex) })
+        {
+            normalMap = std::move(srv);
+            normalTextureFileName = newNormalTex;
+        }
+    }
 
     enableOutline = j.value("EnableOutline", true);
     outlineWidth = j.value("OutlineWidth", 0.015f);

@@ -4,21 +4,19 @@ cbuffer CbMesh : register(b0)
 {
     float4 materialColor;
     float3 emissiveColor;
-    float roughness; 
-    int alphaMode; 
+    float roughness;
+    int alphaMode;
     float alphaCutoff;
-    float2 padding; 
-};
-
-cbuffer CbObject : register(b2)
-{
-    float4 objectColor;
+    float subsurfaceStrength;
+    int uvProjectionMode;
+    float2 uvTiling;
+    float2 uvOffset;
 };
 
 Texture2D DiffuseMap : register(t0);
 SamplerState LinearSampler : register(s0);
 
-// Calculates pure Toon light scattering using quantized Half-Lambert and stepped Specular
+// Calculates Toon light scattering with quantized Half-Lambert, stepped Specular, and Thin-Surface Backlighting
 float3 CalculateToonLight(float3 L, float3 N, float3 V, float3 radiance, float3 albedo)
 {
     // Half-Lambert Remapping: Prevents pitch-black shadows on the unlit side of the mesh
@@ -28,8 +26,15 @@ float3 CalculateToonLight(float3 L, float3 N, float3 V, float3 radiance, float3 
     // Quantized Cel-Banding: Creates a 3-tone shaded look with slight anti-aliasing on the edges
     float celDiffuse = smoothstep(0.48f, 0.52f, halfLambert) * 0.6f +
                        smoothstep(0.78f, 0.82f, halfLambert) * 0.4f;
-    
-    float3 diffuseColor = albedo * radiance * celDiffuse;
+
+    // Thin-Surface Subsurface Transmission (Polynomial x^4 Mie-like leaf/grass backlighting + backface wrap)
+    float transDot = saturate(dot(V, -L - N * 0.25f));
+    float transDot2 = transDot * transDot;
+    float transPhase = transDot2 * transDot2;
+    float backDiffuse = saturate(-NdotL) * 0.35f;
+    float transmission = (transPhase + backDiffuse) * subsurfaceStrength;
+
+    float3 diffuseColor = albedo * radiance * (celDiffuse + transmission);
 
     // Hard-Stepped Blinn-Phong Specular
     float3 H = normalize(L + V);
@@ -52,10 +57,14 @@ float3 CalculateToonLight(float3 L, float3 N, float3 V, float3 radiance, float3 
     return diffuseColor + specularColor;
 }
 
-float4 main(VS_OUT pin) : SV_TARGET
+float4 main(VS_OUT pin, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 {
-    float4 texColor = DiffuseMap.Sample(LinearSampler, pin.texcoord);
-    float4 color = texColor * materialColor * objectColor;
+    float2 uv = (uvProjectionMode == 1) ?
+        CalculateBoxUV(pin.boxPos, pin.boxNormal, uvTiling, uvOffset) :
+        (pin.texcoord * uvTiling + uvOffset);
+
+    float4 texColor = DiffuseMap.Sample(LinearSampler, uv);
+    float4 color = texColor * materialColor * pin.color;
 
     if (alphaMode == 1)
     {
@@ -68,6 +77,7 @@ float4 main(VS_OUT pin) : SV_TARGET
 
     float3 albedo = pow(abs(color.rgb), 2.2f);
     float3 N = normalize(pin.normal);
+    N = isFrontFace ? N : -N; // Orient normal towards the viewer for two-sided foliage cards
     float3 V = normalize(cameraPosition.xyz - pin.position); // View vector for specular
 
     float3 totalDirectLight = float3(0.0f, 0.0f, 0.0f);
@@ -124,8 +134,8 @@ float4 main(VS_OUT pin) : SV_TARGET
     float celFactor = step(0.0f, factor); // Hard step between sky and ground color
     float3 ambientLight = lerp(ambientGroundColor.rgb, ambientSkyColor.rgb, celFactor);
 
-    float3 finalColor = totalDirectLight + (ambientLight * albedo) + emissiveColor;
-    finalColor = pow(abs(finalColor), float3(1.0f / 2.2f, 1.0f / 2.2f, 1.0f / 2.2f));
+    // Output pure unbounded linear HDR radiance
+    float3 finalColor = max(0.0f, totalDirectLight + (ambientLight * albedo) + emissiveColor);
 
     return float4(finalColor, color.a);
 }

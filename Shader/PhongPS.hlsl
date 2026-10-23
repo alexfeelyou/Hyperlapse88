@@ -7,23 +7,27 @@ cbuffer CbMesh : register(b0)
     float roughness;
     int alphaMode;
     float alphaCutoff;
-    float2 meshPadding;
-};
-
-cbuffer CbObject : register(b2)
-{
-    float4 objectColor;
+    float subsurfaceStrength;
+    int uvProjectionMode;
+    float2 uvTiling;
+    float2 uvOffset;
 };
 
 Texture2D DiffuseMap : register(t0);
 Texture2D NormalMap : register(t1);
 SamplerState LinearSampler : register(s0);
 
-// Calculates Diffuse + Blinn-Phong Specular
+// Calculates Diffuse + Thin-Surface Transmission + Blinn-Phong Specular
 float3 CalculatePhongLight(float3 L, float3 V, float3 N, float3 radiance, float3 albedo, float shininess)
 {
-    float NdotL = max(dot(N, L), 0.0f);
-    float3 diffuse = albedo * radiance * NdotL;
+    float rawNdotL = dot(N, L);
+    float NdotL = max(rawNdotL, 0.0f);
+
+    float transDot = saturate(dot(V, -L - N * 0.25f));
+    float transDot2 = transDot * transDot;
+    float transmission = (transDot2 * transDot2 + saturate(-rawNdotL) * 0.35f) * subsurfaceStrength;
+
+    float3 diffuse = albedo * radiance * (NdotL + transmission);
 
     // Blinn-Phong Specular (Half-Vector)
     float3 H = normalize(V + L);
@@ -36,10 +40,14 @@ float3 CalculatePhongLight(float3 L, float3 V, float3 N, float3 radiance, float3
     return diffuse + specular;
 }
 
-float4 main(VS_OUT pin) : SV_TARGET
+float4 main(VS_OUT pin, bool isFrontFace : SV_IsFrontFace) : SV_TARGET
 {
-    float4 texColor = DiffuseMap.Sample(LinearSampler, pin.texcoord);
-    float4 color = texColor * materialColor * objectColor;
+    float2 uv = (uvProjectionMode == 1) ?
+        CalculateBoxUV(pin.boxPos, pin.boxNormal, uvTiling, uvOffset) :
+        (pin.texcoord * uvTiling + uvOffset);
+
+    float4 texColor = DiffuseMap.Sample(LinearSampler, uv);
+    float4 color = texColor * materialColor * pin.color;
 
     if (alphaMode == 1)
     {
@@ -55,6 +63,7 @@ float4 main(VS_OUT pin) : SV_TARGET
     
     // Normal Mapping
     float3 N = normalize(pin.normal);
+    N = isFrontFace ? N : -N; // Orient normal towards the viewer for two-sided foliage cards
     float tangentLenSq = dot(pin.tangent.xyz, pin.tangent.xyz);
     if (tangentLenSq > 0.0001f)
     {
@@ -62,7 +71,7 @@ float4 main(VS_OUT pin) : SV_TARGET
         float3 B = normalize(cross(N, T) * pin.tangent.w);
         float3x3 TBN = float3x3(T, B, N);
         
-        float3 localNormal = NormalMap.Sample(LinearSampler, pin.texcoord).xyz * 2.0f - 1.0f;
+        float3 localNormal = NormalMap.Sample(LinearSampler, uv).xyz * 2.0f - 1.0f;
         N = normalize(mul(localNormal, TBN));
     }
 
@@ -121,12 +130,12 @@ float4 main(VS_OUT pin) : SV_TARGET
     float factor = dot(N, float3(0.0f, 1.0f, 0.0f)) * 0.5f + 0.5f;
     float3 ambientLight = lerp(ambientGroundColor.rgb, ambientSkyColor.rgb, factor);
 
-    float3 finalColor = totalDirectLight + (ambientLight * albedo) + emissiveColor;
-    finalColor = pow(abs(finalColor), float3(1.0f / 2.2f, 1.0f / 2.2f, 1.0f / 2.2f));
+    // Output pure unbounded linear HDR radiance
+    float3 finalColor = max(0.0f, totalDirectLight + (ambientLight * albedo) + emissiveColor);
 
     if (any(isnan(finalColor)) || any(isinf(finalColor)))
     {
-        return float4(1.0f, 0.0f, 1.0f, 1.0f);
+        return float4(0.0f, 0.0f, 0.0f, 1.0f);
     }
 
     return float4(finalColor, color.a);

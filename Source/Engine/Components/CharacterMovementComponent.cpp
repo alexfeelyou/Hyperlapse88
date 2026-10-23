@@ -184,17 +184,20 @@ void CharacterMovementComponent::Update(const float dt)
 
         const float accelRate{ (LengthSq(m_desiredDirection) > 0.01f) ? m_config.acceleration : m_config.deceleration };
 
-        m_locomotionVelocity.x += (targetVelocity.x - m_locomotionVelocity.x) * accelRate * dt;
-        m_locomotionVelocity.z += (targetVelocity.y - m_locomotionVelocity.z) * accelRate * dt;
+        // Frame-rate independent exponential acceleration prevents velocity overshoot 
+        const float accelBlend{ 1.0f - std::exp(-accelRate * dt) };
+        m_locomotionVelocity.x += (targetVelocity.x - m_locomotionVelocity.x) * accelBlend;
+        m_locomotionVelocity.z += (targetVelocity.y - m_locomotionVelocity.z) * accelBlend;
     }
 
-    // Process Impulse Decay (Friction)
-    // Impulses independently decay to zero over time, allowing dashes to slide smoothly
+    // Process Impulse Decay (Exponential Friction)
+    // Impulses decay asymptotically to zero, guaranteeing consistent sliding distance regardless of FPS
     const float currentDrag{ m_config.impulseDrag * m_frictionMultiplier };
-    
-    m_impulseVelocity.x += (0.0f - m_impulseVelocity.x) * currentDrag * dt;
-    m_impulseVelocity.y += (0.0f - m_impulseVelocity.y) * currentDrag * dt;
-    m_impulseVelocity.z += (0.0f - m_impulseVelocity.z) * currentDrag * dt;
+    const float dragBlend{ 1.0f - std::exp(-currentDrag * dt) };
+
+    m_impulseVelocity.x += (0.0f - m_impulseVelocity.x) * dragBlend;
+    m_impulseVelocity.y += (0.0f - m_impulseVelocity.y) * dragBlend;
+    m_impulseVelocity.z += (0.0f - m_impulseVelocity.z) * dragBlend;
     
     // Snap tiny impulses to zero to prevent floating point drift
     if (std::abs(m_impulseVelocity.x) < 0.05f) m_impulseVelocity.x = 0.0f;

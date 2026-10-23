@@ -52,6 +52,9 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
         return;
     }
 
+    GameObject* targetOwner{ m_targetComponent->GetOwner() };
+    EditorManager::Instance().BeginGameObjectTransaction(targetOwner);
+
     auto& states{ m_targetComponent->GetStates() };
     if (states.empty())
     {
@@ -60,6 +63,7 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
         {
             m_targetComponent->AddState();
         }
+        EditorManager::Instance().EndGameObjectTransaction(targetOwner, "Animation Graph Edit");
         ImGui::End();
         return;
     }
@@ -130,6 +134,7 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
         m_selectedNodeForProps = -1;
         ImGui::PopStyleColor();
         ImGui::EndChild(); // Exit early to avoid reading deleted memory this frame
+        EditorManager::Instance().EndGameObjectTransaction(targetOwner, "Animation Graph Edit");
         ImGui::End();
         return;
     }
@@ -720,6 +725,8 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
         ImGui::EndChild();
         ImGui::PopStyleColor();
     }
+
+    EditorManager::Instance().EndGameObjectTransaction(targetOwner, "Animation Graph Edit");
 
     ImGui::End();
 }

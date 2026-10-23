@@ -20,6 +20,17 @@
 #include "SceneSerializer.h"
 #include "SceneTitle.h"
 #include "WindowManager.h"
+#include <string_view>
+
+// Interface for polymorphic undo/redo command execution
+class IUndoAction
+{
+public:
+    virtual ~IUndoAction() = default;
+    virtual void Undo(Scene* scene) = 0;
+    virtual void Redo(Scene* scene) = 0;
+    [[nodiscard]] virtual std::string_view GetName() const noexcept = 0;
+};
 
 // Scoped state machine for the engine's runtime
 enum class EditorMode : std::uint8_t
@@ -60,13 +71,38 @@ public:
     // Safely clears the active inspector target to prevent dangling pointers
     void ClearSelection() noexcept {
         m_selectedObject = nullptr;
+        m_selectedObjects.clear();
+        m_selectionAnchor = nullptr;
         m_selectedComponent = nullptr;
+        m_deferredDeselectNode = nullptr;
         m_timelinePanel.SetTarget(nullptr, 0);
         m_animGraphPanel.SetTarget(nullptr);
+        m_gameObjectTransaction.isEditing = false;
+        m_gameObjectTransaction.ownerWindowId = 0;
+        m_gameObjectTransaction.target = nullptr;
+        m_gameObjectTransaction.snapshotBefore = nullptr;
     }
 
-	// Accessors for the currently selected GameObject and Component
-	[[nodiscard]] GameObject* GetSelectedObject() const noexcept { return m_selectedObject; }
+    // Transactional Undo / Redo Pipeline
+    void Undo(Scene* currentScene) noexcept;
+    void Redo(Scene* currentScene) noexcept;
+    [[nodiscard]] bool CanUndo() const noexcept;
+    [[nodiscard]] bool CanRedo() const noexcept;
+    [[nodiscard]] std::string_view GetUndoActionName() const noexcept;
+    [[nodiscard]] std::string_view GetRedoActionName() const noexcept;
+    void PushUndoAction(std::unique_ptr<class IUndoAction> action) noexcept;
+    void ClearUndoHistory() noexcept;
+
+    // Multi-Panel Transaction Tracking Interface
+    void BeginGameObjectTransaction(GameObject* target) noexcept;
+    void EndGameObjectTransaction(GameObject* target, std::string_view actionName = "Edit Object") noexcept;
+    void BeginPostProcessTransaction(class PostProcessManager* target) noexcept;
+    void EndPostProcessTransaction(class PostProcessManager* target, std::string_view actionName = "Post-Processing Edit") noexcept;
+
+    // Accessors for the currently selected GameObject and Component
+    [[nodiscard]] GameObject* GetSelectedObject() const noexcept { return m_selectedObject; }
+    [[nodiscard]] const std::vector<GameObject*>& GetSelectedObjects() const noexcept { return m_selectedObjects; }
+    [[nodiscard]] bool IsObjectSelected(const GameObject* node) const noexcept;
     [[nodiscard]] IComponent* GetSelectedComponent() const noexcept { return m_selectedComponent; }
     void SetSelectedComponent(IComponent* comp) noexcept { m_selectedComponent = comp; }
 
@@ -86,16 +122,51 @@ private:
     static constexpr std::string_view s_editorPrefsPath{ "UserSettings/EditorPreferences.json" };
 
     EditorManager() = default;
-    ~EditorManager() = default;
+    ~EditorManager();
 
     void ApplyStyle() const noexcept;
     void DrawDockSpace(Scene* currentScene) noexcept;
     void DrawSceneView(Scene* currentScene, Camera* activeCamera) noexcept;
     void EnsureSceneRenderTarget(UINT width, UINT height) noexcept;
     void DrawMenuBar(Scene* currentScene) noexcept;
-    void DrawHierarchyNode(GameObject* node) noexcept;
-    GameObject* m_selectedObject{ nullptr }; // Tracks what the user clicked on
-	IComponent* m_selectedComponent{ nullptr }; // Tracks what the user clicked on
+    void DrawHierarchyNode(GameObject* node, Scene* currentScene) noexcept;
+    void DuplicateGameObject(GameObject* target, Scene* currentScene) noexcept;
+    void DuplicateSelected(Scene* currentScene) noexcept;
+    void GroupSelected(Scene* currentScene) noexcept;
+    void ParentSelectedToActive() noexcept;
+    void UnparentSelected(Scene* currentScene) noexcept;
+    void ToggleActiveSelected() noexcept;
+    void DeleteSelected() noexcept;
+    void ReparentNodes(const std::vector<GameObject*>& nodes, GameObject* newParent) noexcept;
+    void SetSelectedObject(GameObject* target, bool isToggle = false) noexcept;
+    void ApplySelection(GameObject* target, bool isCtrl, bool isShift) noexcept;
+    GameObject* m_selectedObject{ nullptr }; // Primary selected GameObject (for Inspector/Gizmo)
+    std::vector<GameObject*> m_selectedObjects{}; // Multi-selection collection
+    GameObject* m_selectionAnchor{ nullptr }; // Range anchor for Shift-selection
+    std::vector<GameObject*> m_linearHierarchyNodes{}; // Frame cache of visible hierarchy order
+    GameObject* m_pendingClickNode{ nullptr };
+    GameObject* m_deferredDeselectNode{ nullptr }; // Node to single-select on mouse up if no drag occurred
+    bool m_pendingCtrl{ false };
+    bool m_pendingShift{ false };
+    IComponent* m_selectedComponent{ nullptr }; // Tracks what the user clicked on
+
+    // Undo / Redo Transaction Buffers
+    static constexpr std::size_t s_maxUndoHistory{ 64 };
+    std::vector<std::unique_ptr<class IUndoAction>> m_undoStack{};
+    std::vector<std::unique_ptr<class IUndoAction>> m_redoStack{};
+
+    // Multi-Panel Transaction Memento State
+    struct TransactionSession
+    {
+        nlohmann::json snapshotBefore{};
+        void* target{ nullptr };
+        ImGuiID ownerWindowId{ 0 };
+        bool isEditing{ false };
+    };
+
+    TransactionSession m_gameObjectTransaction{};
+    TransactionSession m_postProcessTransaction{};
+
     void DrawHierarchy(Scene* currentScene) noexcept;
     void DrawInspector(Scene* currentScene) noexcept;
     void DrawConsole() const noexcept;

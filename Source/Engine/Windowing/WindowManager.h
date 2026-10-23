@@ -31,12 +31,14 @@ public:
     platform::Window* GetDebugWindow() const { return debugWindow; }
 
     bool HasWindows() const { return !windows.empty(); }
-
     platform::Window* GetWindowByIndex(size_t index)
     {
         if (index < windows.size()) return windows[index].get();
         return nullptr;
     }
+
+    void SetVSync(bool enabled) noexcept { m_vsync = enabled; }
+    [[nodiscard]] bool IsVSync() const noexcept { return m_vsync; }
 
 private:
     WindowManager() = default;
@@ -46,6 +48,6 @@ private:
 
 private:
     std::vector<std::unique_ptr<platform::Window>> windows;
-
-    platform::Window* debugWindow = nullptr;
+    platform::Window* debugWindow{ nullptr };
+    bool m_vsync{ false }; // Default to false so diagnostic uncap runs at true unthrottled hardware speed
 };

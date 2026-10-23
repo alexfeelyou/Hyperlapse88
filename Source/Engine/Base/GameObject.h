@@ -27,6 +27,9 @@ public:
     // Recursively updates this object, its components, and its children
     void Update(float dt);
 
+    // Recursively late-updates this object, its components, and its children
+    void LateUpdate(float dt);
+
     // Recursively renders this object and all its children
     void Render(class ModelRenderer* renderer);
 
@@ -38,6 +41,12 @@ public:
 
     // Hierarchy / Tree Operations 
     void AddChild(std::unique_ptr<GameObject> child);
+
+    // Removes and returns unique ownership of a specific child node without destroying it
+    [[nodiscard]] std::unique_ptr<GameObject> RemoveChild(GameObject* child) noexcept;
+
+    // Creates an exact deep-copy duplicate of this GameObject, its components, and its children
+    [[nodiscard]] std::unique_ptr<GameObject> Clone() const;
 
     // Clears all child nodes, safely destroying their memory and components
     void ClearChildren() noexcept { m_children.clear(); }

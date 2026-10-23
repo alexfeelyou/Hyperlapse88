@@ -34,12 +34,321 @@ namespace
 
 namespace
 {
+    [[nodiscard]] nlohmann::json SnapshotGameObject(const GameObject* node)
+    {
+        if (!node) return nlohmann::json{};
+
+        nlohmann::json j{};
+        j["Name"] = node->GetName();
+        j["IsActive"] = node->IsActive();
+        j["PosX"] = node->transform.position.x;
+        j["PosY"] = node->transform.position.y;
+        j["PosZ"] = node->transform.position.z;
+        j["RotX"] = node->transform.rotation.x;
+        j["RotY"] = node->transform.rotation.y;
+        j["RotZ"] = node->transform.rotation.z;
+        j["ScaleX"] = node->transform.scale.x;
+        j["ScaleY"] = node->transform.scale.y;
+        j["ScaleZ"] = node->transform.scale.z;
+
+        nlohmann::json compArray = nlohmann::json::array();
+        for (const auto& comp : node->GetComponents())
+        {
+            if (!comp) continue;
+            nlohmann::json compJson{};
+            compJson["Type"] = comp->GetTypeName();
+            comp->Serialize(compJson);
+            compArray.push_back(std::move(compJson));
+        }
+        j["Components"] = std::move(compArray);
+
+        return j;
+    }
+
+    void ApplyGameObjectSnapshot(GameObject* node, const nlohmann::json& j)
+    {
+        if (!node || !j.is_object() || j.empty()) return;
+
+        node->SetName(j.value("Name", node->GetName()));
+        node->SetActive(j.value("IsActive", node->IsActive()));
+        node->transform.position = {
+            j.value("PosX", node->transform.position.x),
+            j.value("PosY", node->transform.position.y),
+            j.value("PosZ", node->transform.position.z)
+        };
+        node->transform.rotation = {
+            j.value("RotX", node->transform.rotation.x),
+            j.value("RotY", node->transform.rotation.y),
+            j.value("RotZ", node->transform.rotation.z)
+        };
+        node->transform.scale = {
+            j.value("ScaleX", node->transform.scale.x),
+            j.value("ScaleY", node->transform.scale.y),
+            j.value("ScaleZ", node->transform.scale.z)
+        };
+
+        if (j.contains("Components"))
+        {
+            for (const auto& compJson : j["Components"])
+            {
+                const std::string type{ compJson.value("Type", "") };
+                for (const auto& comp : node->GetComponents())
+                {
+                    if (comp && comp->GetTypeName() == type)
+                    {
+                        comp->Deserialize(compJson);
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    class TransformGizmoAction final : public IUndoAction
+    {
+    public:
+        TransformGizmoAction(GameObject* target,
+            const DirectX::XMFLOAT3& oldPos, const DirectX::XMFLOAT3& oldRot, const DirectX::XMFLOAT3& oldScale,
+            const DirectX::XMFLOAT3& newPos, const DirectX::XMFLOAT3& newRot, const DirectX::XMFLOAT3& newScale)
+            : m_target{ target }
+            , m_oldPos{ oldPos }, m_oldRot{ oldRot }, m_oldScale{ oldScale }
+            , m_newPos{ newPos }, m_newRot{ newRot }, m_newScale{ newScale }
+        {}
+
+        void Undo(Scene*) override
+        {
+            if (!m_target || m_target->IsDestroyed()) return;
+            m_target->transform.position = m_oldPos;
+            m_target->transform.rotation = m_oldRot;
+            m_target->transform.scale = m_oldScale;
+        }
+
+        void Redo(Scene*) override
+        {
+            if (!m_target || m_target->IsDestroyed()) return;
+            m_target->transform.position = m_newPos;
+            m_target->transform.rotation = m_newRot;
+            m_target->transform.scale = m_newScale;
+        }
+
+        [[nodiscard]] std::string_view GetName() const noexcept override { return "Transform Gizmo"; }
+
+    private:
+        GameObject* m_target{ nullptr };
+        DirectX::XMFLOAT3 m_oldPos{};
+        DirectX::XMFLOAT3 m_oldRot{};
+        DirectX::XMFLOAT3 m_oldScale{};
+        DirectX::XMFLOAT3 m_newPos{};
+        DirectX::XMFLOAT3 m_newRot{};
+        DirectX::XMFLOAT3 m_newScale{};
+    };
+
+    class InspectorEditAction final : public IUndoAction
+    {
+    public:
+        InspectorEditAction(GameObject* target, nlohmann::json beforeState, nlohmann::json afterState, std::string_view actionName = "Inspector Edit")
+            : m_target{ target }
+            , m_name{ actionName }
+        {
+            m_beforeState = std::move(beforeState);
+            m_afterState = std::move(afterState);
+        }
+
+        void Undo(Scene*) override
+        {
+            if (!m_target || m_target->IsDestroyed()) return;
+            ApplyGameObjectSnapshot(m_target, m_beforeState);
+        }
+
+        void Redo(Scene*) override
+        {
+            if (!m_target || m_target->IsDestroyed()) return;
+            ApplyGameObjectSnapshot(m_target, m_afterState);
+        }
+
+        [[nodiscard]] std::string_view GetName() const noexcept override { return m_name; }
+
+    private:
+        GameObject* m_target{ nullptr };
+        nlohmann::json m_beforeState{};
+        nlohmann::json m_afterState{};
+        std::string m_name{ "Inspector Edit" };
+    };
+
+    class PostProcessEditAction final : public IUndoAction
+    {
+    public:
+        PostProcessEditAction(nlohmann::json beforeState, nlohmann::json afterState, std::string_view actionName = "Post-Processing Edit")
+            : m_name{ actionName }
+        {
+            // Direct assignment avoids nlohmann::json initializer_list constructor wrapping the object into a 1-element array
+            m_beforeState = std::move(beforeState);
+            m_afterState = std::move(afterState);
+        }
+
+        void Undo(Scene* scene) override
+        {
+            if (!scene || !scene->GetPostProcessManager()) return;
+            scene->GetPostProcessManager()->Deserialize(m_beforeState);
+        }
+
+        void Redo(Scene* scene) override
+        {
+            if (!scene || !scene->GetPostProcessManager()) return;
+            scene->GetPostProcessManager()->Deserialize(m_afterState);
+        }
+
+        [[nodiscard]] std::string_view GetName() const noexcept override { return m_name; }
+
+    private:
+        nlohmann::json m_beforeState{};
+        nlohmann::json m_afterState{};
+        std::string m_name{ "Post-Processing Edit" };
+    };
+
+    struct ReparentRecord
+    {
+        GameObject* node{ nullptr };
+        GameObject* oldParent{ nullptr };
+        DirectX::XMFLOAT3 oldPos{};
+        DirectX::XMFLOAT3 oldRot{};
+        DirectX::XMFLOAT3 oldScale{};
+        GameObject* newParent{ nullptr };
+        DirectX::XMFLOAT3 newPos{};
+        DirectX::XMFLOAT3 newRot{};
+        DirectX::XMFLOAT3 newScale{};
+    };
+
+    class ReparentAction final : public IUndoAction
+    {
+    public:
+        explicit ReparentAction(std::vector<ReparentRecord> records, std::string_view name = "Reparent")
+            : m_records{ std::move(records) }
+            , m_name{ name }
+        {}
+
+        void Undo(Scene*) override
+        {
+            for (const auto& rec : m_records)
+            {
+                if (rec.node && rec.oldParent && !rec.node->IsDestroyed() && !rec.oldParent->IsDestroyed())
+                {
+                    rec.node->SetParent(rec.oldParent);
+                    rec.node->transform.position = rec.oldPos;
+                    rec.node->transform.rotation = rec.oldRot;
+                    rec.node->transform.scale = rec.oldScale;
+                }
+            }
+        }
+
+        void Redo(Scene*) override
+        {
+            for (const auto& rec : m_records)
+            {
+                if (rec.node && rec.newParent && !rec.node->IsDestroyed() && !rec.newParent->IsDestroyed())
+                {
+                    rec.node->SetParent(rec.newParent);
+                    rec.node->transform.position = rec.newPos;
+                    rec.node->transform.rotation = rec.newRot;
+                    rec.node->transform.scale = rec.newScale;
+                }
+            }
+        }
+
+        [[nodiscard]] std::string_view GetName() const noexcept override { return m_name; }
+
+    private:
+        std::vector<ReparentRecord> m_records{};
+        std::string m_name{};
+    };
+
+    class CreateObjectAction final : public IUndoAction
+    {
+    public:
+        CreateObjectAction(GameObject* parent, GameObject* rawNode)
+            : m_parent{ parent }
+            , m_rawNode{ rawNode }
+        {}
+
+        void Undo(Scene*) override
+        {
+            if (m_parent && m_rawNode && !m_ownedNode)
+            {
+                m_ownedNode = m_parent->RemoveChild(m_rawNode);
+            }
+        }
+
+        void Redo(Scene*) override
+        {
+            if (m_parent && m_ownedNode)
+            {
+                m_rawNode = m_ownedNode.get();
+                m_parent->AddChild(std::move(m_ownedNode));
+            }
+        }
+
+        [[nodiscard]] std::string_view GetName() const noexcept override { return "Create GameObject"; }
+
+    private:
+        GameObject* m_parent{ nullptr };
+        GameObject* m_rawNode{ nullptr };
+        std::unique_ptr<GameObject> m_ownedNode{ nullptr };
+    };
+
+    struct DeletedRecord
+    {
+        GameObject* parent{ nullptr };
+        GameObject* rawNode{ nullptr };
+        std::unique_ptr<GameObject> storage{ nullptr };
+    };
+
+    class DeleteObjectsAction final : public IUndoAction
+    {
+    public:
+        explicit DeleteObjectsAction(std::vector<DeletedRecord> records)
+            : m_records{ std::move(records) }
+        {}
+
+        void Undo(Scene*) override
+        {
+            for (auto& rec : m_records)
+            {
+                if (rec.parent && rec.storage)
+                {
+                    rec.rawNode = rec.storage.get();
+                    rec.parent->AddChild(std::move(rec.storage));
+                }
+            }
+        }
+
+        void Redo(Scene*) override
+        {
+            for (auto& rec : m_records)
+            {
+                if (rec.parent && rec.rawNode && !rec.storage)
+                {
+                    rec.storage = rec.parent->RemoveChild(rec.rawNode);
+                }
+            }
+        }
+
+        [[nodiscard]] std::string_view GetName() const noexcept override { return "Delete GameObject(s)"; }
+
+    private:
+        std::vector<DeletedRecord> m_records{};
+    };
+}
+
+namespace
+{
     enum class ToolbarIcon : std::uint8_t
     {
         Play = 0,
         Pause,
         Stop,
-        Maximize
+        Maximize,
+        Undo,
+        Redo
     };
 
     [[nodiscard]] bool DrawToolbarIconButton(
@@ -138,11 +447,53 @@ namespace
             }
             break;
         }
+        case ToolbarIcon::Undo:
+        {
+            constexpr float strokeWidth{ 1.8f };
+            const ImVec2 tip{ center.x - 5.5f, center.y - 3.0f };
+            const ImVec2 arcCenter{ center.x + 1.5f, center.y + 1.0f };
+            constexpr float r{ 4.0f };
+
+            // Open chevron arrowhead pointing left 
+            drawList->PathLineTo(ImVec2{ tip.x + 3.2f, tip.y - 3.0f });
+            drawList->PathLineTo(tip);
+            drawList->PathLineTo(ImVec2{ tip.x + 3.2f, tip.y + 3.0f });
+            drawList->PathStroke(iconColor, 0, strokeWidth);
+
+            // Hook shaft: horizontal top line smoothly joining 90-degree arc and down-left tail
+            drawList->PathLineTo(tip);
+            drawList->PathArcTo(arcCenter, r, -DirectX::XM_PIDIV2, DirectX::XM_PI * 0.35f, 10);
+            drawList->PathLineTo(ImVec2{ center.x + 1.4f, center.y + 5.5f });
+            drawList->PathStroke(iconColor, 0, strokeWidth);
+            break;
+        }
+        case ToolbarIcon::Redo:
+        {
+            constexpr float strokeWidth{ 1.8f };
+            const ImVec2 tip{ center.x + 5.5f, center.y - 3.0f };
+            const ImVec2 arcCenter{ center.x - 1.5f, center.y + 1.0f };
+            constexpr float r{ 4.0f };
+
+            // Open chevron arrowhead pointing right 
+            drawList->PathLineTo(ImVec2{ tip.x - 3.2f, tip.y - 3.0f });
+            drawList->PathLineTo(tip);
+            drawList->PathLineTo(ImVec2{ tip.x - 3.2f, tip.y + 3.0f });
+            drawList->PathStroke(iconColor, 0, strokeWidth);
+
+            // Hook shaft: horizontal top line smoothly joining 90-degree arc and down-right tail
+            drawList->PathLineTo(tip);
+            drawList->PathArcTo(arcCenter, r, -DirectX::XM_PIDIV2, -DirectX::XM_PI * 1.35f, 10);
+            drawList->PathLineTo(ImVec2{ center.x - 1.4f, center.y + 5.5f });
+            drawList->PathStroke(iconColor, 0, strokeWidth);
+            break;
+        }
         }
 
         return isClicked;
     }
 }
+
+EditorManager::~EditorManager() = default;
 
 EditorManager& EditorManager::Instance() noexcept
 {
@@ -354,12 +705,40 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
     }
 
     constexpr ImVec2 buttonSize{ 34.0f, 22.0f };
-    const float totalToolbarWidth{ (buttonSize.x * 3.0f) + (ImGui::GetStyle().ItemSpacing.x * 2.0f) };
+    const float totalToolbarWidth{ (buttonSize.x * 5.0f) + (ImGui::GetStyle().ItemSpacing.x * 4.0f) };
 
     if (s_isSceneMaximized) ImGui::SetCursorPosY(8.0f);
 
     const float availWidth{ ImGui::GetContentRegionAvail().x };
     ImGui::SetCursorPosX((availWidth * 0.5f) - (totalToolbarWidth * 0.5f));
+
+    // Toolbar Undo Button
+    ImGui::BeginDisabled(!CanUndo());
+    if (DrawToolbarIconButton("##ToolbarUndoBtn", ToolbarIcon::Undo, false, ImVec4{ 0.3f, 0.3f, 0.3f, 1.0f }, buttonSize))
+    {
+        Undo(currentScene);
+    }
+    ImGui::EndDisabled();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+    {
+        ImGui::SetTooltip("Undo (Ctrl+Z)");
+    }
+
+    ImGui::SameLine();
+
+    // Toolbar Redo Button
+    ImGui::BeginDisabled(!CanRedo());
+    if (DrawToolbarIconButton("##ToolbarRedoBtn", ToolbarIcon::Redo, false, ImVec4{ 0.3f, 0.3f, 0.3f, 1.0f }, buttonSize))
+    {
+        Redo(currentScene);
+    }
+    ImGui::EndDisabled();
+    if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+    {
+        ImGui::SetTooltip("Redo (Ctrl+Y)");
+    }
+
+    ImGui::SameLine();
 
     static bool s_skipGizmoThisFrame{ false };
 
@@ -516,6 +895,21 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
         ImGuizmo::SetOrthographic(false);
         ImGuizmo::Manipulate(&view._11, &proj._11, m_gizmoOperation, m_gizmoMode, &targetMatrix._11);
 
+        static bool s_wasGizmoUsing{ false };
+        static DirectX::XMFLOAT3 s_gizmoPrePos{};
+        static DirectX::XMFLOAT3 s_gizmoPreRot{};
+        static DirectX::XMFLOAT3 s_gizmoPreScale{};
+        static GameObject* s_gizmoTarget{ nullptr };
+
+        if (!s_wasGizmoUsing && ImGuizmo::IsUsing())
+        {
+            s_wasGizmoUsing = true;
+            s_gizmoTarget = m_selectedObject;
+            s_gizmoPrePos = m_selectedObject->transform.position;
+            s_gizmoPreRot = m_selectedObject->transform.rotation;
+            s_gizmoPreScale = m_selectedObject->transform.scale;
+        }
+
         if (ImGuizmo::IsUsing())
         {
             DirectX::XMMATRIX matNewWorld{ DirectX::XMLoadFloat4x4(&targetMatrix) };
@@ -612,6 +1006,27 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
                 }
             }
         }
+        else if (s_wasGizmoUsing)
+        {
+            s_wasGizmoUsing = false;
+            if (s_gizmoTarget && s_gizmoTarget == m_selectedObject)
+            {
+                const auto& curPos = m_selectedObject->transform.position;
+                const auto& curRot = m_selectedObject->transform.rotation;
+                const auto& curScale = m_selectedObject->transform.scale;
+
+                if (curPos.x != s_gizmoPrePos.x || curPos.y != s_gizmoPrePos.y || curPos.z != s_gizmoPrePos.z ||
+                    curRot.x != s_gizmoPreRot.x || curRot.y != s_gizmoPreRot.y || curRot.z != s_gizmoPreRot.z ||
+                    curScale.x != s_gizmoPreScale.x || curScale.y != s_gizmoPreScale.y || curScale.z != s_gizmoPreScale.z)
+                {
+                    PushUndoAction(std::make_unique<TransformGizmoAction>(
+                        m_selectedObject,
+                        s_gizmoPrePos, s_gizmoPreRot, s_gizmoPreScale,
+                        curPos, curRot, curScale));
+                }
+            }
+            s_gizmoTarget = nullptr;
+        }
     }
 
     const ImVec2 windowSize{ ImGui::GetWindowSize() };
@@ -670,16 +1085,54 @@ void EditorManager::DrawMenuBar(Scene* currentScene) noexcept
             ImGui::EndMenu();
         }
 
+        if (ImGui::BeginMenu("Edit"))
+        {
+            const std::string undoLabel = CanUndo()
+                ? "Undo " + std::string(GetUndoActionName())
+                : "Undo";
+            const std::string redoLabel = CanRedo()
+                ? "Redo " + std::string(GetRedoActionName())
+                : "Redo";
+
+            if (ImGui::MenuItem(undoLabel.c_str(), "Ctrl+Z", false, CanUndo()))
+            {
+                Undo(currentScene);
+            }
+            if (ImGui::MenuItem(redoLabel.c_str(), "Ctrl+Y", false, CanRedo()))
+            {
+                Redo(currentScene);
+            }
+
+            ImGui::Separator();
+
+            if (ImGui::MenuItem("Duplicate", "Ctrl+D", false, m_selectedObject != nullptr))
+            {
+                DuplicateSelected(currentScene);
+            }
+            if (ImGui::MenuItem("Group Selected", "Ctrl+G", false, !m_selectedObjects.empty()))
+            {
+                GroupSelected(currentScene);
+            }
+            if (ImGui::MenuItem("Delete", "Del", false, !m_selectedObjects.empty() || m_selectedObject != nullptr))
+            {
+                DeleteSelected();
+            }
+
+            ImGui::EndMenu();
+        }
+
         if (ImGui::BeginMenu("Scene"))
         {
             if (ImGui::MenuItem("Title"))
             {
-                ClearSelection(); 
+                ClearSelection();
+                ClearUndoHistory();
                 Framework::Instance()->ChangeScene([]() { return std::make_unique<SceneTitle>(); });
             }
             if (ImGui::MenuItem("Game"))
             {
-                ClearSelection(); 
+                ClearSelection();
+                ClearUndoHistory();
                 Framework::Instance()->ChangeScene([]() { return std::make_unique<SceneGame>(); });
             }
             ImGui::EndMenu();
@@ -694,6 +1147,14 @@ void EditorManager::DrawMenuBar(Scene* currentScene) noexcept
         if (ImGui::BeginMenu("Graphics"))
         {
             ImGui::MenuItem("Post-Processing", nullptr, &m_showPostProcess);
+            ImGui::Separator();
+
+            bool isVsyncActive{ WindowManager::Instance().IsVSync() };
+            if (ImGui::MenuItem("VSync (Lock Refresh)", nullptr, &isVsyncActive))
+            {
+                WindowManager::Instance().SetVSync(isVsyncActive);
+            }
+
             ImGui::EndMenu();
         }
         if (ImGui::BeginMenu("Time")) { ImGui::EndMenu(); }
@@ -703,13 +1164,739 @@ void EditorManager::DrawMenuBar(Scene* currentScene) noexcept
     }
 }
 
-void EditorManager::DrawHierarchyNode(GameObject* node) noexcept
+void EditorManager::Undo(Scene* currentScene) noexcept
+{
+    if (m_undoStack.empty() || !currentScene) return;
+
+    // Abort any open sessions so the undo invocation is not captured as a modification
+    m_gameObjectTransaction.isEditing = false;
+    m_postProcessTransaction.isEditing = false;
+
+    auto action{ std::move(m_undoStack.back()) };
+    m_undoStack.pop_back();
+
+    action->Undo(currentScene);
+    m_redoStack.push_back(std::move(action));
+}
+
+void EditorManager::Redo(Scene* currentScene) noexcept
+{
+    if (m_redoStack.empty() || !currentScene) return;
+
+    // Abort any open sessions so the redo invocation is not captured as a modification
+    m_gameObjectTransaction.isEditing = false;
+    m_postProcessTransaction.isEditing = false;
+
+    auto action{ std::move(m_redoStack.back()) };
+    m_redoStack.pop_back();
+
+    action->Redo(currentScene);
+    m_undoStack.push_back(std::move(action));
+}
+
+void EditorManager::BeginGameObjectTransaction(GameObject* target) noexcept
+{
+    if (!target || m_editorMode == EditorMode::Play) return;
+
+    const ImGuiContext& imguiCtx{ *GImGui };
+    const ImGuiWindow* curWindow{ ImGui::GetCurrentWindow() };
+    if (!curWindow) return;
+
+    const ImGuiID rootWindowId{ curWindow->RootWindow ? curWindow->RootWindow->ID : curWindow->ID };
+
+    // Prevent cross-panel transaction collisions: if another window owns an active session, do not interfere
+    if (m_gameObjectTransaction.isEditing && m_gameObjectTransaction.ownerWindowId != rootWindowId)
+    {
+        const bool ownerStillActive{
+            (imguiCtx.ActiveId != 0 && imguiCtx.ActiveIdWindow && imguiCtx.ActiveIdWindow->RootWindow
+                && imguiCtx.ActiveIdWindow->RootWindow->ID == m_gameObjectTransaction.ownerWindowId)
+            || (ImGui::IsMouseDown(ImGuiMouseButton_Left) || ImGui::IsMouseDown(ImGuiMouseButton_Right))
+        };
+        if (ownerStillActive)
+        {
+            return;
+        }
+
+        // Finalize stale session if mouse was released outside the original window
+        m_gameObjectTransaction.isEditing = false;
+        if (auto* prevTarget = static_cast<GameObject*>(m_gameObjectTransaction.target))
+        {
+            nlohmann::json afterState = SnapshotGameObject(prevTarget);
+            if (afterState != m_gameObjectTransaction.snapshotBefore)
+            {
+                PushUndoAction(std::make_unique<InspectorEditAction>(
+                    prevTarget,
+                    std::move(m_gameObjectTransaction.snapshotBefore),
+                    std::move(afterState),
+                    "Edit Object"));
+            }
+        }
+        m_gameObjectTransaction.snapshotBefore = nullptr;
+        m_gameObjectTransaction.target = nullptr;
+        m_gameObjectTransaction.ownerWindowId = 0;
+    }
+
+    if (m_gameObjectTransaction.target != target)
+    {
+        m_gameObjectTransaction.isEditing = false;
+        m_gameObjectTransaction.target = target;
+        m_gameObjectTransaction.ownerWindowId = 0;
+        m_gameObjectTransaction.snapshotBefore = nullptr;
+    }
+
+    const bool pressedOnWindow{
+        ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows)
+        && (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Right)) };
+
+    const bool widgetAlreadyActive{
+        imguiCtx.ActiveId != 0 && imguiCtx.ActiveIdWindow && curWindow
+        && imguiCtx.ActiveIdWindow->RootWindow == curWindow->RootWindow };
+
+    if (!m_gameObjectTransaction.isEditing && (pressedOnWindow || widgetAlreadyActive))
+    {
+        m_gameObjectTransaction.snapshotBefore = SnapshotGameObject(target);
+        m_gameObjectTransaction.target = target;
+        m_gameObjectTransaction.ownerWindowId = rootWindowId;
+        m_gameObjectTransaction.isEditing = true;
+    }
+}
+
+void EditorManager::EndGameObjectTransaction(GameObject* target, std::string_view actionName) noexcept
+{
+    if (!target || !m_gameObjectTransaction.isEditing) return;
+
+    const ImGuiContext& imguiCtx{ *GImGui };
+    const ImGuiWindow* curWindow{ ImGui::GetCurrentWindow() };
+    if (!curWindow) return;
+
+    const ImGuiID rootWindowId{ curWindow->RootWindow ? curWindow->RootWindow->ID : curWindow->ID };
+    if (m_gameObjectTransaction.ownerWindowId != rootWindowId)
+    {
+        return; // Only the window that began the transaction is permitted to commit it
+    }
+
+    const bool isInteractingInWindow{
+        (imguiCtx.ActiveId != 0 && imguiCtx.ActiveIdWindow && curWindow && imguiCtx.ActiveIdWindow->RootWindow == curWindow->RootWindow)
+        || (imguiCtx.OpenPopupStack.Size > 0)
+        || (ImGui::IsMouseDown(ImGuiMouseButton_Left) || ImGui::IsMouseDown(ImGuiMouseButton_Right))
+    };
+
+    if (!isInteractingInWindow)
+    {
+        m_gameObjectTransaction.isEditing = false;
+        m_gameObjectTransaction.ownerWindowId = 0;
+        m_gameObjectTransaction.target = nullptr;
+        nlohmann::json afterState = SnapshotGameObject(target);
+        if (afterState != m_gameObjectTransaction.snapshotBefore)
+        {
+            PushUndoAction(std::make_unique<InspectorEditAction>(
+                target,
+                std::move(m_gameObjectTransaction.snapshotBefore),
+                std::move(afterState),
+                actionName));
+        }
+        m_gameObjectTransaction.snapshotBefore = nullptr;
+    }
+}
+
+void EditorManager::BeginPostProcessTransaction(PostProcessManager* target) noexcept
+{
+    if (!target || m_editorMode == EditorMode::Play) return;
+
+    const ImGuiContext& imguiCtx{ *GImGui };
+    const ImGuiWindow* curWindow{ ImGui::GetCurrentWindow() };
+    if (!curWindow) return;
+
+    const ImGuiID rootWindowId{ curWindow->RootWindow ? curWindow->RootWindow->ID : curWindow->ID };
+
+    if (m_postProcessTransaction.isEditing && m_postProcessTransaction.ownerWindowId != rootWindowId)
+    {
+        const bool ownerStillActive{
+            (imguiCtx.ActiveId != 0 && imguiCtx.ActiveIdWindow && curWindow && imguiCtx.ActiveIdWindow->RootWindow
+                && imguiCtx.ActiveIdWindow->RootWindow->ID == m_postProcessTransaction.ownerWindowId)
+            || (ImGui::IsMouseDown(ImGuiMouseButton_Left) || ImGui::IsMouseDown(ImGuiMouseButton_Right))
+        };
+        if (ownerStillActive)
+        {
+            return;
+        }
+
+        m_postProcessTransaction.isEditing = false;
+        if (auto* prevTarget = static_cast<PostProcessManager*>(m_postProcessTransaction.target))
+        {
+            nlohmann::json afterState{};
+            prevTarget->Serialize(afterState);
+            if (afterState != m_postProcessTransaction.snapshotBefore)
+            {
+                PushUndoAction(std::make_unique<PostProcessEditAction>(
+                    std::move(m_postProcessTransaction.snapshotBefore),
+                    std::move(afterState),
+                    "Post-Processing Edit"));
+            }
+        }
+        m_postProcessTransaction.snapshotBefore = nullptr;
+        m_postProcessTransaction.target = nullptr;
+        m_postProcessTransaction.ownerWindowId = 0;
+    }
+
+    if (m_postProcessTransaction.target != target)
+    {
+        m_postProcessTransaction.isEditing = false;
+        m_postProcessTransaction.target = target;
+        m_postProcessTransaction.ownerWindowId = 0;
+        m_postProcessTransaction.snapshotBefore = nullptr;
+    }
+
+    const bool pressedOnWindow{
+        ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows)
+        && (ImGui::IsMouseClicked(ImGuiMouseButton_Left) || ImGui::IsMouseClicked(ImGuiMouseButton_Right)) };
+
+    const bool widgetAlreadyActive{
+        imguiCtx.ActiveId != 0 && imguiCtx.ActiveIdWindow && curWindow
+        && imguiCtx.ActiveIdWindow->RootWindow == curWindow->RootWindow };
+
+    if (!m_postProcessTransaction.isEditing && (pressedOnWindow || widgetAlreadyActive))
+    {
+        nlohmann::json j{};
+        target->Serialize(j);
+        m_postProcessTransaction.snapshotBefore = std::move(j);
+        m_postProcessTransaction.target = target;
+        m_postProcessTransaction.ownerWindowId = rootWindowId;
+        m_postProcessTransaction.isEditing = true;
+    }
+}
+
+void EditorManager::EndPostProcessTransaction(PostProcessManager* target, std::string_view actionName) noexcept
+{
+    if (!target || !m_postProcessTransaction.isEditing) return;
+
+    const ImGuiContext& imguiCtx{ *GImGui };
+    const ImGuiWindow* curWindow{ ImGui::GetCurrentWindow() };
+    if (!curWindow) return;
+
+    const ImGuiID rootWindowId{ curWindow->RootWindow ? curWindow->RootWindow->ID : curWindow->ID };
+    if (m_postProcessTransaction.ownerWindowId != rootWindowId)
+    {
+        return;
+    }
+
+    const bool isInteractingInWindow{
+        (imguiCtx.ActiveId != 0 && imguiCtx.ActiveIdWindow && curWindow && imguiCtx.ActiveIdWindow->RootWindow == curWindow->RootWindow)
+        || (imguiCtx.OpenPopupStack.Size > 0)
+        || (ImGui::IsMouseDown(ImGuiMouseButton_Left) || ImGui::IsMouseDown(ImGuiMouseButton_Right))
+    };
+
+    if (!isInteractingInWindow)
+    {
+        m_postProcessTransaction.isEditing = false;
+        m_postProcessTransaction.ownerWindowId = 0;
+        m_postProcessTransaction.target = nullptr;
+        nlohmann::json afterState{};
+        target->Serialize(afterState);
+        if (afterState != m_postProcessTransaction.snapshotBefore)
+        {
+            PushUndoAction(std::make_unique<PostProcessEditAction>(
+                std::move(m_postProcessTransaction.snapshotBefore),
+                std::move(afterState),
+                actionName));
+        }
+        m_postProcessTransaction.snapshotBefore = nullptr;
+    }
+}
+
+[[nodiscard]] bool EditorManager::CanUndo() const noexcept
+{
+    return !m_undoStack.empty();
+}
+
+[[nodiscard]] bool EditorManager::CanRedo() const noexcept
+{
+    return !m_redoStack.empty();
+}
+
+[[nodiscard]] std::string_view EditorManager::GetUndoActionName() const noexcept
+{
+    return m_undoStack.empty() ? "" : m_undoStack.back()->GetName();
+}
+
+[[nodiscard]] std::string_view EditorManager::GetRedoActionName() const noexcept
+{
+    return m_redoStack.empty() ? "" : m_redoStack.back()->GetName();
+}
+
+void EditorManager::PushUndoAction(std::unique_ptr<IUndoAction> action) noexcept
+{
+    if (!action) return;
+
+    if (m_undoStack.size() >= s_maxUndoHistory)
+    {
+        m_undoStack.erase(m_undoStack.begin());
+    }
+
+    m_undoStack.push_back(std::move(action));
+    m_redoStack.clear();
+}
+
+void EditorManager::ClearUndoHistory() noexcept
+{
+    m_undoStack.clear();
+    m_redoStack.clear();
+}
+
+bool EditorManager::IsObjectSelected(const GameObject* node) const noexcept
+{
+    if (!node) return false;
+    return std::find(m_selectedObjects.begin(), m_selectedObjects.end(), node) != m_selectedObjects.end();
+}
+
+void EditorManager::SetSelectedObject(GameObject* target, bool isToggle) noexcept
+{
+    ApplySelection(target, isToggle, false);
+}
+
+void EditorManager::ApplySelection(GameObject* target, bool isCtrl, bool isShift) noexcept
+{
+    if (!target) return;
+
+    // Shift range selection: selects contiguous block between anchor and target
+    if (isShift && m_selectionAnchor)
+    {
+        const auto anchorIt = std::find(m_linearHierarchyNodes.begin(), m_linearHierarchyNodes.end(), m_selectionAnchor);
+        const auto targetIt = std::find(m_linearHierarchyNodes.begin(), m_linearHierarchyNodes.end(), target);
+
+        if (anchorIt != m_linearHierarchyNodes.end() && targetIt != m_linearHierarchyNodes.end())
+        {
+            const auto first = (std::min)(anchorIt, targetIt);
+            const auto last = (std::max)(anchorIt, targetIt);
+
+            if (!isCtrl)
+            {
+                m_selectedObjects.clear();
+            }
+
+            for (auto it = first; it <= last; ++it)
+            {
+                if (!IsObjectSelected(*it))
+                {
+                    m_selectedObjects.push_back(*it);
+                }
+            }
+            m_selectedObject = target;
+            m_selectedComponent = nullptr;
+            return;
+        }
+    }
+
+    // Ctrl click: toggle selection
+    if (isCtrl)
+    {
+        const auto it = std::find(m_selectedObjects.begin(), m_selectedObjects.end(), target);
+        if (it != m_selectedObjects.end())
+        {
+            m_selectedObjects.erase(it);
+            if (m_selectedObject == target)
+            {
+                m_selectedObject = m_selectedObjects.empty() ? nullptr : m_selectedObjects.back();
+            }
+        }
+        else
+        {
+            m_selectedObjects.push_back(target);
+            m_selectedObject = target;
+        }
+        m_selectionAnchor = target;
+    }
+    else
+    {
+        // Normal single click: replace selection
+        m_selectedObjects.clear();
+        m_selectedObjects.push_back(target);
+        m_selectedObject = target;
+        m_selectionAnchor = target;
+    }
+
+    m_selectedComponent = nullptr;
+}
+
+void EditorManager::DuplicateGameObject(GameObject* target, Scene* currentScene) noexcept
+{
+    if (!target || !currentScene || target == currentScene->GetRootGameObject()) return;
+
+    auto clone{ target->Clone() };
+    GameObject* clonePtr{ clone.get() };
+
+    GameObject* parent{ target->GetParent() ? target->GetParent() : currentScene->GetRootGameObject() };
+    parent->AddChild(std::move(clone));
+
+    m_selectedObjects.clear();
+    m_selectedObjects.push_back(clonePtr);
+    m_selectedObject = clonePtr;
+    m_selectionAnchor = clonePtr;
+    m_selectedComponent = nullptr;
+}
+
+void EditorManager::DuplicateSelected(Scene* currentScene) noexcept
+{
+    if (!currentScene) return;
+
+    if (m_selectedObjects.empty())
+    {
+        if (m_selectedObject && m_selectedObject != currentScene->GetRootGameObject())
+        {
+            DuplicateGameObject(m_selectedObject, currentScene);
+        }
+        return;
+    }
+
+    // Clone selected objects into temporary array to prevent iteration invalidation
+    const std::vector<GameObject*> targetsToDuplicate{ m_selectedObjects };
+    m_selectedObjects.clear();
+
+    for (auto* target : targetsToDuplicate)
+    {
+        if (!target || target == currentScene->GetRootGameObject() || target->IsDestroyed()) continue;
+
+        auto clone{ target->Clone() };
+        GameObject* clonePtr{ clone.get() };
+
+        GameObject* parent{ target->GetParent() ? target->GetParent() : currentScene->GetRootGameObject() };
+        parent->AddChild(std::move(clone));
+
+        m_selectedObjects.push_back(clonePtr);
+    }
+
+    if (!m_selectedObjects.empty())
+    {
+        for (auto* cloneObj : m_selectedObjects)
+        {
+            if (cloneObj && cloneObj->GetParent())
+            {
+                PushUndoAction(std::make_unique<CreateObjectAction>(cloneObj->GetParent(), cloneObj));
+            }
+        }
+        m_selectedObject = m_selectedObjects.back();
+        m_selectionAnchor = m_selectedObjects.front();
+    }
+    else
+    {
+        m_selectedObject = nullptr;
+        m_selectionAnchor = nullptr;
+    }
+    m_selectedComponent = nullptr;
+}
+
+void EditorManager::GroupSelected(Scene* currentScene) noexcept
+{
+    if (!currentScene || !currentScene->GetRootGameObject()) return;
+
+    // Filter valid nodes from selection (exclude null, root, or destroyed)
+    std::vector<GameObject*> validObjects{};
+    validObjects.reserve(m_selectedObjects.size());
+    for (auto* obj : m_selectedObjects)
+    {
+        if (obj && obj != currentScene->GetRootGameObject() && !obj->IsDestroyed())
+        {
+            validObjects.push_back(obj);
+        }
+    }
+
+    if (validObjects.empty())
+    {
+        if (m_selectedObject && m_selectedObject != currentScene->GetRootGameObject() && !m_selectedObject->IsDestroyed())
+        {
+            validObjects.push_back(m_selectedObject);
+        }
+        else
+        {
+            return;
+        }
+    }
+
+    // Isolate top-level nodes within selection to prevent pulling children out of selected parents
+    std::vector<GameObject*> topLevelSelection{};
+    topLevelSelection.reserve(validObjects.size());
+    for (auto* obj : validObjects)
+    {
+        bool hasSelectedAncestor{ false };
+        for (const auto* curr{ obj->GetParent() }; curr != nullptr; curr = curr->GetParent())
+        {
+            if (std::find(validObjects.begin(), validObjects.end(), curr) != validObjects.end())
+            {
+                hasSelectedAncestor = true;
+                break;
+            }
+        }
+        if (!hasSelectedAncestor)
+        {
+            topLevelSelection.push_back(obj);
+        }
+    }
+
+    if (topLevelSelection.empty()) return;
+
+    // Compute the arithmetic mean of world positions for the new group pivot
+    DirectX::XMFLOAT3 centerPos{ 0.0f, 0.0f, 0.0f };
+    for (const auto* obj : topLevelSelection)
+    {
+        const DirectX::XMFLOAT4X4 wMat{ obj->transform.GetWorldMatrix() };
+        centerPos.x += wMat._41;
+        centerPos.y += wMat._42;
+        centerPos.z += wMat._43;
+    }
+    const float invCount{ 1.0f / static_cast<float>(topLevelSelection.size()) };
+    centerPos.x *= invCount;
+    centerPos.y *= invCount;
+    centerPos.z *= invCount;
+
+    // If all top-level objects share the same parent, place group under it; otherwise scene root
+    GameObject* commonParent{ topLevelSelection.front()->GetParent() };
+    for (std::size_t i{ 1 }; i < topLevelSelection.size(); ++i)
+    {
+        if (topLevelSelection[i]->GetParent() != commonParent)
+        {
+            commonParent = currentScene->GetRootGameObject();
+            break;
+        }
+    }
+    if (!commonParent)
+    {
+        commonParent = currentScene->GetRootGameObject();
+    }
+
+    // Determine clean incremental name (Maya/Blender convention: Group_01, Group_02, ...)
+    int maxIndex{ 0 };
+    for (const auto& sibling : commonParent->GetChildren())
+    {
+        if (!sibling) continue;
+        const std::string& sibName{ sibling->GetName() };
+        if (sibName.rfind("Group_", 0) == 0 && sibName.length() > 6)
+        {
+            char* endPtr{ nullptr };
+            const long val{ std::strtol(sibName.c_str() + 6, &endPtr, 10) };
+            if (endPtr != sibName.c_str() + 6 && *endPtr == '\0')
+            {
+                if (val > maxIndex) maxIndex = static_cast<int>(val);
+            }
+        }
+    }
+
+    char groupName[64];
+    snprintf(groupName, sizeof(groupName), "Group_%02d", maxIndex + 1);
+
+    auto groupObj{ std::make_unique<GameObject>(groupName) };
+    auto* groupPtr{ groupObj.get() };
+
+    // Convert world center position to common parent's local space
+    if (commonParent != currentScene->GetRootGameObject())
+    {
+        const DirectX::XMFLOAT4X4 parentWorldF{ commonParent->transform.GetWorldMatrix() };
+        const DirectX::XMMATRIX pWorld{ DirectX::XMLoadFloat4x4(&parentWorldF) };
+        DirectX::XMVECTOR det;
+        const DirectX::XMMATRIX invPWorld{ DirectX::XMMatrixInverse(&det, pWorld) };
+        const DirectX::XMVECTOR vWorldPos{ DirectX::XMLoadFloat3(&centerPos) };
+        const DirectX::XMVECTOR vLocalPos{ DirectX::XMVector3TransformCoord(vWorldPos, invPWorld) };
+        DirectX::XMStoreFloat3(&groupObj->transform.position, vLocalPos);
+    }
+    else
+    {
+        groupObj->transform.position = centerPos;
+    }
+
+    commonParent->AddChild(std::move(groupObj));
+
+    // Reparent each selected top-level object under the new group
+    for (auto* obj : topLevelSelection)
+    {
+        if (obj != groupPtr && obj->GetParent() != groupPtr)
+        {
+            obj->SetParent(groupPtr);
+        }
+    }
+
+    // Focus selection onto the new group
+    m_selectedObjects.clear();
+    m_selectedObjects.push_back(groupPtr);
+    m_selectedObject = groupPtr;
+    m_selectionAnchor = groupPtr;
+    m_selectedComponent = nullptr;
+}
+
+void EditorManager::ReparentNodes(const std::vector<GameObject*>& nodes, GameObject* newParent) noexcept
+{
+    if (!newParent) return;
+
+    // Gather valid candidates (non-null, not destroyed, not already parented, not self)
+    std::vector<GameObject*> validNodes{};
+    validNodes.reserve(nodes.size());
+    for (auto* node : nodes)
+    {
+        if (!node || node->IsDestroyed() || node == newParent || node->GetParent() == newParent)
+        {
+            continue;
+        }
+
+        // Prevent cyclic parenting: newParent cannot be a descendant of node
+        bool isAncestorOfTarget{ false };
+        for (const auto* curr{ newParent }; curr != nullptr; curr = curr->GetParent())
+        {
+            if (curr == node)
+            {
+                isAncestorOfTarget = true;
+                break;
+            }
+        }
+        if (!isAncestorOfTarget)
+        {
+            validNodes.push_back(node);
+        }
+    }
+
+    // Isolate top-level nodes in selection (if parent and child are both selected, only reparent parent)
+    std::vector<GameObject*> topLevelNodes{};
+    topLevelNodes.reserve(validNodes.size());
+    for (auto* node : validNodes)
+    {
+        bool hasSelectedAncestor{ false };
+        for (const auto* curr{ node->GetParent() }; curr != nullptr; curr = curr->GetParent())
+        {
+            if (std::find(validNodes.begin(), validNodes.end(), curr) != validNodes.end())
+            {
+                hasSelectedAncestor = true;
+                break;
+            }
+        }
+        if (!hasSelectedAncestor)
+        {
+            topLevelNodes.push_back(node);
+        }
+    }
+
+    std::vector<ReparentRecord> records{};
+    records.reserve(topLevelNodes.size());
+
+    for (auto* node : topLevelNodes)
+    {
+        ReparentRecord rec{};
+        rec.node = node;
+        rec.oldParent = node->GetParent();
+        rec.oldPos = node->transform.position;
+        rec.oldRot = node->transform.rotation;
+        rec.oldScale = node->transform.scale;
+        rec.newParent = newParent;
+        records.push_back(rec);
+    }
+
+    // Apply reparenting with coordinate preservation
+    for (std::size_t i{ 0 }; i < topLevelNodes.size(); ++i)
+    {
+        topLevelNodes[i]->SetParent(newParent);
+        records[i].newPos = topLevelNodes[i]->transform.position;
+        records[i].newRot = topLevelNodes[i]->transform.rotation;
+        records[i].newScale = topLevelNodes[i]->transform.scale;
+    }
+
+    if (!records.empty())
+    {
+        PushUndoAction(std::make_unique<ReparentAction>(std::move(records)));
+    }
+}
+
+void EditorManager::ParentSelectedToActive() noexcept
+{
+    if (!m_selectedObject || m_selectedObjects.size() < 2) return;
+
+    ReparentNodes(m_selectedObjects, m_selectedObject);
+}
+
+void EditorManager::UnparentSelected(Scene* currentScene) noexcept
+{
+    if (!currentScene || !currentScene->GetRootGameObject()) return;
+
+    GameObject* root{ currentScene->GetRootGameObject() };
+    if (m_selectedObjects.empty())
+    {
+        if (m_selectedObject && m_selectedObject->GetParent() != root)
+        {
+            m_selectedObject->SetParent(root);
+        }
+        return;
+    }
+
+    ReparentNodes(m_selectedObjects, root);
+}
+
+void EditorManager::ToggleActiveSelected() noexcept
+{
+    if (m_selectedObjects.empty())
+    {
+        if (m_selectedObject)
+        {
+            m_selectedObject->SetActive(!m_selectedObject->IsActive());
+        }
+        return;
+    }
+
+    const bool newState{ m_selectedObject ? !m_selectedObject->IsActive() : true };
+    for (auto* obj : m_selectedObjects)
+    {
+        if (obj)
+        {
+            obj->SetActive(newState);
+        }
+    }
+}
+
+void EditorManager::DeleteSelected() noexcept
+{
+    std::vector<GameObject*> targets{};
+    if (m_selectedObjects.empty())
+    {
+        if (m_selectedObject) targets.push_back(m_selectedObject);
+    }
+    else
+    {
+        targets = m_selectedObjects;
+    }
+
+    if (targets.empty()) return;
+
+    std::vector<DeletedRecord> records{};
+    records.reserve(targets.size());
+
+    for (auto* obj : targets)
+    {
+        if (!obj || obj->IsDestroyed() || !obj->GetParent()) continue;
+
+        GameObject* parent = obj->GetParent();
+        auto extracted = parent->RemoveChild(obj);
+        if (extracted)
+        {
+            DeletedRecord rec{};
+            rec.parent = parent;
+            rec.rawNode = obj;
+            rec.storage = std::move(extracted);
+            records.push_back(std::move(rec));
+        }
+    }
+
+    ClearSelection();
+
+    if (!records.empty())
+    {
+        PushUndoAction(std::make_unique<DeleteObjectsAction>(std::move(records)));
+    }
+}
+
+void EditorManager::DrawHierarchyNode(GameObject* node, Scene* currentScene) noexcept
 {
     if (!node) return;
 
+    // Record visible display order for contiguous Shift-click calculations
+    m_linearHierarchyNodes.push_back(node);
+
     ImGuiTreeNodeFlags flags{ ImGuiTreeNodeFlags_OpenOnArrow | ImGuiTreeNodeFlags_OpenOnDoubleClick | ImGuiTreeNodeFlags_SpanAvailWidth };
 
-    if (m_selectedObject == node)
+    if (IsObjectSelected(node))
     {
         flags |= ImGuiTreeNodeFlags_Selected;
     }
@@ -720,32 +1907,122 @@ void EditorManager::DrawHierarchyNode(GameObject* node) noexcept
 
     const bool isOpen{ ImGui::TreeNodeEx(static_cast<void*>(node), flags, "%s", node->GetName().c_str()) };
 
+    // Hierarchy Drag Source (Multi-item support)
+    if (ImGui::BeginDragDropSource(ImGuiDragDropFlags_None))
+    {
+        m_deferredDeselectNode = nullptr; // Drag started; preserve multi-selection!
+        ImGui::SetDragDropPayload("HIERARCHY_GAMEOBJECT", &node, sizeof(GameObject*));
+        if (m_selectedObjects.size() > 1 && IsObjectSelected(node))
+        {
+            ImGui::Text("Move %zu Objects", m_selectedObjects.size());
+        }
+        else
+        {
+            ImGui::Text("Move %s", node->GetName().c_str());
+        }
+        ImGui::EndDragDropSource();
+    }
+
+    // Hierarchy Drop Target (Reparents all selected objects if part of group)
+    if (ImGui::BeginDragDropTarget())
+    {
+        if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("HIERARCHY_GAMEOBJECT"))
+        {
+            GameObject* droppedNode{ *static_cast<GameObject**>(payload->Data) };
+            if (droppedNode && droppedNode != node)
+            {
+                if (IsObjectSelected(droppedNode) && m_selectedObjects.size() > 1)
+                {
+                    ReparentNodes(m_selectedObjects, node);
+                }
+                else
+                {
+                    droppedNode->SetParent(node);
+                }
+            }
+        }
+        ImGui::EndDragDropTarget();
+    }
+
+    // Selection Input Capture: Distinguishes between multi-drag initiation vs. single selection
     if (ImGui::IsItemClicked(ImGuiMouseButton_Left) && !ImGui::IsItemToggledOpen())
     {
-        m_selectedObject = node;
-        m_selectedComponent = nullptr;
+        const ImGuiIO& io{ ImGui::GetIO() };
+        if (io.KeyCtrl || io.KeyShift)
+        {
+            m_pendingClickNode = node;
+            m_pendingCtrl = io.KeyCtrl;
+            m_pendingShift = io.KeyShift;
+            m_deferredDeselectNode = nullptr;
+        }
+        else if (!IsObjectSelected(node) || m_selectedObjects.size() <= 1)
+        {
+            m_pendingClickNode = node;
+            m_pendingCtrl = false;
+            m_pendingShift = false;
+            m_deferredDeselectNode = nullptr;
+        }
+        else
+        {
+            // Node is already selected in a multi-selection.
+            // Defer single-selection until mouse release so drag-and-drop can move all selected nodes!
+            m_deferredDeselectNode = node;
+            m_pendingClickNode = nullptr;
+        }
     }
 
     if (ImGui::BeginPopupContextItem())
     {
-        m_selectedObject = node;
+        // If right-clicking an unselected object, switch selection to it
+        if (!IsObjectSelected(node))
+        {
+            m_selectedObjects.clear();
+            m_selectedObjects.push_back(node);
+            m_selectedObject = node;
+            m_selectionAnchor = node;
+            m_selectedComponent = nullptr;
+        }
 
+        if (ImGui::MenuItem("Duplicate", "Ctrl+D"))
+        {
+            DuplicateSelected(currentScene);
+        }
+        if (ImGui::MenuItem("Group Selected", "Ctrl+G"))
+        {
+            GroupSelected(currentScene);
+        }
+        if (ImGui::MenuItem("Parent to Last Selected", "P", false, m_selectedObjects.size() >= 2 && m_selectedObject != nullptr))
+        {
+            ParentSelectedToActive();
+        }
+        if (ImGui::MenuItem("Unparent to Root", "Shift+P", false, node->GetParent() != currentScene->GetRootGameObject() || m_selectedObjects.size() > 1))
+        {
+            UnparentSelected(currentScene);
+        }
+        if (ImGui::MenuItem("Toggle Active", "H"))
+        {
+            ToggleActiveSelected();
+        }
+        ImGui::Separator();
         if (ImGui::MenuItem("Create Empty Child"))
         {
-            node->AddChild(std::make_unique<GameObject>("New_Child"));
+            auto child{ std::make_unique<GameObject>("Empty_Child") };
+            auto* rawPtr{ child.get() };
+            node->AddChild(std::move(child));
+            m_selectedObjects.clear();
+            m_selectedObjects.push_back(rawPtr);
+            m_selectedObject = rawPtr;
+            m_selectionAnchor = rawPtr;
+            m_selectedComponent = nullptr;
         }
         if (ImGui::MenuItem("Create Socket Anchor"))
         {
             node->AddChild(std::make_unique<GameObject>("Socket_Anchor"));
         }
         ImGui::Separator();
-        if (ImGui::MenuItem("Delete GameObject"))
+        if (ImGui::MenuItem("Delete", "Del"))
         {
-            node->Destroy();
-            if (m_selectedObject == node)
-            {
-                ClearSelection();
-            }
+            DeleteSelected();
         }
         ImGui::EndPopup();
     }
@@ -754,7 +2031,7 @@ void EditorManager::DrawHierarchyNode(GameObject* node) noexcept
     {
         for (const auto& child : node->GetChildren())
         {
-            DrawHierarchyNode(child.get());
+            DrawHierarchyNode(child.get(), currentScene);
         }
         ImGui::TreePop();
     }
@@ -762,10 +2039,31 @@ void EditorManager::DrawHierarchyNode(GameObject* node) noexcept
 
 void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
 {
+    // Sanitize destroyed entities from multi-selection list
+    m_selectedObjects.erase(
+        std::remove_if(m_selectedObjects.begin(), m_selectedObjects.end(),
+            [](const GameObject* obj) noexcept {
+                return !obj || obj->IsDestroyed();
+            }),
+        m_selectedObjects.end()
+    );
+
     if (m_selectedObject && m_selectedObject->IsDestroyed())
     {
-        m_selectedObject = nullptr;
+        m_selectedObject = m_selectedObjects.empty() ? nullptr : m_selectedObjects.back();
     }
+    if (m_selectionAnchor && m_selectionAnchor->IsDestroyed())
+    {
+        m_selectionAnchor = nullptr;
+    }
+    if (m_deferredDeselectNode && m_deferredDeselectNode->IsDestroyed())
+    {
+        m_deferredDeselectNode = nullptr;
+    }
+
+    // Reset frame-order collection and click-event latches
+    m_linearHierarchyNodes.clear();
+    m_pendingClickNode = nullptr;
 
     ImGui::Begin(s_windowHierarchy);
 
@@ -780,7 +2078,16 @@ void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
         {
             if (ImGui::MenuItem("Create Empty"))
             {
-                currentScene->GetRootGameObject()->AddChild(std::make_unique<GameObject>("Empty"));
+                auto emptyObj = std::make_unique<GameObject>("Empty");
+                auto* rawPtr = emptyObj.get();
+                auto* rootObj = currentScene->GetRootGameObject();
+                rootObj->AddChild(std::move(emptyObj));
+                PushUndoAction(std::make_unique<CreateObjectAction>(rootObj, rawPtr));
+                m_selectedObjects.clear();
+                m_selectedObjects.push_back(rawPtr);
+                m_selectedObject = rawPtr;
+                m_selectionAnchor = rawPtr;
+                m_selectedComponent = nullptr;
             }
 
             if (auto* gameScene{ dynamic_cast<SceneGame*>(currentScene) })
@@ -839,16 +2146,170 @@ void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
             ImGui::EndPopup();
         }
 
+        // Outliner Keyboard Shortcuts (Maya/Unity DCC conventions)
+        const ImGuiIO& io{ ImGui::GetIO() };
+        const bool canHandleShortcuts{ !io.WantTextInput && m_editorMode != EditorMode::Play };
+        if (canHandleShortcuts)
+        {
+            if (io.KeyCtrl && !io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z, false))
+            {
+                Undo(currentScene);
+            }
+            else if ((io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_Y, false)) ||
+                (io.KeyCtrl && io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_Z, false)))
+            {
+                Redo(currentScene);
+            }
+            else if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_D, false))
+            {
+                DuplicateSelected(currentScene);
+            }
+            else if (io.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_G, false))
+            {
+                GroupSelected(currentScene);
+            }
+            else if (io.KeyShift && ImGui::IsKeyPressed(ImGuiKey_P, false))
+            {
+                UnparentSelected(currentScene);
+            }
+            else if (!io.KeyCtrl && !io.KeyShift && !io.KeyAlt && ImGui::IsKeyPressed(ImGuiKey_P, false))
+            {
+                ParentSelectedToActive();
+            }
+            else if (ImGui::IsKeyPressed(ImGuiKey_Delete, false))
+            {
+                DeleteSelected();
+            }
+            else if (!io.KeyCtrl && !io.KeyShift && !io.KeyAlt && ImGui::IsKeyPressed(ImGuiKey_H, false))
+            {
+                ToggleActiveSelected();
+            }
+        }
+
         ImGui::Separator();
         ImGui::PushStyleColor(ImGuiCol_Header, ImVec4{ 0.15f, 0.15f, 0.15f, 1.0f });
         const bool isSceneNodeOpen{ ImGui::CollapsingHeader(currentScene->GetSceneName().data(), ImGuiTreeNodeFlags_DefaultOpen) };
         ImGui::PopStyleColor();
 
+        // Drag-and-drop onto Scene Header unparents all active dragged objects to Scene Root
+        if (ImGui::BeginDragDropTarget())
+        {
+            if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("HIERARCHY_GAMEOBJECT"))
+            {
+                GameObject* droppedNode{ *static_cast<GameObject**>(payload->Data) };
+                if (droppedNode)
+                {
+                    GameObject* root{ currentScene->GetRootGameObject() };
+                    if (IsObjectSelected(droppedNode) && m_selectedObjects.size() > 1)
+                    {
+                        ReparentNodes(m_selectedObjects, root);
+                    }
+                    else if (droppedNode->GetParent() != root)
+                    {
+                        droppedNode->SetParent(root);
+                    }
+                }
+            }
+            ImGui::EndDragDropTarget();
+        }
+
         if (isSceneNodeOpen)
         {
             for (const auto& child : currentScene->GetRootGameObject()->GetChildren())
             {
-                DrawHierarchyNode(child.get());
+                DrawHierarchyNode(child.get(), currentScene);
+            }
+        }
+
+        // Evaluate deferred click events after all visible nodes have been registered
+        if (m_pendingClickNode)
+        {
+            ApplySelection(m_pendingClickNode, m_pendingCtrl, m_pendingShift);
+            m_pendingClickNode = nullptr;
+        }
+
+        // Deferred deselect for multi-selection when clicking without dragging
+        if (m_deferredDeselectNode && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+        {
+            if (!ImGui::IsMouseDragging(ImGuiMouseButton_Left, 4.0f))
+            {
+                ApplySelection(m_deferredDeselectNode, false, false);
+            }
+            m_deferredDeselectNode = nullptr;
+        }
+
+        // Blank space context menu for scene root actions
+        if (ImGui::BeginPopupContextWindow("HierarchyBlankContextMenu", ImGuiPopupFlags_MouseButtonRight | ImGuiPopupFlags_NoOpenOverItems))
+        {
+            if (ImGui::MenuItem("Create Empty"))
+            {
+                auto emptyObj{ std::make_unique<GameObject>("Empty") };
+                auto* rawPtr{ emptyObj.get() };
+                auto* rootObj = currentScene->GetRootGameObject();
+                rootObj->AddChild(std::move(emptyObj));
+                PushUndoAction(std::make_unique<CreateObjectAction>(rootObj, rawPtr));
+                m_selectedObjects.clear();
+                m_selectedObjects.push_back(rawPtr);
+                m_selectedObject = rawPtr;
+                m_selectionAnchor = rawPtr;
+                m_selectedComponent = nullptr;
+            }
+            if (!m_selectedObjects.empty())
+            {
+                ImGui::Separator();
+                if (ImGui::MenuItem("Duplicate", "Ctrl+D"))
+                {
+                    DuplicateSelected(currentScene);
+                }
+                if (ImGui::MenuItem("Group Selected", "Ctrl+G"))
+                {
+                    GroupSelected(currentScene);
+                }
+                if (ImGui::MenuItem("Unparent to Root", "Shift+P"))
+                {
+                    UnparentSelected(currentScene);
+                }
+                if (ImGui::MenuItem("Toggle Active", "H"))
+                {
+                    ToggleActiveSelected();
+                }
+                ImGui::Separator();
+                if (ImGui::MenuItem("Delete", "Del"))
+                {
+                    DeleteSelected();
+                }
+            }
+            ImGui::EndPopup();
+        }
+
+        // Blank space drop target: Unparents any dropped node back to the Scene Root
+        const ImVec2 availSize{ ImGui::GetContentRegionAvail() };
+        if (availSize.y > 0.0f)
+        {
+            ImGui::InvisibleButton("##HierarchyBlankDropZone", ImVec2{ availSize.x, availSize.y });
+            if (ImGui::IsItemClicked(ImGuiMouseButton_Left))
+            {
+                ClearSelection();
+            }
+            if (ImGui::BeginDragDropTarget())
+            {
+                if (const ImGuiPayload* payload = ImGui::AcceptDragDropPayload("HIERARCHY_GAMEOBJECT"))
+                {
+                    GameObject* droppedNode{ *static_cast<GameObject**>(payload->Data) };
+                    if (droppedNode)
+                    {
+                        GameObject* root{ currentScene->GetRootGameObject() };
+                        if (IsObjectSelected(droppedNode) && m_selectedObjects.size() > 1)
+                        {
+                            ReparentNodes(m_selectedObjects, root);
+                        }
+                        else if (droppedNode->GetParent() != root)
+                        {
+                            droppedNode->SetParent(root);
+                        }
+                    }
+                }
+                ImGui::EndDragDropTarget();
             }
         }
     }
@@ -859,7 +2320,7 @@ void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
 
     if (ImGui::IsWindowHovered() && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && !ImGui::IsAnyItemHovered())
     {
-        m_selectedObject = nullptr;
+        ClearSelection();
     }
 
     ImGui::End();
@@ -871,7 +2332,15 @@ void EditorManager::DrawInspector(Scene* currentScene) noexcept
 
     if (m_selectedObject)
     {
+        if (m_selectedObjects.size() > 1)
+        {
+            ImGui::TextDisabled("MULTI-SELECTION (%zu OBJECTS)", m_selectedObjects.size());
+            ImGui::Separator();
+        }
+
+        BeginGameObjectTransaction(m_selectedObject);
         m_selectedObject->DrawInspector();
+        EndGameObjectTransaction(m_selectedObject, "Inspector Edit");
     }
     else if (currentScene)
     {
@@ -879,6 +2348,16 @@ void EditorManager::DrawInspector(Scene* currentScene) noexcept
         ImGui::Separator();
 
         Graphics::Instance().GetLightManager().DrawEnvironmentGUI();
+
+        ImGui::Spacing();
+        if (ImGui::Button("Open Post-Processing & Color Grading..."))
+        {
+            m_showPostProcess = true;
+            ImGui::SetWindowFocus(s_windowPostProcess);
+        }
+
+        ImGui::Spacing();
+        ImGui::Separator();
         ImGui::Text("Active Scene: %s", currentScene->GetSceneName().data());
         ImGui::TextDisabled("Save Path: %s", currentScene->GetSceneSavePath().data());
         ImGui::TextDisabled("PostProcess: %s", currentScene->GetPostProcessProfilePath().data());
@@ -979,6 +2458,13 @@ void EditorManager::DrawProfiler() const noexcept
             ImGui::Text("FPS: %.1f", metrics.fps);
             ImGui::Text("Frame: %.2f ms", (1000.0f / (std::max)(metrics.fps, 1.0f)));
 
+            // Inline diagnostic toggle for immediate VSync testing
+            bool isVsyncActive{ WindowManager::Instance().IsVSync() };
+            if (ImGui::Checkbox("VSync##ProfilerVsyncToggle", &isVsyncActive))
+            {
+                WindowManager::Instance().SetVSync(isVsyncActive);
+            }
+
             ImGui::TableSetColumnIndex(1);
             ImGui::TextDisabled("MEMORY");
             ImGui::Text("Sys RAM: %.1f MB", metrics.ramUsageMB);
@@ -1017,6 +2503,7 @@ void EditorManager::DrawPostProcess(Scene* currentScene) noexcept
         if (currentScene && currentScene->GetPostProcessManager())
         {
             auto* ppm = currentScene->GetPostProcessManager();
+            BeginPostProcessTransaction(ppm);
 
             const std::string_view configPath{ currentScene->GetPostProcessProfilePath() };
 
@@ -1025,7 +2512,7 @@ void EditorManager::DrawPostProcess(Scene* currentScene) noexcept
                 ppm->SaveConfig(configPath);
             }
             ImGui::SameLine();
-            if (ImGui::Button("Undo"))
+            if (ImGui::Button("Reload Saved"))
             {
                 ppm->LoadConfig(configPath);
             }
@@ -1045,7 +2532,13 @@ void EditorManager::DrawPostProcess(Scene* currentScene) noexcept
             ImGui::Separator();
 
             ImGui::BeginDisabled(!masterEnabled);
-            
+
+            if (ImGui::CollapsingHeader("Tonemapping & Color Grading", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                ppm->GetColorGrading().DrawGUI();
+            }
+            ImGui::Spacing();
+
             if (ImGui::CollapsingHeader("Temporal AA"))
             {
                 ppm->GetTemporalAA().DrawGUI();
@@ -1063,6 +2556,8 @@ void EditorManager::DrawPostProcess(Scene* currentScene) noexcept
                 ImGui::Spacing();
             }
             ImGui::EndDisabled();
+
+            EndPostProcessTransaction(ppm, "Post-Processing Edit");
         }
         else
         {

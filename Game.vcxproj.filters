@@ -97,6 +97,15 @@
     <FxCompile Include="Shader\TemporalResolvePS.hlsl">
       <Filter>Shader</Filter>
     </FxCompile>
+    <FxCompile Include="Shader\BloomPS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\SsaoPS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Shader\SunShaftPS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Source\System\BasicShader.cpp">
@@ -717,6 +726,9 @@
     </ClInclude>
     <ClInclude Include="Source\Engine\Components\SocketComponent.h">
       <Filter>Source\Engine\Components</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Graphics\AtmosphereProfile.h">
+      <Filter>Source\Engine\Graphics</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

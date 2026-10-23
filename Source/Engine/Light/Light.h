@@ -21,7 +21,7 @@ enum class LightType : std::uint8_t
 };
 
 // Defines the number of cascades for shadow mapping and the resolution of shadow maps
-inline constexpr int SHADOW_CASCADE_COUNT{ 4 };
+inline constexpr int SHADOW_CASCADE_COUNT{ 3 };
 inline constexpr int SHADOW_MAP_SIZE{ 2048 };
 
 // Represents direct sun/moon illumination
@@ -34,8 +34,10 @@ struct DirectionalLight
     // Cascaded Shadow Map Parameters
     bool  castShadows{ true };
     float shadowAttenuation{ 0.5f };
-    std::array<float, SHADOW_CASCADE_COUNT> shadowBias{ 0.001f, 0.002f, 0.003f, 0.004f };
-    std::array<float, SHADOW_CASCADE_COUNT + 1> splitDistances{ 0.1f, 25.0f, 100.0f, 250.0f, 500.0f };
+    float shadowDistance{ 150.0f };
+    float splitLambda{ 0.85f };
+    std::array<float, SHADOW_CASCADE_COUNT> shadowBias{ 0.0005f, 0.0012f, 0.0025f };
+    std::array<float, SHADOW_CASCADE_COUNT + 1> splitDistances{ 0.1f, 8.5f, 26.0f, 150.0f };
 };
 
 struct PointLightData
@@ -114,11 +116,19 @@ public:
         return { m_groundColor.x * m_groundIntensity, m_groundColor.y * m_groundIntensity, m_groundColor.z * m_groundIntensity, 1.0f };
     }
 
+    // Mutators for real-time atmospheric lighting harmonization
+    void SetSkyColor(const DirectX::XMFLOAT3& color) noexcept { m_skyColor = color; }
+    void SetSkyIntensity(float intensity) noexcept { m_skyIntensity = intensity; }
+    void SetGroundColor(const DirectX::XMFLOAT3& color) noexcept { m_groundColor = color; }
+    void SetGroundIntensity(float intensity) noexcept { m_groundIntensity = intensity; }
+    void SetDirectionalLightColor(const DirectX::XMFLOAT3& color) noexcept { m_directionalLight.color = color; }
+    void SetDirectionalLightIntensity(float intensity) noexcept { m_directionalLight.intensity = intensity; }
+
     [[nodiscard]] ID3D11ShaderResourceView* GetSkyboxSRV() const noexcept { return m_skyboxSRV.Get(); }
     [[nodiscard]] bool HasSkybox() const noexcept { return m_skyboxSRV != nullptr; }
 
-	// Shadow cascade accessors
-    [[nodiscard]] ID3D11ShaderResourceView* const* GetCascadeSRVs() const noexcept { return m_cascadeSRVptrs.data(); }
+    // Shadow cascade accessors
+    [[nodiscard]] ID3D11ShaderResourceView* GetCascadeArraySRV() const noexcept { return m_cascadeArraySRV.Get(); }
     [[nodiscard]] ID3D11DepthStencilView* GetCascadeDSV(int index) const noexcept { return m_cascadeDSVs[index].Get(); }
     [[nodiscard]] const std::array<DirectX::XMFLOAT4X4, SHADOW_CASCADE_COUNT>& GetCascadeMatrices() const noexcept { return m_cascadeMatrices; }
 
@@ -142,7 +152,7 @@ private:
     Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_skyboxSRV{};
 
     std::array<DirectX::XMFLOAT4X4, SHADOW_CASCADE_COUNT> m_cascadeMatrices{};
+    Microsoft::WRL::ComPtr<ID3D11Texture2D> m_cascadeTextureArray{};
     std::array<Microsoft::WRL::ComPtr<ID3D11DepthStencilView>, SHADOW_CASCADE_COUNT> m_cascadeDSVs{};
-    std::array<Microsoft::WRL::ComPtr<ID3D11ShaderResourceView>, SHADOW_CASCADE_COUNT> m_cascadeSRVs{};
-    std::array<ID3D11ShaderResourceView*, SHADOW_CASCADE_COUNT> m_cascadeSRVptrs{};
+    Microsoft::WRL::ComPtr<ID3D11ShaderResourceView> m_cascadeArraySRV{};
 };

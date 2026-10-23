@@ -1,4 +1,6 @@
+#include <cmath>
 #include "System/GpuResourceUtils.h"
+#include "System/Graphics.h"
 #include "SkyboxRenderer.h"
 
 void SkyboxRenderer::Initialize(ID3D11Device* device)
@@ -70,14 +72,38 @@ void SkyboxRenderer::Render(ID3D11DeviceContext* context, const Camera& camera, 
     DirectX::XMMATRIX proj = DirectX::XMLoadFloat4x4(&camera.GetProjection());
     DirectX::XMMATRIX invViewProj = DirectX::XMMatrixInverse(nullptr, DirectX::XMMatrixMultiply(view, proj));
 
+    // Fetch active directional light to align the HDR skybox sun disc and Mie corona
+    const DirectionalLight& dirLight{ Graphics::Instance().GetLightManager().GetDirectionalLight() };
+    DirectX::XMVECTOR toSun{ DirectX::XMVectorSet(-dirLight.direction.x, -dirLight.direction.y, -dirLight.direction.z, 0.0f) };
+    if (DirectX::XMVectorGetX(DirectX::XMVector3LengthSq(toSun)) > 0.0001f)
+    {
+        toSun = DirectX::XMVector3Normalize(toSun);
+    }
+    else
+    {
+        toSun = DirectX::XMVectorSet(0.0f, 0.707f, 0.707f, 0.0f);
+    }
+
+    DirectX::XMFLOAT3 sunDir{};
+    DirectX::XMStoreFloat3(&sunDir, toSun);
+
+    const float sunIntensity{ (std::max)(0.0f, dirLight.intensity) };
+    const DirectX::XMFLOAT3 linearSunColor{
+        std::pow((std::max)(0.0f, dirLight.color.x), 2.2f) * sunIntensity,
+        std::pow((std::max)(0.0f, dirLight.color.y), 2.2f) * sunIntensity,
+        std::pow((std::max)(0.0f, dirLight.color.z), 2.2f) * sunIntensity
+    };
+
     // Map Constant Buffer
     D3D11_MAPPED_SUBRESOURCE mappedResource{};
     if (SUCCEEDED(context->Map(m_constantBuffer.Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &mappedResource)))
     {
         auto* data = static_cast<SkymapConstants*>(mappedResource.pData);
         DirectX::XMStoreFloat4x4(&data->inverseViewProjection, invViewProj);
-        DirectX::XMFLOAT3 camPos = camera.GetPosition();
+        const DirectX::XMFLOAT3& camPos{ camera.GetPosition() };
         data->cameraPosition = { camPos.x, camPos.y, camPos.z, 1.0f };
+        data->sunDirectionAndCosRadius = { sunDir.x, sunDir.y, sunDir.z, 0.9992f };
+        data->sunColorAndCorona = { linearSunColor.x, linearSunColor.y, linearSunColor.z, 1.5f };
         context->Unmap(m_constantBuffer.Get(), 0);
     }
 

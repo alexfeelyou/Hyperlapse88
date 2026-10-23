@@ -47,11 +47,15 @@ namespace platform
         swapChainDesc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
         swapChainDesc.BufferCount = 2;
         swapChainDesc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-
-        HRESULT hr;
-
         swapChainDesc.AlphaMode = DXGI_ALPHA_MODE_UNSPECIFIED;
-        hr = dxgiFactory->CreateSwapChainForHwnd(
+
+        // Allow unthrottled Present when software limiter is engaged
+        if (Graphics::Instance().IsTearingSupported())
+        {
+            swapChainDesc.Flags = DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
+        }
+
+        HRESULT hr = dxgiFactory->CreateSwapChainForHwnd(
             device, hwnd, &swapChainDesc, nullptr, nullptr, &m_swapChain
         );
         if (FAILED(hr)) return false;
@@ -105,7 +109,10 @@ namespace platform
     void Window::EndRender(int syncInterval)
     {
         if (m_swapChain) {
-            m_swapChain->Present(syncInterval, 0);
+            const UINT presentFlags = (syncInterval == 0 && Graphics::Instance().IsTearingSupported())
+                ? DXGI_PRESENT_ALLOW_TEARING
+                : 0;
+            m_swapChain->Present(syncInterval, presentFlags);
         }
     }
 
@@ -123,7 +130,8 @@ namespace platform
         m_renderTargetView.Reset();
         m_depthStencilView.Reset();
 
-        m_swapChain->ResizeBuffers(2, m_width, m_height, DXGI_FORMAT_B8G8R8A8_UNORM, 0);
+        const UINT resizeFlags = Graphics::Instance().IsTearingSupported() ? DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING : 0;
+        m_swapChain->ResizeBuffers(2, m_width, m_height, DXGI_FORMAT_B8G8R8A8_UNORM, resizeFlags);
 
         auto device = Graphics::Instance().GetDevice();
         Microsoft::WRL::ComPtr<ID3D11Texture2D> backBuffer;

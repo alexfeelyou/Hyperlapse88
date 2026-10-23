@@ -18,8 +18,46 @@ CameraController& CameraController::Instance() noexcept
 
 void CameraController::SetActiveCamera(std::weak_ptr<Camera> camera) noexcept
 {
-    m_activeCamera = std::move(camera);
+    m_editorCamera = std::move(camera);
     SyncFromActiveCamera();
+}
+
+std::shared_ptr<Camera> CameraController::GetActiveCamera() const noexcept
+{
+    // Prioritize editor camera when free-fly mode is active (Edit / Pause mode)
+    if (m_isEnabled)
+    {
+        if (auto editorCam{ m_editorCamera.lock() })
+        {
+            return editorCam;
+        }
+    }
+
+    // In Play mode, prioritize the gameplay camera registered by CameraComponent
+    if (auto gameCam{ m_gameCamera.lock() })
+    {
+        return gameCam;
+    }
+
+    return m_editorCamera.lock();
+}
+
+std::shared_ptr<Camera> CameraController::GetEditorCamera() const noexcept
+{
+    return m_editorCamera.lock();
+}
+
+void CameraController::ClearGameCamera(const std::shared_ptr<Camera>& camera) noexcept
+{
+    if (m_gameCamera.lock() == camera)
+    {
+        m_gameCamera.reset();
+    }
+}
+
+void CameraController::ClearCamera() noexcept
+{
+    m_editorCamera.reset();
 }
 
 void CameraController::SetEnabled(bool enabled) noexcept
@@ -49,7 +87,7 @@ void CameraController::SetEnabled(bool enabled) noexcept
 
 void CameraController::SyncFromActiveCamera() noexcept
 {
-    if (std::shared_ptr<Camera> camera{ m_activeCamera.lock() })
+    if (std::shared_ptr<Camera> camera{ m_editorCamera.lock() })
     {
         m_currentAngle = camera->GetRotation();
     }
@@ -60,7 +98,7 @@ void CameraController::Update(float dt)
     // Fast fail if the Editor Camera is not explicitly enabled
     if (!m_isEnabled) return;
 
-    std::shared_ptr<Camera> camera{ m_activeCamera.lock() };
+    std::shared_ptr<Camera> camera{ m_editorCamera.lock() };
     if (!camera) return;
 
     // Hold Right Mouse Button to fly/look
@@ -120,11 +158,11 @@ void CameraController::Update(float dt)
     }
 
     // Apply rotation
-    constexpr float sensitivity{ 0.15f }; 
-    const float rotSpeed{ m_rollSpeed * dt };
+    // Mouse displacement is an instantaneous pointer delta, not a velocity: do not multiply by dt
+    constexpr float sensitivity{ 0.003f };
 
-    m_currentAngle.y += deltaX * sensitivity * rotSpeed;
-    m_currentAngle.x += deltaY * sensitivity * rotSpeed;
+    m_currentAngle.y += deltaX * sensitivity;
+    m_currentAngle.x += deltaY * sensitivity;
 
     // Ensure Pitch does not exceed vertical bounds to prevent screen flip
     constexpr float PITCH_LIMIT{ DirectX::XM_PIDIV2 - 0.01f };

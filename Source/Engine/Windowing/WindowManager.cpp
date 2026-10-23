@@ -36,7 +36,8 @@ void WindowManager::RenderAll(float dt, Scene* scene)
 
         ImGuiRenderer::Render(context); // draws dockspace + panels, including the Scene View image
 
-        int syncInterval = vsyncApplied ? 0 : 1;
+        // Disable blocking swap chain VSync when software frame limiter is active to prevent double-waiting
+        const int syncInterval = m_vsync ? (vsyncApplied ? 0 : 1) : 0;
         if (!vsyncApplied && syncInterval == 1) vsyncApplied = true;
         win->EndRender(syncInterval);
     }
