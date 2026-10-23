@@ -790,6 +790,7 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
         ImGui::CheckboxFlags("Static Physics", &m_gizmoMask, static_cast<std::uint32_t>(GizmoCategory::StaticPhysics));
         ImGui::CheckboxFlags("Character Physics", &m_gizmoMask, static_cast<std::uint32_t>(GizmoCategory::DynamicPhysics));
         ImGui::CheckboxFlags("Combat Hitboxes", &m_gizmoMask, static_cast<std::uint32_t>(GizmoCategory::Hitboxes));
+        ImGui::CheckboxFlags("AI & Navigation", &m_gizmoMask, static_cast<std::uint32_t>(GizmoCategory::Navigation));
 
         ImGui::EndPopup();
     }

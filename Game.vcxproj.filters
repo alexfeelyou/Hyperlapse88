@@ -381,6 +381,12 @@
     <ClCompile Include="Source\Engine\Components\SocketComponent.cpp">
       <Filter>Source\Engine\Components</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Engine\Components\HealthComponent.cpp">
+      <Filter>Source\Engine\Components</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Engine\Components\AIControllerComponent.cpp">
+      <Filter>Source\Engine\Components</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\System\BasicShader.h">
@@ -729,6 +735,15 @@
     </ClInclude>
     <ClInclude Include="Source\Engine\Graphics\AtmosphereProfile.h">
       <Filter>Source\Engine\Graphics</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Components\AIBlackboard.h">
+      <Filter>Source\Engine\Components</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Components\HealthComponent.h">
+      <Filter>Source\Engine\Components</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Components\AIControllerComponent.h">
+      <Filter>Source\Engine\Components</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
