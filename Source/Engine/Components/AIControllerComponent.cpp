@@ -7,6 +7,7 @@
 #include "AIControllerComponent.h"
 #include "CapsuleColliderComponent.h"
 #include "CharacterMovementComponent.h"
+#include "CombatDirector.h"
 #include "ComponentRegistry.h"
 #include "EditorManager.h"
 #include "GameObject.h"
@@ -36,6 +37,11 @@ void AIControllerComponent::OnAttach(GameObject* owner) noexcept
     if (m_owner)
     {
         m_capsule = m_owner->GetComponent<CapsuleColliderComponent>();
+        if (m_capsule)
+        {
+            // 敵のカプセルを CollisionLayer::Enemy に自動設定
+            m_capsule->SetCollisionLayer(CollisionLayer::Enemy, CollisionLayer::Mask::Enemy);
+        }
         m_movement = m_owner->GetComponent<CharacterMovementComponent>();
         m_health = m_owner->GetComponent<HealthComponent>();
 
@@ -66,6 +72,8 @@ void AIControllerComponent::OnAttach(GameObject* owner) noexcept
             ChangeState(EnemyState::idle);
             break;
         }
+
+        CombatDirector::Instance().RegisterEnemy(this);
     }
 }
 
@@ -74,12 +82,18 @@ void AIControllerComponent::OnEnable() noexcept
     if (m_owner)
     {
         m_blackboard.spawnPosition = GetWorldPosition(m_owner);
+        CombatDirector::Instance().RegisterEnemy(this);
+        if (m_capsule)
+        {
+            m_capsule->SetCollisionLayer(CollisionLayer::Enemy, CollisionLayer::Mask::Enemy);
+        }
     }
 }
 
 void AIControllerComponent::OnDisable() noexcept
 {
     StopMovement();
+    CombatDirector::Instance().UnregisterEnemy(this);
 }
 
 void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
@@ -94,6 +108,12 @@ void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
     {
         // Restore standard gravity when detaching from wall perch
         m_movement->GetConfig().useGravity = m_initialGravity;
+    }
+
+    // Release combat token when exiting attack states
+    if (m_currentState == EnemyState::attack_windup || m_currentState == EnemyState::attack_active)
+    {
+        CombatDirector::Instance().ReleaseAttackToken(this);
     }
 
     m_currentState = newState;
@@ -290,12 +310,25 @@ void AIControllerComponent::SteerTowards(const DirectX::XMFLOAT3& targetWorldPos
         DirectX::XMFLOAT3 normDir{};
         DirectX::XMStoreFloat3(&normDir, vDir);
 
+        // Swarm Boid Anti-Stacking: Blend soft lateral repulsion away from immediate neighbors
+        const DirectX::XMFLOAT3 repForce{ CombatDirector::Instance().ComputeSeparationForce(this) };
+        normDir.x += repForce.x * 0.65f;
+        normDir.z += repForce.z * 0.65f;
+
+        const float finalLenSq{ (normDir.x * normDir.x) + (normDir.z * normDir.z) };
+        if (finalLenSq > 0.001f)
+        {
+            const float invLen{ 1.0f / std::sqrt(finalLenSq) };
+            normDir.x *= invLen;
+            normDir.z *= invLen;
+        }
+
         // Smoothly rotate the owner toward target direction (Shortest arc, rate-limited, zero snapping)
         const float targetYawDeg{ DirectX::XMConvertToDegrees(std::atan2(normDir.x, normDir.z)) };
         float deltaYaw{ targetYawDeg - m_owner->transform.rotation.y };
 
         while (deltaYaw > 180.0f) deltaYaw -= 360.0f;
-        while (deltaYaw < -180.0f) deltaYaw += 360.0f;
+        while (deltaYaw < -180.0f) deltaYaw -= 360.0f;
 
         const float maxStep{ m_config.turnSpeedDeg * dt };
         const float step{ std::clamp(deltaYaw, -maxStep, maxStep) };
@@ -403,20 +436,39 @@ void AIControllerComponent::TickGrunt(const float dt) noexcept
             break;
         }
 
+        // Swarm Arbiter: Request token from CombatDirector before triggering attack
         if (m_blackboard.targetDistanceSq <= attackRangeSq)
         {
-            if (m_blackboard.attackCooldownTimer <= 0.0f)
+            if (m_blackboard.attackCooldownTimer <= 0.0f && CombatDirector::Instance().RequestAttackToken(this))
             {
                 ChangeState(EnemyState::attack_windup);
             }
             else
             {
-                StopMovement(); // In range, awaiting cooldown
+                // In melee range but awaiting attack token: steer smoothly along assigned slot to maintain encirclement
+                const DirectX::XMFLOAT3 slotPos{ CombatDirector::Instance().GetAssignedSlotPosition(this) };
+                if (slotPos.x != 0.0f || slotPos.z != 0.0f)
+                {
+                    SteerTowards(slotPos, dt);
+                }
+                else
+                {
+                    StopMovement();
+                }
             }
         }
         else
         {
-            SteerTowards(m_blackboard.targetPosition, dt);
+            // Swarm Slot Navigation: Steer toward designated ring slot around the player
+            const DirectX::XMFLOAT3 slotPos{ CombatDirector::Instance().GetAssignedSlotPosition(this) };
+            if (slotPos.x != 0.0f || slotPos.z != 0.0f)
+            {
+                SteerTowards(slotPos, dt);
+            }
+            else
+            {
+                SteerTowards(m_blackboard.targetPosition, dt);
+            }
         }
         break;
 

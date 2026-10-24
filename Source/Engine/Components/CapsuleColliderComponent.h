@@ -81,11 +81,12 @@ public:
     [[nodiscard]] CapsuleColliderConfig& GetConfig() noexcept { return m_config; }
     [[nodiscard]] const CapsuleColliderConfig& GetConfig() const noexcept { return m_config; }
     void MarkDirty() noexcept;
+    void ApplyFilterData() const noexcept;
+    void SetCollisionLayer(std::uint32_t layer, std::uint32_t collidesWith) noexcept;
 
 private:
     void CreateController() noexcept;
     void DestroyController() noexcept;
-    void ApplyFilterData() const noexcept;
 
     [[nodiscard]] static constexpr bool IsFloatEqual(float a, float b, float epsilon = 0.0001f) noexcept
     {

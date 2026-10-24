@@ -652,6 +652,7 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
             if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse) ||
                 ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Vertical) ||
                 ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt) ||
+                ev.eventId == static_cast<std::uint32_t>(CombatEventId::Hitbox_Active) ||
                 ev.eventId == static_cast<std::uint32_t>(CombatEventId::Play_SFX) ||
                 ev.eventId == static_cast<std::uint32_t>(CombatEventId::Play_VFX))
             {
@@ -659,6 +660,7 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
                 if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse)) ImGui::DragFloat("Horizontal Lunge", &ev.payload, 0.5f, -200.0f, 200.0f);
                 else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Vertical)) ImGui::DragFloat("Vertical Lift (m/s)", &ev.payload, 0.5f, -50.0f, 50.0f);
                 else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt)) ImGui::DragFloat("Braking Factor", &ev.payload, 0.05f, 0.0f, 1.0f, "%.2f (1 = Stop)");
+                else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Hitbox_Active)) ImGui::DragFloat("Damage Multiplier", &ev.payload, 0.05f, 0.1f, 10.0f, "%.2fx (0 = 1.0x)");
                 else ImGui::DragFloat("Asset ID", &ev.payload, 1.0f, 0.0f, 100.0f);
                 ImGui::Spacing();
             }

@@ -275,6 +275,19 @@ void CapsuleColliderComponent::CreateController() noexcept
 
     if (m_controller)
     {
+        m_controller->setUserData(m_owner);
+
+        // 検索クエリ用にアクターおよびシェイプ双方へ m_owner を確実にバインド
+        if (physx::PxRigidDynamic * actor{ m_controller->getActor() })
+        {
+            actor->userData = m_owner;
+            physx::PxShape* shapes[1]{ nullptr };
+            if (actor->getShapes(shapes, 1) > 0 && shapes[0])
+            {
+                shapes[0]->userData = m_owner;
+            }
+        }
+
         ApplyFilterData();
     }
 }
@@ -288,6 +301,13 @@ void CapsuleColliderComponent::DestroyController() noexcept
     }
 }
 
+void CapsuleColliderComponent::SetCollisionLayer(const std::uint32_t layer, const std::uint32_t collidesWith) noexcept
+{
+    m_config.layer = layer;
+    m_config.collidesWith = collidesWith;
+    ApplyFilterData();
+}
+
 void CapsuleColliderComponent::ApplyFilterData() const noexcept
 {
     if (!m_controller) return;
@@ -295,11 +315,19 @@ void CapsuleColliderComponent::ApplyFilterData() const noexcept
     physx::PxRigidDynamic* actor{ m_controller->getActor() };
     if (!actor) return;
 
+    actor->userData = m_owner;
+
     physx::PxShape* shapes[1]{ nullptr };
     const physx::PxU32 shapeCount{ actor->getShapes(shapes, 1) };
 
     if (shapeCount > 0 && shapes[0])
     {
+        shapes[0]->userData = m_owner;
+
+        // シーンクエリおよび物理シミュレーションの双方を明示的にアクティブ化
+        shapes[0]->setFlag(physx::PxShapeFlag::eSIMULATION_SHAPE, true);
+        shapes[0]->setFlag(physx::PxShapeFlag::eSCENE_QUERY_SHAPE, true);
+
         physx::PxFilterData filterData{};
         filterData.word0 = m_config.layer;
         filterData.word1 = m_config.collidesWith;
@@ -346,6 +374,26 @@ void CapsuleColliderComponent::DrawInspector()
     ImGui::Separator();
 
     bool configChanged{ false };
+
+    static constexpr const char* s_layerNames[] = { "None", "WorldStatic", "WorldDynamic", "Player", "Enemy" };
+    int currentLayerIndex = 3; // Default Player
+    if (m_config.layer == CollisionLayer::Enemy) currentLayerIndex = 4;
+    else if (m_config.layer == CollisionLayer::WorldDynamic) currentLayerIndex = 2;
+    else if (m_config.layer == CollisionLayer::WorldStatic) currentLayerIndex = 1;
+    else if (m_config.layer == CollisionLayer::None) currentLayerIndex = 0;
+
+    if (ImGui::Combo("Collision Layer", &currentLayerIndex, s_layerNames, 5))
+    {
+        switch (currentLayerIndex)
+        {
+        case 0: SetCollisionLayer(CollisionLayer::None, 0); break;
+        case 1: SetCollisionLayer(CollisionLayer::WorldStatic, CollisionLayer::Mask::WorldStatic); break;
+        case 2: SetCollisionLayer(CollisionLayer::WorldDynamic, CollisionLayer::Mask::Player); break;
+        case 3: SetCollisionLayer(CollisionLayer::Player, CollisionLayer::Mask::Player); break;
+        case 4: SetCollisionLayer(CollisionLayer::Enemy, CollisionLayer::Mask::Enemy); break;
+        default: break;
+        }
+    }
 
     configChanged |= ImGui::DragFloat("Radius", &m_config.radius, 0.01f, 0.05f, 10.0f, "%.2f m");
     configChanged |= ImGui::DragFloat("Height", &m_config.height, 0.01f, 0.05f, 20.0f, "%.2f m");

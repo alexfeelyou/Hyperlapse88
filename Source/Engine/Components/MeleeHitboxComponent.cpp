@@ -1,0 +1,390 @@
+#include <algorithm>
+#include <cmath>
+#include <imgui.h>
+#include "System/PhysicsManager.h"
+#include "System/ShapeRenderer.h"
+#include "AIControllerComponent.h"
+#include "AnimationComponent.h"
+#include "ComponentRegistry.h"
+#include "EditorManager.h"
+#include "GameObject.h"
+#include "HealthComponent.h"
+#include "MeleeHitboxComponent.h"
+
+MeleeHitboxComponent::MeleeHitboxComponent(const MeleeHitboxConfig& config) noexcept
+    : m_config{ config }
+{}
+
+void MeleeHitboxComponent::ResolveAnimationSource() noexcept
+{
+    m_animation = nullptr;
+    // Ascend hierarchy to find root AnimationComponent on Alex even if attached to Socket_Weapon_Back
+    for (GameObject* curr = m_owner; curr != nullptr; curr = curr->GetParent())
+    {
+        if (auto* anim = curr->GetComponent<AnimationComponent>())
+        {
+            m_animation = anim;
+            break;
+        }
+    }
+}
+
+void MeleeHitboxComponent::OnAttach(GameObject* owner) noexcept
+{
+    IComponent::OnAttach(owner);
+    ResolveAnimationSource();
+}
+
+void MeleeHitboxComponent::OpenHitbox(const float damageMultiplier) noexcept
+{
+    m_isActive = true;
+    m_activeDamageMultiplier = (damageMultiplier > 0.001f) ? damageMultiplier : 1.0f;
+    m_victimCount = 0;
+    m_hitVictims.fill(nullptr);
+}
+
+void MeleeHitboxComponent::CloseHitbox() noexcept
+{
+    m_isActive = false;
+    m_activeDamageMultiplier = 1.0f;
+    m_victimCount = 0;
+    m_hitVictims.fill(nullptr);
+}
+
+void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
+{
+    if (!m_owner) return;
+
+    auto* scene{ PhysicsManager::Instance().GetScene() };
+    if (!scene) return;
+
+    // Isolate the owner's unscaled world frame to prevent weapon mesh scale from skewing the hitbox
+    const Transform& t{ m_owner->transform };
+    const DirectX::XMFLOAT4X4 worldF4{ t.GetWorldMatrix() };
+    const DirectX::XMMATRIX objWorld{ DirectX::XMLoadFloat4x4(&worldF4) };
+
+    DirectX::XMVECTOR vScale, vRotQuat, vTrans;
+    if (!DirectX::XMMatrixDecompose(&vScale, &vRotQuat, &vTrans, objWorld))
+    {
+        return;
+    }
+
+    const DirectX::XMMATRIX socketWorldUnscaled{
+        DirectX::XMMatrixRotationQuaternion(vRotQuat) *
+        DirectX::XMMatrixTranslationFromVector(vTrans)
+    };
+
+    const DirectX::XMMATRIX locRot{ DirectX::XMMatrixRotationRollPitchYaw(
+        DirectX::XMConvertToRadians(m_config.localRotation.x),
+        DirectX::XMConvertToRadians(m_config.localRotation.y),
+        DirectX::XMConvertToRadians(m_config.localRotation.z))
+    };
+
+    const DirectX::XMMATRIX locTrans{ DirectX::XMMatrixTranslation(
+        m_config.localOffset.x,
+        m_config.localOffset.y,
+        m_config.localOffset.z)
+    };
+
+    const DirectX::XMMATRIX hitboxWorld{ locRot * locTrans * socketWorldUnscaled };
+
+    DirectX::XMVECTOR vFinalScale, vFinalRotQuat, vFinalTrans;
+    DirectX::XMMatrixDecompose(&vFinalScale, &vFinalRotQuat, &vFinalTrans, hitboxWorld);
+
+    DirectX::XMFLOAT3 centerPos{};
+    DirectX::XMFLOAT4 rotQuat{};
+    DirectX::XMStoreFloat3(&centerPos, vFinalTrans);
+    DirectX::XMStoreFloat4(&rotQuat, vFinalRotQuat);
+
+    // Setup PhysX overlap sweep geometry 
+    const physx::PxCapsuleGeometry capsuleGeom{
+        (std::max)(0.01f, m_config.radius),
+        (std::max)(0.01f, m_config.height * 0.5f)
+    };
+
+    physx::PxTransform pxPose{};
+    pxPose.p = physx::PxVec3{ centerPos.x, centerPos.y, centerPos.z };
+
+    // In PhysX, capsule axis lies along X. Rotate X into Y by 90 deg around Z to match ShapeRenderer/DirectX
+    const physx::PxQuat qAlignY{ physx::PxHalfPi, physx::PxVec3{ 0.0f, 0.0f, 1.0f } };
+    const physx::PxQuat qWorld{ rotQuat.x, rotQuat.y, rotQuat.z, rotQuat.w };
+    pxPose.q = qWorld * qAlignY;
+
+    physx::PxOverlapBufferN<32> overlapBuffer{};
+    physx::PxQueryFilterData filterData{};
+    // eNO_BLOCK: 最初のヒットでクエリを中断せず、全重複アクターを配列に漏れなく収集
+    filterData.flags = physx::PxQueryFlag::eDYNAMIC | physx::PxQueryFlag::eNO_BLOCK;
+
+    // 攻撃者（プレイヤー本体）のルート階層を特定して自爆ヒットを確実に防止
+    const GameObject* playerRoot{ m_owner };
+    while (playerRoot && playerRoot->GetParent())
+    {
+        if (playerRoot->GetComponent<AnimationComponent>())
+        {
+            break;
+        }
+        playerRoot = playerRoot->GetParent();
+    }
+
+    // Multi-Hit Overlap Query (Elden Ring 準拠のカプセル間接触走査)
+    if (scene->overlap(capsuleGeom, pxPose, overlapBuffer, filterData, nullptr))
+    {
+        const physx::PxU32 hitCount{ overlapBuffer.getNbAnyHits() };
+
+        for (physx::PxU32 i{ 0 }; i < hitCount; ++i)
+        {
+            const physx::PxOverlapHit& hit{ overlapBuffer.getAnyHit(i) };
+            if (!hit.actor) continue;
+
+            // userData を actor または shape から安全に取得
+            void* rawUserData = hit.actor->userData;
+            if (!rawUserData && hit.shape)
+            {
+                rawUserData = hit.shape->userData;
+            }
+            if (!rawUserData) continue;
+
+            auto* victimObj{ static_cast<GameObject*>(rawUserData) };
+            if (!victimObj) continue;
+
+            // 攻撃者自身、武器ソケット、およびプレイヤー本体階層を除外
+            if (victimObj == m_owner || victimObj == playerRoot) continue;
+            if (m_owner && victimObj == m_owner->GetParent()) continue;
+
+            // 敵判定フィルター: Enemyレイヤーを持つか、AIControllerComponent を有する敵エンティティのみ受理
+            auto* victimCapsule{ victimObj->GetComponent<CapsuleColliderComponent>() };
+            const bool isEnemyLayer{ victimCapsule && (victimCapsule->GetConfig().layer & m_config.targetLayer) != 0 };
+            const bool isEnemyAI{ victimObj->GetComponent<AIControllerComponent>() != nullptr };
+            if (!isEnemyLayer && !isEnemyAI) continue;
+
+            // 重複排除チェック: 1回のスイング内で同一敵カプセルが多段ヒットするのを防止
+            bool alreadyHit{ false };
+            for (std::size_t v{ 0 }; v < m_victimCount; ++v)
+            {
+                if (m_hitVictims[v] == victimObj)
+                {
+                    alreadyHit = true;
+                    break;
+                }
+            }
+            if (alreadyHit) continue;
+
+            // Record victim into swing history
+            if (m_victimCount < s_maxVictimsPerSwing)
+            {
+                m_hitVictims[m_victimCount++] = victimObj;
+            }
+
+            // Calculate outward radial knockback impulse away from the player
+            const DirectX::XMFLOAT4X4 vWorld{ victimObj->transform.GetWorldMatrix() };
+            DirectX::XMVECTOR vVictimPos{ DirectX::XMVectorSet(vWorld._41, vWorld._42, vWorld._43, 0.0f) };
+            DirectX::XMVECTOR vPlayerPos{ DirectX::XMVectorSet(worldF4._41, worldF4._42, worldF4._43, 0.0f) };
+
+            DirectX::XMVECTOR vKnockDir{ DirectX::XMVectorSubtract(vVictimPos, vPlayerPos) };
+            vKnockDir = DirectX::XMVectorSetY(vKnockDir, 0.0f);
+
+            if (DirectX::XMVector3Equal(vKnockDir, DirectX::XMVectorZero()))
+            {
+                const float yawRad{ DirectX::XMConvertToRadians(m_owner->transform.rotation.y) };
+                vKnockDir = DirectX::XMVectorSet(std::sin(yawRad), 0.0f, std::cos(yawRad), 0.0f);
+            }
+            vKnockDir = DirectX::XMVector3Normalize(vKnockDir);
+
+            DirectX::XMFLOAT3 impulse{};
+            const float finalKnockback{ m_config.knockbackImpulse * m_activeDamageMultiplier };
+            DirectX::XMStoreFloat3(&impulse, DirectX::XMVectorScale(vKnockDir, finalKnockback));
+            impulse.y = 2.5f;
+
+            // Deliver damage, poise break, and hit-stop to victim
+            if (auto* health{ victimObj->GetComponent<HealthComponent>() })
+            {
+                health->ApplyDamage(
+                    m_config.baseDamage * m_activeDamageMultiplier,
+                    m_config.poiseDamage * m_activeDamageMultiplier,
+                    impulse,
+                    m_config.hitStopDuration
+                );
+            }
+
+            // Interrupt AI state into hit reaction
+            if (auto* ai{ victimObj->GetComponent<AIControllerComponent>() })
+            {
+                ai->NotifyHitReaction();
+            }
+
+            // Apply hit-stop frame suspension to player hierarchy for weighted tactile feedback
+            for (GameObject* curr = m_owner; curr != nullptr; curr = curr->GetParent())
+            {
+                if (auto* playerHealth{ curr->GetComponent<HealthComponent>() })
+                {
+                    playerHealth->ApplyDamage(0.0f, 0.0f, { 0.0f, 0.0f, 0.0f }, m_config.hitStopDuration * 0.75f);
+                    break;
+                }
+            }
+        }
+    }
+}
+
+void MeleeHitboxComponent::Update(const float /*dt*/)
+{
+    if (!m_animation)
+    {
+        ResolveAnimationSource();
+    }
+
+    // Auto-listen to timeline events fired this frame from AnimationComponent
+    if (m_animation)
+    {
+        for (const auto& ev : m_animation->GetFiredEvents())
+        {
+            if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Hitbox_Active))
+            {
+                OpenHitbox(ev.payload);
+            }
+            else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Hitbox_Inactive))
+            {
+                CloseHitbox();
+            }
+        }
+    }
+
+    // Only query PhysX when hitbox is active
+    if (m_isActive)
+    {
+        ExecuteCleaveSweep();
+    }
+}
+
+void MeleeHitboxComponent::DrawGizmo(const GizmoContext& ctx) noexcept
+{
+    if (!(ctx.categoryMask & static_cast<std::uint32_t>(GizmoCategory::Hitboxes)) || !ctx.shapes || !m_owner)
+    {
+        return;
+    }
+
+    const EditorMode mode{ EditorManager::Instance().GetEditorMode() };
+    // In Play Mode, only render the gizmo during active swing frames to keep the screen clear of clutter
+    if (mode == EditorMode::Play && !m_isActive)
+    {
+        return;
+    }
+
+    const DirectX::XMFLOAT4 capsuleColor = m_isActive
+        ? DirectX::XMFLOAT4{ 1.0f, 0.15f, 0.15f, 0.95f }  // Active Red (Swinging Damage Window)
+    : DirectX::XMFLOAT4{ 1.0f, 0.85f, 0.15f, 0.45f }; // Armed Yellow (Edit Mode Calibration Preview)
+
+    const Transform& t{ m_owner->transform };
+    const DirectX::XMFLOAT4X4 worldF4{ t.GetWorldMatrix() };
+    const DirectX::XMMATRIX objWorld{ DirectX::XMLoadFloat4x4(&worldF4) };
+
+    DirectX::XMVECTOR vScale, vRotQuat, vTrans;
+    if (!DirectX::XMMatrixDecompose(&vScale, &vRotQuat, &vTrans, objWorld))
+    {
+        return;
+    }
+
+    const DirectX::XMMATRIX socketWorldUnscaled{
+        DirectX::XMMatrixRotationQuaternion(vRotQuat) *
+        DirectX::XMMatrixTranslationFromVector(vTrans)
+    };
+
+    const DirectX::XMMATRIX locRot{ DirectX::XMMatrixRotationRollPitchYaw(
+        DirectX::XMConvertToRadians(m_config.localRotation.x),
+        DirectX::XMConvertToRadians(m_config.localRotation.y),
+        DirectX::XMConvertToRadians(m_config.localRotation.z))
+    };
+
+    const DirectX::XMMATRIX locTrans{ DirectX::XMMatrixTranslation(
+        m_config.localOffset.x,
+        m_config.localOffset.y,
+        m_config.localOffset.z)
+    };
+
+    const DirectX::XMMATRIX hitboxWorld{ locRot * locTrans * socketWorldUnscaled };
+
+    DirectX::XMFLOAT4X4 gizmoTransform{};
+    DirectX::XMStoreFloat4x4(&gizmoTransform, hitboxWorld);
+
+    ctx.shapes->DrawCapsule(gizmoTransform, m_config.radius, m_config.height, capsuleColor);
+}
+
+void MeleeHitboxComponent::DrawInspector()
+{
+    ImGui::TextDisabled("Blade Capsule Hitbox (Elden Ring Standard)");
+    ImGui::Separator();
+
+    ImGui::DragFloat("Radius", &m_config.radius, 0.01f, 0.05f, 5.0f, "%.2f m");
+    ImGui::DragFloat("Height", &m_config.height, 0.02f, 0.1f, 10.0f, "%.2f m");
+    ImGui::DragFloat3("Local Offset", &m_config.localOffset.x, 0.02f, -10.0f, 10.0f, "%.2f m");
+    ImGui::DragFloat3("Local Rotation", &m_config.localRotation.x, 1.0f, -180.0f, 180.0f, "%.1f deg");
+
+    ImGui::Spacing();
+    ImGui::TextDisabled("COMBAT IMPACT TUNING");
+    ImGui::DragFloat("Base Damage", &m_config.baseDamage, 1.0f, 0.0f, 1000.0f, "%.0f");
+    ImGui::DragFloat("Poise Damage", &m_config.poiseDamage, 1.0f, 0.0f, 500.0f, "%.0f");
+    ImGui::DragFloat("Knockback Impulse", &m_config.knockbackImpulse, 0.5f, 0.0f, 100.0f, "%.1f m/s");
+    ImGui::DragFloat("Hit-Stop Duration", &m_config.hitStopDuration, 0.01f, 0.0f, 0.5f, "%.2f s");
+
+    ImGui::Spacing();
+    ImGui::TextDisabled("LIVE STATUS");
+    ImGui::BeginDisabled();
+    bool activeCheck{ m_isActive };
+    ImGui::Checkbox("Hitbox Active", &activeCheck);
+    ImGui::Text("Active Multiplier: %.2fx", m_activeDamageMultiplier);
+    ImGui::Text("Victims Cleaved This Swing: %zu", m_victimCount);
+    ImGui::EndDisabled();
+
+    ImGui::Spacing();
+    if (m_isActive)
+    {
+        ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(220, 40, 40, 255));
+        if (ImGui::Button("Close Hitbox (Force Stop)##Manual", ImVec2(-1.0f, 26.0f)))
+        {
+            CloseHitbox();
+        }
+        ImGui::PopStyleColor();
+    }
+    else
+    {
+        if (ImGui::Button("Open Hitbox (Manual Swing Test)##Manual", ImVec2(-1.0f, 26.0f)))
+        {
+            OpenHitbox(1.0f);
+        }
+    }
+}
+
+void MeleeHitboxComponent::Serialize(nlohmann::json& outJson) const
+{
+    outJson["Radius"] = m_config.radius;
+    outJson["Height"] = m_config.height;
+    outJson["OffsetX"] = m_config.localOffset.x;
+    outJson["OffsetY"] = m_config.localOffset.y;
+    outJson["OffsetZ"] = m_config.localOffset.z;
+    outJson["RotX"] = m_config.localRotation.x;
+    outJson["RotY"] = m_config.localRotation.y;
+    outJson["RotZ"] = m_config.localRotation.z;
+    outJson["BaseDamage"] = m_config.baseDamage;
+    outJson["PoiseDamage"] = m_config.poiseDamage;
+    outJson["KnockbackImpulse"] = m_config.knockbackImpulse;
+    outJson["HitStopDuration"] = m_config.hitStopDuration;
+    outJson["TargetLayer"] = m_config.targetLayer;
+}
+
+void MeleeHitboxComponent::Deserialize(const nlohmann::json& inJson)
+{
+    m_config.radius = inJson.value("Radius", 0.35f);
+    m_config.height = inJson.value("Height", 1.4f);
+    m_config.localOffset.x = inJson.value("OffsetX", 0.0f);
+    m_config.localOffset.y = inJson.value("OffsetY", 0.6f);
+    m_config.localOffset.z = inJson.value("OffsetZ", 0.0f);
+    m_config.localRotation.x = inJson.value("RotX", 0.0f);
+    m_config.localRotation.y = inJson.value("RotY", 0.0f);
+    m_config.localRotation.z = inJson.value("RotZ", 0.0f);
+    m_config.baseDamage = inJson.value("BaseDamage", 35.0f);
+    m_config.poiseDamage = inJson.value("PoiseDamage", 45.0f);
+    m_config.knockbackImpulse = inJson.value("KnockbackImpulse", 18.0f);
+    m_config.hitStopDuration = inJson.value("HitStopDuration", 0.06f);
+    m_config.targetLayer = inJson.value("TargetLayer", CollisionLayer::Enemy);
+}
+
+REGISTER_COMPONENT(MeleeHitboxComponent)

@@ -3,6 +3,7 @@
 #include "CharacterMovementComponent.h"
 #include "FacingResolver.h"
 #include "GameObject.h"
+#include "MeleeHitboxComponent.h"
 #include "OrbitCameraDriverComponent.h"
 #include "PlayerStates.h"
 #include "StateMachine.h"
@@ -11,6 +12,32 @@ using namespace Engine::Animation;
 
 namespace
 {
+    // 攻撃ステート終了・中断時に判定を安全かつ確実に閉じるインラインヘルパー
+    void ClosePlayerHitbox(PlayerControllerComponent* controller) noexcept
+    {
+        if (!controller || !controller->GetOwner()) return;
+
+        // Check if MeleeHitboxComponent is attached directly to the player
+        if (auto* hitbox{ controller->GetOwner()->GetComponent<MeleeHitboxComponent>() })
+        {
+            hitbox->CloseHitbox();
+            return;
+        }
+
+        // Check if MeleeHitboxComponent is attached to the weapon socket child
+        for (const auto& child : controller->GetOwner()->GetChildren())
+        {
+            if (child)
+            {
+                if (auto* hitbox{ child->GetComponent<MeleeHitboxComponent>() })
+                {
+                    hitbox->CloseHitbox();
+                    return;
+                }
+            }
+        }
+    }
+
     // Evaluates directional combat intent (Command Normals). Returns Target Node Index, or -1 if none.
     [[nodiscard]] int EvaluateCommandNormal(const GameObject* owner, const InputIntent& intent, bool requireFreshInput = true) noexcept
     {
@@ -1592,7 +1619,11 @@ void PlayerAttackPrimary::Update(PlayerControllerComponent* controller, float dt
         }
     }
 }
-void PlayerAttackPrimary::Exit(PlayerControllerComponent* controller) {}
+
+void PlayerAttackPrimary::Exit(PlayerControllerComponent* controller)
+{
+    ClosePlayerHitbox(controller);
+}
 
 // Placeholders for Expanded Combat
 void PlayerAttackContextual::Enter(PlayerControllerComponent* controller)
@@ -1734,7 +1765,10 @@ void PlayerAttackContextual::Update(PlayerControllerComponent* controller, float
     }
 }
 
-void PlayerAttackContextual::Exit(PlayerControllerComponent* controller) {}
+void PlayerAttackContextual::Exit(PlayerControllerComponent* controller)
+{
+    ClosePlayerHitbox(controller);
+}
 
 void PlayerAttackDirectional::Enter(PlayerControllerComponent* controller)
 {
@@ -1892,7 +1926,10 @@ void PlayerAttackDirectional::Update(PlayerControllerComponent* controller, floa
     }
 }
 
-void PlayerAttackDirectional::Exit(PlayerControllerComponent*) {}
+void PlayerAttackDirectional::Exit(PlayerControllerComponent* controller)
+{
+    ClosePlayerHitbox(controller);
+}
 
 void PlayerAttackCharged::Enter(PlayerControllerComponent* controller)
 {
@@ -2059,6 +2096,8 @@ void PlayerAttackCharged::Exit(PlayerControllerComponent* controller)
     auto& blackboard = controller->getAnimBlackboard();
     blackboard.setFlag(Engine::Animation::AnimFlag::is_charging, false);
     blackboard.chargeTimer = 0.0f;
+
+    ClosePlayerHitbox(controller);
 }
 
 void PlayerAttackAerial::Enter(PlayerControllerComponent* controller)
@@ -2208,6 +2247,8 @@ void PlayerAttackAerial::Exit(PlayerControllerComponent* controller)
     {
         motor->GetConfig().useGravity = m_wasGravityEnabled;
     }
+
+    ClosePlayerHitbox(controller);
 }
 
 void PlayerAttackPlunge::Enter(PlayerControllerComponent* controller)
@@ -2353,6 +2394,8 @@ void PlayerAttackPlunge::Exit(PlayerControllerComponent* controller)
     // Round-Robin Deterministic Selection (0 -> 1 -> 2 -> 0)
     // Advanced upon exit so the entire 3-phase attack sequence locks onto the same variation index.
     m_variation = (m_variation + 1) % 3;
+
+    ClosePlayerHitbox(controller);
 }
 
 // DEFENSE & REACTION
@@ -2550,4 +2593,6 @@ void PlayerAttackSpeed::Exit(PlayerControllerComponent* controller)
     {
         motor->GetConfig().useGravity = m_wasGravityEnabled;
     }
+
+    ClosePlayerHitbox(controller);
 }

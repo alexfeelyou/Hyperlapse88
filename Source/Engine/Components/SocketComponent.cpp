@@ -71,12 +71,22 @@ void SocketComponent::ResolveBoneIndex() noexcept
 
 void SocketComponent::Update(float dt)
 {
-    // Fast-fail if the hierarchy isn't valid or the model hasn't loaded yet
-    if (!m_targetAnim || !m_owner) return;
+    if (!m_owner) return;
+
+    // Self-healing hierarchy resolve: handles scene deserialization and parent attachment
+    if (!m_targetAnim && m_owner->GetParent())
+    {
+        m_targetAnim = m_owner->GetParent()->GetComponent<AnimationComponent>();
+        ResolveBoneIndex();
+    }
+    if (!m_targetAnim) return;
 
     const std::size_t activeProfile{ GetActiveProfileIndex() };
+    if (m_targetBoneIndex[activeProfile] < 0)
+    {
+        ResolveBoneIndex();
+    }
     const int targetBone{ m_targetBoneIndex[activeProfile] };
-
     if (targetBone < 0) return;
 
     const auto& globals{ m_targetAnim->GetCurrentNodeGlobals() };
