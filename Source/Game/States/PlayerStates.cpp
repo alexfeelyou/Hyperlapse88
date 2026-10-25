@@ -1886,8 +1886,11 @@ void PlayerAttackDirectional::Update(PlayerControllerComponent* controller, floa
         int activeCommand{ liveDirectionalIntent };
         if (activeCommand == -1) activeCommand = m_bufferedAttack.targetCommandNormal;
 
-        // Allow branching if the player inputs a NEW command normal (e.g. Back Attack -> Up Attack)
-        if (activeCommand != -1 && activeCommand != m_activeNode)
+        // Allow branching if the player inputs a NEW command normal (e.g. Back Attack -> Up Attack).
+        // Back Attack (Node 1) is blocked out of Up Attack (Node 0): node 0 launches the player into the air
+        // and the retreat-slash animation does not sync with airborne motion.
+        const bool isBackAttackBlocked{ (activeCommand == 1) && (m_activeNode == 0) };
+        if (activeCommand != -1 && activeCommand != m_activeNode && !isBackAttackBlocked)
         {
             controller->SetPendingComboHit(activeCommand);
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackDirectional));
