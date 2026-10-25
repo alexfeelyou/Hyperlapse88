@@ -296,7 +296,12 @@ void CapsuleColliderComponent::DestroyController() noexcept
 {
     if (m_controller)
     {
-        m_controller->release();
+        // PhysX 所有権ルール: PxControllerManager が生存している場合のみ release() を呼ぶ。
+        // シャットダウン時にマネージャが先行破棄されている場合は既に内部解放されているため二重解放を防ぐ。
+        if (auto* manager{ PhysicsManager::Instance().GetControllerManager() })
+        {
+            m_controller->release();
+        }
         m_controller = nullptr;
     }
 }

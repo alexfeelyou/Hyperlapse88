@@ -45,7 +45,7 @@ class AIControllerComponent final : public IComponent
 public:
     AIControllerComponent() noexcept = default;
     explicit AIControllerComponent(const AIControllerConfig& config) noexcept;
-    ~AIControllerComponent() override = default;
+    ~AIControllerComponent() override;
 
     AIControllerComponent(const AIControllerComponent&) = delete;
     AIControllerComponent& operator=(const AIControllerComponent&) = delete;

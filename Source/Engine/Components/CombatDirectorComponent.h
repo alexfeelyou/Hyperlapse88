@@ -9,7 +9,7 @@ class CombatDirectorComponent final : public IComponent
 {
 public:
     CombatDirectorComponent() noexcept = default;
-    ~CombatDirectorComponent() override = default;
+    ~CombatDirectorComponent() override;
 
     CombatDirectorComponent(const CombatDirectorComponent&) = delete;
     CombatDirectorComponent& operator=(const CombatDirectorComponent&) = delete;

@@ -25,6 +25,11 @@ void CombatDirectorComponent::OnEnable() noexcept
     PushSettingsToDirector();
 }
 
+CombatDirectorComponent::~CombatDirectorComponent()
+{
+    CombatDirector::Instance().Clear();
+}
+
 void CombatDirectorComponent::OnDisable() noexcept
 {
     CombatDirector::Instance().Clear();

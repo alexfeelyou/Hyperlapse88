@@ -133,13 +133,17 @@ void CombatDirector::Update(const float dt, GameObject* playerObject) noexcept
     static std::vector<Candidate> s_candidates{};
     s_candidates.clear();
 
+    // Prune destroyed or dead enemy registrations to prevent dangling pointer access
+    const auto deadIt{ std::remove_if(m_enemies.begin(), m_enemies.end(), [](const AIControllerComponent* e) noexcept {
+        return !e || !e->GetOwner() || e->GetCurrentState() == EnemyState::dead;
+    }) };
+    if (deadIt != m_enemies.end())
+    {
+        m_enemies.erase(deadIt, m_enemies.end());
+    }
+
     for (auto* enemy : m_enemies)
     {
-        if (!enemy || !enemy->GetOwner() || enemy->GetCurrentState() == EnemyState::dead)
-        {
-            continue;
-        }
-
         // Only slot engaged or chasing enemies (ignore dormant ambushers on walls or props)
         const EnemyState st{ enemy->GetCurrentState() };
         if (st == EnemyState::ambush_dormant || st == EnemyState::wall_hang)
@@ -314,7 +318,7 @@ DirectX::XMFLOAT3 CombatDirector::ComputeSeparationForce(const AIControllerCompo
 
     for (const auto* other : m_enemies)
     {
-        if (!other || other == enemy || !other->GetOwner()) continue;
+        if (!other || other == enemy || !other->GetOwner() || other->GetCurrentState() == EnemyState::dead) continue;
 
         const DirectX::XMFLOAT4X4 otherMat{ other->GetOwner()->transform.GetWorldMatrix() };
         const float dx{ myPos.x - otherMat._41 };

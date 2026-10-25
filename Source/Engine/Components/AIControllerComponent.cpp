@@ -30,6 +30,11 @@ AIControllerComponent::AIControllerComponent(const AIControllerConfig& config) n
     : m_config{ config }
 {}
 
+AIControllerComponent::~AIControllerComponent()
+{
+    CombatDirector::Instance().UnregisterEnemy(this);
+}
+
 void AIControllerComponent::OnAttach(GameObject* owner) noexcept
 {
     IComponent::OnAttach(owner);
@@ -114,6 +119,12 @@ void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
     if (m_currentState == EnemyState::attack_windup || m_currentState == EnemyState::attack_active)
     {
         CombatDirector::Instance().ReleaseAttackToken(this);
+    }
+
+    // Immediately evict dead enemies from director slots and spatial buffers
+    if (newState == EnemyState::dead)
+    {
+        CombatDirector::Instance().UnregisterEnemy(this);
     }
 
     m_currentState = newState;
@@ -328,7 +339,7 @@ void AIControllerComponent::SteerTowards(const DirectX::XMFLOAT3& targetWorldPos
         float deltaYaw{ targetYawDeg - m_owner->transform.rotation.y };
 
         while (deltaYaw > 180.0f) deltaYaw -= 360.0f;
-        while (deltaYaw < -180.0f) deltaYaw -= 360.0f;
+        while (deltaYaw < -180.0f) deltaYaw += 360.0f;
 
         const float maxStep{ m_config.turnSpeedDeg * dt };
         const float step{ std::clamp(deltaYaw, -maxStep, maxStep) };
@@ -572,7 +583,7 @@ void AIControllerComponent::TickGroundAmbush(const float dt) noexcept
                 const float targetYawDeg{ DirectX::XMConvertToDegrees(std::atan2(dxT, dzT)) };
                 float deltaYaw{ targetYawDeg - m_owner->transform.rotation.y };
                 while (deltaYaw > 180.0f) deltaYaw -= 360.0f;
-                while (deltaYaw < -180.0f) deltaYaw -= 360.0f;
+                while (deltaYaw < -180.0f) deltaYaw += 360.0f;
                 m_owner->transform.rotation.y += std::clamp(deltaYaw, -m_config.turnSpeedDeg * dt, m_config.turnSpeedDeg * dt);
             }
         }
