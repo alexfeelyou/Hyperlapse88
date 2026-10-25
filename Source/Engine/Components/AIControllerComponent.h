@@ -66,6 +66,9 @@ public:
 
     // Direct interface for external combat interruptions (e.g., player heavy weapon impacts)
     void NotifyHitReaction() noexcept;
+    void NotifyLaunch(float launchVelocityY) noexcept;
+    void NotifyAirJuggle(float hitStopDuration, bool isFinisher = false, float finisherFollowThrough = 0.55f) noexcept;
+    void NotifySpike(float downwardVelocityY) noexcept;
 
     // State accessors
     [[nodiscard]] EnemyState GetCurrentState() const noexcept { return m_currentState; }
@@ -81,6 +84,7 @@ private:
     void TickGrunt(float dt) noexcept;
     void TickGroundAmbush(float dt) noexcept;
     void TickWallLurker(float dt) noexcept;
+    void TickAirborneJuggle(float dt) noexcept;
 
     // Cover & Ambush positioning helpers
     void FindCoverProps() noexcept;
@@ -90,9 +94,18 @@ private:
     void SteerTowards(const DirectX::XMFLOAT3& targetWorldPos, float dt, const DirectX::XMFLOAT3* lookAtWorldPos = nullptr) noexcept;
     void StopMovement() noexcept;
 
+    enum class JugglePhase : std::uint8_t
+    {
+        None = 0,
+        Ascent,     // Ballistic ascent under 1.0x natural gravity alongside player
+        FloatHold   // Zero-G lock: floating at eye-level waiting for air combo or finisher recovery
+    };
+
     AIControllerConfig m_config{};
     EnemyState m_currentState{ EnemyState::idle };
     AIBlackboard m_blackboard{};
+    JugglePhase m_jugglePhase{ JugglePhase::None };
+    float m_juggleHoldTimer{ 0.0f };
 
     // Sibling component caches
     CapsuleColliderComponent* m_capsule{ nullptr };

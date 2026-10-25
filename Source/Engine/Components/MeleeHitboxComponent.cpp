@@ -176,26 +176,130 @@ void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
                 m_hitVictims[m_victimCount++] = victimObj;
             }
 
-            // Calculate outward radial knockback impulse away from the player root
-            const DirectX::XMFLOAT4X4 vWorld{ victimObj->transform.GetWorldMatrix() };
-            const DirectX::XMVECTOR vVictimPos{ DirectX::XMVectorSet(vWorld._41, vWorld._42, vWorld._43, 0.0f) };
-            const DirectX::XMFLOAT4X4 attackerWorld{ playerRoot ? playerRoot->transform.GetWorldMatrix() : worldF4 };
-            const DirectX::XMVECTOR vAttackerPos{ DirectX::XMVectorSet(attackerWorld._41, attackerWorld._42, attackerWorld._43, 0.0f) };
-
-            DirectX::XMVECTOR vKnockDir{ DirectX::XMVectorSubtract(vVictimPos, vAttackerPos) };
-            vKnockDir = DirectX::XMVectorSetY(vKnockDir, 0.0f);
-
-            if (DirectX::XMVector3Equal(vKnockDir, DirectX::XMVectorZero()) || DirectX::XMVector3LengthSq(vKnockDir).m128_f32[0] < 0.0001f)
+            // Determine active attack classification from Player's animation slot and node
+            Engine::Animation::AnimSlot attackSlot{ Engine::Animation::AnimSlot::None };
+            std::size_t attackNodeIdx{ 0 };
+            const AnimNode* activeNode{ m_animation ? m_animation->GetActiveAnimNode() : nullptr };
+            if (m_animation && m_animation->GetCurrentStateIndex() < m_animation->GetStates().size())
             {
-                const float yawRad{ DirectX::XMConvertToRadians(playerRoot ? playerRoot->transform.rotation.y : m_owner->transform.rotation.y) };
-                vKnockDir = DirectX::XMVectorSet(std::sin(yawRad), 0.0f, std::cos(yawRad), 0.0f);
+                const auto& activeAnimState{ m_animation->GetStates()[m_animation->GetCurrentStateIndex()] };
+                attackSlot = activeAnimState.slot;
+                attackNodeIdx = m_animation->GetCurrentNodeIndex();
             }
-            vKnockDir = DirectX::XMVector3Normalize(vKnockDir);
 
-            DirectX::XMFLOAT3 impulse{};
-            const float finalKnockback{ m_config.knockbackImpulse * m_activeDamageMultiplier };
-            DirectX::XMStoreFloat3(&impulse, DirectX::XMVectorScale(vKnockDir, finalKnockback));
-            impulse.y = 2.5f;
+            const bool isLauncher{ attackSlot == Engine::Animation::AnimSlot::Attack_Directional && attackNodeIdx == 0 };
+            const bool isAirCombo{ attackSlot == Engine::Animation::AnimSlot::Attack_Aerial || attackSlot == Engine::Animation::AnimSlot::Attack_Speed_Aerial };
+            const bool isPlunge{ attackSlot == Engine::Animation::AnimSlot::Attack_Plunge };
+            // Node 2 represents the Finisher hit in both Attack_Aerial and Attack_Speed_Aerial
+            const bool isAirFinisher{ isAirCombo && (attackNodeIdx == 2) };
+
+            DirectX::XMFLOAT3 impulse{ 0.0f, 0.0f, 0.0f };
+            float calculatedLaunchVelocityY{ 10.5f };
+            auto* victimAi{ victimObj->GetComponent<AIControllerComponent>() };
+
+            if (isLauncher)
+            {
+                // Dynamic Kinematic Prediction: Calculate exact launch height from timeline events
+                const float attackerYawRad{ DirectX::XMConvertToRadians(playerRoot ? playerRoot->transform.rotation.y : m_owner->transform.rotation.y) };
+                const DirectX::XMFLOAT2 fwd{ std::sin(attackerYawRad), std::cos(attackerYawRad) };
+
+                float playerLiftV_Y{ 11.0f };
+                float liftNormTime{ 0.2595f };
+                float cancelNormTime{ 0.8659f };
+                float lungeImpulseVal{ 0.0f };
+
+                if (activeNode)
+                {
+                    for (const auto& ev : activeNode->events)
+                    {
+                        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Vertical))
+                        {
+                            playerLiftV_Y = ev.payload;
+                            liftNormTime = ev.normalizedTime;
+                        }
+                        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
+                        {
+                            cancelNormTime = ev.normalizedTime;
+                        }
+                        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse))
+                        {
+                            lungeImpulseVal = ev.payload;
+                        }
+                    }
+                }
+
+                const float stateDuration{ m_animation->GetSlotDuration(attackSlot) };
+                const float effectiveDuration{ (stateDuration > 0.001f) ? stateDuration : 1.25f };
+                const float currentPhase{ m_animation->GetCurrentPhase() };
+                const float remainingNorm{ (cancelNormTime > currentPhase) ? (cancelNormTime - currentPhase) : (cancelNormTime - liftNormTime) };
+                const float timeToCancel{ (std::max)(0.1f, remainingNorm * effectiveDuration) };
+
+                auto* playerMotor{ playerRoot ? playerRoot->GetComponent<CharacterMovementComponent>() : nullptr };
+                const float grav{ playerMotor ? std::abs(playerMotor->GetConfig().gravity) : 9.81f };
+                const float currentVelY{ playerMotor ? playerMotor->GetVerticalVelocity() : playerLiftV_Y };
+
+                // Predict player rise height at cancel window: y(t) = v0*t - 0.5*g*t^2
+                const float predictedRise{ (currentVelY * timeToCancel) - (0.5f * grav * timeToCancel * timeToCancel) };
+                constexpr float sweetSpotOffsetY{ 0.35f };
+                const float targetApexHeight{ ((predictedRise > 1.0f) ? predictedRise : 5.5f) + sweetSpotOffsetY };
+
+                // Solve required launch velocity to reach apex under natural gravity: v = sqrt(2 * g * H)
+                calculatedLaunchVelocityY = std::sqrt(2.0f * grav * targetApexHeight);
+
+                // Horizontal alignment: carry enemy forward to maintain sweet-spot spacing (1.3m)
+                float playerForwardTravel{ 0.0f };
+                if (playerMotor && lungeImpulseVal > 0.001f)
+                {
+                    const float drag{ (std::max)(0.1f, playerMotor->GetConfig().impulseDrag) };
+                    playerForwardTravel = (lungeImpulseVal / drag) * (1.0f - std::exp(-drag * timeToCancel));
+                }
+
+                const DirectX::XMFLOAT3 pPos{ playerRoot ? playerRoot->GetPosition() : DirectX::XMFLOAT3{ 0.0f, 0.0f, 0.0f } };
+                const DirectX::XMFLOAT3 ePos{ victimObj->GetPosition() };
+                const float currentDistFwd{ ((ePos.x - pPos.x) * fwd.x) + ((ePos.z - pPos.z) * fwd.y) };
+                constexpr float sweetSpotDist{ 1.3f };
+                const float targetForwardDisplacement{ (playerForwardTravel + sweetSpotDist) - currentDistFwd };
+
+                auto* enemyMotor{ victimObj->GetComponent<CharacterMovementComponent>() };
+                const float enemyDrag{ enemyMotor ? (std::max)(0.1f, enemyMotor->GetConfig().impulseDrag) : 3.5f };
+                const float forwardImpulse{ std::clamp(targetForwardDisplacement * enemyDrag, 0.0f, 25.0f) };
+
+                impulse.x = fwd.x * forwardImpulse;
+                impulse.y = 0.0f;
+                impulse.z = fwd.y * forwardImpulse;
+            }
+            else if (isAirCombo)
+            {
+                // Air Juggle: Zero radial knockback to prevent victim from flying away
+                impulse = { 0.0f, 0.0f, 0.0f };
+            }
+            else if (isPlunge)
+            {
+                // Downward Spike: Handled directly by NotifySpike
+                impulse = { 0.0f, 0.0f, 0.0f };
+            }
+            else
+            {
+                // Standard Ground Knockback: compute outward radial vector away from attacker
+                const DirectX::XMFLOAT4X4 vWorld{ victimObj->transform.GetWorldMatrix() };
+                const DirectX::XMVECTOR vVictimPos{ DirectX::XMVectorSet(vWorld._41, vWorld._42, vWorld._43, 0.0f) };
+                const DirectX::XMFLOAT4X4 attackerWorld{ playerRoot ? playerRoot->transform.GetWorldMatrix() : worldF4 };
+                const DirectX::XMVECTOR vAttackerPos{ DirectX::XMVectorSet(attackerWorld._41, attackerWorld._42, attackerWorld._43, 0.0f) };
+
+                DirectX::XMVECTOR vKnockDir{ DirectX::XMVectorSubtract(vVictimPos, vAttackerPos) };
+                vKnockDir = DirectX::XMVectorSetY(vKnockDir, 0.0f);
+
+                if (DirectX::XMVector3Equal(vKnockDir, DirectX::XMVectorZero()) || DirectX::XMVector3LengthSq(vKnockDir).m128_f32[0] < 0.0001f)
+                {
+                    const float yawRad{ DirectX::XMConvertToRadians(playerRoot ? playerRoot->transform.rotation.y : m_owner->transform.rotation.y) };
+                    vKnockDir = DirectX::XMVectorSet(std::sin(yawRad), 0.0f, std::cos(yawRad), 0.0f);
+                }
+                vKnockDir = DirectX::XMVector3Normalize(vKnockDir);
+
+                const float finalKnockback{ m_config.knockbackImpulse * m_activeDamageMultiplier };
+                DirectX::XMStoreFloat3(&impulse, DirectX::XMVectorScale(vKnockDir, finalKnockback));
+                impulse.y = 2.5f;
+            }
 
             // Deliver damage, poise break evaluation, and hit-stop to victim
             bool poiseBrokeOrDead{ false };
@@ -215,12 +319,35 @@ void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
                 victimAnim->ApplyHitStop(m_config.hitStopDuration);
             }
 
-            // Gated Hit Reaction: Only stagger enemy if posture/poise completely broke or hit was lethal
-            if (poiseBrokeOrDead)
+            // State and juggle transitions
+            if (victimAi)
             {
-                if (auto* ai{ victimObj->GetComponent<AIControllerComponent>() })
+                if (isLauncher)
                 {
-                    ai->NotifyHitReaction();
+                    victimAi->NotifyLaunch(calculatedLaunchVelocityY);
+                }
+                else if (isAirCombo)
+                {
+                    // Calculate Player's remaining follow-through animation time so the enemy drops at the exact same frame
+                    float finisherFollowThroughDuration{ 0.55f };
+                    if (isAirFinisher && activeNode)
+                    {
+                        const float stateDuration{ m_animation->GetSlotDuration(attackSlot) };
+                        const float currentPhase{ m_animation->GetCurrentPhase() };
+                        if (stateDuration > 0.001f && currentPhase < 1.0f)
+                        {
+                            finisherFollowThroughDuration = std::clamp((1.0f - currentPhase) * stateDuration, 0.30f, 0.80f);
+                        }
+                    }
+                    victimAi->NotifyAirJuggle(m_config.hitStopDuration, isAirFinisher, finisherFollowThroughDuration);
+                }
+                else if (isPlunge)
+                {
+                    victimAi->NotifySpike(-22.0f);
+                }
+                else if (poiseBrokeOrDead)
+                {
+                    victimAi->NotifyHitReaction();
                 }
             }
 

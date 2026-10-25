@@ -121,6 +121,20 @@ void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
         m_health->ResetPoise();
     }
 
+    if (m_currentState == EnemyState::airborne_juggle)
+    {
+        if (m_movement)
+        {
+            m_movement->SetGravityScale(1.0f);
+        }
+        if (m_capsule)
+        {
+            m_capsule->SetCollisionLayer(CollisionLayer::Enemy, CollisionLayer::Mask::Enemy);
+        }
+        m_jugglePhase = JugglePhase::None;
+        m_juggleHoldTimer = 0.0f;
+    }
+
     // Release combat token when exiting attack states
     if (m_currentState == EnemyState::attack_windup || m_currentState == EnemyState::attack_active)
     {
@@ -179,6 +193,21 @@ void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
 
             m_movement->AddImpulse(launchDir);
         }
+        break;
+
+    case EnemyState::airborne_juggle:
+        StopMovement();
+        if (m_movement)
+        {
+            m_movement->SetGravityScale(1.0f);
+        }
+        if (m_capsule)
+        {
+            // Temporarily ignore player capsule collisions so aerial attacks don't jitter against victim
+            m_capsule->SetCollisionLayer(CollisionLayer::Enemy, CollisionLayer::Mask::Enemy & ~CollisionLayer::Player);
+        }
+        m_jugglePhase = JugglePhase::None;
+        m_juggleHoldTimer = 0.0f;
         break;
 
     case EnemyState::idle:
@@ -488,7 +517,155 @@ void AIControllerComponent::NotifyHitReaction() noexcept
         ChangeState(EnemyState::dead);
         return;
     }
+    // If airborne, maintain juggle instead of snapping to grounded hit_react
+    if (m_currentState == EnemyState::airborne_juggle)
+    {
+        NotifyAirJuggle(0.06f);
+        return;
+    }
     ChangeState(EnemyState::hit_react);
+}
+
+void AIControllerComponent::NotifyLaunch(const float launchVelocityY) noexcept
+{
+    if (m_currentState == EnemyState::dead || (m_health && m_health->IsDead()))
+    {
+        ChangeState(EnemyState::dead);
+        return;
+    }
+
+    ChangeState(EnemyState::airborne_juggle);
+    m_jugglePhase = JugglePhase::Ascent;
+    m_juggleHoldTimer = 0.0f;
+
+    if (m_movement)
+    {
+        // Ascend under standard 1.0x gravity to match the player's lift arc identically
+        m_movement->SetGravityScale(1.0f);
+        m_movement->SetVerticalVelocity(launchVelocityY);
+    }
+}
+
+void AIControllerComponent::NotifyAirJuggle(const float hitStopDuration, const bool isFinisher, const float finisherFollowThrough) noexcept
+{
+    if (m_currentState == EnemyState::dead || (m_health && m_health->IsDead()))
+    {
+        ChangeState(EnemyState::dead);
+        return;
+    }
+
+    if (m_currentState != EnemyState::airborne_juggle)
+    {
+        ChangeState(EnemyState::airborne_juggle);
+    }
+
+    m_jugglePhase = JugglePhase::FloatHold;
+
+    if (m_movement)
+    {
+        // Complete Zero-G Lock: eliminate all vertical drop during air combos
+        m_movement->SetVerticalVelocity(0.0f);
+        m_movement->HaltMomentum(1.0f);
+        m_movement->SetGravityScale(0.0f);
+    }
+
+    if (isFinisher)
+    {
+        // Finisher Hit: hold Zero-G for the exact remaining duration of the player's follow-through animation
+        m_juggleHoldTimer = finisherFollowThrough;
+    }
+    else
+    {
+        // Intermediate Hit: maintain Zero-G float window (0.85s) waiting for the next combo chain
+        m_juggleHoldTimer = 0.85f;
+    }
+
+    if (auto* anim{ m_owner ? m_owner->GetComponent<AnimationComponent>() : nullptr })
+    {
+        anim->ApplyHitStop(hitStopDuration);
+    }
+}
+
+void AIControllerComponent::NotifySpike(const float downwardVelocityY) noexcept
+{
+    if (m_currentState == EnemyState::dead || (m_health && m_health->IsDead()))
+    {
+        ChangeState(EnemyState::dead);
+        return;
+    }
+
+    if (m_currentState != EnemyState::airborne_juggle)
+    {
+        ChangeState(EnemyState::airborne_juggle);
+    }
+
+    // Cancel any pending ascent / Zero-G hold so TickAirborneJuggle cannot overwrite
+    // the spike's downward velocity with 0 on the next frame.
+    // FloatHold + timer 0 means "gravity only, do not touch vertical velocity".
+    m_jugglePhase = JugglePhase::FloatHold;
+    m_juggleHoldTimer = 0.0f;
+
+    if (m_movement)
+    {
+        m_movement->SetGravityScale(1.0f);
+        m_movement->SetVerticalVelocity(downwardVelocityY);
+        m_movement->HaltMomentum(1.0f);
+    }
+}
+
+void AIControllerComponent::TickAirborneJuggle(const float dt) noexcept
+{
+    StopMovement();
+
+    if (!m_movement || !m_capsule) return;
+
+    // Advance the state clock; it was never ticked here, so the 0.2s landing grace could never elapse
+    m_blackboard.stateTimer += dt;
+
+    // A live Zero-G hold window means the enemy is deliberately pinned in the air; never read it as a landing
+    const bool isHoldWindowActive{ m_jugglePhase == JugglePhase::FloatHold && m_juggleHoldTimer > 0.0f };
+
+    // Detect impact with level floor to recover (only once falling or landing)
+    if (!isHoldWindowActive && m_capsule->IsGrounded() && m_movement->GetVerticalVelocity() <= 0.05f && m_blackboard.stateTimer > 0.2f)
+    {
+        // Re-acquire the player: force a perception refresh on the next Update so recovery
+        // starts from fresh line-of-sight and distance data instead of pre-juggle values
+        m_blackboard.perceptionTimer = m_config.perceptionInterval;
+        ChangeState(EnemyState::hit_react);
+        return;
+    }
+
+    if (m_jugglePhase == JugglePhase::Ascent)
+    {
+        // Transition to Apex Float: as soon as upward launch velocity crosses zero
+        if (m_movement->GetVerticalVelocity() <= 0.1f)
+        {
+            m_jugglePhase = JugglePhase::FloatHold;
+            m_movement->SetVerticalVelocity(0.0f);
+            m_movement->SetGravityScale(0.0f); // Completely freeze gravity at apex
+            m_juggleHoldTimer = 0.85f; // Wait up to 0.85s for player's follow-up attack
+        }
+    }
+    else if (m_jugglePhase == JugglePhase::FloatHold)
+    {
+        if (m_juggleHoldTimer > 0.0f)
+        {
+            m_juggleHoldTimer -= dt;
+            m_movement->SetVerticalVelocity(0.0f);
+            m_movement->SetGravityScale(0.0f); // Maintain Zero-G lock
+
+            // Hold window expired (player stopped attacking or finisher follow-through concluded): restore gravity
+            if (m_juggleHoldTimer <= 0.0f)
+            {
+                m_movement->SetGravityScale(1.0f);
+            }
+        }
+        else
+        {
+            // Drop under standard gravity in perfect unison with the player
+            m_movement->SetGravityScale(1.0f);
+        }
+    }
 }
 
 void AIControllerComponent::TickGrunt(const float dt) noexcept
@@ -893,6 +1070,12 @@ void AIControllerComponent::Update(const float dt)
     }
 
     // Dispatch to archetype behaviors
+    if (m_currentState == EnemyState::airborne_juggle)
+    {
+        TickAirborneJuggle(dt);
+        return;
+    }
+
     switch (m_config.archetype)
     {
     case EnemyArchetype::grunt:
@@ -1116,7 +1299,7 @@ namespace
         }
     }
 
-    // AAA DOOM / RE Engine style: Maps operational state directly to a distinct debug visual color
+    // Maps operational state directly to a distinct debug visual color
     [[nodiscard]] constexpr DirectX::XMFLOAT4 GetStateDebugColor(const EnemyState state) noexcept
     {
         switch (state)
@@ -1131,7 +1314,10 @@ namespace
             return { 1.0f, 0.15f, 0.15f, 1.0f }; // Danger Red
         case EnemyState::hit_react:
             return { 0.9f, 0.2f, 0.9f, 0.95f }; // Stunned Magenta
+        case EnemyState::airborne_juggle:
+            return { 1.0f, 0.6f, 0.1f, 1.0f }; // Sky Gold (Airborne)
         case EnemyState::ambush_dormant:
+            return { 0.9f, 0.45f, 0.1f, 0.85f }; // Camo Orange
         case EnemyState::ambush_burst:
             return { 0.9f, 0.45f, 0.1f, 0.85f }; // Camo Orange
         case EnemyState::wall_hang:
@@ -1331,7 +1517,7 @@ void AIControllerComponent::DrawInspector()
     static constexpr const char* s_stateNames[] = {
         "Idle", "Patrol", "Ambush Dormant", "Ambush Burst",
         "Wall Hang", "Wall Drop", "Chase", "Attack Windup",
-        "Attack Active", "Hit React", "Dead"
+        "Attack Active", "Hit React", "Airborne Juggle", "Dead"
     };
     ImGui::Text("Current State: %s", s_stateNames[static_cast<std::size_t>(m_currentState)]);
     ImGui::Text("Dist to Target: %.2f m", std::sqrt(m_blackboard.targetDistanceSq));

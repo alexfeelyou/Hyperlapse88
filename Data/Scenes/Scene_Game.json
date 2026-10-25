@@ -219,15 +219,15 @@
                             "Type": "SocketComponent"
                         },
                         {
-                            "BaseDamage": 35.0,
-                            "Height": 0.8999999761581421,
+                            "BaseDamage": 5.0,
+                            "Height": 0.7400000095367432,
                             "HitStopDuration": 0.05999999865889549,
                             "KnockbackImpulse": 18.0,
                             "OffsetX": 0.0,
                             "OffsetY": 1.6399999856948853,
                             "OffsetZ": -0.019999999552965164,
-                            "PoiseDamage": 45.0,
-                            "Radius": 0.1899999976158142,
+                            "PoiseDamage": 25.0,
+                            "Radius": 0.30000001192092896,
                             "RotX": 0.0,
                             "RotY": 0.0,
                             "RotZ": -87.0,
@@ -237,15 +237,15 @@
                     ],
                     "IsActive": true,
                     "Name": "Socket_Weapon_Back",
-                    "PosX": -0.196013405919075,
-                    "PosY": 1.2633048295974731,
-                    "PosZ": -0.5309826135635376,
-                    "RotX": -42.956119537353516,
-                    "RotY": 95.76990509033203,
-                    "RotZ": 148.3153839111328,
-                    "ScaleX": 1.3100001811981201,
-                    "ScaleY": 1.9100000858306885,
-                    "ScaleZ": 0.9100000858306885
+                    "PosX": -0.4436783194541931,
+                    "PosY": 0.4655759334564209,
+                    "PosZ": 0.3163749575614929,
+                    "RotX": 4.234800815582275,
+                    "RotY": -131.75721740722656,
+                    "RotZ": 31.10491180419922,
+                    "ScaleX": 1.309999942779541,
+                    "ScaleY": 1.9099996089935303,
+                    "ScaleZ": 0.9099999666213989
                 }
             ],
             "Components": [
@@ -3173,6 +3173,13 @@
                 },
                 {
                     "Type": "PlayerControllerComponent"
+                },
+                {
+                    "CadenceInterval": 0.25,
+                    "InnerRadius": 1.5,
+                    "MaxAttackTokens": 3,
+                    "OuterRadius": 2.700000047683716,
+                    "Type": "CombatDirectorComponent"
                 }
             ],
             "IsActive": true,

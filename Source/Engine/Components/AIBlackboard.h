@@ -28,6 +28,7 @@ enum class EnemyState : std::uint8_t
     attack_windup,
     attack_active,
     hit_react,
+    airborne_juggle,
     dead,
     count
 };

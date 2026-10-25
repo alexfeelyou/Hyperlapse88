@@ -1,6 +1,8 @@
+#include "AIControllerComponent.h"
 #include "AnimationComponent.h"
 #include "CapsuleColliderComponent.h"
 #include "CharacterMovementComponent.h"
+#include "CombatDirector.h"
 #include "FacingResolver.h"
 #include "GameObject.h"
 #include "MeleeHitboxComponent.h"
@@ -2194,10 +2196,40 @@ void PlayerAttackAerial::Update(PlayerControllerComponent* controller, float dt)
         }
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse))
         {
-            // Apply horizontal mid-air lunge
-            motor->AddImpulse(DirectX::XMFLOAT3{
-                m_lungeDirection.x * ev.payload, 0.0f, m_lungeDirection.y * ev.payload
-                });
+            // Soft Target Locking: Maintain sweet-spot distance (1.3m) from airborne victim
+            const DirectX::XMFLOAT3 pPos{ controller->GetOwner()->GetPosition() };
+            auto* targetEnemy{ CombatDirector::Instance().FindNearestAirborneEnemy(pPos, 4.0f) };
+            if (targetEnemy && targetEnemy->GetOwner())
+            {
+                const DirectX::XMFLOAT3 ePos{ targetEnemy->GetOwner()->GetPosition() };
+                const float dx{ ePos.x - pPos.x };
+                const float dz{ ePos.z - pPos.z };
+                const float distXZ{ std::sqrt((dx * dx) + (dz * dz)) };
+                constexpr float sweetSpotDist{ 1.3f };
+
+                if (distXZ > sweetSpotDist)
+                {
+                    const float closeSpeed{ (std::min)(ev.payload, (distXZ - sweetSpotDist) * 12.0f) };
+                    motor->HaltMomentum(1.0f);
+                    motor->AddImpulse(DirectX::XMFLOAT3{ m_lungeDirection.x * closeSpeed, 0.0f, m_lungeDirection.y * closeSpeed });
+                }
+                else
+                {
+                    motor->HaltMomentum(1.0f);
+                }
+
+                // Smooth vertical convergence to match victim's torso height
+                const float dy{ (ePos.y - 0.35f) - pPos.y };
+                if (std::abs(dy) > 0.05f && std::abs(dy) < 1.5f)
+                {
+                    controller->GetOwner()->transform.position.y += dy * (std::min)(1.0f, dt * 10.0f);
+                }
+            }
+            else
+            {
+                // In empty air without enemy: suppress high-speed lunges to keep air control stable
+                motor->HaltMomentum(1.0f);
+            }
         }
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt))
         {
@@ -2536,7 +2568,45 @@ void PlayerAttackSpeed::Update(PlayerControllerComponent* controller, float dt)
         }
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse) && motor)
         {
-            motor->AddImpulse({ m_facingDir.x * ev.payload, 0.0f, m_facingDir.y * ev.payload });
+            if (m_isAerial)
+            {
+                const DirectX::XMFLOAT3 pPos{ controller->GetOwner()->GetPosition() };
+                auto* targetEnemy{ CombatDirector::Instance().FindNearestAirborneEnemy(pPos, 4.0f) };
+                if (targetEnemy && targetEnemy->GetOwner())
+                {
+                    const DirectX::XMFLOAT3 ePos{ targetEnemy->GetOwner()->GetPosition() };
+                    const float dx{ ePos.x - pPos.x };
+                    const float dz{ ePos.z - pPos.z };
+                    const float distXZ{ std::sqrt((dx * dx) + (dz * dz)) };
+                    constexpr float sweetSpotDist{ 1.3f };
+
+                    if (distXZ > sweetSpotDist)
+                    {
+                        const float closeSpeed{ (std::min)(ev.payload, (distXZ - sweetSpotDist) * 12.0f) };
+                        motor->HaltMomentum(1.0f);
+                        motor->AddImpulse(DirectX::XMFLOAT3{ m_facingDir.x * closeSpeed, 0.0f, m_facingDir.y * closeSpeed });
+                    }
+                    else
+                    {
+                        motor->HaltMomentum(1.0f);
+                    }
+
+                    // Smooth vertical convergence to match victim's torso height
+                    const float dy{ (ePos.y - 0.35f) - pPos.y };
+                    if (std::abs(dy) > 0.05f && std::abs(dy) < 1.5f)
+                    {
+                        controller->GetOwner()->transform.position.y += dy * (std::min)(1.0f, dt * 10.0f);
+                    }
+                }
+                else
+                {
+                    motor->HaltMomentum(1.0f);
+                }
+            }
+            else
+            {
+                motor->AddImpulse({ m_facingDir.x * ev.payload, 0.0f, m_facingDir.y * ev.payload });
+            }
         }
     }
 

@@ -227,7 +227,7 @@ void CharacterMovementComponent::Update(const float dt)
 
     if (m_config.useGravity && !m_capsule->IsGrounded())
     {
-        m_verticalVelocity += m_config.gravity * dt;
+        m_verticalVelocity += m_config.gravity * m_gravityScale * dt;
     }
     else if (m_config.useGravity && m_capsule->IsGrounded() && m_verticalVelocity <= 0.0f)
     {

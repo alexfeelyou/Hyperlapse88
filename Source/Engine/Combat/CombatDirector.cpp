@@ -141,6 +141,7 @@ void CombatDirector::Update(const float dt, GameObject* playerObject) noexcept
             st == EnemyState::attack_windup ||
             st == EnemyState::attack_active ||
             st == EnemyState::hit_react ||
+            st == EnemyState::airborne_juggle ||
             st == EnemyState::ambush_burst;
         };
 
@@ -393,6 +394,31 @@ DirectX::XMFLOAT3 CombatDirector::ComputeSeparationForce(const AIControllerCompo
     }
 
     return separation;
+}
+
+AIControllerComponent* CombatDirector::FindNearestAirborneEnemy(const DirectX::XMFLOAT3& origin, const float maxDistance) const noexcept
+{
+    AIControllerComponent* bestEnemy{ nullptr };
+    float bestDistSq{ maxDistance * maxDistance };
+
+    for (auto* enemy : m_enemies)
+    {
+        if (!enemy || !enemy->GetOwner() || enemy->GetOwner()->IsDestroyed()) continue;
+        if (enemy->GetCurrentState() != EnemyState::airborne_juggle) continue;
+
+        const DirectX::XMFLOAT4X4 eWorld{ enemy->GetOwner()->transform.GetWorldMatrix() };
+        const float dx{ eWorld._41 - origin.x };
+        const float dy{ eWorld._42 - origin.y };
+        const float dz{ eWorld._43 - origin.z };
+        const float distSq{ (dx * dx) + (dy * dy) + (dz * dz) };
+
+        if (distSq < bestDistSq)
+        {
+            bestDistSq = distSq;
+            bestEnemy = enemy;
+        }
+    }
+    return bestEnemy;
 }
 
 void CombatDirector::DrawGizmos(const GizmoContext& ctx) noexcept

@@ -61,6 +61,8 @@ public:
     [[nodiscard]] DirectX::XMFLOAT3 GetAssignedSlotPosition(const AIControllerComponent* enemy) const noexcept;
     [[nodiscard]] SwarmRing GetAssignedRing(const AIControllerComponent* enemy) const noexcept;
     [[nodiscard]] DirectX::XMFLOAT3 ComputeSeparationForce(const AIControllerComponent* enemy) const noexcept;
+    [[nodiscard]] AIControllerComponent* FindNearestAirborneEnemy(const DirectX::XMFLOAT3& origin, float maxDistance = 4.0f) const noexcept;
+    [[nodiscard]] const std::vector<AIControllerComponent*>& GetEnemies() const noexcept { return m_enemies; }
 
     // Tuning accessors
     [[nodiscard]] float GetInnerRadius() const noexcept { return m_innerRadius; }

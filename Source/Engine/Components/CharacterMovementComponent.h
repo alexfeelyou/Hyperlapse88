@@ -70,6 +70,8 @@ public:
     [[nodiscard]] DirectX::XMFLOAT3 GetTotalVelocity() const noexcept;
     [[nodiscard]] float GetVerticalVelocity() const noexcept { return m_verticalVelocity; }
     void SetVerticalVelocity(float v) noexcept { m_verticalVelocity = v; }
+    void SetGravityScale(float scale) noexcept { m_gravityScale = scale; }
+    [[nodiscard]] float GetGravityScale() const noexcept { return m_gravityScale; }
     [[nodiscard]] bool IsMoving() const noexcept;
     [[nodiscard]] bool isGrounded() const noexcept;
     [[nodiscard]] CharacterMovementConfig& GetConfig() noexcept { return m_config; }
@@ -87,6 +89,7 @@ private:
 
     float m_verticalVelocity{ 0.0f };
     float m_frictionMultiplier{ 1.0f };
+    float m_gravityScale{ 1.0f };
     bool m_isSprinting{ false };
 
     DirectX::XMFLOAT2 m_overrideVelocity{ 0.0f, 0.0f };
