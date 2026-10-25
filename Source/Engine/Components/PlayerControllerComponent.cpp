@@ -97,11 +97,42 @@ void PlayerControllerComponent::GatherHardwareInput(const float dt) noexcept
         if (input.GetKeyboard().IsPress('A')) targetX -= 1.0f;
     }
 
+    // Snapshot last frame's raw input BEFORE overwriting it, so we can judge where an "up" press came from
+    const DirectX::XMFLOAT2 prevMove{ m_intent.moveVector };
     m_intent.moveVector = { targetX, targetZ };
 
-    // Maintain Temporal Input Freshness for Directional Command Normals
-    if (targetZ > 0.4f) m_intent.forwardIntentTimer += dt;
-    else m_intent.forwardIntentTimer = 0.0f;
+    // Maintain Temporal Input Freshness for Directional Command Normals (Up Attack).
+    // forwardIntentTimer = how long the current "up" run has been held, and EvaluateCommandNormal only
+    // accepts node 0 while it is <= 0.15s. Seeding it with a stale value permanently disqualifies that run,
+    // so node 0 fires only when "up" is pressed from a neutral stick/keyboard and stays straight up.
+    constexpr float s_upThreshold{ 0.4f };           // Must match the up threshold in EvaluateCommandNormal 
+    constexpr float s_neutralAxisThreshold{ 0.3f };  // Previous frame counts as "no direction" below this on both axes
+    constexpr float s_lateralTaintThreshold{ 0.5f }; // Sideways push beyond ~30 deg off vertical spoils the run
+    constexpr float s_staleForwardIntent{ 1.0f };    // Any value above 0.15s works; it only has to fail the freshness check
+
+    if (targetZ > s_upThreshold)
+    {
+        // Rising edge: "up" was not held last frame. Only a press that begins from neutral is a clean command normal
+        // (rejects W -> A/D -> W and analog up -> left/right -> up, where a sideways direction was already held)
+        if (prevMove.y <= s_upThreshold)
+        {
+            const bool cameFromNeutral{ (std::abs(prevMove.x) < s_neutralAxisThreshold) && (std::abs(prevMove.y) < s_neutralAxisThreshold) };
+            m_intent.forwardIntentTimer = cameFromNeutral ? 0.0f : s_staleForwardIntent;
+        }
+
+        // Holding A/D (or pushing the stick sideways) at any point during the run spoils it as well
+        if ((std::abs(targetX) > s_lateralTaintThreshold) && (m_intent.forwardIntentTimer < s_staleForwardIntent))
+        {
+            m_intent.forwardIntentTimer = s_staleForwardIntent;
+        }
+
+        m_intent.forwardIntentTimer += dt;
+    }
+    else
+    {
+        // Run ended: the next "up" press is evaluated from scratch
+        m_intent.forwardIntentTimer = 0.0f;
+    }
 
     // KEYBOARD SHIFT: TAP-TO-DASH VS HOLD-TO-SPRINT 
     // Threshold 200ms for discriminates between an intentional tap and a sustained hold
