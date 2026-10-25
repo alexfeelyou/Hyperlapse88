@@ -14,7 +14,7 @@
 namespace
 {
     inline constexpr const char* s_eventNames[] = {
-         "None", "Hitbox_Active", "Hitbox_Inactive",
+         "None", "Hitbox_Window",
          "CancelWindow_Open", "Invincible_Start", "Invincible_End",
          "Play_SFX", "Play_VFX", "Lunge_Impulse", "Lunge_Vertical", "Movement_Halt",
          "Pose_HoldMarker"
@@ -24,7 +24,7 @@ namespace
     {
         switch (static_cast<CombatEventId>(eventId))
         {
-        case CombatEventId::Hitbox_Active:     return IM_COL32(250, 80, 80, 255);
+        case CombatEventId::Hitbox_Window:     return IM_COL32(250, 80, 80, 255);
         case CombatEventId::CancelWindow_Open: return IM_COL32(250, 200, 50, 255);
         case CombatEventId::Lunge_Impulse:     return IM_COL32(50, 150, 250, 255);
         case CombatEventId::Lunge_Vertical:    return IM_COL32(50, 250, 150, 255);
@@ -560,8 +560,8 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
                 ev.normalizedTime = std::clamp<float>(ev.normalizedTime + deltaNorm, 0.0f, 1.0f);
             }
         }
-
-        drawList->AddText(ImVec2(canvasPos.x + 10.0f, yTop + 6.0f), IM_COL32(200, 200, 200, 255), s_eventNames[ev.eventId]);
+        const char* eventLabel{ (ev.eventId < std::size(s_eventNames)) ? s_eventNames[ev.eventId] : "Unknown" };
+        drawList->AddText(ImVec2(canvasPos.x + 10.0f, yTop + 6.0f), IM_COL32(200, 200, 200, 255), eventLabel);
     }
 
     const float currentNorm{ std::clamp<float>(m_targetComponent->GetCurrentTimer() / baseDuration, 0.0f, 1.0f) };
@@ -615,8 +615,21 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
             if (ImGui::Combo("Type", &currentEventId, s_eventNames, static_cast<int>(std::size(s_eventNames))))
             {
                 ev.eventId = static_cast<std::uint32_t>(currentEventId);
+                // UX: Auto-configure Hitbox_Window as range with sensible defaults
+                if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Hitbox_Window))
+                {
+                    ev.isRange = true;
+                    if (ev.normalizedEndTime <= ev.normalizedTime)
+                    {
+                        ev.normalizedEndTime = (std::min)(1.0f, ev.normalizedTime + 0.15f);
+                    }
+                    if (ev.payload == 0.0f)
+                    {
+                        ev.payload = 1.0f;
+                    }
+                }
                 // UX: Default to 1.0 (Full Stop) when newly selecting the Halt event so it works immediately
-                if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt) && ev.payload == 0.0f)
+                else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt) && ev.payload == 0.0f)
                 {
                     ev.payload = 1.0f;
                 }
@@ -652,7 +665,7 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
             if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse) ||
                 ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Vertical) ||
                 ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt) ||
-                ev.eventId == static_cast<std::uint32_t>(CombatEventId::Hitbox_Active) ||
+                ev.eventId == static_cast<std::uint32_t>(CombatEventId::Hitbox_Window) ||
                 ev.eventId == static_cast<std::uint32_t>(CombatEventId::Play_SFX) ||
                 ev.eventId == static_cast<std::uint32_t>(CombatEventId::Play_VFX))
             {
@@ -660,7 +673,7 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
                 if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse)) ImGui::DragFloat("Horizontal Lunge", &ev.payload, 0.5f, -200.0f, 200.0f);
                 else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Vertical)) ImGui::DragFloat("Vertical Lift (m/s)", &ev.payload, 0.5f, -50.0f, 50.0f);
                 else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt)) ImGui::DragFloat("Braking Factor", &ev.payload, 0.05f, 0.0f, 1.0f, "%.2f (1 = Stop)");
-                else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Hitbox_Active)) ImGui::DragFloat("Damage Multiplier", &ev.payload, 0.05f, 0.1f, 10.0f, "%.2fx (0 = 1.0x)");
+                else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Hitbox_Window)) ImGui::DragFloat("Damage Multiplier", &ev.payload, 0.05f, 0.1f, 10.0f, "%.2fx (0 = 1.0x)");
                 else ImGui::DragFloat("Asset ID", &ev.payload, 1.0f, 0.0f, 100.0f);
                 ImGui::Spacing();
             }

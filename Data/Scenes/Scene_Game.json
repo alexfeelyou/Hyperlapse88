@@ -217,19 +217,35 @@
                             "HolsterLocalSclY": 1.909999966621399,
                             "HolsterLocalSclZ": 0.9100000262260437,
                             "Type": "SocketComponent"
+                        },
+                        {
+                            "BaseDamage": 35.0,
+                            "Height": 0.8999999761581421,
+                            "HitStopDuration": 0.05999999865889549,
+                            "KnockbackImpulse": 18.0,
+                            "OffsetX": 0.0,
+                            "OffsetY": 1.6399999856948853,
+                            "OffsetZ": -0.019999999552965164,
+                            "PoiseDamage": 45.0,
+                            "Radius": 0.1899999976158142,
+                            "RotX": 0.0,
+                            "RotY": 0.0,
+                            "RotZ": -87.0,
+                            "TargetLayer": 8,
+                            "Type": "MeleeHitboxComponent"
                         }
                     ],
                     "IsActive": true,
                     "Name": "Socket_Weapon_Back",
-                    "PosX": -0.4436783194541931,
-                    "PosY": 0.4655759334564209,
-                    "PosZ": 0.3163749575614929,
-                    "RotX": 4.234800815582275,
-                    "RotY": -131.75721740722656,
-                    "RotZ": 31.10491180419922,
-                    "ScaleX": 1.309999942779541,
-                    "ScaleY": 1.9099996089935303,
-                    "ScaleZ": 0.9099999666213989
+                    "PosX": -0.196013405919075,
+                    "PosY": 1.2633048295974731,
+                    "PosZ": -0.5309826135635376,
+                    "RotX": -42.956119537353516,
+                    "RotY": 95.76990509033203,
+                    "RotZ": 148.3153839111328,
+                    "ScaleX": 1.3100001811981201,
+                    "ScaleY": 1.9100000858306885,
+                    "ScaleZ": 0.9100000858306885
                 }
             ],
             "Components": [
@@ -1110,7 +1126,7 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.12800000607967377
@@ -1140,7 +1156,7 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.8253375887870789
@@ -1192,7 +1208,7 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.1279212385416031
@@ -1222,7 +1238,7 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.824999988079071
@@ -1282,14 +1298,14 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.36612942814826965
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 10,
+                                            "Id": 9,
                                             "IsRange": false,
                                             "Payload": 0.4000000059604645,
                                             "Time": 0.48216474056243896
@@ -1319,7 +1335,7 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.7293972373008728
@@ -1349,14 +1365,14 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.3659999966621399
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 10,
+                                            "Id": 9,
                                             "IsRange": false,
                                             "Payload": 0.4000000059604645,
                                             "Time": 0.4819999933242798
@@ -1386,7 +1402,7 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.7289999723434448
@@ -1424,14 +1440,14 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 11,
+                                            "Id": 10,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.4747844934463501
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.47355470061302185
@@ -1521,10 +1537,17 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.31980225443840027
+                                        },
+                                        {
+                                            "EndTime": 0.2240000069141388,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.1353013813495636
                                         }
                                     ],
                                     "GripPosX": 0.0,
@@ -1551,10 +1574,17 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.42312443256378174
+                                        },
+                                        {
+                                            "EndTime": 0.4000000059604645,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.163591668009758
                                         }
                                     ],
                                     "GripPosX": -0.14000000059604645,
@@ -1581,10 +1611,17 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.4846247136592865
+                                        },
+                                        {
+                                            "EndTime": 0.22599999606609344,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.06519065052270889
                                         }
                                     ],
                                     "GripPosX": -0.07999999821186066,
@@ -1611,17 +1648,24 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 8,
+                                            "Id": 7,
                                             "IsRange": false,
                                             "Payload": 15.0,
                                             "Time": 0.04674047604203224
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.4354243576526642
+                                        },
+                                        {
+                                            "EndTime": 0.3109999895095825,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.046740468591451645
                                         }
                                     ],
                                     "GripPosX": 0.0,
@@ -1648,17 +1692,24 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 8,
+                                            "Id": 7,
                                             "IsRange": false,
                                             "Payload": 3.0,
                                             "Time": 0.029520299285650253
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.39479878544807434
+                                        },
+                                        {
+                                            "EndTime": 0.16899999976158142,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.08733083307743073
                                         }
                                     ],
                                     "GripPosX": -0.20000000298023224,
@@ -1685,17 +1736,24 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 8,
+                                            "Id": 7,
                                             "IsRange": false,
                                             "Payload": 6.5,
                                             "Time": 0.1082410216331482
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.49938493967056274
+                                        },
+                                        {
+                                            "EndTime": 0.3109999895095825,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.1832718551158905
                                         }
                                     ],
                                     "GripPosX": -0.20000000298023224,
@@ -1722,17 +1780,24 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 8,
+                                            "Id": 7,
                                             "IsRange": false,
                                             "Payload": 9.5,
                                             "Time": 0.05555557832121849
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.4669027328491211
+                                        },
+                                        {
+                                            "EndTime": 0.2680000066757202,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.08487081527709961
                                         }
                                     ],
                                     "GripPosX": 0.0,
@@ -1759,17 +1824,24 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 8,
+                                            "Id": 7,
                                             "IsRange": false,
                                             "Payload": 20.5,
                                             "Time": 0.02718675695359707
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.5011819005012512
+                                        },
+                                        {
+                                            "EndTime": 0.35100001096725464,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.11070108413696289
                                         }
                                     ],
                                     "GripPosX": 0.0,
@@ -1796,17 +1868,24 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 8,
+                                            "Id": 7,
                                             "IsRange": false,
                                             "Payload": 8.0,
                                             "Time": 0.1004728451371193
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.4196213185787201
+                                        },
+                                        {
+                                            "EndTime": 0.25099998712539673,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.18819190561771393
                                         }
                                     ],
                                     "GripPosX": 0.0,
@@ -1833,17 +1912,31 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 8,
+                                            "Id": 7,
                                             "IsRange": false,
                                             "Payload": 19.5,
                                             "Time": 0.08747044950723648
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.4813360273838043
+                                        },
+                                        {
+                                            "EndTime": 0.1679999977350235,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.09963095933198929
+                                        },
+                                        {
+                                            "EndTime": 0.37700000405311584,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.2976629436016083
                                         }
                                     ],
                                     "GripPosX": 0.0,
@@ -1870,17 +1963,24 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 8,
+                                            "Id": 7,
                                             "IsRange": false,
                                             "Payload": 16.5,
                                             "Time": 0.02364065870642662
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.5011821985244751
+                                        },
+                                        {
+                                            "EndTime": 0.3869999945163727,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.08364079147577286
                                         }
                                     ],
                                     "GripPosX": 0.0,
@@ -1907,17 +2007,24 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 8,
+                                            "Id": 7,
                                             "IsRange": false,
                                             "Payload": 22.5,
                                             "Time": 0.016548465937376022
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.7662973999977112
+                                        },
+                                        {
+                                            "EndTime": 0.44999998807907104,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.08856083452701569
                                         }
                                     ],
                                     "GripPosX": 0.0,
@@ -1952,17 +2059,24 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 8,
+                                            "Id": 7,
                                             "IsRange": false,
                                             "Payload": 25.0,
                                             "Time": 0.004920049104839563
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.4477245509624481
+                                        },
+                                        {
+                                            "EndTime": 0.26899999380111694,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.10455099493265152
                                         }
                                     ],
                                     "GripPosX": 0.0,
@@ -1989,24 +2103,38 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 8,
+                                            "Id": 7,
                                             "IsRange": false,
                                             "Payload": 45.0,
                                             "Time": 0.004920049104839563
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.6322265863418579
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 8,
+                                            "Id": 7,
                                             "IsRange": false,
                                             "Payload": 25.0,
                                             "Time": 0.21889954805374146
+                                        },
+                                        {
+                                            "EndTime": 0.1469999998807907,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.11808115243911743
+                                        },
+                                        {
+                                            "EndTime": 0.4869999885559082,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.4059038758277893
                                         }
                                     ],
                                     "GripPosX": 0.0,
@@ -2041,24 +2169,31 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 8,
+                                            "Id": 7,
                                             "IsRange": false,
                                             "Payload": 15.0,
                                             "Time": 0.1722017377614975
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 9,
+                                            "Id": 8,
                                             "IsRange": false,
                                             "Payload": 11.0,
                                             "Time": 0.25953254103660583
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.8659290075302124
+                                        },
+                                        {
+                                            "EndTime": 0.45399999618530273,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.26814261078834534
                                         }
                                     ],
                                     "GripPosX": 0.0,
@@ -2085,17 +2220,24 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 8,
+                                            "Id": 7,
                                             "IsRange": false,
                                             "Payload": 15.0,
                                             "Time": 0.04551045969128609
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.49569451808929443
+                                        },
+                                        {
+                                            "EndTime": 0.3050000071525574,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.05166052281856537
                                         }
                                     ],
                                     "GripPosX": 0.0,
@@ -2130,24 +2272,31 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 11,
+                                            "Id": 10,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.27429264783859253
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 8,
+                                            "Id": 7,
                                             "IsRange": false,
                                             "Payload": 45.0,
                                             "Time": 0.2865927517414093
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.5485851764678955
+                                        },
+                                        {
+                                            "EndTime": 0.4185730218887329,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.3185730278491974
                                         }
                                     ],
                                     "GripPosX": -0.25999999046325684,
@@ -2182,17 +2331,24 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.6617465019226074
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 8,
+                                            "Id": 7,
                                             "IsRange": false,
                                             "Payload": 8.0,
                                             "Time": 0.02337021753191948
+                                        },
+                                        {
+                                            "EndTime": 0.3659999966621399,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.20787207782268524
                                         }
                                     ],
                                     "GripPosX": 0.0,
@@ -2219,17 +2375,31 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.6789666414260864
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 8,
+                                            "Id": 7,
                                             "IsRange": false,
                                             "Payload": 15.0,
                                             "Time": 0.016847172752022743
+                                        },
+                                        {
+                                            "EndTime": 0.28407132625579834,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.13407132029533386
+                                        },
+                                        {
+                                            "EndTime": 0.5379999876022339,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.3419433534145355
                                         }
                                     ],
                                     "GripPosX": 0.0,
@@ -2256,10 +2426,17 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 8,
+                                            "Id": 7,
                                             "IsRange": false,
                                             "Payload": 38.0,
                                             "Time": 0.058472562581300735
+                                        },
+                                        {
+                                            "EndTime": 0.5214636325836182,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.3714635968208313
                                         }
                                     ],
                                     "GripPosX": 0.0,
@@ -2294,14 +2471,14 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 8,
+                                            "Id": 7,
                                             "IsRange": false,
                                             "Payload": 30.0,
                                             "Time": 0.2103320211172104
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 9,
+                                            "Id": 8,
                                             "IsRange": false,
                                             "Payload": -23.0,
                                             "Time": 0.20999999344348907
@@ -2353,10 +2530,17 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.5731852650642395
+                                        },
+                                        {
+                                            "EndTime": 0.23100000619888306,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.07134070247411728
                                         }
                                     ],
                                     "GripPosX": -0.2800000011920929,
@@ -2383,14 +2567,14 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 8,
+                                            "Id": 7,
                                             "IsRange": false,
                                             "Payload": 30.0,
                                             "Time": 0.4095938205718994
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 9,
+                                            "Id": 8,
                                             "IsRange": false,
                                             "Payload": -23.0,
                                             "Time": 0.4099999964237213
@@ -2442,10 +2626,17 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.48093467950820923
+                                        },
+                                        {
+                                            "EndTime": 0.12460024654865265,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.02460027113556862
                                         }
                                     ],
                                     "GripPosX": 0.019999999552965164,
@@ -2472,14 +2663,14 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 8,
+                                            "Id": 7,
                                             "IsRange": false,
                                             "Payload": 30.0,
                                             "Time": 0.2632225453853607
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 9,
+                                            "Id": 8,
                                             "IsRange": false,
                                             "Payload": -23.0,
                                             "Time": 0.2630000114440918
@@ -2531,10 +2722,17 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.5940960645675659
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.01230012346059084
                                         }
                                     ],
                                     "GripPosX": 0.07000000029802322,
@@ -2599,7 +2797,7 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 8,
+                                            "Id": 7,
                                             "IsRange": false,
                                             "Payload": 13.0,
                                             "Time": 0.06150062754750252
@@ -2626,7 +2824,22 @@
                                 {
                                     "Blend": 0.20000000298023224,
                                     "ClipIndex": 104,
-                                    "Events": [],
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.20399999618530273,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.04428044334053993
+                                        },
+                                        {
+                                            "EndTime": 0.902999997138977,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.5830259323120117
+                                        }
+                                    ],
                                     "GripPosX": -0.18000000715255737,
                                     "GripPosY": 0.019999999552965164,
                                     "GripPosZ": 0.25,
@@ -2651,17 +2864,24 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 8,
+                                            "Id": 7,
                                             "IsRange": false,
                                             "Payload": 9.0,
                                             "Time": 0.14454980194568634
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.6552128195762634
+                                        },
+                                        {
+                                            "EndTime": 0.3381918668746948,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.18819186091423035
                                         }
                                     ],
                                     "GripPosX": 0.0,
@@ -2696,7 +2916,7 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 8,
+                                            "Id": 7,
                                             "IsRange": false,
                                             "Payload": 13.0,
                                             "Time": 0.02369668334722519
@@ -2726,10 +2946,24 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 8,
+                                            "Id": 7,
                                             "IsRange": false,
                                             "Payload": 8.0,
                                             "Time": 0.18601904809474945
+                                        },
+                                        {
+                                            "EndTime": 0.2370000034570694,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.039360400289297104
+                                        },
+                                        {
+                                            "EndTime": 0.9319999814033508,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.5891757607460022
                                         }
                                     ],
                                     "GripPosX": -0.18000000715255737,
@@ -2756,17 +2990,24 @@
                                     "Events": [
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 8,
+                                            "Id": 7,
                                             "IsRange": false,
                                             "Payload": 15.0,
                                             "Time": 0.030805688351392746
                                         },
                                         {
                                             "EndTime": 0.10000000149011612,
-                                            "Id": 3,
+                                            "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
                                             "Time": 0.8400470614433289
+                                        },
+                                        {
+                                            "EndTime": 0.46399998664855957,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.23124229907989502
                                         }
                                     ],
                                     "GripPosX": -0.18000000715255737,
@@ -9273,7 +9514,7 @@
                     "CollidesWith": 126,
                     "ContactOffset": 0.019999999552965164,
                     "Height": 1.0,
-                    "Layer": 4,
+                    "Layer": 8,
                     "LocalOffsetX": 0.0,
                     "LocalOffsetY": 0.0,
                     "LocalOffsetZ": 0.0,

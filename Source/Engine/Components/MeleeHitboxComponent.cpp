@@ -49,6 +49,7 @@ void MeleeHitboxComponent::CloseHitbox() noexcept
     m_activeDamageMultiplier = 1.0f;
     m_victimCount = 0;
     m_hitVictims.fill(nullptr);
+    m_activeWindowIndex = -1;
 }
 
 void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
@@ -232,19 +233,67 @@ void MeleeHitboxComponent::Update(const float /*dt*/)
         ResolveAnimationSource();
     }
 
-    // Auto-listen to timeline events fired this frame from AnimationComponent
     if (m_animation)
     {
-        for (const auto& ev : m_animation->GetFiredEvents())
+        const AnimNode* activeNode{ m_animation->GetActiveAnimNode() };
+
+        // Node switch or animation interrupt: reset active tracking and ensure hitbox closes
+        if (activeNode != m_lastEvaluatedNode)
         {
-            if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Hitbox_Active))
-            {
-                OpenHitbox(ev.payload);
-            }
-            else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Hitbox_Inactive))
+            m_lastEvaluatedNode = activeNode;
+            if (m_isActive)
             {
                 CloseHitbox();
             }
+            m_activeWindowIndex = -1;
+        }
+
+        if (activeNode)
+        {
+            const float currentPhase{ m_animation->GetCurrentPhase() };
+            int matchedWindowIndex{ -1 };
+            float matchedDamageMultiplier{ 1.0f };
+
+            // Scan node events for active Hitbox_Window intervals
+            for (std::size_t i{ 0 }; i < activeNode->events.size(); ++i)
+            {
+                const auto& ev{ activeNode->events[i] };
+                if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Hitbox_Window))
+                {
+                    const float windowStart{ ev.normalizedTime };
+                    const float windowEnd{ ev.isRange ? ev.normalizedEndTime : (ev.normalizedTime + 0.1f) };
+
+                    if (currentPhase >= windowStart && currentPhase <= windowEnd)
+                    {
+                        matchedWindowIndex = static_cast<int>(i);
+                        matchedDamageMultiplier = ev.payload;
+                        break;
+                    }
+                }
+            }
+
+            if (matchedWindowIndex != -1)
+            {
+                // Entering a new window: activate hitbox and reset victim deduplication list
+                if (m_activeWindowIndex != matchedWindowIndex)
+                {
+                    m_activeWindowIndex = matchedWindowIndex;
+                    OpenHitbox(matchedDamageMultiplier);
+                }
+            }
+            else
+            {
+                // Exited window interval: deactivate hitbox
+                if (m_activeWindowIndex != -1)
+                {
+                    m_activeWindowIndex = -1;
+                    CloseHitbox();
+                }
+            }
+        }
+        else if (m_isActive)
+        {
+            CloseHitbox();
         }
     }
 

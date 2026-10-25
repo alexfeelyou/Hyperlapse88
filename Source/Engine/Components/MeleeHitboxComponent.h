@@ -8,6 +8,7 @@
 #include "IComponent.h"
 
 class AnimationComponent;
+struct AnimNode;
 
 // Cleave sweep tuning parameters for wide melee weapons
 struct MeleeHitboxConfig
@@ -66,6 +67,8 @@ private:
     float m_activeDamageMultiplier{ 1.0f };
 
     AnimationComponent* m_animation{ nullptr };
+    const AnimNode* m_lastEvaluatedNode{ nullptr };
+    int m_activeWindowIndex{ -1 };
 
     // Deduplication buffer: ensures each enemy capsule is struck only once per swing
     std::array<GameObject*, s_maxVictimsPerSwing> m_hitVictims{};

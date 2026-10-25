@@ -14,8 +14,7 @@
 enum class CombatEventId : std::uint32_t
 {
     None = 0,
-    Hitbox_Active,
-    Hitbox_Inactive,
+    Hitbox_Window,
     CancelWindow_Open,
     Invincible_Start,
     Invincible_End,
