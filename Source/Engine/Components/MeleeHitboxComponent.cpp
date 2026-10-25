@@ -176,17 +176,18 @@ void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
                 m_hitVictims[m_victimCount++] = victimObj;
             }
 
-            // Calculate outward radial knockback impulse away from the player
+            // Calculate outward radial knockback impulse away from the player root
             const DirectX::XMFLOAT4X4 vWorld{ victimObj->transform.GetWorldMatrix() };
-            DirectX::XMVECTOR vVictimPos{ DirectX::XMVectorSet(vWorld._41, vWorld._42, vWorld._43, 0.0f) };
-            DirectX::XMVECTOR vPlayerPos{ DirectX::XMVectorSet(worldF4._41, worldF4._42, worldF4._43, 0.0f) };
+            const DirectX::XMVECTOR vVictimPos{ DirectX::XMVectorSet(vWorld._41, vWorld._42, vWorld._43, 0.0f) };
+            const DirectX::XMFLOAT4X4 attackerWorld{ playerRoot ? playerRoot->transform.GetWorldMatrix() : worldF4 };
+            const DirectX::XMVECTOR vAttackerPos{ DirectX::XMVectorSet(attackerWorld._41, attackerWorld._42, attackerWorld._43, 0.0f) };
 
-            DirectX::XMVECTOR vKnockDir{ DirectX::XMVectorSubtract(vVictimPos, vPlayerPos) };
+            DirectX::XMVECTOR vKnockDir{ DirectX::XMVectorSubtract(vVictimPos, vAttackerPos) };
             vKnockDir = DirectX::XMVectorSetY(vKnockDir, 0.0f);
 
-            if (DirectX::XMVector3Equal(vKnockDir, DirectX::XMVectorZero()))
+            if (DirectX::XMVector3Equal(vKnockDir, DirectX::XMVectorZero()) || DirectX::XMVector3LengthSq(vKnockDir).m128_f32[0] < 0.0001f)
             {
-                const float yawRad{ DirectX::XMConvertToRadians(m_owner->transform.rotation.y) };
+                const float yawRad{ DirectX::XMConvertToRadians(playerRoot ? playerRoot->transform.rotation.y : m_owner->transform.rotation.y) };
                 vKnockDir = DirectX::XMVectorSet(std::sin(yawRad), 0.0f, std::cos(yawRad), 0.0f);
             }
             vKnockDir = DirectX::XMVector3Normalize(vKnockDir);
@@ -196,10 +197,11 @@ void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
             DirectX::XMStoreFloat3(&impulse, DirectX::XMVectorScale(vKnockDir, finalKnockback));
             impulse.y = 2.5f;
 
-            // Deliver damage, poise break, and hit-stop to victim
+            // Deliver damage, poise break evaluation, and hit-stop to victim
+            bool poiseBrokeOrDead{ false };
             if (auto* health{ victimObj->GetComponent<HealthComponent>() })
             {
-                health->ApplyDamage(
+                poiseBrokeOrDead = health->ApplyDamage(
                     m_config.baseDamage * m_activeDamageMultiplier,
                     m_config.poiseDamage * m_activeDamageMultiplier,
                     impulse,
@@ -207,20 +209,25 @@ void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
                 );
             }
 
-            // Interrupt AI state into hit reaction
-            if (auto* ai{ victimObj->GetComponent<AIControllerComponent>() })
+            // Freeze victim animation during impact shock
+            if (auto* victimAnim{ victimObj->GetComponent<AnimationComponent>() })
             {
-                ai->NotifyHitReaction();
+                victimAnim->ApplyHitStop(m_config.hitStopDuration);
             }
 
-            // Apply hit-stop frame suspension to player hierarchy for weighted tactile feedback
-            for (GameObject* curr = m_owner; curr != nullptr; curr = curr->GetParent())
+            // Gated Hit Reaction: Only stagger enemy if posture/poise completely broke or hit was lethal
+            if (poiseBrokeOrDead)
             {
-                if (auto* playerHealth{ curr->GetComponent<HealthComponent>() })
+                if (auto* ai{ victimObj->GetComponent<AIControllerComponent>() })
                 {
-                    playerHealth->ApplyDamage(0.0f, 0.0f, { 0.0f, 0.0f, 0.0f }, m_config.hitStopDuration * 0.75f);
-                    break;
+                    ai->NotifyHitReaction();
                 }
+            }
+
+            // Freeze attacker's weapon animation directly (75% resistance ratio) for heavy tactile drag
+            if (m_animation)
+            {
+                m_animation->ApplyHitStop(m_config.hitStopDuration * 0.75f);
             }
         }
     }

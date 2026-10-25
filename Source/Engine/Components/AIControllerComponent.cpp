@@ -115,6 +115,12 @@ void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
         m_movement->GetConfig().useGravity = m_initialGravity;
     }
 
+    if (m_currentState == EnemyState::hit_react && m_health)
+    {
+        // Replenish poise gauge back to max upon recovering from stagger
+        m_health->ResetPoise();
+    }
+
     // Release combat token when exiting attack states
     if (m_currentState == EnemyState::attack_windup || m_currentState == EnemyState::attack_active)
     {

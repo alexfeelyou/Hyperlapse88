@@ -3,10 +3,12 @@
 #include <imgui.h>
 #include "System/CollisionLayer.h"
 #include "System/PhysicsManager.h"
+#include "AnimationComponent.h"
 #include "CapsuleColliderComponent.h"
 #include "CharacterMovementComponent.h"
 #include "ComponentRegistry.h"
 #include "GameObject.h"
+#include "HealthComponent.h"
 
 CharacterMovementComponent::CharacterMovementComponent(const CharacterMovementConfig& config) noexcept
     : m_config{ config }
@@ -164,6 +166,21 @@ void CharacterMovementComponent::Update(const float dt)
     {
         m_capsule = m_owner->GetComponent<CapsuleColliderComponent>();
         if (!m_capsule) return;
+    }
+
+    // Suspend kinematic displacement and impulse decay during hit-stop
+    if (m_owner)
+    {
+        const auto* health{ m_owner->GetComponent<HealthComponent>() };
+        if (health && health->IsHitStopped())
+        {
+            return;
+        }
+        const auto* anim{ m_owner->GetComponent<AnimationComponent>() };
+        if (anim && anim->IsHitStopped())
+        {
+            return;
+        }
     }
 
     // Process Input Locomotion (Accelerate towards desired direction)

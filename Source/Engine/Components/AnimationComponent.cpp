@@ -353,13 +353,23 @@ void AnimationComponent::Update(const float dt)
     if (m_states.empty() || m_currentStateIndex >= m_states.size()) return;
 
     float evalDt{ dt };
-    if (evalDt <= 0.0001f && m_editorPreview)
+    // Process local actor hit-stop (freezes skeletal playback and event queueing)
+    if (m_hitStopTimer > 0.0f)
+    {
+        m_hitStopTimer -= dt;
+        if (m_hitStopTimer < 0.0f)
+        {
+            m_hitStopTimer = 0.0f;
+        }
+        evalDt = 0.0f;
+    }
+    else if (evalDt <= 0.0001f && m_editorPreview)
     {
         evalDt = m_previewPaused ? 0.0f : ImGui::GetIO().DeltaTime;
     }
     else if (evalDt > 0.0001f && m_editorPreview)
     {
-        // PREVENTIVE BUG FIX: The Engine just went Live
+        // PREVENTIVE BUG: The Engine just went Live
         // Nuke the preview instantly so the character doesn't resume a frozen animation.
         StopPreview();
     }

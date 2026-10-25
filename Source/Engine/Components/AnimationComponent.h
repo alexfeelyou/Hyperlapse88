@@ -169,6 +169,10 @@ public:
     void SetPlaybackSpeed(float speed) noexcept { m_playbackSpeed = speed; }
     [[nodiscard]] float GetPlaybackSpeed() const noexcept { return m_playbackSpeed; }
 
+    // Temporal frame suspension (Hit-stop impact freeze)
+    void ApplyHitStop(float duration) noexcept { m_hitStopTimer = (std::max)(m_hitStopTimer, duration); }
+    [[nodiscard]] bool IsHitStopped() const noexcept { return m_hitStopTimer > 0.0f; }
+
 private:
     // Flat mapping array: maps AnimSlot directly to the m_states index.
     // -1 means the slot is unbound.
@@ -227,4 +231,5 @@ private:
     int m_isolatedNodeIndex{ -1 };
 
     float m_playbackSpeed{ 1.0f };
+    float m_hitStopTimer{ 0.0f };
 };

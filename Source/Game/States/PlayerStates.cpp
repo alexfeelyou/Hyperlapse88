@@ -1509,7 +1509,11 @@ void PlayerAttackPrimary::PlayCurrentAttack(PlayerControllerComponent* controlle
 
 void PlayerAttackPrimary::Update(PlayerControllerComponent* controller, float dt)
 {
-    m_exitTimer -= dt;
+    const auto* anim{ controller->GetAnimation() };
+    if (!anim || !anim->IsHitStopped())
+    {
+        m_exitTimer -= dt;
+    }
 
     if (m_bufferedAttack.timer > 0.0f) m_bufferedAttack.timer -= dt;
 
@@ -1669,7 +1673,11 @@ void PlayerAttackContextual::PlayCurrentAttack(PlayerControllerComponent* contro
 
 void PlayerAttackContextual::Update(PlayerControllerComponent* controller, float dt)
 {
-    m_exitTimer -= dt;
+    const auto* anim{ controller->GetAnimation() };
+    if (!anim || !anim->IsHitStopped())
+    {
+        m_exitTimer -= dt;
+    }
     if (m_bufferedAttack.timer > 0.0f) m_bufferedAttack.timer -= dt;
 
     const auto& intent = controller->GetIntent();
@@ -1808,7 +1816,11 @@ void PlayerAttackDirectional::Enter(PlayerControllerComponent* controller)
 
 void PlayerAttackDirectional::Update(PlayerControllerComponent* controller, float dt)
 {
-    m_exitTimer -= dt;
+    const auto* anim{ controller->GetAnimation() };
+    if (!anim || !anim->IsHitStopped())
+    {
+        m_exitTimer -= dt;
+    }
     if (m_bufferedAttack.timer > 0.0f) m_bufferedAttack.timer -= dt;
 
     const auto& intent = controller->GetIntent();
