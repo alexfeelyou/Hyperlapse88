@@ -4,6 +4,7 @@
 #include "AIControllerComponent.h"
 #include "CombatDirector.h"
 #include "GameObject.h"
+#include "HealthComponent.h"
 #include "IComponent.h"
 
 CombatDirector::CombatDirector() noexcept
@@ -70,18 +71,18 @@ void CombatDirector::Clear() noexcept
     }
 }
 
-void CombatDirector::UpdateSlotPositions(const GameObject* playerObject) noexcept
+void CombatDirector::UpdateSlotPositions(const GameObject* playerObject, const float /*dt*/) noexcept
 {
     if (!playerObject) return;
 
     const DirectX::XMFLOAT4X4 pWorld{ playerObject->transform.GetWorldMatrix() };
     const DirectX::XMFLOAT3 playerPos{ pWorld._41, pWorld._42, pWorld._43 };
-    const float playerYawRad{ DirectX::XMConvertToRadians(playerObject->transform.rotation.y) };
 
+    // World-fixed orientation: combat slots translate with player position but do not rotate with player yaw.
     constexpr float innerStep{ DirectX::XM_2PI / static_cast<float>(s_innerSlotCount) };
     for (std::size_t i{ 0 }; i < s_innerSlotCount; ++i)
     {
-        const float angle{ playerYawRad + (innerStep * static_cast<float>(i)) };
+        const float angle{ innerStep * static_cast<float>(i) };
         m_innerSlots[i].worldPosition = {
             playerPos.x + (std::sin(angle) * m_innerRadius),
             playerPos.y,
@@ -93,7 +94,7 @@ void CombatDirector::UpdateSlotPositions(const GameObject* playerObject) noexcep
     constexpr float outerPhase{ outerStep * 0.5f };
     for (std::size_t i{ 0 }; i < s_outerSlotCount; ++i)
     {
-        const float angle{ playerYawRad + outerPhase + (outerStep * static_cast<float>(i)) };
+        const float angle{ outerPhase + (outerStep * static_cast<float>(i)) };
         m_outerSlots[i].worldPosition = {
             playerPos.x + (std::sin(angle) * m_outerRadius),
             playerPos.y,
@@ -115,15 +116,57 @@ void CombatDirector::Update(const float dt, GameObject* playerObject) noexcept
         m_tokenDispatchTimer -= dt;
     }
 
-    UpdateSlotPositions(playerObject);
+    UpdateSlotPositions(playerObject, dt);
 
-    for (auto& slot : m_innerSlots) { slot.isOccupied = false; slot.occupant = nullptr; }
-    for (auto& slot : m_outerSlots) { slot.isOccupied = false; slot.occupant = nullptr; }
+    // Predicate evaluating if an entity is deceased, destroyed, or pending removal
+    const auto isEnemyDeadOrInvalid = [](const AIControllerComponent* e) noexcept {
+        if (!e || !e->GetOwner() || e->GetOwner()->IsDestroyed()) return true;
+        if (e->GetCurrentState() == EnemyState::dead) return true;
+        const auto* health{ e->GetOwner()->GetComponent<HealthComponent>() };
+        return health && health->IsDead();
+        };
+
+    // Immediately evict dead or destroyed enemies from director pool
+    const auto deadIt{ std::remove_if(m_enemies.begin(), m_enemies.end(), isEnemyDeadOrInvalid) };
+    if (deadIt != m_enemies.end())
+    {
+        m_enemies.erase(deadIt, m_enemies.end());
+    }
+
+    // Helper predicate: verifies if an enemy is actively in combat pursuit or attacking
+    const auto isEnemyInCombat = [](const AIControllerComponent* e) noexcept {
+        if (!e) return false;
+        const EnemyState st{ e->GetCurrentState() };
+        return st == EnemyState::chase ||
+            st == EnemyState::attack_windup ||
+            st == EnemyState::attack_active ||
+            st == EnemyState::hit_react ||
+            st == EnemyState::ambush_burst;
+        };
+
+    // Clean up vacated slots: evict dead enemies or enemies that returned to idle/patrol
+    for (auto& slot : m_innerSlots)
+    {
+        if (slot.isOccupied && (isEnemyDeadOrInvalid(slot.occupant) || !isEnemyInCombat(slot.occupant)))
+        {
+            ReleaseAttackToken(slot.occupant);
+            slot.isOccupied = false;
+            slot.occupant = nullptr;
+        }
+    }
+    for (auto& slot : m_outerSlots)
+    {
+        if (slot.isOccupied && (isEnemyDeadOrInvalid(slot.occupant) || !isEnemyInCombat(slot.occupant)))
+        {
+            ReleaseAttackToken(slot.occupant);
+            slot.isOccupied = false;
+            slot.occupant = nullptr;
+        }
+    }
 
     const DirectX::XMFLOAT4X4 pWorld{ playerObject->transform.GetWorldMatrix() };
     const DirectX::XMFLOAT3 playerPos{ pWorld._41, pWorld._42, pWorld._43 };
 
-    // Filter active candidates and assign slots starting with closest enemies
     struct Candidate
     {
         AIControllerComponent* enemy{ nullptr };
@@ -133,20 +176,10 @@ void CombatDirector::Update(const float dt, GameObject* playerObject) noexcept
     static std::vector<Candidate> s_candidates{};
     s_candidates.clear();
 
-    // Prune destroyed or dead enemy registrations to prevent dangling pointer access
-    const auto deadIt{ std::remove_if(m_enemies.begin(), m_enemies.end(), [](const AIControllerComponent* e) noexcept {
-        return !e || !e->GetOwner() || e->GetCurrentState() == EnemyState::dead;
-    }) };
-    if (deadIt != m_enemies.end())
-    {
-        m_enemies.erase(deadIt, m_enemies.end());
-    }
-
     for (auto* enemy : m_enemies)
     {
-        // Only slot engaged or chasing enemies (ignore dormant ambushers on walls or props)
-        const EnemyState st{ enemy->GetCurrentState() };
-        if (st == EnemyState::ambush_dormant || st == EnemyState::wall_hang)
+        // Strictly filter candidates: only actively engaged combatants can claim ring slots
+        if (!isEnemyInCombat(enemy))
         {
             continue;
         }
@@ -161,45 +194,68 @@ void CombatDirector::Update(const float dt, GameObject* playerObject) noexcept
         return a.distSq < b.distSq;
         });
 
-    // Assign inner ring slots to the closest candidates
-    std::size_t assignedCount{ 0 };
+    // Dynamic slot allocation: fill inner frontline first, promoting outer ring enemies into newly opened slots
     for (const auto& cand : s_candidates)
     {
-        if (assignedCount < s_innerSlotCount)
+        const SwarmRing currentRing{ GetAssignedRing(cand.enemy) };
+
+        // Frontline enemies already secured in an inner slot preserve their spot
+        if (currentRing == SwarmRing::inner)
         {
-            // Find closest free inner slot to this enemy
-            const DirectX::XMFLOAT4X4 eWorld{ cand.enemy->GetOwner()->transform.GetWorldMatrix() };
-            float bestDistSq{ 999999.0f };
-            int bestSlotIdx{ -1 };
+            continue;
+        }
 
-            for (std::size_t s{ 0 }; s < s_innerSlotCount; ++s)
+        const DirectX::XMFLOAT4X4 eWorld{ cand.enemy->GetOwner()->transform.GetWorldMatrix() };
+
+        // Check for open inner slot vacancies (promotes outer enemies or assigns unslotted candidates)
+        float bestInnerDistSq{ 999999.0f };
+        int bestInnerSlotIdx{ -1 };
+
+        for (std::size_t s{ 0 }; s < s_innerSlotCount; ++s)
+        {
+            if (m_innerSlots[s].isOccupied) continue;
+
+            const float dsx{ m_innerSlots[s].worldPosition.x - eWorld._41 };
+            const float dsz{ m_innerSlots[s].worldPosition.z - eWorld._43 };
+            const float dSq{ (dsx * dsx) + (dsz * dsz) };
+
+            if (dSq < bestInnerDistSq)
             {
-                if (m_innerSlots[s].isOccupied) continue;
-
-                const float dsx{ m_innerSlots[s].worldPosition.x - eWorld._41 };
-                const float dsz{ m_innerSlots[s].worldPosition.z - eWorld._43 };
-                const float dSq{ (dsx * dsx) + (dsz * dsz) };
-
-                if (dSq < bestDistSq)
-                {
-                    bestDistSq = dSq;
-                    bestSlotIdx = static_cast<int>(s);
-                }
-            }
-
-            if (bestSlotIdx >= 0)
-            {
-                m_innerSlots[bestSlotIdx].isOccupied = true;
-                m_innerSlots[bestSlotIdx].occupant = cand.enemy;
-                ++assignedCount;
-                continue;
+                bestInnerDistSq = dSq;
+                bestInnerSlotIdx = static_cast<int>(s);
             }
         }
 
-        // Assign to outer ring slots
-        const DirectX::XMFLOAT4X4 eWorld{ cand.enemy->GetOwner()->transform.GetWorldMatrix() };
-        float bestDistSq{ 999999.0f };
-        int bestSlotIdx{ -1 };
+        if (bestInnerSlotIdx >= 0)
+        {
+            // If promoted from outer ring, vacate previous outer slot so reinforcements can take it
+            if (currentRing == SwarmRing::outer)
+            {
+                for (auto& outerSlot : m_outerSlots)
+                {
+                    if (outerSlot.occupant == cand.enemy)
+                    {
+                        outerSlot.occupant = nullptr;
+                        outerSlot.isOccupied = false;
+                        break;
+                    }
+                }
+            }
+
+            m_innerSlots[bestInnerSlotIdx].isOccupied = true;
+            m_innerSlots[bestInnerSlotIdx].occupant = cand.enemy;
+            continue;
+        }
+
+        // Inner ring is full: existing outer ring occupants preserve their slot
+        if (currentRing == SwarmRing::outer)
+        {
+            continue;
+        }
+
+        // Candidate is completely unslotted: assign to nearest available outer ring slot
+        float bestOuterDistSq{ 999999.0f };
+        int bestOuterSlotIdx{ -1 };
 
         for (std::size_t s{ 0 }; s < s_outerSlotCount; ++s)
         {
@@ -209,17 +265,17 @@ void CombatDirector::Update(const float dt, GameObject* playerObject) noexcept
             const float dsz{ m_outerSlots[s].worldPosition.z - eWorld._43 };
             const float dSq{ (dsx * dsx) + (dsz * dsz) };
 
-            if (dSq < bestDistSq)
+            if (dSq < bestOuterDistSq)
             {
-                bestDistSq = dSq;
-                bestSlotIdx = static_cast<int>(s);
+                bestOuterDistSq = dSq;
+                bestOuterSlotIdx = static_cast<int>(s);
             }
         }
 
-        if (bestSlotIdx >= 0)
+        if (bestOuterSlotIdx >= 0)
         {
-            m_outerSlots[bestSlotIdx].isOccupied = true;
-            m_outerSlots[bestSlotIdx].occupant = cand.enemy;
+            m_outerSlots[bestOuterSlotIdx].isOccupied = true;
+            m_outerSlots[bestOuterSlotIdx].occupant = cand.enemy;
         }
     }
 }
@@ -314,7 +370,8 @@ DirectX::XMFLOAT3 CombatDirector::ComputeSeparationForce(const AIControllerCompo
     const DirectX::XMFLOAT3 myPos{ myMat._41, myMat._42, myMat._43 };
 
     DirectX::XMFLOAT3 separation{ 0.0f, 0.0f, 0.0f };
-    constexpr float separationRadiusSq{ 1.0f * 1.0f }; // 1.0m personal bubble
+    constexpr float separationRadius{ 1.35f }; // Expanded bubble for clean spacing between attackers
+    constexpr float separationRadiusSq{ separationRadius * separationRadius };
 
     for (const auto* other : m_enemies)
     {
@@ -327,9 +384,11 @@ DirectX::XMFLOAT3 CombatDirector::ComputeSeparationForce(const AIControllerCompo
 
         if (distSq > 0.001f && distSq < separationRadiusSq)
         {
-            const float invDist{ 1.0f / std::sqrt(distSq) };
-            separation.x += (dx * invDist) * (1.0f - (std::sqrt(distSq) / 1.0f));
-            separation.z += (dz * invDist) * (1.0f - (std::sqrt(distSq) / 1.0f));
+            const float dist{ std::sqrt(distSq) };
+            const float invDist{ 1.0f / dist };
+            const float weight{ 1.0f - (dist / separationRadius) };
+            separation.x += (dx * invDist) * weight;
+            separation.z += (dz * invDist) * weight;
         }
     }
 

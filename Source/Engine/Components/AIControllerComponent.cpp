@@ -296,7 +296,7 @@ void AIControllerComponent::UpdatePerception(const float dt) noexcept
     }
 }
 
-void AIControllerComponent::SteerTowards(const DirectX::XMFLOAT3& targetWorldPos, const float dt) noexcept
+void AIControllerComponent::SteerTowards(const DirectX::XMFLOAT3& targetWorldPos, const float dt, const DirectX::XMFLOAT3* lookAtWorldPos) noexcept
 {
     if (!m_movement || !m_owner)
     {
@@ -310,34 +310,150 @@ void AIControllerComponent::SteerTowards(const DirectX::XMFLOAT3& targetWorldPos
     DirectX::XMVECTOR vDir{ DirectX::XMVectorSubtract(vTarget, vCurrent) };
     vDir = DirectX::XMVectorSetY(vDir, 0.0f);
 
-    // Evaluate 3D length so movement along the Z-axis is not treated as zero distance
     const DirectX::XMVECTOR vLengthSq{ DirectX::XMVector3LengthSq(vDir) };
     float lenSq{ 0.0f };
     DirectX::XMStoreFloat(&lenSq, vLengthSq);
 
-    if (lenSq > 0.001f)
-    {
-        vDir = DirectX::XMVector3Normalize(vDir);
-        DirectX::XMFLOAT3 normDir{};
-        DirectX::XMStoreFloat3(&normDir, vDir);
+    // Arrival threshold: once within 40cm of the designated slot, settle into slot
+    constexpr float arrivalThresholdSq{ 0.40f * 0.40f };
 
-        // Swarm Boid Anti-Stacking: Blend soft lateral repulsion away from immediate neighbors
+    if (lenSq > arrivalThresholdSq)
+    {
+        const float invLen{ 1.0f / std::sqrt(lenSq) };
+        DirectX::XMFLOAT3 normDir{
+            (targetWorldPos.x - currentPos.x) * invLen,
+            0.0f,
+            (targetWorldPos.z - currentPos.z) * invLen
+        };
+
+        // Smooth orbital steering: prevent capsule pathing from piercing through player space
+        if (lookAtWorldPos)
+        {
+            const float toPlayerX{ lookAtWorldPos->x - currentPos.x };
+            const float toPlayerZ{ lookAtWorldPos->z - currentPos.z };
+            const float distToPlayerSq{ (toPlayerX * toPlayerX) + (toPlayerZ * toPlayerZ) };
+
+            // Clearance boundary: keeps attackers from pushing inside 1.85m of player center
+            constexpr float playerAvoidRadius{ 1.85f };
+            constexpr float playerAvoidRadiusSq{ playerAvoidRadius * playerAvoidRadius };
+
+            const float toSlotX{ targetWorldPos.x - currentPos.x };
+            const float toSlotZ{ targetWorldPos.z - currentPos.z };
+            const float projectionT{ ((toPlayerX * toSlotX) + (toPlayerZ * toSlotZ)) / lenSq };
+
+            // Evaluates if the direct navigation vector slices through the player
+            if (projectionT > 0.0f)
+            {
+                const float clampedT{ (std::min)(projectionT, 1.0f) };
+                const float closestPointX{ currentPos.x + (toSlotX * clampedT) };
+                const float closestPointZ{ currentPos.z + (toSlotZ * clampedT) };
+                const float dToPlayerX{ closestPointX - lookAtWorldPos->x };
+                const float dToPlayerZ{ closestPointZ - lookAtWorldPos->z };
+                const float closestDistSq{ (dToPlayerX * dToPlayerX) + (dToPlayerZ * dToPlayerZ) };
+
+                if (closestDistSq < playerAvoidRadiusSq && distToPlayerSq > 0.001f)
+                {
+                    const float distToPlayer{ std::sqrt(distToPlayerSq) };
+                    const float radialX{ -toPlayerX / distToPlayer };
+                    const float radialZ{ -toPlayerZ / distToPlayer };
+
+                    // Perpendicular tangential vectors around player
+                    const float tang1X{ -radialZ };
+                    const float tang1Z{ radialX };
+                    const float tang2X{ radialZ };
+                    const float tang2Z{ -radialX };
+
+                    // Select the tangent advancing shortest toward the target slot
+                    const float dot1{ (tang1X * toSlotX) + (tang1Z * toSlotZ) };
+                    const float dot2{ (tang2X * toSlotX) + (tang2Z * toSlotZ) };
+                    const float chosenTangX{ (dot1 >= dot2) ? tang1X : tang2X };
+                    const float chosenTangZ{ (dot1 >= dot2) ? tang1Z : tang2Z };
+
+                    const float closestDist{ std::sqrt(closestDistSq) };
+                    const float avoidBlend{ std::clamp(1.0f - (closestDist / playerAvoidRadius), 0.45f, 1.0f) };
+                    const float radialPush{ (distToPlayer < playerAvoidRadius) ? (1.0f - (distToPlayer / playerAvoidRadius)) : 0.0f };
+
+                    normDir.x = (normDir.x * (1.0f - avoidBlend)) + (chosenTangX * avoidBlend) + (radialX * radialPush * 0.8f);
+                    normDir.z = (normDir.z * (1.0f - avoidBlend)) + (chosenTangZ * avoidBlend) + (radialZ * radialPush * 0.8f);
+                }
+            }
+        }
+
+        // Swarm Boid Anti-Stacking: Blend lateral repulsion away from immediate neighbors
         const DirectX::XMFLOAT3 repForce{ CombatDirector::Instance().ComputeSeparationForce(this) };
-        normDir.x += repForce.x * 0.65f;
-        normDir.z += repForce.z * 0.65f;
+        normDir.x += repForce.x * 0.75f;
+        normDir.z += repForce.z * 0.75f;
 
         const float finalLenSq{ (normDir.x * normDir.x) + (normDir.z * normDir.z) };
         if (finalLenSq > 0.001f)
         {
-            const float invLen{ 1.0f / std::sqrt(finalLenSq) };
-            normDir.x *= invLen;
-            normDir.z *= invLen;
+            const float invLenFinal{ 1.0f / std::sqrt(finalLenSq) };
+            normDir.x *= invLenFinal;
+            normDir.z *= invLenFinal;
         }
 
-        // Smoothly rotate the owner toward target direction (Shortest arc, rate-limited, zero snapping)
-        const float targetYawDeg{ DirectX::XMConvertToDegrees(std::atan2(normDir.x, normDir.z)) };
-        float deltaYaw{ targetYawDeg - m_owner->transform.rotation.y };
+        // Drive kinematic motor in world space (strafing occurs naturally when facing differs from normDir)
+        m_movement->SetDesiredDirection({ normDir.x, normDir.z });
+    }
+    else
+    {
+        // At slot position: check if neighboring enemies crowd the personal bubble or player encroaches
+        const DirectX::XMFLOAT3 repForce{ CombatDirector::Instance().ComputeSeparationForce(this) };
+        float repX{ repForce.x * 0.5f };
+        float repZ{ repForce.z * 0.5f };
 
+        // Gently yield backward if player moves directly into slot occupant
+        if (lookAtWorldPos)
+        {
+            const float dxP{ currentPos.x - lookAtWorldPos->x };
+            const float dzP{ currentPos.z - lookAtWorldPos->z };
+            const float dPlayerSq{ (dxP * dxP) + (dzP * dzP) };
+            constexpr float minPlayerBufferSq{ 1.6f * 1.6f };
+            if (dPlayerSq < minPlayerBufferSq && dPlayerSq > 0.001f)
+            {
+                const float invD{ 1.0f / std::sqrt(dPlayerSq) };
+                repX += dxP * invD * 0.6f;
+                repZ += dzP * invD * 0.6f;
+            }
+        }
+
+        const float repLenSq{ (repX * repX) + (repZ * repZ) };
+        if (repLenSq > 0.01f)
+        {
+            m_movement->SetDesiredDirection({ repX, repZ });
+        }
+        else
+        {
+            StopMovement();
+        }
+    }
+
+    // Determine facing direction:
+    // When lookAtWorldPos is provided, face the combat target at all times.
+    float targetYawDeg{ m_owner->transform.rotation.y };
+    bool hasTargetYaw{ false };
+
+    if (lookAtWorldPos)
+    {
+        const float dxLook{ lookAtWorldPos->x - currentPos.x };
+        const float dzLook{ lookAtWorldPos->z - currentPos.z };
+        if ((dxLook * dxLook) + (dzLook * dzLook) > 0.01f)
+        {
+            targetYawDeg = DirectX::XMConvertToDegrees(std::atan2(dxLook, dzLook));
+            hasTargetYaw = true;
+        }
+    }
+    else if (lenSq > arrivalThresholdSq)
+    {
+        DirectX::XMFLOAT3 dirNorm{};
+        DirectX::XMStoreFloat3(&dirNorm, DirectX::XMVector3Normalize(vDir));
+        targetYawDeg = DirectX::XMConvertToDegrees(std::atan2(dirNorm.x, dirNorm.z));
+        hasTargetYaw = true;
+    }
+
+    if (hasTargetYaw)
+    {
+        float deltaYaw{ targetYawDeg - m_owner->transform.rotation.y };
         while (deltaYaw > 180.0f) deltaYaw -= 360.0f;
         while (deltaYaw < -180.0f) deltaYaw += 360.0f;
 
@@ -347,13 +463,6 @@ void AIControllerComponent::SteerTowards(const DirectX::XMFLOAT3& targetWorldPos
 
         while (m_owner->transform.rotation.y > 360.0f) m_owner->transform.rotation.y -= 360.0f;
         while (m_owner->transform.rotation.y < -360.0f) m_owner->transform.rotation.y += 360.0f;
-
-        // Drive the motor
-        m_movement->SetDesiredDirection({ normDir.x, normDir.z });
-    }
-    else
-    {
-        StopMovement();
     }
 }
 
@@ -367,8 +476,10 @@ void AIControllerComponent::StopMovement() noexcept
 
 void AIControllerComponent::NotifyHitReaction() noexcept
 {
-    if (m_currentState == EnemyState::dead)
+    // Fast-fail: immediately transition lethal blows to dead, freeing director slots
+    if (m_currentState == EnemyState::dead || (m_health && m_health->IsDead()))
     {
+        ChangeState(EnemyState::dead);
         return;
     }
     ChangeState(EnemyState::hit_react);
@@ -456,11 +567,11 @@ void AIControllerComponent::TickGrunt(const float dt) noexcept
             }
             else
             {
-                // In melee range but awaiting attack token: steer smoothly along assigned slot to maintain encirclement
+                // In melee range but awaiting attack token: strafe smoothly around slot while facing player
                 const DirectX::XMFLOAT3 slotPos{ CombatDirector::Instance().GetAssignedSlotPosition(this) };
                 if (slotPos.x != 0.0f || slotPos.z != 0.0f)
                 {
-                    SteerTowards(slotPos, dt);
+                    SteerTowards(slotPos, dt, &m_blackboard.targetPosition);
                 }
                 else
                 {
@@ -470,15 +581,15 @@ void AIControllerComponent::TickGrunt(const float dt) noexcept
         }
         else
         {
-            // Swarm Slot Navigation: Steer toward designated ring slot around the player
+            // Swarm Slot Navigation: Steer toward designated ring slot while continuously facing player
             const DirectX::XMFLOAT3 slotPos{ CombatDirector::Instance().GetAssignedSlotPosition(this) };
             if (slotPos.x != 0.0f || slotPos.z != 0.0f)
             {
-                SteerTowards(slotPos, dt);
+                SteerTowards(slotPos, dt, &m_blackboard.targetPosition);
             }
             else
             {
-                SteerTowards(m_blackboard.targetPosition, dt);
+                SteerTowards(m_blackboard.targetPosition, dt, &m_blackboard.targetPosition);
             }
         }
         break;

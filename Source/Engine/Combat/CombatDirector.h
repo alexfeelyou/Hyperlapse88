@@ -50,7 +50,7 @@ public:
 
     // Per-frame swarm orchestration
     void Update(float dt, GameObject* playerObject) noexcept;
-    void UpdateSlotPositions(const GameObject* playerObject) noexcept;
+    void UpdateSlotPositions(const GameObject* playerObject, float dt = 0.0f) noexcept;
     void DrawGizmos(const GizmoContext& ctx) noexcept;
 
     // Token arbitration

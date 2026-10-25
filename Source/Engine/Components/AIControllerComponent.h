@@ -86,8 +86,8 @@ private:
     void FindCoverProps() noexcept;
     void UpdateAmbushCover(float dt) noexcept;
 
-    // Movement helper
-    void SteerTowards(const DirectX::XMFLOAT3& targetWorldPos, float dt) noexcept;
+    // Movement helper (supports decoupled combat gaze for strafing)
+    void SteerTowards(const DirectX::XMFLOAT3& targetWorldPos, float dt, const DirectX::XMFLOAT3* lookAtWorldPos = nullptr) noexcept;
     void StopMovement() noexcept;
 
     AIControllerConfig m_config{};
