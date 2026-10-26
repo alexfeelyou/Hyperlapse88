@@ -278,6 +278,169 @@ namespace
         motor->HaltMomentum(1.0f);
         motor->AddImpulse(DirectX::XMFLOAT3{ inOutFacingDir.x * authoredPayload, 0.0f, inOutFacingDir.y * authoredPayload });
     }
+
+    // Soft-Lock Target Selector for Aerial Plunge (Helmbreaker)
+    // Searches for living enemies below the player regardless of enemy aggro or ring slots
+    [[nodiscard]] AIControllerComponent* FindPlungeSoftLockTarget(
+        const GameObject* player,
+        const DirectX::XMFLOAT2& referenceDirXZ,
+        const float maxHorizontalDist = 7.0f,
+        const float maxDropHeight = 15.0f) noexcept
+    {
+        if (!player) return nullptr;
+
+        const auto& enemies{ CombatDirector::Instance().GetEnemies() };
+        if (enemies.empty()) return nullptr;
+
+        const DirectX::XMFLOAT3 pPos{ player->GetPosition() };
+        AIControllerComponent* bestEnemy{ nullptr };
+        float bestScore{ -1.0f };
+
+        // 70-degree cone (cos(70 deg) ~= 0.342f) for directional intent
+        constexpr float minDot{ 0.342f };
+        const float maxHorizDistSq{ maxHorizontalDist * maxHorizontalDist };
+
+        for (auto* enemy : enemies)
+        {
+            if (!enemy || !enemy->GetOwner() || enemy->GetOwner()->IsDestroyed()) continue;
+            if (enemy->GetCurrentState() == EnemyState::dead) continue;
+
+            const auto* health{ enemy->GetOwner()->GetComponent<HealthComponent>() };
+            if (health && health->IsDead()) continue;
+
+            const DirectX::XMFLOAT3 ePos{ enemy->GetOwner()->GetPosition() };
+
+            // Enemy must be below the player (or within 0.5m above foot level) and within drop reach
+            const float heightDiff{ pPos.y - ePos.y };
+            if (heightDiff < -0.5f || heightDiff > maxDropHeight) continue;
+
+            const float dx{ ePos.x - pPos.x };
+            const float dz{ ePos.z - pPos.z };
+            const float distSq{ (dx * dx) + (dz * dz) };
+            if (distSq > maxHorizDistSq) continue;
+
+            // Direct overhead drop: if enemy is directly beneath player, assign top priority
+            if (distSq < 0.25f)
+            {
+                const float score{ 10.0f - distSq };
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    bestEnemy = enemy;
+                }
+                continue;
+            }
+
+            const float dist{ std::sqrt(distSq) };
+            const float invDist{ 1.0f / dist };
+            const float dirX{ dx * invDist };
+            const float dirZ{ dz * invDist };
+
+            const float dot{ (referenceDirXZ.x * dirX) + (referenceDirXZ.y * dirZ) };
+            if (dot < minDot) continue;
+
+            // Weighted scoring: 60% directional alignment, 40% horizontal proximity
+            const float normDist{ dist / maxHorizontalDist };
+            const float score{ (dot * 0.60f) + ((1.0f - normDist) * 0.40f) };
+
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestEnemy = enemy;
+            }
+        }
+
+        return bestEnemy;
+    }
+
+    // Resolves initial plunge facing: snaps to target beneath player if present
+    [[nodiscard]] DirectX::XMFLOAT2 ResolvePlungeSoftLockOrFacingDirection(
+        const GameObject* player,
+        const DirectX::XMFLOAT2& rawWorldDirectionXZ,
+        const float maxHorizontalDist = 7.0f) noexcept
+    {
+        DirectX::XMFLOAT2 dir{ FacingResolver::ResolveDirectionOrCurrentFacing(player, rawWorldDirectionXZ) };
+        if (const auto* target{ FindPlungeSoftLockTarget(player, dir, maxHorizontalDist) })
+        {
+            const DirectX::XMFLOAT3 pPos{ player->GetPosition() };
+            const DirectX::XMFLOAT3 ePos{ target->GetOwner()->GetPosition() };
+            const float dx{ ePos.x - pPos.x };
+            const float dz{ ePos.z - pPos.z };
+            const float distSq{ (dx * dx) + (dz * dz) };
+            if (distSq > 0.0001f)
+            {
+                const float invDist{ 1.0f / std::sqrt(distSq) };
+                dir = { dx * invDist, dz * invDist };
+            }
+        }
+        return dir;
+    }
+
+    // Solves ratio-matched horizontal impulse so diagonal drop naturally strikes target capsule center
+    void ApplyPlungeLungeKinematics(
+        PlayerControllerComponent* controller,
+        CharacterMovementComponent* motor,
+        DirectX::XMFLOAT2& inOutFacingDir,
+        const float authoredPayload,
+        const float downwardSpeed) noexcept
+    {
+        if (!controller || !controller->GetOwner() || !motor) return;
+
+        auto* targetEnemy{ FindPlungeSoftLockTarget(controller->GetOwner(), inOutFacingDir) };
+
+        if (targetEnemy && targetEnemy->GetOwner())
+        {
+            const DirectX::XMFLOAT3 pPos{ controller->GetOwner()->GetPosition() };
+            const DirectX::XMFLOAT3 ePos{ targetEnemy->GetOwner()->GetPosition() };
+            const float dx{ ePos.x - pPos.x };
+            const float dz{ ePos.z - pPos.z };
+            const float distSq{ (dx * dx) + (dz * dz) };
+
+            const float heightDiff{ (std::max)(0.2f, pPos.y - ePos.y) };
+            const float safeDownSpeed{ (std::max)(5.0f, downwardSpeed) };
+
+            if (distSq > 0.0001f)
+            {
+                const float dist{ std::sqrt(distSq) };
+                const float invDist{ 1.0f / dist };
+                const DirectX::XMFLOAT2 lockDir{ dx * invDist, dz * invDist };
+
+                inOutFacingDir = lockDir;
+                FacingResolver::SnapFaceDirection(controller->GetOwner(), lockDir);
+
+                float playerRadius{ 0.37f };
+                if (const auto* pCapsule{ controller->GetOwner()->GetComponent<CapsuleColliderComponent>() })
+                {
+                    playerRadius = pCapsule->GetConfig().radius;
+                }
+
+                float enemyRadius{ 0.50f };
+                if (const auto* eCapsule{ targetEnemy->GetOwner()->GetComponent<CapsuleColliderComponent>() })
+                {
+                    enemyRadius = eCapsule->GetConfig().radius;
+                }
+
+                // Sweet spot: radius sum + 15cm offset
+                const float sweetSpotDist{ playerRadius + enemyRadius + 0.15f };
+                const float gap{ dist - sweetSpotDist };
+
+                motor->HaltMomentum(1.0f);
+
+                if (gap > 0.0f)
+                {
+                    // Linear diagonal relation: V_xz = gap / (heightDiff / safeDownSpeed)
+                    const float requiredSpeed{ gap * (safeDownSpeed / heightDiff) };
+                    const float appliedSpeed{ std::clamp(requiredSpeed, 0.0f, 35.0f) };
+                    motor->AddImpulse(DirectX::XMFLOAT3{ lockDir.x * appliedSpeed, 0.0f, lockDir.y * appliedSpeed });
+                }
+                return;
+            }
+        }
+
+        // Whiff / No Target: Maintain authored timeline impulse along current facing vector
+        motor->HaltMomentum(1.0f);
+        motor->AddImpulse(DirectX::XMFLOAT3{ inOutFacingDir.x * authoredPayload, 0.0f, inOutFacingDir.y * authoredPayload });
+    }
 }
 
 // GROUND & LOCOMOTION
@@ -2482,8 +2645,8 @@ void PlayerAttackPlunge::Enter(PlayerControllerComponent* controller)
     m_canCancel = false;
     m_phase = PlungeSubPhase::Start;
 
-    // Snapshot facing direction to strictly lock forward momentum
-    m_lungeDirection = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
+    // Snapshot facing direction to strictly lock forward momentum with plunge soft-lock
+    m_lungeDirection = ResolvePlungeSoftLockOrFacingDirection(controller->GetOwner(), intent.worldMoveDirection);
     FacingResolver::SnapFaceDirection(controller->GetOwner(), m_lungeDirection);
 
     if (motor)
@@ -2528,11 +2691,22 @@ void PlayerAttackPlunge::Update(PlayerControllerComponent* controller, float dt)
         }
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse))
         {
-            // SCALAR MAGNETISM INJECTION POINT
-            // Future soft-lockon logic: Override `ev.payload` with (DistanceToTarget / TimeToImpact).
-            motor->AddImpulse(DirectX::XMFLOAT3{
-                m_lungeDirection.x * ev.payload, 0.0f, m_lungeDirection.y * ev.payload
-                });
+            // Resolve downward speed from current vertical velocity, pending event, or authored fallback
+            float downSpeed{ std::abs(motor->GetVerticalVelocity()) };
+            if (downSpeed < 1.0f)
+            {
+                for (const auto& otherEv : anim->GetFiredEvents())
+                {
+                    if (otherEv.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Vertical))
+                    {
+                        downSpeed = std::abs(otherEv.payload);
+                        break;
+                    }
+                }
+            }
+            if (downSpeed < 1.0f) downSpeed = 23.0f;
+
+            ApplyPlungeLungeKinematics(controller, motor, m_lungeDirection, ev.payload, downSpeed);
         }
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt))
         {
