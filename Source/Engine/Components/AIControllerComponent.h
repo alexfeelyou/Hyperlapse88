@@ -23,7 +23,10 @@ struct AIControllerConfig
     float turnSpeedDeg{ 360.0f };    // Angular rate in deg/sec to eliminate instant 1-frame rotation snaps
     float ambushTriggerRadius{ 4.5f };
     float ambushStandoffDistance{ 2.2f }; // Distance behind pillar center to position the enemy
+    DirectX::XMFLOAT3 dropLedgeOffset{ 0.0f, 0.0f, 0.0f }; // World offset from spawn position to the ledge where the enemy leaps off
     float wallDropTriggerRadius{ 3.5f };
+    float wallLandDuration{ 0.45f };       // Theatrical impact recovery window before initiating chase
+    float wallDropEjectSpeed{ 2.5f };      // Outward lateral impulse away from wall face to prevent capsule friction drag
 
     float attackWindupDuration{ 0.5f };
     float attackActiveDuration{ 0.35f };

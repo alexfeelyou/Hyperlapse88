@@ -163,12 +163,74 @@ void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
         break;
 
     case EnemyState::wall_drop:
+        StopMovement();
         if (m_movement)
         {
+            // Kill all forward scramble sprint momentum so the enemy drops straight down
+            m_movement->HaltMomentum(1.0f);
             m_movement->GetConfig().useGravity = true;
             // Inject negative downward impulse for a punchy drop
-            m_movement->SetVerticalVelocity(-8.0f);
+            m_movement->SetVerticalVelocity(-10.0f);
+
+            // Wall Clearance Ejection: Raycast backward to detect wall surface normal
+            DirectX::XMFLOAT3 ejectDir{ 0.0f, 0.0f, 0.0f };
+            auto* scene{ PhysicsManager::Instance().GetScene() };
+            const DirectX::XMFLOAT3 myPos{ GetWorldPosition(m_owner) };
+            const float yawRad{ DirectX::XMConvertToRadians(m_owner->transform.rotation.y) };
+            const physx::PxVec3 backwardDir{ -std::sin(yawRad), 0.0f, -std::cos(yawRad) };
+
+            if (scene)
+            {
+                physx::PxRaycastBuffer wallHit{};
+                physx::PxQueryFilterData filterData{};
+                filterData.data.word0 = CollisionLayer::WorldStatic;
+                filterData.flags = physx::PxQueryFlag::eSTATIC;
+
+                if (scene->raycast(physx::PxVec3{ myPos.x, myPos.y, myPos.z }, backwardDir, 2.5f, wallHit, physx::PxHitFlag::eNORMAL, filterData))
+                {
+                    ejectDir = { wallHit.block.normal.x, 0.0f, wallHit.block.normal.z };
+                }
+            }
+
+            const float ejectLenSq{ (ejectDir.x * ejectDir.x) + (ejectDir.z * ejectDir.z) };
+            if (ejectLenSq > 0.001f)
+            {
+                const float invLen{ 1.0f / std::sqrt(ejectLenSq) };
+                ejectDir.x *= invLen * m_config.wallDropEjectSpeed;
+                ejectDir.z *= invLen * m_config.wallDropEjectSpeed;
+            }
+            else
+            {
+                // Fallback: Eject along forward facing vector
+                ejectDir = { std::sin(yawRad) * m_config.wallDropEjectSpeed, 0.0f, std::cos(yawRad) * m_config.wallDropEjectSpeed };
+            }
+
+            m_movement->AddImpulse(ejectDir);
         }
+        break;
+
+    case EnemyState::wall_scramble:
+        if (m_movement)
+        {
+            // Enable gravity and allow movement so the capsule moves across the roof to the ledge
+            m_movement->GetConfig().useGravity = true;
+        }
+        break;
+
+    case EnemyState::wall_land:
+        StopMovement();
+        if (m_movement)
+        {
+            m_movement->HaltMomentum(1.0f);
+            m_movement->GetConfig().useGravity = true;
+        }
+        // Re-Anchor: Relocate spawn & combat territory anchor to the landed floor coordinates
+        m_blackboard.spawnPosition = GetWorldPosition(m_owner);
+        m_blackboard.wanderDestination = m_blackboard.spawnPosition;
+        m_blackboard.setFlag(SensoryFlag::is_leashed, false);
+        m_blackboard.setFlag(SensoryFlag::is_target_beyond_leash, false);
+        m_blackboard.deaggroCooldownTimer = 0.0f;
+        m_blackboard.perceptionTimer = m_config.perceptionInterval; // Force immediate perception refresh
         break;
 
     case EnemyState::ambush_burst:
@@ -230,17 +292,23 @@ void AIControllerComponent::AcquirePlayerTarget() noexcept
         return; // Already acquired
     }
 
-    // Search siblings in scene root for PlayerControllerComponent
-    if (!m_owner || !m_owner->GetParent())
+    if (!m_owner)
     {
         return;
     }
 
-    for (const auto& sibling : m_owner->GetParent()->GetChildren())
+    // Ascend to scene root to guarantee locating the player wherever enemies are grouped in the hierarchy
+    GameObject* root{ m_owner };
+    while (root->GetParent() != nullptr)
     {
-        if (sibling && sibling->GetComponent<PlayerControllerComponent>())
+        root = root->GetParent();
+    }
+
+    for (const auto& child : root->GetChildren())
+    {
+        if (child && child->GetComponent<PlayerControllerComponent>())
         {
-            m_blackboard.target = sibling.get();
+            m_blackboard.target = child.get();
             break;
         }
     }
@@ -893,7 +961,7 @@ void AIControllerComponent::TickGroundAmbush(const float dt) noexcept
         }
         break;
 
-        // AAA Invariant: Once combat begins, delegate ALL states (including Idle/Patrol/Leash) to TickGrunt so the AI never freezes
+        // Once combat begins, delegate ALL states (including Idle/Patrol/Leash) to TickGrunt
     case EnemyState::idle:
     case EnemyState::patrol:
     case EnemyState::chase:
@@ -914,33 +982,173 @@ void AIControllerComponent::TickWallLurker(const float dt) noexcept
     {
     case EnemyState::wall_hang:
     {
-        // Evaluate horizontal ground distance footprint directly below wall lurker
-        const DirectX::XMFLOAT3 myPos{ m_owner->transform.position };
-        const DirectX::XMFLOAT3 playerPos{ m_blackboard.targetPosition };
-
-        const float dx{ playerPos.x - myPos.x };
-        const float dz{ playerPos.z - myPos.z };
-        const float horizontalDistSq{ (dx * dx) + (dz * dz) };
-
-        const float dropRadiusSq{ m_config.wallDropTriggerRadius * m_config.wallDropTriggerRadius };
-
-        // When player walks underneath or trips footprint, release from wall
-        if (horizontalDistSq <= dropRadiusSq)
+        if (!m_blackboard.target)
         {
-            ChangeState(EnemyState::wall_drop);
+            AcquirePlayerTarget();
+            if (!m_blackboard.target) break;
+        }
+
+        const DirectX::XMFLOAT3 lurkerPos{ GetWorldPosition(m_owner) };
+        const DirectX::XMFLOAT3 playerPos{ GetWorldPosition(m_blackboard.target) };
+
+        // Calculate target drop point on the ledge
+        const DirectX::XMFLOAT3 dropLedgePos{
+            m_blackboard.spawnPosition.x + m_config.dropLedgeOffset.x,
+            m_blackboard.spawnPosition.y + m_config.dropLedgeOffset.y,
+            m_blackboard.spawnPosition.z + m_config.dropLedgeOffset.z
+        };
+
+        // Ceiling/Roof Invariant: Reject drops if player is on the roof or above the lurker
+        const float heightDiff{ dropLedgePos.y - playerPos.y };
+        if (heightDiff < 1.5f)
+        {
+            break;
+        }
+
+        // Raycast down from the drop ledge to WorldStatic to determine ground impact elevation
+        auto* scene{ PhysicsManager::Instance().GetScene() };
+        float floorY{ playerPos.y };
+        if (scene)
+        {
+            physx::PxRaycastBuffer floorHit{};
+            physx::PxQueryFilterData filterData{};
+            filterData.data.word0 = CollisionLayer::WorldStatic;
+            filterData.flags = physx::PxQueryFlag::eSTATIC;
+            const physx::PxVec3 rayOrigin{ dropLedgePos.x, dropLedgePos.y, dropLedgePos.z };
+            const physx::PxVec3 rayDir{ 0.0f, -1.0f, 0.0f };
+            if (scene->raycast(rayOrigin, rayDir, 60.0f, floorHit, physx::PxHitFlag::eDEFAULT, filterData))
+            {
+                floorY = floorHit.block.position.y;
+            }
+        }
+
+        // Scramble traversal time from hiding spot to ledge
+        const float dxRoof{ dropLedgePos.x - lurkerPos.x };
+        const float dzRoof{ dropLedgePos.z - lurkerPos.z };
+        const float distRoof{ std::sqrt((dxRoof * dxRoof) + (dzRoof * dzRoof)) };
+        const float scrambleSpeed{ m_movement ? m_movement->GetConfig().maxRunSpeed : 8.0f };
+        const float tScramble{ distRoof / (scrambleSpeed > 0.1f ? scrambleSpeed : 8.0f) };
+
+        const float dropHeight{ (std::max)(1.5f, dropLedgePos.y - floorY) };
+        constexpr float v0y{ 10.0f }; // Matches wall_drop initial velocity
+        constexpr float g{ 9.81f };
+
+        // Analytic Kinematic Time-to-Floor from ledge
+        const float tDrop{ (-v0y + std::sqrt((v0y * v0y) + (2.0f * g * dropHeight))) / g };
+        const float tTotal{ tScramble + tDrop };
+
+        // Pull live player velocity directly from CharacterMovementComponent
+        auto* playerMotor{ m_blackboard.target->GetComponent<CharacterMovementComponent>() };
+        DirectX::XMFLOAT3 playerVel{ 0.0f, 0.0f, 0.0f };
+        if (playerMotor)
+        {
+            playerVel = playerMotor->GetTotalVelocity();
+        }
+
+        const float pSpeedXZ{ std::sqrt((playerVel.x * playerVel.x) + (playerVel.z * playerVel.z)) };
+        const float dxToLedge{ dropLedgePos.x - playerPos.x };
+        const float dzToLedge{ dropLedgePos.z - playerPos.z };
+        const float horizDistSq{ (dxToLedge * dxToLedge) + (dzToLedge * dzToLedge) };
+        const float horizDist{ std::sqrt(horizDistSq) };
+
+        // Calculate player approach velocity towards the drop ledge footprint
+        float vApproach{ 0.0f };
+        if (horizDist > 0.001f && pSpeedXZ > 0.01f)
+        {
+            const float toLedgeX{ dxToLedge / horizDist };
+            const float toLedgeZ{ dzToLedge / horizDist };
+            vApproach = (playerVel.x * toLedgeX) + (playerVel.z * toLedgeZ);
+        }
+
+        const float safeApproachSpeed{ (std::max)(0.0f, vApproach) };
+
+        // Dynamic Compound Lead Tripwire: accounts for scramble time and fall time
+        const float dramaticStandoff{ m_config.wallDropTriggerRadius };
+        const float leadDistance{ safeApproachSpeed * tTotal };
+        const float triggerDistance{ dramaticStandoff + leadDistance };
+
+        if (horizDist <= triggerDistance && (safeApproachSpeed > 0.5f || horizDist <= dramaticStandoff))
+        {
+            // If the enemy is hiding further back on the roof (>60cm from ledge), scramble first; else drop immediately
+            if (distRoof > 0.6f)
+            {
+                ChangeState(EnemyState::wall_scramble);
+            }
+            else
+            {
+                ChangeState(EnemyState::wall_drop);
+            }
         }
         break;
     }
 
+    case EnemyState::wall_scramble:
+    {
+        m_blackboard.stateTimer += dt;
+        const DirectX::XMFLOAT3 currentPos{ GetWorldPosition(m_owner) };
+        const DirectX::XMFLOAT3 dropLedgePos{
+            m_blackboard.spawnPosition.x + m_config.dropLedgeOffset.x,
+            m_blackboard.spawnPosition.y + m_config.dropLedgeOffset.y,
+            m_blackboard.spawnPosition.z + m_config.dropLedgeOffset.z
+        };
+
+        const float dx{ dropLedgePos.x - currentPos.x };
+        const float dz{ dropLedgePos.z - currentPos.z };
+        const float distToLedgeSq{ (dx * dx) + (dz * dz) };
+
+        // Reached the ledge (within 60cm) or timed out (safety abort after 3s): leap off
+        if (distToLedgeSq <= (0.6f * 0.6f) || m_blackboard.stateTimer >= 3.0f)
+        {
+            ChangeState(EnemyState::wall_drop);
+            break;
+        }
+
+        // Steer rapidly toward the drop point
+        SteerTowards(dropLedgePos, dt);
+        break;
+    }
+
     case EnemyState::wall_drop:
+        // Enforce zero horizontal steering while in free-fall to prevent airborne drift
+        StopMovement();
         // Free-fall until the capsule controller strikes ground geometry
         if (m_capsule && m_capsule->IsGrounded())
         {
-            // Landed cleanly; immediately start chasing the surprised player
+            ChangeState(EnemyState::wall_land);
+        }
+        break;
+
+    case EnemyState::wall_land:
+        StopMovement();
+        m_blackboard.stateTimer += dt;
+
+        // Smoothly orient toward player during landing impact recovery
+        if (m_blackboard.target)
+        {
+            const DirectX::XMFLOAT3 currentPos{ GetWorldPosition(m_owner) };
+            const DirectX::XMFLOAT3 targetPos{ GetWorldPosition(m_blackboard.target) };
+            const float dx{ targetPos.x - currentPos.x };
+            const float dz{ targetPos.z - currentPos.z };
+            if ((dx * dx) + (dz * dz) > 0.01f)
+            {
+                const float targetYawDeg{ DirectX::XMConvertToDegrees(std::atan2(dx, dz)) };
+                float deltaYaw{ targetYawDeg - m_owner->transform.rotation.y };
+                while (deltaYaw > 180.0f) deltaYaw -= 360.0f;
+                while (deltaYaw < -180.0f) deltaYaw += 360.0f;
+                const float maxStep{ m_config.turnSpeedDeg * dt };
+                m_owner->transform.rotation.y += std::clamp(deltaYaw, -maxStep, maxStep);
+            }
+        }
+
+        // Theatrical recovery window concludes: transition directly to combat pursuit
+        if (m_blackboard.stateTimer >= m_config.wallLandDuration)
+        {
             ChangeState(EnemyState::chase);
         }
         break;
 
+    case EnemyState::idle:
+    case EnemyState::patrol:
     case EnemyState::chase:
     case EnemyState::attack_windup:
     case EnemyState::attack_active:
@@ -1035,12 +1243,16 @@ void AIControllerComponent::Update(const float dt)
     const float innerLeash{ (std::max)(m_config.wanderRadius, m_config.leashRange - m_config.leashHysteresis) };
     const float innerLeashSq{ innerLeash * innerLeash };
 
-    // 1. Boundary Breach: Enemy reaches the outer leash perimeter while chasing
-    if (distFromSpawnSq >= leashRangeSq && m_currentState != EnemyState::wall_hang)
+    // Boundary Breach: Enemy reaches the outer leash perimeter while chasing
+    if (distFromSpawnSq >= leashRangeSq &&
+        m_currentState != EnemyState::wall_hang &&
+        m_currentState != EnemyState::wall_scramble &&
+        m_currentState != EnemyState::wall_drop &&
+        m_currentState != EnemyState::wall_land)
     {
         m_blackboard.setFlag(SensoryFlag::is_leashed, true);
 
-        // AAA Behavior: Stop immediately, maintain current facing direction, and enter Idle
+        // Stop immediately, maintain current facing direction, and enter Idle
         if (m_currentState == EnemyState::chase ||
             m_currentState == EnemyState::attack_windup ||
             m_currentState == EnemyState::attack_active)
@@ -1321,8 +1533,11 @@ namespace
         case EnemyState::ambush_burst:
             return { 0.9f, 0.45f, 0.1f, 0.85f }; // Camo Orange
         case EnemyState::wall_hang:
+        case EnemyState::wall_scramble:
         case EnemyState::wall_drop:
             return { 0.2f, 0.8f, 1.0f, 0.9f }; // High-Perch Cyan
+        case EnemyState::wall_land:
+            return { 0.2f, 0.5f, 1.0f, 0.95f }; // Heavy Landing Blue
         case EnemyState::dead:
         default:
             return { 0.4f, 0.4f, 0.4f, 0.5f }; // Inactive Grey
@@ -1437,14 +1652,66 @@ void AIControllerComponent::DrawGizmo(const GizmoContext& ctx) noexcept
             DrawWireCircle(ctx.shapes, { propPos.x, propPos.y + 0.05f, propPos.z }, 1.0f, coverLineColor);
         }
     }
-    else if (m_config.archetype == EnemyArchetype::wall_lurker)
+    else if (m_config.archetype == EnemyArchetype::wall_lurker &&
+        (m_currentState == EnemyState::wall_hang || m_currentState == EnemyState::wall_scramble || m_currentState == EnemyState::wall_drop))
     {
         constexpr DirectX::XMFLOAT4 dropColor{ 0.85f, 0.25f, 0.95f, 0.85f };
-        // Vertical guideline connecting perched wall anchor down to floor level
-        ctx.shapes->DrawLine(pos, { pos.x, pos.y - 12.0f, pos.z }, dropColor);
+        constexpr DirectX::XMFLOAT4 scrambleColor{ 0.2f, 0.9f, 1.0f, 0.85f };
+        constexpr DirectX::XMFLOAT4 sprintTriggerColor{ 1.0f, 0.35f, 0.1f, 0.65f };
 
-        // Ground drop trigger footprint directly beneath the perch
-        DrawWireCircle(ctx.shapes, { pos.x, pos.y - 11.9f, pos.z }, m_config.wallDropTriggerRadius, dropColor);
+        const DirectX::XMFLOAT3 dropLedgePos{
+            m_blackboard.spawnPosition.x + m_config.dropLedgeOffset.x,
+            m_blackboard.spawnPosition.y + m_config.dropLedgeOffset.y,
+            m_blackboard.spawnPosition.z + m_config.dropLedgeOffset.z
+        };
+
+        // Draw scramble vector on the roof if a distinct ledge offset is configured
+        const float offsetLenSq{
+            (m_config.dropLedgeOffset.x * m_config.dropLedgeOffset.x) +
+            (m_config.dropLedgeOffset.y * m_config.dropLedgeOffset.y) +
+            (m_config.dropLedgeOffset.z * m_config.dropLedgeOffset.z)
+        };
+        if (offsetLenSq > 0.04f)
+        {
+            ctx.shapes->DrawLine(pos, dropLedgePos, scrambleColor);
+            ctx.shapes->DrawBox(dropLedgePos, { 0.0f, 0.0f, 0.0f }, { 0.25f, 0.25f, 0.25f }, scrambleColor);
+        }
+
+        float floorY{ dropLedgePos.y - 12.0f };
+        auto* scene{ PhysicsManager::Instance().GetScene() };
+        if (scene)
+        {
+            physx::PxRaycastBuffer hit{};
+            physx::PxQueryFilterData filter{};
+            filter.data.word0 = CollisionLayer::WorldStatic;
+            filter.flags = physx::PxQueryFlag::eSTATIC;
+            if (scene->raycast(physx::PxVec3{ dropLedgePos.x, dropLedgePos.y, dropLedgePos.z }, physx::PxVec3{ 0.0f, -1.0f, 0.0f }, 100.0f, hit, physx::PxHitFlag::eDEFAULT, filter))
+            {
+                floorY = hit.block.position.y;
+            }
+        }
+
+        const DirectX::XMFLOAT3 floorPos{ dropLedgePos.x, floorY, dropLedgePos.z };
+
+        // Plumb line from ledge point down to corridor floor
+        ctx.shapes->DrawLine(dropLedgePos, floorPos, dropColor);
+
+        // Base landing impact footprint
+        DrawWireCircle(ctx.shapes, { floorPos.x, floorPos.y + 0.05f, floorPos.z }, m_config.wallDropTriggerRadius, dropColor);
+
+        // Calculate lead trigger radius including scramble duration
+        const float dxRoof{ dropLedgePos.x - pos.x };
+        const float dzRoof{ dropLedgePos.z - pos.z };
+        const float dRoof{ std::sqrt((dxRoof * dxRoof) + (dzRoof * dzRoof)) };
+        const float scrambleSpeed{ m_movement ? m_movement->GetConfig().maxRunSpeed : 8.0f };
+        const float tScramble{ dRoof / (scrambleSpeed > 0.1f ? scrambleSpeed : 8.0f) };
+
+        const float h{ (std::max)(1.5f, dropLedgePos.y - floorY) };
+        const float tDrop{ (-10.0f + std::sqrt(100.0f + (2.0f * 9.81f * h))) / 9.81f };
+        const float tTotal{ tScramble + tDrop };
+
+        const float sprintLeadRadius{ m_config.wallDropTriggerRadius + (16.0f * tTotal) };
+        DrawWireCircle(ctx.shapes, { floorPos.x, floorPos.y + 0.03f, floorPos.z }, sprintLeadRadius, sprintTriggerColor);
     }
 
     // Sensory Line-of-Sight Ray to Acquired Target
@@ -1500,7 +1767,10 @@ void AIControllerComponent::DrawInspector()
     }
     else if (m_config.archetype == EnemyArchetype::wall_lurker)
     {
-        ImGui::DragFloat("Wall Drop Radius", &m_config.wallDropTriggerRadius, 0.2f, 0.5f, 20.0f, "%.1f m");
+        ImGui::DragFloat3("Drop Ledge Offset", &m_config.dropLedgeOffset.x, 0.1f, -50.0f, 50.0f, "%.2f m");
+        ImGui::DragFloat("Drop Standoff Radius", &m_config.wallDropTriggerRadius, 0.2f, 0.5f, 20.0f, "%.1f m");
+        ImGui::DragFloat("Landing Duration", &m_config.wallLandDuration, 0.05f, 0.1f, 3.0f, "%.2f s");
+        ImGui::DragFloat("Wall Eject Speed", &m_config.wallDropEjectSpeed, 0.1f, 0.5f, 10.0f, "%.1f m/s");
     }
 
     ImGui::Spacing();
@@ -1516,7 +1786,7 @@ void AIControllerComponent::DrawInspector()
 
     static constexpr const char* s_stateNames[] = {
         "Idle", "Patrol", "Ambush Dormant", "Ambush Burst",
-        "Wall Hang", "Wall Drop", "Chase", "Attack Windup",
+        "Wall Hang", "Wall Scramble", "Wall Drop", "Wall Land", "Chase", "Attack Windup",
         "Attack Active", "Hit React", "Airborne Juggle", "Dead"
     };
     ImGui::Text("Current State: %s", s_stateNames[static_cast<std::size_t>(m_currentState)]);
@@ -1545,7 +1815,12 @@ void AIControllerComponent::Serialize(nlohmann::json& outJson) const
     outJson["PatrolTimeout"] = m_config.patrolTimeout;
     outJson["AmbushTriggerRadius"] = m_config.ambushTriggerRadius;
     outJson["AmbushStandoffDistance"] = m_config.ambushStandoffDistance;
+    outJson["DropLedgeOffsetX"] = m_config.dropLedgeOffset.x;
+    outJson["DropLedgeOffsetY"] = m_config.dropLedgeOffset.y;
+    outJson["DropLedgeOffsetZ"] = m_config.dropLedgeOffset.z;
     outJson["WallDropTriggerRadius"] = m_config.wallDropTriggerRadius;
+    outJson["WallLandDuration"] = m_config.wallLandDuration;
+    outJson["WallDropEjectSpeed"] = m_config.wallDropEjectSpeed;
     outJson["AttackWindupDuration"] = m_config.attackWindupDuration;
     outJson["AttackActiveDuration"] = m_config.attackActiveDuration;
     outJson["AttackCooldownDuration"] = m_config.attackCooldownDuration;
@@ -1567,7 +1842,14 @@ void AIControllerComponent::Deserialize(const nlohmann::json& inJson)
     m_config.patrolTimeout = inJson.value("PatrolTimeout", 6.0f);
     m_config.ambushTriggerRadius = inJson.value("AmbushTriggerRadius", 4.5f);
     m_config.ambushStandoffDistance = inJson.value("AmbushStandoffDistance", 2.2f);
+    m_config.dropLedgeOffset = {
+        inJson.value("DropLedgeOffsetX", 0.0f),
+        inJson.value("DropLedgeOffsetY", 0.0f),
+        inJson.value("DropLedgeOffsetZ", 0.0f)
+    };
     m_config.wallDropTriggerRadius = inJson.value("WallDropTriggerRadius", 3.5f);
+    m_config.wallLandDuration = inJson.value("WallLandDuration", 0.45f);
+    m_config.wallDropEjectSpeed = inJson.value("WallDropEjectSpeed", 2.5f);
     m_config.attackWindupDuration = inJson.value("AttackWindupDuration", 0.5f);
     m_config.attackActiveDuration = inJson.value("AttackActiveDuration", 0.35f);
     m_config.attackCooldownDuration = inJson.value("AttackCooldownDuration", 1.2f);

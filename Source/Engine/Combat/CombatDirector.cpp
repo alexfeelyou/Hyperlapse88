@@ -376,7 +376,7 @@ DirectX::XMFLOAT3 CombatDirector::ComputeSeparationForce(const AIControllerCompo
 
     for (const auto* other : m_enemies)
     {
-        if (!other || other == enemy || !other->GetOwner() || other->GetCurrentState() == EnemyState::dead) continue;
+        if (!other || other == enemy || !other->GetOwner() || other->GetCurrentState() == EnemyState::dead || other->GetCurrentState() == EnemyState::wall_hang || other->GetCurrentState() == EnemyState::wall_scramble) continue;
 
         const DirectX::XMFLOAT4X4 otherMat{ other->GetOwner()->transform.GetWorldMatrix() };
         const float dx{ myPos.x - otherMat._41 };
