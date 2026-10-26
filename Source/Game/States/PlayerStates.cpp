@@ -5,6 +5,7 @@
 #include "CombatDirector.h"
 #include "FacingResolver.h"
 #include "GameObject.h"
+#include "HealthComponent.h"
 #include "MeleeHitboxComponent.h"
 #include "OrbitCameraDriverComponent.h"
 #include "PlayerStates.h"
@@ -126,6 +127,156 @@ namespace
             motor->HaltMomentum(1.0f);
             motor->AddImpulse(DirectX::XMFLOAT3{ facingDir.x * payload, 0.0f, facingDir.y * payload });
         }
+    }
+
+    // Soft-Lock Target Selector (XZ Ground Sector)
+    [[nodiscard]] AIControllerComponent* FindGroundSoftLockTarget(
+        const GameObject* player,
+        const DirectX::XMFLOAT2& referenceDirXZ,
+        const float maxDistance = 5.0f) noexcept
+    {
+        if (!player) return nullptr;
+
+        const float refLenSq{ (referenceDirXZ.x * referenceDirXZ.x) + (referenceDirXZ.y * referenceDirXZ.y) };
+        if (refLenSq < 0.0001f) return nullptr;
+
+        const auto& enemies{ CombatDirector::Instance().GetEnemies() };
+        if (enemies.empty()) return nullptr;
+
+        const DirectX::XMFLOAT3 pPos{ player->GetPosition() };
+        AIControllerComponent* bestEnemy{ nullptr };
+        float bestScore{ -1.0f };
+
+        // Melee Sector: 75-degree cone (cos(75 deg) ~= 0.2588f) allows intuitive lock-on without jarring right-angle snaps
+        constexpr float minDot{ 0.2588f };
+        const float maxDistSq{ maxDistance * maxDistance };
+
+        for (auto* enemy : enemies)
+        {
+            if (!enemy || !enemy->GetOwner() || enemy->GetOwner()->IsDestroyed()) continue;
+            if (enemy->GetCurrentState() == EnemyState::dead) continue;
+
+            const auto* health{ enemy->GetOwner()->GetComponent<HealthComponent>() };
+            if (health && health->IsDead()) continue;
+
+            const DirectX::XMFLOAT3 ePos{ enemy->GetOwner()->GetPosition() };
+
+            // Reject vertical outliers (wall lurkers or enemies over ledge cliffs)
+            const float dy{ ePos.y - pPos.y };
+            if (std::abs(dy) > 2.0f) continue;
+
+            const float dx{ ePos.x - pPos.x };
+            const float dz{ ePos.z - pPos.z };
+            const float distSq{ (dx * dx) + (dz * dz) };
+            if (distSq < 0.0001f || distSq > maxDistSq) continue;
+
+            const float dist{ std::sqrt(distSq) };
+            const float invDist{ 1.0f / dist };
+            const float dirX{ dx * invDist };
+            const float dirZ{ dz * invDist };
+
+            const float dot{ (referenceDirXZ.x * dirX) + (referenceDirXZ.y * dirZ) };
+            if (dot < minDot) continue;
+
+            // Weighted Scoring: 65% directional aim alignment, 35% proximity weighting
+            const float normDist{ dist / maxDistance };
+            const float score{ (dot * 0.65f) + ((1.0f - normDist) * 0.35f) };
+
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestEnemy = enemy;
+            }
+        }
+
+        return bestEnemy;
+    }
+
+    // Resolves initial attack facing: snaps to soft-locked enemy center if in cone, else preserves raw input
+    [[nodiscard]] DirectX::XMFLOAT2 ResolveSoftLockOrFacingDirection(
+        const GameObject* player,
+        const DirectX::XMFLOAT2& rawWorldDirectionXZ,
+        const float maxDistance = 5.0f) noexcept
+    {
+        DirectX::XMFLOAT2 dir{ FacingResolver::ResolveDirectionOrCurrentFacing(player, rawWorldDirectionXZ) };
+        if (const auto* target{ FindGroundSoftLockTarget(player, dir, maxDistance) })
+        {
+            const DirectX::XMFLOAT3 pPos{ player->GetPosition() };
+            const DirectX::XMFLOAT3 ePos{ target->GetOwner()->GetPosition() };
+            const float dx{ ePos.x - pPos.x };
+            const float dz{ ePos.z - pPos.z };
+            const float distSq{ (dx * dx) + (dz * dz) };
+            if (distSq > 0.0001f)
+            {
+                const float invDist{ 1.0f / std::sqrt(distSq) };
+                dir = { dx * invDist, dz * invDist };
+            }
+        }
+        return dir;
+    }
+
+    // Evaluates dynamic gap-closing kinematics targeting enemy capsule center
+    void ApplyGroundLungeKinematics(
+        PlayerControllerComponent* controller,
+        CharacterMovementComponent* motor,
+        DirectX::XMFLOAT2& inOutFacingDir,
+        const float authoredPayload) noexcept
+    {
+        if (!controller || !controller->GetOwner() || !motor) return;
+
+        auto* targetEnemy{ FindGroundSoftLockTarget(controller->GetOwner(), inOutFacingDir) };
+
+        if (targetEnemy && targetEnemy->GetOwner())
+        {
+            const DirectX::XMFLOAT3 pPos{ controller->GetOwner()->GetPosition() };
+            const DirectX::XMFLOAT3 ePos{ targetEnemy->GetOwner()->GetPosition() };
+            const float dx{ ePos.x - pPos.x };
+            const float dz{ ePos.z - pPos.z };
+            const float distSq{ (dx * dx) + (dz * dz) };
+
+            if (distSq > 0.0001f)
+            {
+                const float dist{ std::sqrt(distSq) };
+                const float invDist{ 1.0f / dist };
+                const DirectX::XMFLOAT2 lockDir{ dx * invDist, dz * invDist };
+
+                // Align physical facing directly toward the target's capsule center
+                inOutFacingDir = lockDir;
+                FacingResolver::SnapFaceDirection(controller->GetOwner(), lockDir);
+
+                float playerRadius{ 0.37f };
+                if (const auto* pCapsule{ controller->GetOwner()->GetComponent<CapsuleColliderComponent>() })
+                {
+                    playerRadius = pCapsule->GetConfig().radius;
+                }
+
+                float enemyRadius{ 0.50f };
+                if (const auto* eCapsule{ targetEnemy->GetOwner()->GetComponent<CapsuleColliderComponent>() })
+                {
+                    enemyRadius = eCapsule->GetConfig().radius;
+                }
+
+                // Optimal melee spacing: capsule radii sum + 35cm blade offset to cleave through capsule center
+                const float sweetSpotDist{ playerRadius + enemyRadius + 0.35f };
+                const float gap{ dist - sweetSpotDist };
+                const float drag{ (std::max)(0.1f, motor->GetConfig().impulseDrag) };
+
+                motor->HaltMomentum(1.0f);
+
+                if (gap > 0.0f)
+                {
+                    // Analytic drag integration: v0 = gap * drag halts the capsule exactly at the sweet spot
+                    const float requiredImpulse{ gap * drag };
+                    const float appliedSpeed{ std::clamp(requiredImpulse, 0.0f, 30.0f) };
+                    motor->AddImpulse(DirectX::XMFLOAT3{ lockDir.x * appliedSpeed, 0.0f, lockDir.y * appliedSpeed });
+                }
+                return;
+            }
+        }
+
+        // Whiff / No Target: Maintain authored timeline impulse along current facing vector
+        motor->HaltMomentum(1.0f);
+        motor->AddImpulse(DirectX::XMFLOAT3{ inOutFacingDir.x * authoredPayload, 0.0f, inOutFacingDir.y * authoredPayload });
     }
 }
 
@@ -1545,7 +1696,7 @@ void PlayerAttackPrimary::Enter(PlayerControllerComponent* controller)
     blackboard.setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
 
     const auto& intent = controller->GetIntent();
-    m_lungeDirection = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
+    m_lungeDirection = ResolveSoftLockOrFacingDirection(controller->GetOwner(), intent.worldMoveDirection);
 
     if (auto* motor = controller->GetMovement())
     {
@@ -1614,11 +1765,7 @@ void PlayerAttackPrimary::Update(PlayerControllerComponent* controller, float dt
         {
             if (auto* motor = controller->GetMovement())
             {
-                motor->AddImpulse(DirectX::XMFLOAT3{
-                    m_lungeDirection.x * ev.payload,
-                    0.0f,
-                    m_lungeDirection.y * ev.payload
-                    });
+                ApplyGroundLungeKinematics(controller, motor, m_lungeDirection, ev.payload);
             }
         }
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt))
@@ -1668,7 +1815,7 @@ void PlayerAttackPrimary::Update(PlayerControllerComponent* controller, float dt
         {
             m_stepIndex++;
             m_activeNode = (m_trackIndex * 4) + m_stepIndex;
-            m_lungeDirection = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
+            m_lungeDirection = ResolveSoftLockOrFacingDirection(controller->GetOwner(), intent.worldMoveDirection);
             PlayCurrentAttack(controller);
             return;
         }
@@ -1711,7 +1858,7 @@ void PlayerAttackContextual::Enter(PlayerControllerComponent* controller)
     blackboard.actionIndex = activeNode;
 
     const auto& intent = controller->GetIntent();
-    m_lungeDirection = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
+    m_lungeDirection = ResolveSoftLockOrFacingDirection(controller->GetOwner(), intent.worldMoveDirection);
 
     if (auto* motor = controller->GetMovement())
     {
@@ -1773,9 +1920,7 @@ void PlayerAttackContextual::Update(PlayerControllerComponent* controller, float
         {
             if (auto* motor = controller->GetMovement())
             {
-                motor->AddImpulse(DirectX::XMFLOAT3{
-                    m_lungeDirection.x * ev.payload, 0.0f, m_lungeDirection.y * ev.payload
-                    });
+                ApplyGroundLungeKinematics(controller, motor, m_lungeDirection, ev.payload);
             }
         }
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt))
@@ -1872,7 +2017,6 @@ void PlayerAttackDirectional::Enter(PlayerControllerComponent* controller)
     {
         m_lungeDirection = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
     }
-
     FacingResolver::SnapFaceDirection(controller->GetOwner(), m_lungeDirection);
 
     m_canCancel = false;
@@ -1909,7 +2053,7 @@ void PlayerAttackDirectional::Update(PlayerControllerComponent* controller, floa
 
     for (const auto& ev : controller->GetAnimation()->GetFiredEvents())
     {
-        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
+       if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
         {
             m_canCancel = true;
         }
@@ -2024,7 +2168,7 @@ void PlayerAttackCharged::Enter(PlayerControllerComponent* controller)
     m_earlyRelease = false;
 
     const auto& intent = controller->GetIntent();
-    m_lungeDirection = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
+    m_lungeDirection = ResolveSoftLockOrFacingDirection(controller->GetOwner(), intent.worldMoveDirection);
     FacingResolver::SnapFaceDirection(controller->GetOwner(), m_lungeDirection);
 
     if (auto* motor = controller->GetMovement()) motor->SetDesiredDirection({ 0.0f, 0.0f });
@@ -2088,9 +2232,7 @@ void PlayerAttackCharged::Update(PlayerControllerComponent* controller, float dt
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse))
         {
             const float finalImpulse = ev.payload * m_chargeRatio;
-            motor->AddImpulse(DirectX::XMFLOAT3{
-                m_lungeDirection.x * finalImpulse, 0.0f, m_lungeDirection.y * finalImpulse
-                });
+            ApplyGroundLungeKinematics(controller, motor, m_lungeDirection, finalImpulse);
         }
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt))
         {
@@ -2557,7 +2699,9 @@ void PlayerAttackSpeed::Enter(PlayerControllerComponent* controller)
     m_mashGraceTimer = 0.0f;
 
     const auto& intent{ controller->GetIntent() };
-    m_facingDir = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
+    m_facingDir = m_isAerial
+        ? FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection)
+        : ResolveSoftLockOrFacingDirection(controller->GetOwner(), intent.worldMoveDirection);
     FacingResolver::SnapFaceDirection(controller->GetOwner(), m_facingDir);
 
     if (motor)
@@ -2607,7 +2751,7 @@ void PlayerAttackSpeed::Update(PlayerControllerComponent* controller, float dt)
             }
             else
             {
-                motor->AddImpulse({ m_facingDir.x * ev.payload, 0.0f, m_facingDir.y * ev.payload });
+                ApplyGroundLungeKinematics(controller, motor, m_facingDir, ev.payload);
             }
         }
     }
@@ -2634,7 +2778,7 @@ void PlayerAttackSpeed::Update(PlayerControllerComponent* controller, float dt)
         m_loopTimer += dt;
 
         // Sustain rule: Must complete minimum 0.4s to prevent single-frame twitching.
-        // Ends if button is released AND mashing grace window expires, OR maximum 3.0s timeout is reached.
+        // Ends if button is released and mashing grace window expires, or maximum 3.0s timeout is reached.
         const bool isSustaining = intent.bAttackHeld || (m_mashGraceTimer > 0.0f);
         if (m_loopTimer > 3.0f || (m_loopTimer > 0.4f && !isSustaining))
         {
