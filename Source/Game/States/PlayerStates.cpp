@@ -89,15 +89,15 @@ namespace
             const float distSq{ (dx * dx) + (dz * dz) };
             constexpr float sweetSpotDist{ 1.3f };
 
+            const float distXZ{ std::sqrt(distSq) };
+            const float invDist{ (distXZ > 0.0001f) ? (1.0f / distXZ) : 0.0f };
+            const DirectX::XMFLOAT2 lockDir{ dx * invDist, dz * invDist };
+
+            // Auto-converge horizontal facing toward victim
+            FacingResolver::SnapFaceDirection(controller->GetOwner(), lockDir);
+
             if (distSq > (sweetSpotDist * sweetSpotDist))
             {
-                const float distXZ{ std::sqrt(distSq) };
-                const float invDist{ 1.0f / distXZ };
-                const DirectX::XMFLOAT2 lockDir{ dx * invDist, dz * invDist };
-
-                // Auto-converge horizontal facing toward victim
-                FacingResolver::SnapFaceDirection(controller->GetOwner(), lockDir);
-
                 // Solve v0 = Gap * Drag so Player glides exactly to the sweet spot boundary
                 const float gap{ distXZ - sweetSpotDist };
                 const float drag{ (std::max)(0.1f, motor->GetConfig().impulseDrag) };
@@ -109,8 +109,10 @@ namespace
             }
             else
             {
-                // Already inside sweet spot: halt forward drift to avoid tunneling through the target
+                // Multi-lunge support: already inside sweet spot, apply a controlled forward step-in impulse for follow-up strikes
+                const float stepInSpeed{ (std::min)(payload, 10.0f) };
                 motor->HaltMomentum(1.0f);
+                motor->AddImpulse(DirectX::XMFLOAT3{ lockDir.x * stepInSpeed, 0.0f, lockDir.y * stepInSpeed });
             }
 
             // Smooth vertical height convergence to victim torso
@@ -269,6 +271,13 @@ namespace
                     const float requiredImpulse{ gap * drag };
                     const float appliedSpeed{ std::clamp(requiredImpulse, 0.0f, 30.0f) };
                     motor->AddImpulse(DirectX::XMFLOAT3{ lockDir.x * appliedSpeed, 0.0f, lockDir.y * appliedSpeed });
+                }
+                else
+                {
+                    // Multi-lunge support: already within sweet spot from prior lunge, apply a crisp forward step-in impulse for secondary strikes
+                    const float stepInSpeed{ std::clamp(authoredPayload * 0.75f, 2.0f, 15.0f) };
+                    motor->HaltMomentum(1.0f);
+                    motor->AddImpulse(DirectX::XMFLOAT3{ lockDir.x * stepInSpeed, 0.0f, lockDir.y * stepInSpeed });
                 }
                 return;
             }

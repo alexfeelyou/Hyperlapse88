@@ -222,7 +222,7 @@
                             "BaseDamage": 5.0,
                             "Height": 0.7400000095367432,
                             "HitStopDuration": 0.05999999865889549,
-                            "KnockbackImpulse": 18.0,
+                            "KnockbackImpulse": 3.0,
                             "OffsetX": 0.0,
                             "OffsetY": 1.6399999856948853,
                             "OffsetZ": -0.019999999552965164,
@@ -237,15 +237,15 @@
                     ],
                     "IsActive": true,
                     "Name": "Socket_Weapon_Back",
-                    "PosX": -0.4436783194541931,
-                    "PosY": 0.4655759334564209,
-                    "PosZ": 0.3163749575614929,
-                    "RotX": 4.234800815582275,
-                    "RotY": -131.75721740722656,
-                    "RotZ": 31.10491180419922,
+                    "PosX": -0.514997124671936,
+                    "PosY": 1.2700870037078857,
+                    "PosZ": -0.5582820177078247,
+                    "RotX": -47.972843170166016,
+                    "RotY": 119.19404602050781,
+                    "RotZ": 139.25917053222656,
                     "ScaleX": 1.309999942779541,
-                    "ScaleY": 1.9099996089935303,
-                    "ScaleZ": 0.9099999666213989
+                    "ScaleY": 1.9100000858306885,
+                    "ScaleZ": 0.9099998474121094
                 }
             ],
             "Components": [
@@ -328,6 +328,7 @@
                                     "Loop": true,
                                     "RootBoneIndex": 2,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -363,6 +364,7 @@
                                     "Loop": true,
                                     "RootBoneIndex": 2,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 2.5,
@@ -385,6 +387,7 @@
                                     "Loop": true,
                                     "RootBoneIndex": 2,
                                     "Speed": 1.100000023841858,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 8.0,
@@ -407,6 +410,7 @@
                                     "Loop": true,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.2000000476837158,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 16.0,
@@ -437,6 +441,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -459,6 +464,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -481,6 +487,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -503,6 +510,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -525,6 +533,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -547,6 +556,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -577,6 +587,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -599,6 +610,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -621,6 +633,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -643,6 +656,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -665,6 +679,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -687,6 +702,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -709,6 +725,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -731,6 +748,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -753,6 +771,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -775,6 +794,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -805,6 +825,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.2000000476837158,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -827,6 +848,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.2000000476837158,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -849,6 +871,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.2000000476837158,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -871,6 +894,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.2000000476837158,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -901,6 +925,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -923,6 +948,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.2000000476837158,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -945,6 +971,7 @@
                                     "Loop": true,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -967,6 +994,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -989,6 +1017,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.2000000476837158,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1011,6 +1040,7 @@
                                     "Loop": true,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1033,6 +1063,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1055,6 +1086,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1085,6 +1117,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.149999976158142,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1107,6 +1140,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.149999976158142,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1145,6 +1179,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1175,6 +1210,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.600000023841858,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1197,6 +1233,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1227,6 +1264,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1257,6 +1295,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.600000023841858,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1279,6 +1318,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1324,6 +1364,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.100000023841858,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1354,6 +1395,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.5,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1391,6 +1433,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.100000023841858,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1421,6 +1464,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.5,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1466,6 +1510,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 1,
                                     "Speed": 1.600000023841858,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1496,6 +1541,7 @@
                                     "Loop": true,
                                     "RootBoneIndex": 2,
                                     "Speed": 1.2000000476837158,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1518,6 +1564,7 @@
                                     "Loop": true,
                                     "RootBoneIndex": 2,
                                     "Speed": 1.2000000476837158,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1548,6 +1595,13 @@
                                             "IsRange": true,
                                             "Payload": 1.0,
                                             "Time": 0.1353013813495636
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 7,
+                                            "IsRange": false,
+                                            "Payload": 4.5,
+                                            "Time": 0.09200000017881393
                                         }
                                     ],
                                     "GripPosX": 0.0,
@@ -1563,6 +1617,24 @@
                                     "Loop": false,
                                     "RootBoneIndex": 1,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [
+                                        {
+                                            "Speed": 1.0,
+                                            "Time": 0.11699999868869781
+                                        },
+                                        {
+                                            "Speed": 3.5,
+                                            "Time": 0.1702127605676651
+                                        },
+                                        {
+                                            "Speed": 0.30000001192092896,
+                                            "Time": 0.23153942823410034
+                                        },
+                                        {
+                                            "Speed": 1.2000000476837158,
+                                            "Time": 0.3254067599773407
+                                        }
+                                    ],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1585,6 +1657,13 @@
                                             "IsRange": true,
                                             "Payload": 1.0,
                                             "Time": 0.163591668009758
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 7,
+                                            "IsRange": false,
+                                            "Payload": 8.0,
+                                            "Time": 0.055350564420223236
                                         }
                                     ],
                                     "GripPosX": -0.14000000059604645,
@@ -1600,6 +1679,24 @@
                                     "Loop": false,
                                     "RootBoneIndex": 1,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [
+                                        {
+                                            "Speed": 1.0,
+                                            "Time": 0.14760147035121918
+                                        },
+                                        {
+                                            "Speed": 3.5,
+                                            "Time": 0.2503128945827484
+                                        },
+                                        {
+                                            "Speed": 0.30000001192092896,
+                                            "Time": 0.32103320956230164
+                                        },
+                                        {
+                                            "Speed": 1.2000000476837158,
+                                            "Time": 0.4182041883468628
+                                        }
+                                    ],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1614,14 +1711,28 @@
                                             "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
-                                            "Time": 0.4846247136592865
+                                            "Time": 0.3794931173324585
                                         },
                                         {
-                                            "EndTime": 0.22599999606609344,
+                                            "EndTime": 0.12099999934434891,
                                             "Id": 1,
                                             "IsRange": true,
                                             "Payload": 1.0,
                                             "Time": 0.06519065052270889
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 7,
+                                            "IsRange": false,
+                                            "Payload": 11.0,
+                                            "Time": 0.06396064162254333
+                                        },
+                                        {
+                                            "EndTime": 0.31770962476730347,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.1677096039056778
                                         }
                                     ],
                                     "GripPosX": -0.07999999821186066,
@@ -1637,6 +1748,24 @@
                                     "Loop": false,
                                     "RootBoneIndex": 1,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [
+                                        {
+                                            "Speed": 1.0,
+                                            "Time": 0.05166051536798477
+                                        },
+                                        {
+                                            "Speed": 1.2999999523162842,
+                                            "Time": 0.2160000056028366
+                                        },
+                                        {
+                                            "Speed": 0.5454545617103577,
+                                            "Time": 0.27909886837005615
+                                        },
+                                        {
+                                            "Speed": 1.2000000476837158,
+                                            "Time": 0.5550000071525574
+                                        }
+                                    ],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1661,11 +1790,25 @@
                                             "Time": 0.4354243576526642
                                         },
                                         {
-                                            "EndTime": 0.3109999895095825,
+                                            "EndTime": 0.19300000369548798,
                                             "Id": 1,
                                             "IsRange": true,
                                             "Payload": 1.0,
                                             "Time": 0.046740468591451645
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 7,
+                                            "IsRange": false,
+                                            "Payload": 9.0,
+                                            "Time": 0.210999995470047
+                                        },
+                                        {
+                                            "EndTime": 0.3915519714355469,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.2415519505739212
                                         }
                                     ],
                                     "GripPosX": 0.0,
@@ -1681,6 +1824,32 @@
                                     "Loop": false,
                                     "RootBoneIndex": 1,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [
+                                        {
+                                            "Speed": 1.0,
+                                            "Time": 0.054120540618896484
+                                        },
+                                        {
+                                            "Speed": 2.0,
+                                            "Time": 0.17712177336215973
+                                        },
+                                        {
+                                            "Speed": 0.30000001192092896,
+                                            "Time": 0.21033211052417755
+                                        },
+                                        {
+                                            "Speed": 1.2999999523162842,
+                                            "Time": 0.2792128026485443
+                                        },
+                                        {
+                                            "Speed": 0.30000001192092896,
+                                            "Time": 0.32103320956230164
+                                        },
+                                        {
+                                            "Speed": 1.2000000476837158,
+                                            "Time": 0.44699999690055847
+                                        }
+                                    ],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1705,7 +1874,7 @@
                                             "Time": 0.39479878544807434
                                         },
                                         {
-                                            "EndTime": 0.16899999976158142,
+                                            "EndTime": 0.27799999713897705,
                                             "Id": 1,
                                             "IsRange": true,
                                             "Payload": 1.0,
@@ -1725,6 +1894,24 @@
                                     "Loop": false,
                                     "RootBoneIndex": 1,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [
+                                        {
+                                            "Speed": 1.0,
+                                            "Time": 0.03754693269729614
+                                        },
+                                        {
+                                            "Speed": 3.5,
+                                            "Time": 0.1080000028014183
+                                        },
+                                        {
+                                            "Speed": 0.699999988079071,
+                                            "Time": 0.1852315366268158
+                                        },
+                                        {
+                                            "Speed": 1.2000000476837158,
+                                            "Time": 0.39299124479293823
+                                        }
+                                    ],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1769,6 +1956,24 @@
                                     "Loop": false,
                                     "RootBoneIndex": 1,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [
+                                        {
+                                            "Speed": 1.0,
+                                            "Time": 0.11900000274181366
+                                        },
+                                        {
+                                            "Speed": 3.700000047683716,
+                                            "Time": 0.15600000321865082
+                                        },
+                                        {
+                                            "Speed": 0.699999988079071,
+                                            "Time": 0.26658323407173157
+                                        },
+                                        {
+                                            "Speed": 1.2000000476837158,
+                                            "Time": 0.4993742108345032
+                                        }
+                                    ],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1813,6 +2018,24 @@
                                     "Loop": false,
                                     "RootBoneIndex": 1,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [
+                                        {
+                                            "Speed": 1.0,
+                                            "Time": 0.07000000029802322
+                                        },
+                                        {
+                                            "Speed": 3.5,
+                                            "Time": 0.20900000631809235
+                                        },
+                                        {
+                                            "Speed": 0.699999988079071,
+                                            "Time": 0.262828528881073
+                                        },
+                                        {
+                                            "Speed": 1.2000000476837158,
+                                            "Time": 0.46683353185653687
+                                        }
+                                    ],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1837,11 +2060,25 @@
                                             "Time": 0.5011819005012512
                                         },
                                         {
-                                            "EndTime": 0.35100001096725464,
+                                            "EndTime": 0.18799999356269836,
                                             "Id": 1,
                                             "IsRange": true,
                                             "Payload": 1.0,
                                             "Time": 0.11070108413696289
+                                        },
+                                        {
+                                            "EndTime": 0.39155203104019165,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.2415519803762436
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 7,
+                                            "IsRange": false,
+                                            "Payload": 9.0,
+                                            "Time": 0.2428034394979477
                                         }
                                     ],
                                     "GripPosX": 0.0,
@@ -1857,6 +2094,32 @@
                                     "Loop": false,
                                     "RootBoneIndex": 1,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [
+                                        {
+                                            "Speed": 1.0,
+                                            "Time": 0.08100000023841858
+                                        },
+                                        {
+                                            "Speed": 2.0,
+                                            "Time": 0.16770963370800018
+                                        },
+                                        {
+                                            "Speed": 0.30000001192092896,
+                                            "Time": 0.1877346634864807
+                                        },
+                                        {
+                                            "Speed": 1.5,
+                                            "Time": 0.2809999883174896
+                                        },
+                                        {
+                                            "Speed": 0.699999988079071,
+                                            "Time": 0.3341677188873291
+                                        },
+                                        {
+                                            "Speed": 1.2000000476837158,
+                                            "Time": 0.5018773674964905
+                                        }
+                                    ],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1881,7 +2144,7 @@
                                             "Time": 0.4196213185787201
                                         },
                                         {
-                                            "EndTime": 0.25099998712539673,
+                                            "EndTime": 0.36399999260902405,
                                             "Id": 1,
                                             "IsRange": true,
                                             "Payload": 1.0,
@@ -1901,6 +2164,24 @@
                                     "Loop": false,
                                     "RootBoneIndex": 1,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [
+                                        {
+                                            "Speed": 1.0,
+                                            "Time": 0.16200000047683716
+                                        },
+                                        {
+                                            "Speed": 3.0,
+                                            "Time": 0.2027534395456314
+                                        },
+                                        {
+                                            "Speed": 0.699999988079071,
+                                            "Time": 0.2590738534927368
+                                        },
+                                        {
+                                            "Speed": 1.2000000476837158,
+                                            "Time": 0.4180225133895874
+                                        }
+                                    ],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1952,6 +2233,32 @@
                                     "Loop": false,
                                     "RootBoneIndex": 1,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [
+                                        {
+                                            "Speed": 1.0,
+                                            "Time": 0.09700000286102295
+                                        },
+                                        {
+                                            "Speed": 1.5499999523162842,
+                                            "Time": 0.1852315366268158
+                                        },
+                                        {
+                                            "Speed": 0.699999988079071,
+                                            "Time": 0.21026283502578735
+                                        },
+                                        {
+                                            "Speed": 3.0,
+                                            "Time": 0.35600000619888306
+                                        },
+                                        {
+                                            "Speed": 0.699999988079071,
+                                            "Time": 0.3869999945163727
+                                        },
+                                        {
+                                            "Speed": 1.2000000476837158,
+                                            "Time": 0.48185232281684875
+                                        }
+                                    ],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -1976,11 +2283,32 @@
                                             "Time": 0.5011821985244751
                                         },
                                         {
-                                            "EndTime": 0.3869999945163727,
+                                            "EndTime": 0.1289999932050705,
                                             "Id": 1,
                                             "IsRange": true,
                                             "Payload": 1.0,
                                             "Time": 0.08364079147577286
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 7,
+                                            "IsRange": false,
+                                            "Payload": 7.5,
+                                            "Time": 0.21652062237262726
+                                        },
+                                        {
+                                            "EndTime": 0.21699999272823334,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.15769709646701813
+                                        },
+                                        {
+                                            "EndTime": 0.4140799641609192,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.2640799582004547
                                         }
                                     ],
                                     "GripPosX": 0.0,
@@ -1996,6 +2324,32 @@
                                     "Loop": false,
                                     "RootBoneIndex": 1,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [
+                                        {
+                                            "Speed": 1.0,
+                                            "Time": 0.07599999755620956
+                                        },
+                                        {
+                                            "Speed": 1.149999976158142,
+                                            "Time": 0.16699999570846558
+                                        },
+                                        {
+                                            "Speed": 0.75,
+                                            "Time": 0.21652065217494965
+                                        },
+                                        {
+                                            "Speed": 1.600000023841858,
+                                            "Time": 0.3466833531856537
+                                        },
+                                        {
+                                            "Speed": 0.699999988079071,
+                                            "Time": 0.3904881179332733
+                                        },
+                                        {
+                                            "Speed": 1.2000000476837158,
+                                            "Time": 0.5018773674964905
+                                        }
+                                    ],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -2017,14 +2371,28 @@
                                             "Id": 2,
                                             "IsRange": false,
                                             "Payload": 0.0,
-                                            "Time": 0.7662973999977112
+                                            "Time": 0.5259963870048523
                                         },
                                         {
-                                            "EndTime": 0.44999998807907104,
+                                            "EndTime": 0.14800000190734863,
                                             "Id": 1,
                                             "IsRange": true,
                                             "Payload": 1.0,
                                             "Time": 0.08856083452701569
+                                        },
+                                        {
+                                            "EndTime": 0.22599999606609344,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.16645805537700653
+                                        },
+                                        {
+                                            "EndTime": 0.40657082200050354,
+                                            "Id": 1,
+                                            "IsRange": true,
+                                            "Payload": 1.0,
+                                            "Time": 0.25657081604003906
                                         }
                                     ],
                                     "GripPosX": 0.0,
@@ -2040,6 +2408,24 @@
                                     "Loop": false,
                                     "RootBoneIndex": 1,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [
+                                        {
+                                            "Speed": 1.0,
+                                            "Time": 0.10012515634298325
+                                        },
+                                        {
+                                            "Speed": 1.5,
+                                            "Time": 0.3140000104904175
+                                        },
+                                        {
+                                            "Speed": 0.699999988079071,
+                                            "Time": 0.35669586062431335
+                                        },
+                                        {
+                                            "Speed": 1.2000000476837158,
+                                            "Time": 0.546933650970459
+                                        }
+                                    ],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -2092,6 +2478,24 @@
                                     "Loop": false,
                                     "RootBoneIndex": 1,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [
+                                        {
+                                            "Speed": 1.0,
+                                            "Time": 0.09700000286102295
+                                        },
+                                        {
+                                            "Speed": 1.25,
+                                            "Time": 0.27284106612205505
+                                        },
+                                        {
+                                            "Speed": 0.4000000059604645,
+                                            "Time": 0.32165205478668213
+                                        },
+                                        {
+                                            "Speed": 1.0,
+                                            "Time": 0.44680851697921753
+                                        }
+                                    ],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -2123,14 +2527,14 @@
                                             "Time": 0.21889954805374146
                                         },
                                         {
-                                            "EndTime": 0.1469999998807907,
+                                            "EndTime": 0.21799999475479126,
                                             "Id": 1,
                                             "IsRange": true,
                                             "Payload": 1.0,
                                             "Time": 0.11808115243911743
                                         },
                                         {
-                                            "EndTime": 0.4869999885559082,
+                                            "EndTime": 0.5569999814033508,
                                             "Id": 1,
                                             "IsRange": true,
                                             "Payload": 1.0,
@@ -2150,6 +2554,32 @@
                                     "Loop": false,
                                     "RootBoneIndex": 1,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [
+                                        {
+                                            "Speed": 1.0,
+                                            "Time": 0.07599999755620956
+                                        },
+                                        {
+                                            "Speed": 1.2999999523162842,
+                                            "Time": 0.18400000035762787
+                                        },
+                                        {
+                                            "Speed": 0.800000011920929,
+                                            "Time": 0.23153942823410034
+                                        },
+                                        {
+                                            "Speed": 1.4500000476837158,
+                                            "Time": 0.4693366587162018
+                                        },
+                                        {
+                                            "Speed": 0.4000000059604645,
+                                            "Time": 0.5306633114814758
+                                        },
+                                        {
+                                            "Speed": 1.0,
+                                            "Time": 0.6295368671417236
+                                        }
+                                    ],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -2209,6 +2639,24 @@
                                     "Loop": false,
                                     "RootBoneIndex": 1,
                                     "Speed": 0.800000011920929,
+                                    "SpeedCurve": [
+                                        {
+                                            "Speed": 1.0,
+                                            "Time": 0.24071991443634033
+                                        },
+                                        {
+                                            "Speed": 1.3454545736312866,
+                                            "Time": 0.7750281095504761
+                                        },
+                                        {
+                                            "Speed": 0.4000000059604645,
+                                            "Time": 0.8042744398117065
+                                        },
+                                        {
+                                            "Speed": 1.0181818008422852,
+                                            "Time": 0.8627671599388123
+                                        }
+                                    ],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -2253,6 +2701,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 1,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -2312,6 +2761,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 1,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -2364,6 +2814,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 1,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -2415,6 +2866,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 1,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -2452,6 +2904,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 1,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -2497,6 +2950,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 1,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -2519,6 +2973,7 @@
                                     "Loop": true,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -2556,6 +3011,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 1,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -2593,6 +3049,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -2615,6 +3072,7 @@
                                     "Loop": true,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -2652,6 +3110,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -2689,6 +3148,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -2711,6 +3171,7 @@
                                     "Loop": true,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -2748,6 +3209,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -2778,6 +3240,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -2816,6 +3279,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 1,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -2853,6 +3317,7 @@
                                     "Loop": true,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -2897,6 +3362,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 1,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -2935,6 +3401,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 1,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -2979,6 +3446,7 @@
                                     "Loop": true,
                                     "RootBoneIndex": 1,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -3023,6 +3491,7 @@
                                     "Loop": false,
                                     "RootBoneIndex": 1,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -3053,6 +3522,7 @@
                                     "Loop": true,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 0.0,
@@ -3088,6 +3558,7 @@
                                     "Loop": true,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.0,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 2.5,
@@ -3110,6 +3581,7 @@
                                     "Loop": true,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.100000023841858,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 8.0,
@@ -3132,6 +3604,7 @@
                                     "Loop": true,
                                     "RootBoneIndex": 0,
                                     "Speed": 1.2000000476837158,
+                                    "SpeedCurve": [],
                                     "StartOffset": 0.0,
                                     "SyncPhase": false,
                                     "Threshold": 16.0,
@@ -3176,9 +3649,9 @@
                 },
                 {
                     "CadenceInterval": 0.25,
-                    "InnerRadius": 1.5,
+                    "InnerRadius": 1.2999999523162842,
                     "MaxAttackTokens": 3,
-                    "OuterRadius": 2.700000047683716,
+                    "OuterRadius": 2.0999999046325684,
                     "Type": "CombatDirectorComponent"
                 }
             ],
@@ -9560,6 +10033,9 @@
                     "AttackRange": 1.7999999523162842,
                     "AttackWindupDuration": 0.5,
                     "DeaggroDuration": 2.5,
+                    "DropLedgeOffsetX": 0.0,
+                    "DropLedgeOffsetY": 0.0,
+                    "DropLedgeOffsetZ": 0.0,
                     "HitReactDuration": 0.44999998807907104,
                     "IdleDuration": 1.5,
                     "LeashHysteresis": 4.0,
@@ -9569,7 +10045,9 @@
                     "SightRange": 14.0,
                     "TurnSpeedDeg": 420.0,
                     "Type": "AIControllerComponent",
+                    "WallDropEjectSpeed": 2.5,
                     "WallDropTriggerRadius": 3.5,
+                    "WallLandDuration": 0.44999998807907104,
                     "WanderRadius": 4.0
                 }
             ],
