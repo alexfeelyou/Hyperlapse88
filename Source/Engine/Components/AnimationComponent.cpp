@@ -47,6 +47,99 @@ namespace
     }
 }
 
+float AnimNode::EvaluateSpeedMultiplier(const float normalizedPhase) const noexcept
+{
+    // Fall back immediately to uniform scalar if no curve is sculpted
+    if (speedCurve.empty())
+    {
+        return speedMultiplier;
+    }
+
+    if (speedCurve.size() == 1)
+    {
+        return (std::max)(0.01f, speedCurve.front().speedMult * speedMultiplier);
+    }
+
+    const float clampedPhase{ std::clamp(normalizedPhase, 0.0f, 1.0f) };
+
+    // Constant extrapolation beyond boundary keys
+    if (clampedPhase <= speedCurve.front().normalizedTime)
+    {
+        return (std::max)(0.01f, speedCurve.front().speedMult * speedMultiplier);
+    }
+    if (clampedPhase >= speedCurve.back().normalizedTime)
+    {
+        return (std::max)(0.01f, speedCurve.back().speedMult * speedMultiplier);
+    }
+
+    // Binary search for enclosing key segment [idx - 1, idx]
+    std::size_t idx{ 1 };
+    while (idx < speedCurve.size() && speedCurve[idx].normalizedTime < clampedPhase)
+    {
+        ++idx;
+    }
+
+    const auto& k0{ speedCurve[idx - 1] };
+    const auto& k1{ speedCurve[idx] };
+
+    const float segmentLength{ k1.normalizedTime - k0.normalizedTime };
+    if (segmentLength <= 0.0001f)
+    {
+        return (std::max)(0.01f, k1.speedMult * speedMultiplier);
+    }
+
+    const float t{ (clampedPhase - k0.normalizedTime) / segmentLength };
+
+    // C1-continuous Hermite smoothstep interpolation (3t^2 - 2t^3) 
+    const float smoothT{ t * t * (3.0f - (2.0f * t)) };
+    const float interpolatedSpeed{ (k0.speedMult * (1.0f - smoothT)) + (k1.speedMult * smoothT) };
+
+    return (std::max)(0.01f, interpolatedSpeed * speedMultiplier);
+}
+
+float AnimNode::GetAverageSpeedMultiplier() const noexcept
+{
+    if (speedCurve.empty())
+    {
+        return speedMultiplier;
+    }
+
+    if (speedCurve.size() == 1)
+    {
+        return (std::max)(0.01f, speedCurve.front().speedMult * speedMultiplier);
+    }
+
+    // Analytical integral of cubic smoothstep segments is mathematically identical to trapezoidal area
+    float totalArea{ 0.0f };
+    float coveredLength{ 0.0f };
+
+    if (speedCurve.front().normalizedTime > 0.0f)
+    {
+        totalArea += speedCurve.front().speedMult * speedCurve.front().normalizedTime;
+        coveredLength += speedCurve.front().normalizedTime;
+    }
+
+    for (std::size_t i{ 0 }; i < speedCurve.size() - 1; ++i)
+    {
+        const float segLen{ speedCurve[i + 1].normalizedTime - speedCurve[i].normalizedTime };
+        if (segLen > 0.0f)
+        {
+            totalArea += 0.5f * (speedCurve[i].speedMult + speedCurve[i + 1].speedMult) * segLen;
+            coveredLength += segLen;
+        }
+    }
+
+    if (speedCurve.back().normalizedTime < 1.0f)
+    {
+        const float remLen{ 1.0f - speedCurve.back().normalizedTime };
+        totalArea += speedCurve.back().speedMult * remLen;
+        coveredLength += remLen;
+    }
+
+    const float meanSpeed{ (coveredLength > 0.001f) ? (totalArea / coveredLength) : 1.0f };
+    return (std::max)(0.01f, meanSpeed * speedMultiplier);
+}
+
 float AnimationComponent::GetStateDurationByHash(const std::uint64_t stateHash) const noexcept
 {
     if (!m_model) return 0.0f;
@@ -100,7 +193,9 @@ float AnimationComponent::GetStateDurationByHash(const std::uint64_t stateHash) 
 
             if (totalDuration > 0.001f)
             {
-                const float currentSpeed = (state.nodes[nodeA].speedMultiplier * (1.0f - t)) + (state.nodes[nodeB].speedMultiplier * t);
+                const float speedA{ state.nodes[nodeA].GetAverageSpeedMultiplier() };
+                const float speedB{ state.nodes[nodeB].GetAverageSpeedMultiplier() };
+                const float currentSpeed{ (speedA * (1.0f - t)) + (speedB * t) };
                 const float currentOffset = (state.nodes[nodeA].startOffset * (1.0f - t)) + (state.nodes[nodeB].startOffset * t);
 
                 const float remainingDuration = (totalDuration - currentOffset) / (currentSpeed > 0.01f ? currentSpeed : 1.0f);
@@ -439,7 +534,9 @@ void AnimationComponent::Update(const float dt)
 
             if (currentDuration > 0.001f)
             {
-                const float currentSpeed{ (targetState.nodes[nodeA].speedMultiplier * (1.0f - t)) + (targetState.nodes[nodeB].speedMultiplier * t) };
+                const float speedA{ targetState.nodes[nodeA].EvaluateSpeedMultiplier(m_currentPhase) };
+                const float speedB{ targetState.nodes[nodeB].EvaluateSpeedMultiplier(m_currentPhase) };
+                const float currentSpeed{ (speedA * (1.0f - t)) + (speedB * t) };
                 const float phaseDelta{ (evalDt * currentSpeed * m_playbackSpeed) * blendedFreq };
                 m_currentPhase += phaseDelta;
 
@@ -809,6 +906,17 @@ void AnimationComponent::Serialize(nlohmann::json& j) const
             nodeJson["SyncPhase"] = node.syncPhase;
             nodeJson["StartOffset"] = node.startOffset;
             nodeJson["Speed"] = node.speedMultiplier;
+
+            nlohmann::json curveArray = nlohmann::json::array();
+            for (const auto& key : node.speedCurve)
+            {
+                nlohmann::json keyJson{};
+                keyJson["Time"] = key.normalizedTime;
+                keyJson["Speed"] = key.speedMult;
+                curveArray.push_back(keyJson);
+            }
+            nodeJson["SpeedCurve"] = curveArray;
+
             nodeJson["Blend"] = node.blendDuration;
             nodeJson["HasGripOverride"] = node.hasGripOverride;
             nodeJson["GripPosX"] = node.gripPosition.x;
@@ -893,6 +1001,18 @@ void AnimationComponent::Deserialize(const nlohmann::json& j)
 
                 node.startOffset = nodeJson.value("StartOffset", 0.0f);
                 node.speedMultiplier = nodeJson.value("Speed", 1.0f);
+
+                if (nodeJson.contains("SpeedCurve"))
+                {
+                    for (const auto& keyJson : nodeJson["SpeedCurve"])
+                    {
+                        AnimCurveKey key{};
+                        key.normalizedTime = keyJson.value("Time", 0.0f);
+                        key.speedMult = keyJson.value("Speed", 1.0f);
+                        node.speedCurve.push_back(key);
+                    }
+                }
+
                 node.blendDuration = nodeJson.value("Blend", 0.2f);
                 node.hasGripOverride = nodeJson.value("HasGripOverride", false);
                 node.gripPosition = {
@@ -1033,7 +1153,9 @@ float AnimationComponent::GetStateDurationByIndex(std::size_t stateIndex) const 
 
     if (totalDuration > 0.001f)
     {
-        const float currentSpeed = (state.nodes[nodeA].speedMultiplier * (1.0f - t)) + (state.nodes[nodeB].speedMultiplier * t);
+        const float speedA{ state.nodes[nodeA].GetAverageSpeedMultiplier() };
+        const float speedB{ state.nodes[nodeB].GetAverageSpeedMultiplier() };
+        const float currentSpeed{ (speedA * (1.0f - t)) + (speedB * t) };
         const float currentOffset = (state.nodes[nodeA].startOffset * (1.0f - t)) + (state.nodes[nodeB].startOffset * t);
 
         const float remainingDuration = (totalDuration - currentOffset) / (currentSpeed > 0.01f ? currentSpeed : 1.0f);

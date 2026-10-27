@@ -50,6 +50,13 @@ struct TransitionRule
     float targetStartOffset{ 0.0f };
 };
 
+// Represents an instantaneous playback rate keyframe along the normalized animation timeline
+struct AnimCurveKey
+{
+    float normalizedTime{ 0.0f }; // Normalized timeline position [0.0f, 1.0f]
+    float speedMult{ 1.0f };      // Instantaneous speed multiplier (e.g., 0.1x to 4.0x)
+};
+
 // The Node is the absolute source of truth.
 struct AnimNode
 {
@@ -74,6 +81,13 @@ struct AnimNode
 
     std::vector<AnimationEvent> events{};
     std::vector<TransitionRule> transitionRules{};
+    std::vector<AnimCurveKey> speedCurve{};
+
+    // Evaluates the continuous instantaneous speed multiplier at the given normalized phase
+    [[nodiscard]] float EvaluateSpeedMultiplier(float normalizedPhase) const noexcept;
+
+    // Calculates the integrated average playback speed across the entire animation cycle
+    [[nodiscard]] float GetAverageSpeedMultiplier() const noexcept;
 };
 
 enum class BlendParamType : std::uint8_t {
