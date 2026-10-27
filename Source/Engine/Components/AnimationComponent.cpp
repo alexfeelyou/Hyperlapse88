@@ -389,25 +389,35 @@ void AnimationComponent::TestPlayState(std::size_t stateIndex, int isolatedNodeI
 
     if (m_currentStateIndex == stateIndex)
     {
+        // If paused mid-timeline and not at the end of the clip, unpause directly from the current frame
+        if (m_previewPaused && m_currentPhase < 0.999f)
+        {
+            m_previewPaused = false;
+            m_editorPreview = true;
+            m_isolatedNodeIndex = isolatedNodeIndex;
+            return;
+        }
+
         float targetOffset = 0.0f;
         if (!m_states[stateIndex].nodes.empty())
         {
             int safeIdx = (std::max)(0, isolatedNodeIndex);
-            if (safeIdx >= m_states[stateIndex].nodes.size()) safeIdx = 0;
+            if (safeIdx >= static_cast<int>(m_states[stateIndex].nodes.size())) safeIdx = 0;
             targetOffset = m_states[stateIndex].nodes[safeIdx].startOffset;
         }
 
         m_currentTimer = targetOffset;
+        m_currentPhase = 0.0f;
         m_isBlending = false;
         m_blendTimer = 0.0f;
     }
     else
     {
-        PlayState(stateIndex);
+        PlayState(stateIndex, true, isolatedNodeIndex);
     }
 
     m_editorPreview = true;
-	m_previewPaused = false;
+    m_previewPaused = false;
     m_isolatedNodeIndex = isolatedNodeIndex;
 }
 
@@ -550,7 +560,10 @@ void AnimationComponent::Update(const float dt)
                 else
                 {
                     m_currentPhase = std::clamp(m_currentPhase, 0.0f, 1.0f);
-                    if (m_editorPreview && m_currentPhase >= 1.0f) StopPreview();
+                    if (m_editorPreview && m_currentPhase >= 1.0f)
+                    {
+                        m_previewPaused = true;
+                    }
                 }
 
                 m_currentTimer = m_currentPhase * currentDuration;
@@ -757,19 +770,21 @@ void AnimationComponent::ScrubToTime(std::size_t stateIndex, float time) noexcep
         }
     }
 
+    m_blendedLocalPoses = m_currentLocalPoses;
     ComputeGlobalTransforms();
 }
 
 void AnimationComponent::ScrubNodeToTime(std::size_t stateIndex, std::size_t nodeIndex, float time) noexcept
 {
-    m_currentTimer = time;
+    if (!m_model || stateIndex >= m_states.size()) return;
+
+    m_currentStateIndex = stateIndex;
+    m_currentNodeIndex = nodeIndex;
+    m_isolatedNodeIndex = static_cast<int>(nodeIndex);
     m_isBlending = false;
+    m_blendTimer = 0.0f;
     m_editorPreview = true;
     m_previewPaused = true;
-    m_isolatedNodeIndex = static_cast<int>(nodeIndex);
-    m_currentNodeIndex = nodeIndex;
-
-    if (!m_model || m_currentStateIndex >= m_states.size()) return;
 
     const AnimationState& state{ m_states[m_currentStateIndex] };
     if (nodeIndex >= state.nodes.size()) return;
@@ -777,9 +792,17 @@ void AnimationComponent::ScrubNodeToTime(std::size_t stateIndex, std::size_t nod
     const int clipIdx = state.nodes[nodeIndex].clipIndex;
     if (clipIdx >= 0 && static_cast<std::size_t>(clipIdx) < m_model->GetAnimations().size())
     {
-        // Keep the underlying phase accumulator in perfect sync with the scrubbed time
-        const float duration = m_model->GetAnimations()[clipIdx].secondsLength;
-        if (duration > 0.001f) m_currentPhase = m_currentTimer / duration;
+        const float duration{ m_model->GetAnimations()[clipIdx].secondsLength };
+        if (duration > 0.001f)
+        {
+            m_currentTimer = std::clamp(time, 0.0f, duration);
+            m_currentPhase = m_currentTimer / duration;
+        }
+        else
+        {
+            m_currentTimer = 0.0f;
+            m_currentPhase = 0.0f;
+        }
 
         m_model->ComputeAnimation(clipIdx, m_currentTimer, m_currentLocalPoses, m_cursorsA.data());
     }
@@ -796,6 +819,7 @@ void AnimationComponent::ScrubNodeToTime(std::size_t stateIndex, std::size_t nod
         if (state.nodes[nodeIndex].lockRootZ) m_currentLocalPoses[boneIdx].position.z = m_model->GetNodes()[boneIdx].position.z;
     }
 
+    m_blendedLocalPoses = m_currentLocalPoses;
     ComputeGlobalTransforms();
 }
 

@@ -337,7 +337,16 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
     ImGui::SameLine();
     if (ImGui::Button("Stop"))
     {
-        m_targetComponent->StopPreview();
+        if (m_targetComponent->IsPreviewing() && !m_targetComponent->IsPreviewPaused())
+        {
+            // Halt playback on the current frame without resetting the timeline to 0
+            m_targetComponent->PausePreview();
+        }
+        else
+        {
+            // Second click while paused rewinds to 0.0s of the selected state and node
+            m_targetComponent->ScrubNodeToTime(m_selectedStateIndex, m_selectedNodeIndex, 0.0f);
+        }
     }
     ImGui::EndDisabled();
 

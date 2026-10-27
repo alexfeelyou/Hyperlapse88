@@ -137,6 +137,7 @@ public:
 
     void TestPlayState(std::size_t stateIndex, int isolatedNodeIndex = -1) noexcept;
     void StopPreview() noexcept;
+    void PausePreview() noexcept { m_previewPaused = true; }
     void JumpToPreviewTime(float time) noexcept { m_currentTimer = time; }
 
     // Called on Deserialize and when Editor Graph changes
@@ -177,6 +178,7 @@ public:
     [[nodiscard]] std::size_t GetCurrentStateIndex() const noexcept { return m_currentStateIndex; }
     [[nodiscard]] std::size_t GetCurrentNodeIndex() const noexcept { return m_currentNodeIndex; }
     [[nodiscard]] bool IsPreviewing() const noexcept { return m_editorPreview; }
+    [[nodiscard]] bool IsPreviewPaused() const noexcept { return m_previewPaused; }
     [[nodiscard]] int GetIsolatedNodeIndex() const noexcept { return m_isolatedNodeIndex; }
     [[nodiscard]] const AnimNode* GetActiveAnimNode() const noexcept;
 
