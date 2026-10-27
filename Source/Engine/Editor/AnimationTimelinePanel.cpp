@@ -43,6 +43,7 @@ namespace
     // File-scope (not function-local) so EndPreview() can also reach it from outside Draw().
     DirectX::XMFLOAT3 s_previewAnchor{ 0.0f, 0.0f, 0.0f };
     bool s_hasPreviewAnchor{ false };
+    int s_draggedCurveKeyIdx{ -1 };
 
     // Puts the owner (Transform AND PhysX capsule) back on the saved anchor, then clears it.
     // The capsule is teleported explicitly because CapsuleColliderComponent::Update() only syncs
@@ -72,6 +73,7 @@ void AnimationTimelinePanel::EndPreview() noexcept
     // Drop the isolated scrub pose first, then undo the positional side effects of previewing.
     m_targetComponent->StopPreview();
     RestorePreviewAnchor(m_targetComponent->GetOwner());
+    s_draggedCurveKeyIdx = -1;
 }
 
 void AnimationTimelinePanel::SetTarget(AnimationComponent* target, std::size_t stateIndex) noexcept
@@ -82,6 +84,7 @@ void AnimationTimelinePanel::SetTarget(AnimationComponent* target, std::size_t s
     m_selectedEventIndex = -1;
     m_selectedCurveKeyIndex = -1;
     m_isDraggingCurveKey = false;
+    s_draggedCurveKeyIdx = -1;
 }
 
 void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
@@ -92,7 +95,7 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
         return;
     }
 
-    // PREVENTIVE BUG FIX: Directional Mode Safety
+    // PREVENTIVE BUG: Directional Mode Safety
     static bool s_wasGameLive = EditorManager::Instance().GetEditorMode() != EditorMode::Edit;
     const bool isGameLive = EditorManager::Instance().GetEditorMode() != EditorMode::Edit;
 
@@ -775,11 +778,12 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
                 {
                     m_selectedCurveKeyIndex = static_cast<int>(kIdx);
                     m_selectedEventIndex = -1;
+                    s_draggedCurveKeyIdx = static_cast<int>(kIdx);
                     m_isDraggingCurveKey = false;
                 }
 
-                // Dragging requires intentional cursor displacement beyond threshold
-                if (isSelected && ImGui::IsMouseDown(ImGuiMouseButton_Left))
+                // Dragging strictly requires initial left-click origin on this specific handle
+                if (isSelected && s_draggedCurveKeyIdx == static_cast<int>(kIdx) && ImGui::IsMouseDown(ImGuiMouseButton_Left))
                 {
                     if (!m_isDraggingCurveKey && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 3.0f))
                     {
@@ -812,6 +816,7 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
             if (m_isDraggingCurveKey && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
             {
                 m_isDraggingCurveKey = false;
+                s_draggedCurveKeyIdx = -1;
                 if (m_selectedCurveKeyIndex >= 0 && static_cast<std::size_t>(m_selectedCurveKeyIndex) < targetNode.speedCurve.size())
                 {
                     const float draggedTime{ targetNode.speedCurve[m_selectedCurveKeyIndex].normalizedTime };
@@ -833,6 +838,7 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
             else if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
             {
                 m_isDraggingCurveKey = false;
+                s_draggedCurveKeyIdx = -1;
             }
 
             // Insert key on double-clicking empty canvas
@@ -876,7 +882,7 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
     ImGui::SetCursorScreenPos(canvasPos);
     ImGui::InvisibleButton("##ScrubPlane", ImVec2(canvasWidth, (std::max)(10.0f, scrubAreaHeight)));
 
-    if (!isGameLive && ImGui::IsItemActive())
+    if (!isGameLive && !m_isDraggingCurveKey && s_draggedCurveKeyIdx == -1 && ImGui::IsItemActive())
     {
         const float mouseLocalX{ ImGui::GetIO().MousePos.x - canvasPos.x };
         const float newNorm{ std::clamp<float>(mouseLocalX / canvasWidth, 0.0f, 0.999f) };
