@@ -1001,7 +1001,11 @@ void PlayerPivotTurn::Update(PlayerControllerComponent* controller, float dt)
     bool canCancel{ false };
     for (const auto& ev : anim->GetFiredEvents())
     {
-        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open)) canCancel = true;
+        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Evade) ||
+            ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Combo))
+        {
+            canCancel = true;
+        }
     }
 
     const auto& intent{ controller->GetIntent() };
@@ -1062,8 +1066,22 @@ void PlayerSlide::Enter(PlayerControllerComponent* controller)
     auto* anim{ controller->GetAnimation() };
     if (!motor || !anim) return;
 
-    m_canCancel = false;
+    m_canCancelEvade = false;
+    m_canCancelLocomotion = false;
+    m_hasAuthoredEvadeCancel = false;
     m_phase = SlideSubPhase::Entry_Drop;
+
+    if (const auto* activeNode{ anim->GetActiveAnimNode() })
+    {
+        for (const auto& ev : activeNode->events)
+        {
+            if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Evade))
+            {
+                m_hasAuthoredEvadeCancel = true;
+                break;
+            }
+        }
+    }
 
     // Squashing to the floor completely hides the weapon socket jump
     controller->getAnimBlackboard().setFlag(Engine::Animation::AnimFlag::is_combat_active, false);
@@ -1108,9 +1126,17 @@ void PlayerSlide::Update(PlayerControllerComponent* controller, float dt)
     // EVENT LISTENER 
     for (const auto& ev : anim->GetFiredEvents())
     {
-        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
+        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Evade))
         {
-            m_canCancel = true;
+            m_canCancelEvade = true;
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Locomotion))
+        {
+            m_canCancelLocomotion = true;
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Combo))
+        {
+            if (!m_hasAuthoredEvadeCancel) m_canCancelEvade = true;
         }
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Pose_HoldMarker) && m_phase == SlideSubPhase::Entry_Drop)
         {
@@ -1123,14 +1149,14 @@ void PlayerSlide::Update(PlayerControllerComponent* controller, float dt)
 
     // JUMP / EDGE CANCELS 
     // Allowed absolutely anytime before the slow Exit_Recovery phase, but must respect the Entry Drop commitment
-    if (m_canCancel && intent.bJumpTriggered && motor->isGrounded() && m_phase != SlideSubPhase::Exit_Recovery && hasClearance)
+    if (m_canCancelEvade && intent.bJumpTriggered && motor->isGrounded() && m_phase != SlideSubPhase::Exit_Recovery && hasClearance)
     {
         if (capsule) capsule->ResizeFootAnchored(m_standingRadius, m_standingHeight);
         motor->Jump(6.5f);
         if (blackboard.groundSpeed > 2.5f)
         {
             const float boost{ blackboard.groundSpeed * motor->GetConfig().jumpForwardImpulse };
-            DirectX::XMFLOAT2 faceDir = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
+            DirectX::XMFLOAT2 faceDir{ FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection) };
             motor->AddImpulse({ faceDir.x * boost, 0.0f, faceDir.y * boost });
         }
 
@@ -1148,9 +1174,10 @@ void PlayerSlide::Update(PlayerControllerComponent* controller, float dt)
         return;
     }
 
-    // Cancel Slide into Locomotion
+    // Cancel Slide into Locomotion (Requires Locomotion permission or legacy release)
     const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
-    if (m_canCancel && !intent.bSlideHeld && blackboard.groundSpeed > 2.5f && m_phase != SlideSubPhase::Exit_Recovery && hasClearance)
+    const bool canExitToRun{ m_canCancelLocomotion || (!m_hasAuthoredEvadeCancel && m_canCancelEvade) };
+    if (canExitToRun && !intent.bSlideHeld && blackboard.groundSpeed > 2.5f && m_phase != SlideSubPhase::Exit_Recovery && hasClearance)
     {
         if (capsule) capsule->ResizeFootAnchored(m_standingRadius, m_standingHeight);
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
@@ -1235,7 +1262,8 @@ void PlayerAirTraversal::Enter(PlayerControllerComponent* controller)
     controller->ConsumePendingComboHit(); // Sanitize mailbox on returning to neutral
     m_airTimer = 0.0f;
     m_isAcrobatic = false;
-    m_canCancelAcrobatic = true; // Unlocked by default for standard falling
+    m_canCancelAcrobaticEvade = true; // Unlocked by default for standard falling
+    m_canCancelAcrobaticCombo = true;
 
     // State-Agnostic Forfeiture: If the player entered the air state without 
     // spending a jump (e.g., walking or dodging off a cliff), we consume 
@@ -1266,7 +1294,15 @@ void PlayerAirTraversal::Update(PlayerControllerComponent* controller, float dt)
     {
         for (const auto& ev : controller->GetAnimation()->GetFiredEvents())
         {
-            if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open)) m_canCancelAcrobatic = true;
+            if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Evade))
+            {
+                m_canCancelAcrobaticEvade = true;
+            }
+            else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Combo))
+            {
+                m_canCancelAcrobaticCombo = true;
+                m_canCancelAcrobaticEvade = true;
+            }
         }
     }
 
@@ -1341,7 +1377,7 @@ void PlayerAirTraversal::Update(PlayerControllerComponent* controller, float dt)
 
     // Air Dash (Only allowed if not in danger zone, and has not dashed yet)
     // If performing an acrobatic double jump, enforce the animation cancel window
-    if (intent.bDashTriggered && !inDangerZone && !blackboard.getFlag(AnimFlag::has_air_dashed) && (!m_isAcrobatic || m_canCancelAcrobatic))
+    if (intent.bDashTriggered && !inDangerZone && !blackboard.getFlag(AnimFlag::has_air_dashed) && (!m_isAcrobatic || m_canCancelAcrobaticEvade))
     {
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
         return;
@@ -1349,7 +1385,7 @@ void PlayerAirTraversal::Update(PlayerControllerComponent* controller, float dt)
 
     // Aerial Light Attack (Standard Air Combo Trigger)
     // Locked behind has_air_attacked to prevent infinite map-traversal flying loops.
-    if (intent.bAttackPressed && !inDangerZone && !blackboard.getFlag(AnimFlag::has_air_attacked) && (!m_isAcrobatic || m_canCancelAcrobatic))
+    if (intent.bAttackPressed && !inDangerZone && !blackboard.getFlag(AnimFlag::has_air_attacked) && (!m_isAcrobatic || m_canCancelAcrobaticCombo))
     {
         // Up-Attack natively handles air-to-air tracking; Flurry overrides standard attacks only.
         const int commandNormalIdx{ EvaluateCommandNormal(controller->GetOwner(), intent) };
@@ -1381,7 +1417,8 @@ void PlayerAirTraversal::Update(PlayerControllerComponent* controller, float dt)
         motor->Jump(7.0f);
 
         m_isAcrobatic = true;
-        m_canCancelAcrobatic = false; // Lock out the dash until the CancelWindow_Open event fires
+        m_canCancelAcrobaticEvade = false; // Lock out dash/attack until events fire
+        m_canCancelAcrobaticCombo = false;
         blackboard.actionIndex = 0; // Forced neutral jump takeoff due to combat demotion
 
         if (auto* anim{ controller->GetAnimation() })
@@ -1429,10 +1466,26 @@ void PlayerAirTraversal::Exit(PlayerControllerComponent* controller)
 // LANDING STATE
 void PlayerLanding::Enter(PlayerControllerComponent* controller)
 {
-    m_canCancel = false;
-    auto* motor = controller->GetMovement();
-    auto* anim = controller->GetAnimation();
+    m_canCancelCombo = false;
+    m_canCancelEvade = false;
+    m_canCancelLocomotion = false;
+    m_hasAuthoredLocomotionCancel = false;
+
+    auto* motor{ controller->GetMovement() };
+    auto* anim{ controller->GetAnimation() };
     if (!motor || !anim) return;
+
+    if (const auto* activeNode{ anim->GetActiveAnimNode() })
+    {
+        for (const auto& ev : activeNode->events)
+        {
+            if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Locomotion))
+            {
+                m_hasAuthoredLocomotionCancel = true;
+                break;
+            }
+        }
+    }
 
     // Snapshot the terminal velocity from the exact frame of impact
     const float terminalVelocity = motor->GetVerticalVelocity();
@@ -1485,24 +1538,37 @@ void PlayerLanding::Update(PlayerControllerComponent* controller, float dt)
 
     for (const auto& ev : controller->GetAnimation()->GetFiredEvents())
     {
-        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
+        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Combo))
         {
-            m_canCancel = true;
-            break;
+            m_canCancelCombo = true;
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Evade))
+        {
+            m_canCancelEvade = true;
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Locomotion))
+        {
+            m_canCancelLocomotion = true;
         }
     }
 
-    const auto& intent = controller->GetIntent();
-    const float inputSq = (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y);
-    const bool playerWantsToMove = (inputSq > 0.01f);
+    const auto& intent{ controller->GetIntent() };
+    const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
+    const bool playerWantsToMove{ inputSq > 0.01f };
 
-    // Evasion or Attack branches out of landing recovery
-    if (m_canCancel && intent.bDashTriggered)
+    // Backward-compatible fallback: Allow evasion and locomotion
+    const bool canEvade{ m_canCancelEvade || (!m_hasAuthoredLocomotionCancel && m_canCancelCombo) };
+    const bool canMove{ m_canCancelLocomotion || (!m_hasAuthoredLocomotionCancel && m_canCancelCombo) };
+
+    // Evasion out of landing recovery
+    if (canEvade && intent.bDashTriggered)
     {
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
         return;
     }
-    if (m_canCancel && intent.bAttackPressed)
+
+    // Attack out of landing recovery
+    if (m_canCancelCombo && intent.bAttackPressed)
     {
         if (controller->getAnimBlackboard().getFlag(AnimFlag::is_speed_buff_active))
         {
@@ -1515,7 +1581,10 @@ void PlayerLanding::Update(PlayerControllerComponent* controller, float dt)
         return;
     }
 
-    if ((m_canCancel && playerWantsToMove) || m_timer <= 0.0f)
+    // Locomotion out of landing recovery
+    const auto* anim{ controller->GetAnimation() };
+    const bool isAnimationDone{ anim && (anim->GetCurrentPhase() >= 0.999f || m_timer <= 0.0f) };
+    if ((canMove && playerWantsToMove) || isAnimationDone)
     {
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
     }
@@ -1691,7 +1760,10 @@ void PlayerParkourWall::Exit(PlayerControllerComponent* controller)
 
 void PlayerDashEvade::Enter(PlayerControllerComponent* controller)
 {
-    m_canCancel = false;
+    m_canCancelCombo = false;
+    m_canCancelEvade = false;
+    m_canCancelLocomotion = false;
+    m_hasAuthoredLocomotionCancel = false;
     const auto& intent{ controller->GetIntent() };
 
     m_dashDir = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
@@ -1712,6 +1784,18 @@ void PlayerDashEvade::Enter(PlayerControllerComponent* controller)
 
         anim->PlaySlot(AnimSlot::DashEvade, true);
         m_timer = anim->GetSlotDuration(AnimSlot::DashEvade);
+
+        if (const auto* activeNode{ anim->GetActiveAnimNode() })
+        {
+            for (const auto& ev : activeNode->events)
+            {
+                if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Locomotion))
+                {
+                    m_hasAuthoredLocomotionCancel = true;
+                    break;
+                }
+            }
+        }
     }
 
     if (motor)
@@ -1751,9 +1835,17 @@ void PlayerDashEvade::Update(PlayerControllerComponent* controller, float dt)
 
     for (const auto& ev : controller->GetAnimation()->GetFiredEvents())
     {
-        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
+        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Combo))
         {
-            m_canCancel = true;
+            m_canCancelCombo = true;
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Evade))
+        {
+            m_canCancelEvade = true;
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Locomotion))
+        {
+            m_canCancelLocomotion = true;
         }
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt))
         {
@@ -1764,10 +1856,12 @@ void PlayerDashEvade::Update(PlayerControllerComponent* controller, float dt)
         }
     }
 
-    const auto& intent = controller->GetIntent();
+    const auto& intent{ controller->GetIntent() };
+    const bool canEvade{ m_canCancelEvade || (!m_hasAuthoredLocomotionCancel && m_canCancelCombo) };
+    const bool canMove{ m_canCancelLocomotion || (!m_hasAuthoredLocomotionCancel && m_canCancelCombo) };
 
     // Dash Jump: Jumping out of a dash transitions immediately to air traversal while keeping momentum
-    if (m_canCancel && intent.bJumpTriggered && controller->GetMovement()->isGrounded())
+    if (canEvade && intent.bJumpTriggered && controller->GetMovement()->isGrounded())
     {
         controller->GetMovement()->Jump(6.5f);
         controller->getAnimBlackboard().actionIndex = 0; // Jump Takeoff
@@ -1775,11 +1869,11 @@ void PlayerDashEvade::Update(PlayerControllerComponent* controller, float dt)
         return;
     }
 
-    const float inputSq = (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y);
-    const bool playerWantsToMove = (inputSq > 0.01f);
+    const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
+    const bool playerWantsToMove{ inputSq > 0.01f };
 
     // Dash Attack Cancel
-    if (m_canCancel && intent.bAttackPressed)
+    if (m_canCancelCombo && intent.bAttackPressed)
     {
         if (controller->getAnimBlackboard().getFlag(AnimFlag::is_speed_buff_active))
         {
@@ -1789,7 +1883,6 @@ void PlayerDashEvade::Update(PlayerControllerComponent* controller, float dt)
 
         if (controller->GetMovement()->isGrounded())
         {
-            // Directly route to Sprint Attacks since there is no dedicated ground dash attack clip
             controller->SetPendingComboHit(-1);
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackContextual));
         }
@@ -1802,7 +1895,7 @@ void PlayerDashEvade::Update(PlayerControllerComponent* controller, float dt)
     }
 
     // Movement Cancel (ONLY ALLOWED ON GROUND)
-    if (m_canCancel && playerWantsToMove && controller->GetMovement()->isGrounded())
+    if (canMove && playerWantsToMove && controller->GetMovement()->isGrounded())
     {
         // If the player evasively dashes and immediately holds Sprint to run away,
         // we silently demote the combat stance. They will emerge from the dash straight into non combat fast running.
@@ -1880,7 +1973,10 @@ void PlayerAttackPrimary::Enter(PlayerControllerComponent* controller)
 
 void PlayerAttackPrimary::PlayCurrentAttack(PlayerControllerComponent* controller) noexcept
 {
-    m_canCancel = false;
+    m_canCancelCombo = false;
+    m_canCancelEvade = false;
+    m_canCancelLocomotion = false;
+    m_hasAuthoredEvadeCancel = false;
     m_cancelDeferFrames = 0;
     m_bufferedAttack = {};
 
@@ -1888,10 +1984,22 @@ void PlayerAttackPrimary::PlayCurrentAttack(PlayerControllerComponent* controlle
 
     FacingResolver::SnapFaceDirection(controller->GetOwner(), m_lungeDirection);
 
-    if (auto* anim = controller->GetAnimation())
+    if (auto* anim{ controller->GetAnimation() })
     {
         anim->PlaySlot(AnimSlot::Attack_Primary, true);
         m_exitTimer = anim->GetSlotDuration(AnimSlot::Attack_Primary);
+
+        if (const auto* activeNode{ anim->GetActiveAnimNode() })
+        {
+            for (const auto& ev : activeNode->events)
+            {
+                if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Evade))
+                {
+                    m_hasAuthoredEvadeCancel = true;
+                    break;
+                }
+            }
+        }
     }
 }
 
@@ -1928,50 +2036,69 @@ void PlayerAttackPrimary::Update(PlayerControllerComponent* controller, float dt
 
     for (const auto& ev : controller->GetAnimation()->GetFiredEvents())
     {
-        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
+        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Combo))
         {
-            m_canCancel = true;
-            m_cancelDeferFrames = 4; // 4-frame grace window (~66ms) to upgrade neutral mash to directional
+            m_canCancelCombo = true;
+            m_cancelDeferFrames = 4;
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Evade))
+        {
+            m_canCancelEvade = true;
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Locomotion))
+        {
+            m_canCancelLocomotion = true;
         }
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse))
         {
-            if (auto* motor = controller->GetMovement())
+            if (auto* motor{ controller->GetMovement() })
             {
                 ApplyGroundLungeKinematics(controller, motor, m_lungeDirection, ev.payload);
             }
         }
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt))
         {
-            if (auto* motor = controller->GetMovement())
+            if (auto* motor{ controller->GetMovement() })
             {
                 motor->HaltMomentum(ev.payload);
             }
         }
     }
 
-    // Evasion Cancel (Respect Air Dash Limits)
-    if (m_canCancel && intent.bDashTriggered)
-    {
-        auto* motor = controller->GetMovement();
-        auto& blackboard = controller->getAnimBlackboard();
+    auto* motor{ controller->GetMovement() };
+    const bool canEvade{ m_canCancelEvade || (!m_hasAuthoredEvadeCancel && m_canCancelCombo) };
 
-        // Block the evasion if airborne and the air dash is already consumed
-        if (!motor->isGrounded() && blackboard.getFlag(AnimFlag::has_air_dashed))
+    // Evasion Cancels (Dash, Jump, Slide)
+    if (canEvade)
+    {
+        auto& blackboard{ controller->getAnimBlackboard() };
+        if (intent.bDashTriggered)
         {
-            // Do nothing, lockout applies.
+            if (!motor || motor->isGrounded() || !blackboard.getFlag(AnimFlag::has_air_dashed))
+            {
+                controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
+                return;
+            }
         }
-        else
+        if (intent.bJumpTriggered && motor && motor->isGrounded())
         {
-            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
+            motor->Jump(6.5f);
+            blackboard.actionIndex = 0;
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
+            return;
+        }
+        if ((intent.bSlideTriggered || intent.bSlideHeld) && motor && motor->isGrounded() && blackboard.groundSpeed > 2.5f)
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Slide));
             return;
         }
     }
 
-    if (m_canCancel && m_bufferedAttack.timer > 0.0f)
+    // Combo Chaining (Ignores held movement direction)
+    if (m_canCancelCombo && m_bufferedAttack.timer > 0.0f)
     {
         if (m_cancelDeferFrames > 0) m_cancelDeferFrames--;
 
-        // Just-In-Time Live Hardware Override
         int activeCommand{ liveDirectionalIntent };
         if (activeCommand == -1) activeCommand = m_bufferedAttack.targetCommandNormal;
 
@@ -1982,7 +2109,6 @@ void PlayerAttackPrimary::Update(PlayerControllerComponent* controller, float dt
             return;
         }
 
-        // Defer transitioning to neutral combos to give players time to push the stick
         if (m_cancelDeferFrames == 0 && m_stepIndex < 3)
         {
             m_stepIndex++;
@@ -1993,16 +2119,25 @@ void PlayerAttackPrimary::Update(PlayerControllerComponent* controller, float dt
         }
     }
 
-    // Natural Exit (Context-Aware)
-    if (m_exitTimer <= 0.0f)
+    // Locomotion Cancel (Requires explicit Cancel_Locomotion event)
+    const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
+    if (m_canCancelLocomotion && inputSq > 0.01f && motor && motor->isGrounded())
     {
-        if (controller->GetMovement()->isGrounded())
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+        return;
+    }
+
+    // Natural Exit: 100% playback gate
+    const bool isAnimationDone{ anim && (anim->GetCurrentPhase() >= 0.999f || m_exitTimer <= -0.2f) };
+    if (isAnimationDone)
+    {
+        if (motor && motor->isGrounded())
         {
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
         }
         else
         {
-            controller->getAnimBlackboard().actionIndex = controller->getAnimBlackboard().getFlag(AnimFlag::is_combat_active) ? 5 : 2; // Fall Loop
+            controller->getAnimBlackboard().actionIndex = controller->getAnimBlackboard().getFlag(AnimFlag::is_combat_active) ? 5 : 2;
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
         }
     }
@@ -2042,16 +2177,31 @@ void PlayerAttackContextual::Enter(PlayerControllerComponent* controller)
 
 void PlayerAttackContextual::PlayCurrentAttack(PlayerControllerComponent* controller) noexcept
 {
-    m_canCancel = false;
+    m_canCancelCombo = false;
+    m_canCancelEvade = false;
+    m_canCancelLocomotion = false;
+    m_hasAuthoredEvadeCancel = false;
     m_cancelDeferFrames = 0;
     m_bufferedAttack = {};
 
     FacingResolver::SnapFaceDirection(controller->GetOwner(), m_lungeDirection);
 
-    if (auto* anim = controller->GetAnimation())
+    if (auto* anim{ controller->GetAnimation() })
     {
         anim->PlaySlot(AnimSlot::Attack_Contextual, true);
         m_exitTimer = anim->GetSlotDuration(AnimSlot::Attack_Contextual);
+
+        if (const auto* activeNode{ anim->GetActiveAnimNode() })
+        {
+            for (const auto& ev : activeNode->events)
+            {
+                if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Evade))
+                {
+                    m_hasAuthoredEvadeCancel = true;
+                    break;
+                }
+            }
+        }
     }
 }
 
@@ -2064,8 +2214,7 @@ void PlayerAttackContextual::Update(PlayerControllerComponent* controller, float
     }
     if (m_bufferedAttack.timer > 0.0f) m_bufferedAttack.timer -= dt;
 
-    const auto& intent = controller->GetIntent();
-
+    const auto& intent{ controller->GetIntent() };
     const int liveDirectionalIntent{ EvaluateCommandNormal(controller->GetOwner(), intent, true) };
 
     if (intent.bAttackPressed)
@@ -2083,40 +2232,48 @@ void PlayerAttackContextual::Update(PlayerControllerComponent* controller, float
 
     for (const auto& ev : controller->GetAnimation()->GetFiredEvents())
     {
-        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
+        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Combo))
         {
-            m_canCancel = true;
+            m_canCancelCombo = true;
             m_cancelDeferFrames = 4;
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Evade))
+        {
+            m_canCancelEvade = true;
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Locomotion))
+        {
+            m_canCancelLocomotion = true;
         }
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse))
         {
-            if (auto* motor = controller->GetMovement())
+            if (auto* motor{ controller->GetMovement() })
             {
                 ApplyGroundLungeKinematics(controller, motor, m_lungeDirection, ev.payload);
             }
         }
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt))
         {
-            if (auto* motor = controller->GetMovement())
+            if (auto* motor{ controller->GetMovement() })
             {
                 motor->HaltMomentum(ev.payload);
             }
         }
     }
 
-    // Evasion Cancel (Respect Air Limits)
-    if (m_canCancel && intent.bDashTriggered)
+    auto* motor{ controller->GetMovement() };
+    const bool canEvade{ m_canCancelEvade || (!m_hasAuthoredEvadeCancel && m_canCancelCombo) };
+
+    if (canEvade && intent.bDashTriggered)
     {
-        auto* motor = controller->GetMovement();
-        if (motor->isGrounded() || !controller->getAnimBlackboard().getFlag(AnimFlag::has_air_dashed))
+        if (!motor || motor->isGrounded() || !controller->getAnimBlackboard().getFlag(AnimFlag::has_air_dashed))
         {
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
             return;
         }
     }
 
-    // Seamless Combo Linking: Hand off to Primary Attack State or Directional Normal
-    if (m_canCancel && m_bufferedAttack.timer > 0.0f && controller->GetMovement()->isGrounded())
+    if (m_canCancelCombo && m_bufferedAttack.timer > 0.0f && motor && motor->isGrounded())
     {
         if (m_cancelDeferFrames > 0) m_cancelDeferFrames--;
 
@@ -2130,26 +2287,31 @@ void PlayerAttackContextual::Update(PlayerControllerComponent* controller, float
             return;
         }
 
-        // Defer transitioning to neutral combos
         if (m_cancelDeferFrames == 0)
         {
-            // Inject index 1 so PlayerAttackPrimary skips the poke and starts directly at Hit 2 (Cross Slash)
             controller->SetPendingComboHit(1);
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPrimary));
             return;
         }
     }
 
-    // Natural Exit (Context-Aware)
-    if (m_exitTimer <= 0.0f)
+    const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
+    if (m_canCancelLocomotion && inputSq > 0.01f && motor && motor->isGrounded())
     {
-        if (controller->GetMovement()->isGrounded())
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+        return;
+    }
+
+    const bool isAnimationDone{ anim && (anim->GetCurrentPhase() >= 0.999f || m_exitTimer <= -0.2f) };
+    if (isAnimationDone)
+    {
+        if (motor && motor->isGrounded())
         {
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
         }
         else
         {
-            controller->getAnimBlackboard().actionIndex = controller->getAnimBlackboard().getFlag(AnimFlag::is_combat_active) ? 5 : 2; // Fall Loop
+            controller->getAnimBlackboard().actionIndex = controller->getAnimBlackboard().getFlag(AnimFlag::is_combat_active) ? 5 : 2;
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
         }
     }
@@ -2191,8 +2353,26 @@ void PlayerAttackDirectional::Enter(PlayerControllerComponent* controller)
     }
     FacingResolver::SnapFaceDirection(controller->GetOwner(), m_lungeDirection);
 
-    m_canCancel = false;
+    m_canCancelCombo = false;
+    m_canCancelEvade = false;
+    m_canCancelLocomotion = false;
+    m_hasAuthoredEvadeCancel = false;
     m_bufferedAttack = {};
+
+    if (const auto* anim{ controller->GetAnimation() })
+    {
+        if (const auto* activeNode{ anim->GetActiveAnimNode() })
+        {
+            for (const auto& ev : activeNode->events)
+            {
+                if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Evade))
+                {
+                    m_hasAuthoredEvadeCancel = true;
+                    break;
+                }
+            }
+        }
+    }
 }
 
 void PlayerAttackDirectional::Update(PlayerControllerComponent* controller, float dt)
@@ -2204,8 +2384,7 @@ void PlayerAttackDirectional::Update(PlayerControllerComponent* controller, floa
     }
     if (m_bufferedAttack.timer > 0.0f) m_bufferedAttack.timer -= dt;
 
-    const auto& intent = controller->GetIntent();
-
+    const auto& intent{ controller->GetIntent() };
     const int liveDirectionalIntent{ EvaluateCommandNormal(controller->GetOwner(), intent, true) };
 
     if (intent.bAttackPressed)
@@ -2221,19 +2400,26 @@ void PlayerAttackDirectional::Update(PlayerControllerComponent* controller, floa
         m_bufferedAttack.targetCommandNormal = liveDirectionalIntent;
     }
 
-    auto* motor = controller->GetMovement();
+    auto* motor{ controller->GetMovement() };
 
     for (const auto& ev : controller->GetAnimation()->GetFiredEvents())
     {
-       if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
+        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Combo))
         {
-            m_canCancel = true;
+            m_canCancelCombo = true;
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Evade))
+        {
+            m_canCancelEvade = true;
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Locomotion))
+        {
+            m_canCancelLocomotion = true;
         }
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse))
         {
             if (motor)
             {
-                // Push character along the snapped facing vector
                 motor->AddImpulse(DirectX::XMFLOAT3{
                     m_lungeDirection.x * ev.payload, 0.0f, m_lungeDirection.y * ev.payload
                     });
@@ -2241,7 +2427,7 @@ void PlayerAttackDirectional::Update(PlayerControllerComponent* controller, floa
         }
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Vertical))
         {
-            if (motor) motor->SetVerticalVelocity(ev.payload); // Execute lift-off
+            if (motor) motor->SetVerticalVelocity(ev.payload);
         }
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt))
         {
@@ -2249,8 +2435,10 @@ void PlayerAttackDirectional::Update(PlayerControllerComponent* controller, floa
         }
     }
 
+    const bool canEvade{ m_canCancelEvade || (!m_hasAuthoredEvadeCancel && m_canCancelCombo) };
+
     // Evasion Cancel
-    if (m_canCancel && intent.bDashTriggered)
+    if (canEvade && intent.bDashTriggered)
     {
         if (motor && (motor->isGrounded() || !controller->getAnimBlackboard().getFlag(AnimFlag::has_air_dashed)))
         {
@@ -2259,15 +2447,12 @@ void PlayerAttackDirectional::Update(PlayerControllerComponent* controller, floa
         }
     }
 
-    // Combo Injection
-    if (m_canCancel && m_bufferedAttack.timer > 0.0f)
+    // Combo Chaining
+    if (m_canCancelCombo && m_bufferedAttack.timer > 0.0f)
     {
         int activeCommand{ liveDirectionalIntent };
         if (activeCommand == -1) activeCommand = m_bufferedAttack.targetCommandNormal;
 
-        // Allow branching if the player inputs a NEW command normal (e.g. Back Attack -> Up Attack).
-        // Back Attack (Node 1) is blocked out of Up Attack (Node 0): node 0 launches the player into the air
-        // and the retreat-slash animation does not sync with airborne motion.
         const bool isBackAttackBlocked{ (activeCommand == 1) && (m_activeNode == 0) };
         if (activeCommand != -1 && activeCommand != m_activeNode && !isBackAttackBlocked)
         {
@@ -2276,21 +2461,19 @@ void PlayerAttackDirectional::Update(PlayerControllerComponent* controller, floa
             return;
         }
 
-        auto& blackboard = controller->getAnimBlackboard();
+        auto& blackboard{ controller->getAnimBlackboard() };
 
         if (!motor || motor->isGrounded())
         {
-            // Grounded Back Attack (Node 1) pipes directly into Hit 2 of Primary Combos
             if (m_activeNode == 1)
             {
-                controller->SetPendingComboHit(1); // Hand-off target to PlayerAttackPrimary
+                controller->SetPendingComboHit(1);
                 controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPrimary));
                 return;
             }
         }
         else
         {
-            // Floor-to-Air Ascended (Node 0) -> Pipeline natively into Aerial Combos
             if (m_activeNode == 0)
             {
                 if (blackboard.getFlag(AnimFlag::is_speed_buff_active))
@@ -2299,7 +2482,7 @@ void PlayerAttackDirectional::Update(PlayerControllerComponent* controller, floa
                 }
                 else
                 {
-                    controller->SetPendingComboHit(0); // Hand-off target to Combo_Attack_Air_01
+                    controller->SetPendingComboHit(0);
                     controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackAerial));
                 }
                 return;
@@ -2307,8 +2490,17 @@ void PlayerAttackDirectional::Update(PlayerControllerComponent* controller, floa
         }
     }
 
-    // Natural Exit
-    if (m_exitTimer <= 0.0f)
+    // Locomotion Cancel
+    const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
+    if (m_canCancelLocomotion && inputSq > 0.01f && motor && motor->isGrounded())
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+        return;
+    }
+
+    // Natural Exit: 100% playback gate
+    const bool isAnimationDone{ anim && (anim->GetCurrentPhase() >= 0.999f || m_exitTimer <= -0.2f) };
+    if (isAnimationDone)
     {
         if (motor && motor->isGrounded())
         {
@@ -2316,7 +2508,7 @@ void PlayerAttackDirectional::Update(PlayerControllerComponent* controller, floa
         }
         else
         {
-            controller->getAnimBlackboard().actionIndex = controller->getAnimBlackboard().getFlag(AnimFlag::is_combat_active) ? 5 : 2; // Fall Loop
+            controller->getAnimBlackboard().actionIndex = controller->getAnimBlackboard().getFlag(AnimFlag::is_combat_active) ? 5 : 2;
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
         }
     }
@@ -2336,53 +2528,64 @@ void PlayerAttackCharged::Enter(PlayerControllerComponent* controller)
     m_phase = ChargeSubPhase::Anticipation;
     m_chargeTimer = 0.0f;
     m_chargeRatio = 0.40f;
-    m_canCancel = false;
+    m_canCancelCombo = false;
+    m_canCancelEvade = false;
+    m_canCancelLocomotion = false;
+    m_hasAuthoredEvadeCancel = false;
     m_earlyRelease = false;
 
-    const auto& intent = controller->GetIntent();
+    const auto& intent{ controller->GetIntent() };
     m_lungeDirection = ResolveSoftLockOrFacingDirection(controller->GetOwner(), intent.worldMoveDirection);
     FacingResolver::SnapFaceDirection(controller->GetOwner(), m_lungeDirection);
 
-    if (auto* motor = controller->GetMovement()) motor->SetDesiredDirection({ 0.0f, 0.0f });
-    if (auto* anim = controller->GetAnimation())
+    if (auto* motor{ controller->GetMovement() }) motor->SetDesiredDirection({ 0.0f, 0.0f });
+    if (auto* anim{ controller->GetAnimation() })
     {
         anim->SetPlaybackSpeed(1.0f);
         anim->PlaySlot(Engine::Animation::AnimSlot::Attack_Charged, true);
+
+        if (const auto* activeNode{ anim->GetActiveAnimNode() })
+        {
+            for (const auto& ev : activeNode->events)
+            {
+                if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Evade))
+                {
+                    m_hasAuthoredEvadeCancel = true;
+                    break;
+                }
+            }
+        }
     }
 }
 
 void PlayerAttackCharged::Update(PlayerControllerComponent* controller, float dt)
 {
-    auto* anim = controller->GetAnimation();
-    auto* motor = controller->GetMovement();
+    auto* anim{ controller->GetAnimation() };
+    auto* motor{ controller->GetMovement() };
     if (!anim || !motor) return;
 
-    const auto& intent = controller->GetIntent();
+    const auto& intent{ controller->GetIntent() };
 
-    // Charge Sub-Phase Input Logic
     if (m_phase == ChargeSubPhase::Anticipation && !intent.bHeavyAttackHeld)
     {
-        m_earlyRelease = true; // Lock into Tier 1 (Tap), avoid clamping animation
+        m_earlyRelease = true;
     }
     else if (m_phase == ChargeSubPhase::Sustain_Hold)
     {
         m_chargeTimer += dt;
         controller->getAnimBlackboard().chargeTimer = m_chargeTimer;
 
-        // Discrete Hitbox & Displacement Tiering
-        if (m_chargeTimer >= 1.0f) m_chargeRatio = 1.0f;      // Tier 3 Max
-        else if (m_chargeTimer >= 0.5f) m_chargeRatio = 0.75f; // Tier 2 Half
+        if (m_chargeTimer >= 1.0f) m_chargeRatio = 1.0f;
+        else if (m_chargeTimer >= 0.5f) m_chargeRatio = 0.75f;
 
-        // Release or Max Timeout
         if (!intent.bHeavyAttackHeld || m_chargeTimer >= 1.0f)
         {
             m_phase = ChargeSubPhase::Release_Lunge;
-            anim->SetPlaybackSpeed(1.0f); // Resume weapon swing
+            anim->SetPlaybackSpeed(1.0f);
             controller->getAnimBlackboard().setFlag(Engine::Animation::AnimFlag::is_charging, false);
         }
     }
 
-    // Timeline Event Handoff
     for (const auto& ev : anim->GetFiredEvents())
     {
         if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Pose_HoldMarker))
@@ -2391,12 +2594,12 @@ void PlayerAttackCharged::Update(PlayerControllerComponent* controller, float dt
             {
                 if (m_earlyRelease)
                 {
-                    m_phase = ChargeSubPhase::Release_Lunge; // Sail past marker seamlessly
+                    m_phase = ChargeSubPhase::Release_Lunge;
                 }
                 else
                 {
                     m_phase = ChargeSubPhase::Sustain_Hold;
-                    anim->SetPlaybackSpeed(0.0f); // Freeze the wind-up pose
+                    anim->SetPlaybackSpeed(0.0f);
                     controller->getAnimBlackboard().setFlag(Engine::Animation::AnimFlag::is_charging, true);
                 }
             }
@@ -2410,33 +2613,41 @@ void PlayerAttackCharged::Update(PlayerControllerComponent* controller, float dt
         {
             motor->HaltMomentum(ev.payload);
         }
-        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Combo))
         {
-            m_canCancel = true;
+            m_canCancelCombo = true;
+            m_phase = ChargeSubPhase::Recovery;
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Evade))
+        {
+            m_canCancelEvade = true;
+            m_phase = ChargeSubPhase::Recovery;
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Locomotion))
+        {
+            m_canCancelLocomotion = true;
             m_phase = ChargeSubPhase::Recovery;
         }
     }
 
-    // Early Micro-Steering
-    const float inputSq = (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y);
+    const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
     if ((m_phase == ChargeSubPhase::Anticipation || m_phase == ChargeSubPhase::Sustain_Hold) && inputSq > 0.01f)
     {
         FacingResolver::SmoothFaceDirection(controller->GetOwner(), intent.worldMoveDirection, 60.0f, dt);
-        const float yawRad = DirectX::XMConvertToRadians(controller->GetOwner()->GetRotation().y);
+        const float yawRad{ DirectX::XMConvertToRadians(controller->GetOwner()->GetRotation().y) };
         m_lungeDirection = { std::sin(yawRad), std::cos(yawRad) };
     }
 
-    // RECOVERY CANCELS
-    if (m_canCancel)
-    {
-        // Cancel to Evade
-        if (intent.bDashTriggered && (motor->isGrounded() || !controller->getAnimBlackboard().getFlag(AnimFlag::has_air_dashed)))
-        {
-            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
-            return;
-        }
+    const bool canEvade{ m_canCancelEvade || (!m_hasAuthoredEvadeCancel && m_canCancelCombo) };
 
-        // Cancel to Light Attack
+    if (canEvade && intent.bDashTriggered && (motor->isGrounded() || !controller->getAnimBlackboard().getFlag(AnimFlag::has_air_dashed)))
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
+        return;
+    }
+
+    if (m_canCancelCombo)
+    {
         if (intent.bAttackPressed)
         {
             if (controller->getAnimBlackboard().getFlag(AnimFlag::is_speed_buff_active))
@@ -2451,24 +2662,21 @@ void PlayerAttackCharged::Update(PlayerControllerComponent* controller, float dt
             return;
         }
 
-        // Chain to another Heavy Attack
         if (intent.bHeavyAttackPressed)
         {
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackCharged));
             return;
         }
-
-        // Cancel to Movement
-        if (inputSq > 0.01f && motor->isGrounded())
-        {
-            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
-            return;
-        }
     }
 
-    // Native Synchronization Exit
-    // Rely exclusively on the animation phase so it perfectly scales with SetPlaybackSpeed freezes
-    if (anim->GetCurrentTimer() >= anim->GetSlotDuration(Engine::Animation::AnimSlot::Attack_Charged) - 0.05f)
+    if (m_canCancelLocomotion && inputSq > 0.01f && motor->isGrounded())
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+        return;
+    }
+
+    const bool isAnimationDone{ anim && (anim->GetCurrentPhase() >= 0.999f || anim->GetCurrentTimer() >= anim->GetSlotDuration(Engine::Animation::AnimSlot::Attack_Charged) - 0.05f) };
+    if (isAnimationDone)
     {
         if (motor->isGrounded())
         {
@@ -2523,36 +2731,52 @@ void PlayerAttackAerial::Enter(PlayerControllerComponent* controller)
 
 void PlayerAttackAerial::PlayCurrentAttack(PlayerControllerComponent* controller) noexcept
 {
-    m_canCancel = false;
+    m_canCancelCombo = false;
+    m_canCancelEvade = false;
+    m_hasAuthoredEvadeCancel = false;
     m_bufferedAttack = {};
 
     controller->getAnimBlackboard().actionIndex = m_comboIndex;
     FacingResolver::SnapFaceDirection(controller->GetOwner(), m_lungeDirection);
 
-    if (auto* anim = controller->GetAnimation())
+    if (auto* anim{ controller->GetAnimation() })
     {
         anim->PlaySlot(AnimSlot::Attack_Aerial, true);
         m_exitTimer = anim->GetSlotDuration(AnimSlot::Attack_Aerial);
+
+        if (const auto* activeNode{ anim->GetActiveAnimNode() })
+        {
+            for (const auto& ev : activeNode->events)
+            {
+                if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Evade))
+                {
+                    m_hasAuthoredEvadeCancel = true;
+                    break;
+                }
+            }
+        }
     }
 }
 
 void PlayerAttackAerial::Update(PlayerControllerComponent* controller, float dt)
 {
-    auto* motor = controller->GetMovement();
+    auto* motor{ controller->GetMovement() };
     if (!motor) return;
 
-    // AERIAL SPECIFIC: If the player hits the ground mid-swing, abort the attack instantly
     if (motor->isGrounded())
     {
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
         return;
     }
 
-    m_exitTimer -= dt;
+    const auto* anim{ controller->GetAnimation() };
+    if (!anim || !anim->IsHitStopped())
+    {
+        m_exitTimer -= dt;
+    }
     if (m_bufferedAttack.timer > 0.0f) m_bufferedAttack.timer -= dt;
 
-    const auto& intent = controller->GetIntent();
-
+    const auto& intent{ controller->GetIntent() };
     const int liveDirectionalIntent{ EvaluateCommandNormal(controller->GetOwner(), intent, true) };
 
     if (intent.bAttackPressed)
@@ -2570,9 +2794,13 @@ void PlayerAttackAerial::Update(PlayerControllerComponent* controller, float dt)
 
     for (const auto& ev : controller->GetAnimation()->GetFiredEvents())
     {
-        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
+        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Combo))
         {
-            m_canCancel = true;
+            m_canCancelCombo = true;
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Evade))
+        {
+            m_canCancelEvade = true;
         }
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse))
         {
@@ -2584,8 +2812,9 @@ void PlayerAttackAerial::Update(PlayerControllerComponent* controller, float dt)
         }
     }
 
-    // Evasion Cancel (Respect Air Limits)
-    if (m_canCancel && intent.bDashTriggered)
+    const bool canEvade{ m_canCancelEvade || (!m_hasAuthoredEvadeCancel && m_canCancelCombo) };
+
+    if (canEvade && intent.bDashTriggered)
     {
         if (!controller->getAnimBlackboard().getFlag(AnimFlag::has_air_dashed))
         {
@@ -2594,26 +2823,14 @@ void PlayerAttackAerial::Update(PlayerControllerComponent* controller, float dt)
         }
     }
 
-    // Plunge Attack Cancel (Chain into Helmbreaker from Aerial Combos)
-    if (m_canCancel && intent.bHeavyAttackPressed)
+    if (canEvade && intent.bHeavyAttackPressed)
     {
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPlunge));
         return;
     }
 
-    // Aerial Combo Chaining
-    if (m_canCancel && m_bufferedAttack.timer > 0.0f)
+    if (m_canCancelCombo && m_bufferedAttack.timer > 0.0f)
     {
-        int activeCommand{ liveDirectionalIntent };
-        if (activeCommand == -1) activeCommand = m_bufferedAttack.targetCommandNormal;
-
-        // Optionally map Aerial specific command normals here if needed in the future
-        if (activeCommand != -1)
-        {
-            // Placeholder if aerial directional attacks are added (e.g. Helmbreaker)
-        }
-        // Standard air combo is usually 2 or 3 hits (Indices 0, 1, 2). 
-        // If we came from a dash attack (Index 4), don't combo further.
         if (m_comboIndex < 2)
         {
             m_comboIndex++;
@@ -2623,10 +2840,10 @@ void PlayerAttackAerial::Update(PlayerControllerComponent* controller, float dt)
         }
     }
 
-    // Natural Exit back to falling
-    if (m_exitTimer <= 0.0f)
+    const bool isAnimationDone{ anim && (anim->GetCurrentPhase() >= 0.999f || m_exitTimer <= -0.2f) };
+    if (isAnimationDone)
     {
-        controller->getAnimBlackboard().actionIndex = controller->getAnimBlackboard().getFlag(AnimFlag::is_combat_active) ? 5 : 2; // Fall Loop
+        controller->getAnimBlackboard().actionIndex = controller->getAnimBlackboard().getFlag(AnimFlag::is_combat_active) ? 5 : 2;
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
     }
 }
@@ -2651,29 +2868,42 @@ void PlayerAttackPlunge::Enter(PlayerControllerComponent* controller)
     auto* anim{ controller->GetAnimation() };
     const auto& intent{ controller->GetIntent() };
 
-    m_canCancel = false;
+    m_canCancelCombo = false;
+    m_canCancelEvade = false;
+    m_canCancelLocomotion = false;
+    m_hasAuthoredEvadeCancel = false;
     m_phase = PlungeSubPhase::Start;
 
-    // Snapshot facing direction to strictly lock forward momentum with plunge soft-lock
     m_lungeDirection = ResolvePlungeSoftLockOrFacingDirection(controller->GetOwner(), intent.worldMoveDirection);
     FacingResolver::SnapFaceDirection(controller->GetOwner(), m_lungeDirection);
 
     if (motor)
     {
         m_wasGravityEnabled = motor->GetConfig().useGravity;
-        motor->GetConfig().useGravity = false; // Suspend standard gravity for the windup
+        motor->GetConfig().useGravity = false;
         motor->SetVerticalVelocity(0.0f);
         motor->SetDesiredDirection({ 0.0f, 0.0f });
-        motor->SetFrictionMultiplier(0.0f); // Zero friction ensures horizontal plunge glides perfectly without drag decay
+        motor->SetFrictionMultiplier(0.0f);
     }
 
-    // Mathematical node mapping: Variation (0-2) * 3 + Phase Offset (0-2)
     blackboard.actionIndex = (m_variation * 3) + 0;
 
     if (anim)
     {
         anim->PlaySlot(Engine::Animation::AnimSlot::Attack_Plunge, true);
         m_stateTimer = anim->GetSlotDuration(Engine::Animation::AnimSlot::Attack_Plunge);
+
+        if (const auto* activeNode{ anim->GetActiveAnimNode() })
+        {
+            for (const auto& ev : activeNode->events)
+            {
+                if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Evade))
+                {
+                    m_hasAuthoredEvadeCancel = true;
+                    break;
+                }
+            }
+        }
     }
 }
 
@@ -2687,20 +2917,26 @@ void PlayerAttackPlunge::Update(PlayerControllerComponent* controller, float dt)
 
     if (!motor || !anim) return;
 
-    // Global Event Listener (Timeline Driven Kinematics)
     for (const auto& ev : anim->GetFiredEvents())
     {
-        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
+        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Combo))
         {
-            m_canCancel = true;
+            m_canCancelCombo = true;
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Evade))
+        {
+            m_canCancelEvade = true;
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Locomotion))
+        {
+            m_canCancelLocomotion = true;
         }
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Vertical))
         {
-            motor->SetVerticalVelocity(ev.payload); // Drives the exact fall speed authored in Timeline
+            motor->SetVerticalVelocity(ev.payload);
         }
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse))
         {
-            // Resolve downward speed from current vertical velocity, pending event, or authored fallback
             float downSpeed{ std::abs(motor->GetVerticalVelocity()) };
             if (downSpeed < 1.0f)
             {
@@ -2723,61 +2959,55 @@ void PlayerAttackPlunge::Update(PlayerControllerComponent* controller, float dt)
         }
     }
 
-    // Check for cancel windows strictly during the End phase (ground impact recovery)
     if (m_phase == PlungeSubPhase::End)
     {
-        if (m_canCancel)
+        const bool canEvade{ m_canCancelEvade || (!m_hasAuthoredEvadeCancel && m_canCancelCombo) };
+        if (canEvade && intent.bDashTriggered)
         {
-            if (intent.bDashTriggered)
-            {
-                controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
-                return;
-            }
-            if (intent.bAttackPressed)
-            {
-                controller->SetPendingComboHit(0);
-                controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPrimary));
-                return;
-            }
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
+            return;
+        }
+        if (m_canCancelCombo && intent.bAttackPressed)
+        {
+            controller->SetPendingComboHit(0);
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPrimary));
+            return;
+        }
 
-            const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
-            if (inputSq > 0.01f)
-            {
-                controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
-                return;
-            }
+        const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
+        if (m_canCancelLocomotion && inputSq > 0.01f)
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+            return;
         }
     }
 
-    // Phase Transitions
     if (m_phase == PlungeSubPhase::Start)
     {
-        // Transition to falling once the apex stall animation finishes
         if (m_stateTimer <= 0.05f)
         {
             m_phase = PlungeSubPhase::Loop;
-            blackboard.actionIndex = (m_variation * 3) + 1; // Phase offset 1
+            blackboard.actionIndex = (m_variation * 3) + 1;
             anim->PlaySlot(Engine::Animation::AnimSlot::Attack_Plunge, true);
         }
     }
     else if (m_phase == PlungeSubPhase::Loop)
     {
-        // Gravity is suspended. Character coasts flawlessly on Timeline Lunge_Vertical and Lunge_Impulse.
         if (motor->isGrounded())
         {
             m_phase = PlungeSubPhase::End;
-            blackboard.actionIndex = (m_variation * 3) + 2; // Phase offset 2
+            blackboard.actionIndex = (m_variation * 3) + 2;
             anim->PlaySlot(Engine::Animation::AnimSlot::Attack_Plunge, true);
             m_stateTimer = anim->GetSlotDuration(Engine::Animation::AnimSlot::Attack_Plunge);
 
-            motor->SetFrictionMultiplier(1.0f); // Restore friction immediately on ground impact
-            motor->HaltMomentum(1.0f); // Stick the landing
+            motor->SetFrictionMultiplier(1.0f);
+            motor->HaltMomentum(1.0f);
         }
     }
     else if (m_phase == PlungeSubPhase::End)
     {
-        // Natural exit to Locomotion after recovery animation completes
-        if (m_stateTimer <= 0.0f)
+        const bool isAnimationDone{ anim && (anim->GetCurrentPhase() >= 0.999f || m_stateTimer <= 0.0f) };
+        if (isAnimationDone)
         {
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
         }
@@ -2877,7 +3107,10 @@ void PlayerAttackSpeed::Enter(PlayerControllerComponent* controller)
     auto* motor{ controller->GetMovement() };
     m_isAerial = motor && !motor->isGrounded();
     m_phase = SpeedAttackPhase::Start;
-    m_canCancel = false;
+    m_canCancelCombo = false;
+    m_canCancelEvade = false;
+    m_canCancelLocomotion = false;
+    m_hasAuthoredEvadeCancel = false;
     m_loopTimer = 0.0f;
     m_mashGraceTimer = 0.0f;
 
@@ -2899,11 +3132,23 @@ void PlayerAttackSpeed::Enter(PlayerControllerComponent* controller)
         motor->SetDesiredDirection({ 0.0f, 0.0f });
     }
 
-    blackboard.actionIndex = 0; // Node 0: Start sub-phase
+    blackboard.actionIndex = 0;
     if (auto* anim{ controller->GetAnimation() })
     {
         anim->PlaySlot(m_isAerial ? AnimSlot::Attack_Speed_Aerial : AnimSlot::Attack_Speed_Ground, true);
         m_stateTimer = anim->GetSlotDuration(m_isAerial ? AnimSlot::Attack_Speed_Aerial : AnimSlot::Attack_Speed_Ground);
+
+        if (const auto* activeNode{ anim->GetActiveAnimNode() })
+        {
+            for (const auto& ev : activeNode->events)
+            {
+                if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Evade))
+                {
+                    m_hasAuthoredEvadeCancel = true;
+                    break;
+                }
+            }
+        }
     }
 }
 
@@ -2917,14 +3162,21 @@ void PlayerAttackSpeed::Update(PlayerControllerComponent* controller, float dt)
     auto& blackboard{ controller->getAnimBlackboard() };
     const auto& intent{ controller->GetIntent() };
 
-    // Capture mash inputs globally across all sub-phases (Start, Loop, End)
     if (intent.bAttackPressed) m_mashGraceTimer = 0.5f;
 
     for (const auto& ev : anim->GetFiredEvents())
     {
-        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
+        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Combo))
         {
-            m_canCancel = true;
+            m_canCancelCombo = true;
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Evade))
+        {
+            m_canCancelEvade = true;
+        }
+        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Locomotion))
+        {
+            m_canCancelLocomotion = true;
         }
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse) && motor)
         {
@@ -2947,12 +3199,13 @@ void PlayerAttackSpeed::Update(PlayerControllerComponent* controller, float dt)
 
     if (m_phase == SpeedAttackPhase::Start)
     {
-        // Transition to sustained loop once start animation finishes or triggers early cancel
-        if (m_canCancel || m_stateTimer <= 0.05f)
+        if (m_canCancelCombo || m_stateTimer <= 0.05f)
         {
             m_phase = SpeedAttackPhase::Loop;
-            m_canCancel = false;
-            blackboard.actionIndex = 1; // Node 1: Loop
+            m_canCancelCombo = false;
+            m_canCancelEvade = false;
+            m_canCancelLocomotion = false;
+            blackboard.actionIndex = 1;
             anim->PlaySlot(m_isAerial ? AnimSlot::Attack_Speed_Aerial : AnimSlot::Attack_Speed_Ground, true);
         }
     }
@@ -2960,21 +3213,22 @@ void PlayerAttackSpeed::Update(PlayerControllerComponent* controller, float dt)
     {
         m_loopTimer += dt;
 
-        // Sustain rule: Must complete minimum 0.4s to prevent single-frame twitching.
-        // Ends if button is released and mashing grace window expires, or maximum 3.0s timeout is reached.
         const bool isSustaining = intent.bAttackHeld || (m_mashGraceTimer > 0.0f);
         if (m_loopTimer > 3.0f || (m_loopTimer > 0.4f && !isSustaining))
         {
             m_phase = SpeedAttackPhase::End;
-            m_canCancel = false;
-            blackboard.actionIndex = 2; // Node 2: End Finisher
+            m_canCancelCombo = false;
+            m_canCancelEvade = false;
+            m_canCancelLocomotion = false;
+            blackboard.actionIndex = 2;
             anim->PlaySlot(m_isAerial ? AnimSlot::Attack_Speed_Aerial : AnimSlot::Attack_Speed_Ground, true);
             m_stateTimer = anim->GetSlotDuration(m_isAerial ? AnimSlot::Attack_Speed_Aerial : AnimSlot::Attack_Speed_Ground);
         }
     }
     else if (m_phase == SpeedAttackPhase::End)
     {
-        if (m_canCancel && intent.bDashTriggered)
+        const bool canEvade{ m_canCancelEvade || (!m_hasAuthoredEvadeCancel && m_canCancelCombo) };
+        if (canEvade && intent.bDashTriggered)
         {
             if (motor->isGrounded() || !blackboard.getFlag(AnimFlag::has_air_dashed))
             {
@@ -2983,7 +3237,15 @@ void PlayerAttackSpeed::Update(PlayerControllerComponent* controller, float dt)
             }
         }
 
-        if (m_stateTimer <= 0.0f)
+        const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
+        if (m_canCancelLocomotion && inputSq > 0.01f && motor && motor->isGrounded())
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+            return;
+        }
+
+        const bool isAnimationDone{ anim && (anim->GetCurrentPhase() >= 0.999f || m_stateTimer <= 0.0f) };
+        if (isAnimationDone)
         {
             if (motor && motor->isGrounded())
             {

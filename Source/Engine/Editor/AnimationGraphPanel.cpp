@@ -542,7 +542,9 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
 
                     for (const auto& ev : srcNode.events)
                     {
-                        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
+                        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Combo) ||
+                            ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Evade) ||
+                            ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Locomotion))
                         {
                             triggerTime = ev.normalizedTime * srcDuration;
                             break;

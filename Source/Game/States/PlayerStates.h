@@ -57,7 +57,9 @@ public:
 private:
     SlideSubPhase m_phase{ SlideSubPhase::Entry_Drop };
     DirectX::XMFLOAT2 m_slideDir{ 0.0f, 0.0f };
-    bool m_canCancel{ false };
+    bool m_canCancelEvade{ false };
+    bool m_canCancelLocomotion{ false };
+    bool m_hasAuthoredEvadeCancel{ false };
     float m_standingHeight{ 1.0f };
     float m_standingRadius{ 0.5f };
 };
@@ -73,7 +75,8 @@ public:
 private:
     float m_airTimer{ 0.0f }; // Tracks how long we've been in the air
     bool m_isAcrobatic{ false };
-    bool m_canCancelAcrobatic{ true };
+    bool m_canCancelAcrobaticEvade{ true };
+    bool m_canCancelAcrobaticCombo{ true };
 };
 
 class PlayerLanding final : public PlayerState
@@ -85,7 +88,10 @@ public:
 
 private:
     float m_timer{ 0.0f };
-    bool m_canCancel{ false };
+    bool m_canCancelCombo{ false };
+    bool m_canCancelEvade{ false };
+    bool m_canCancelLocomotion{ false };
+    bool m_hasAuthoredLocomotionCancel{ false };
 };
 
 class PlayerParkourWall final : public PlayerState
@@ -115,7 +121,10 @@ private:
 
     float m_timer{ 0.0f };
     DirectX::XMFLOAT2 m_dashDir{ 0.0f, 0.0f };
-    bool m_canCancel{ false };
+    bool m_canCancelCombo{ false };
+    bool m_canCancelEvade{ false };
+    bool m_canCancelLocomotion{ false };
+    bool m_hasAuthoredLocomotionCancel{ false };
 };
 
 // COMBAT (GROUND)
@@ -141,7 +150,10 @@ private:
     BufferedAttackIntent m_bufferedAttack{};
     float m_exitTimer{ 0.0f };
     int m_cancelDeferFrames{ 0 };
-    bool m_canCancel{ false };
+    bool m_canCancelCombo{ false };
+    bool m_canCancelEvade{ false };
+    bool m_canCancelLocomotion{ false };
+    bool m_hasAuthoredEvadeCancel{ false };
     DirectX::XMFLOAT2 m_lungeDirection{ 0.0f, 1.0f };
 };
 
@@ -159,7 +171,10 @@ private:
     BufferedAttackIntent m_bufferedAttack{};
     float m_exitTimer{ 0.0f };
     int m_cancelDeferFrames{ 0 };
-    bool m_canCancel{ false };
+    bool m_canCancelCombo{ false };
+    bool m_canCancelEvade{ false };
+    bool m_canCancelLocomotion{ false };
+    bool m_hasAuthoredEvadeCancel{ false };
     DirectX::XMFLOAT2 m_lungeDirection{ 0.0f, 1.0f };
 };
 
@@ -174,7 +189,10 @@ private:
     BufferedAttackIntent m_bufferedAttack{};
     float m_exitTimer{ 0.0f };
     int m_activeNode{ 0 };
-    bool m_canCancel{ false };
+    bool m_canCancelCombo{ false };
+    bool m_canCancelEvade{ false };
+    bool m_canCancelLocomotion{ false };
+    bool m_hasAuthoredEvadeCancel{ false };
     DirectX::XMFLOAT2 m_lungeDirection{ 0.0f, 1.0f };
 };
 
@@ -197,8 +215,11 @@ private:
     ChargeSubPhase m_phase{ ChargeSubPhase::Anticipation };
     DirectX::XMFLOAT2 m_lungeDirection{ 0.0f, 1.0f };
     float m_chargeTimer{ 0.0f };
-    float m_chargeRatio{ 0.40f }; // Tier 1 (Tap) default multiplier
-    bool m_canCancel{ false };
+    float m_chargeRatio{ 0.40f }; 
+    bool m_canCancelCombo{ false };
+    bool m_canCancelEvade{ false };
+    bool m_canCancelLocomotion{ false };
+    bool m_hasAuthoredEvadeCancel{ false };
     bool m_earlyRelease{ false };
 };
 
@@ -216,7 +237,9 @@ private:
     int m_comboIndex{ 0 };
     BufferedAttackIntent m_bufferedAttack{};
     float m_exitTimer{ 0.0f };
-    bool m_canCancel{ false };
+    bool m_canCancelCombo{ false };
+    bool m_canCancelEvade{ false };
+    bool m_hasAuthoredEvadeCancel{ false };
     bool m_wasGravityEnabled{ true };
     DirectX::XMFLOAT2 m_lungeDirection{ 0.0f, 1.0f };
 };
@@ -240,7 +263,10 @@ private:
     int m_variation{ 0 };
     float m_stateTimer{ 0.0f };
     bool m_wasGravityEnabled{ true };
-    bool m_canCancel{ false };
+    bool m_canCancelCombo{ false };
+    bool m_canCancelEvade{ false };
+    bool m_canCancelLocomotion{ false };
+    bool m_hasAuthoredEvadeCancel{ false };
     DirectX::XMFLOAT2 m_lungeDirection{ 0.0f, 1.0f };
 };
 
@@ -290,7 +316,10 @@ private:
     float m_loopTimer{ 0.0f };
     float m_mashGraceTimer{ 0.0f }; // Supports button mashing
     bool m_isAerial{ false };
-    bool m_canCancel{ false };
+    bool m_canCancelCombo{ false };
+    bool m_canCancelEvade{ false };
+    bool m_canCancelLocomotion{ false };
+    bool m_hasAuthoredEvadeCancel{ false };
     bool m_wasGravityEnabled{ true };
     DirectX::XMFLOAT2 m_facingDir{ 0.0f, 1.0f };
 };

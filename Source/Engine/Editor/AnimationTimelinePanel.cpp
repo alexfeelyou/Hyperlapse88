@@ -15,9 +15,9 @@ namespace
 {
     inline constexpr const char* s_eventNames[] = {
          "None", "Hitbox_Window",
-         "CancelWindow_Open", "Invincible_Start", "Invincible_End",
+         "Cancel_Combo", "Invincible_Start", "Invincible_End",
          "Play_SFX", "Play_VFX", "Lunge_Impulse", "Lunge_Vertical", "Movement_Halt",
-         "Pose_HoldMarker"
+         "Pose_HoldMarker", "Cancel_Evade", "Cancel_Locomotion"
     };
 
     [[nodiscard]] ImU32 GetColorForEvent(std::uint32_t eventId) noexcept
@@ -25,7 +25,9 @@ namespace
         switch (static_cast<CombatEventId>(eventId))
         {
         case CombatEventId::Hitbox_Window:     return IM_COL32(250, 80, 80, 255);
-        case CombatEventId::CancelWindow_Open: return IM_COL32(250, 200, 50, 255);
+        case CombatEventId::Cancel_Combo:      return IM_COL32(250, 200, 50, 255); // Gold
+        case CombatEventId::Cancel_Evade:      return IM_COL32(50, 220, 250, 255); // Cyan
+        case CombatEventId::Cancel_Locomotion: return IM_COL32(80, 250, 80, 255);  // Green
         case CombatEventId::Lunge_Impulse:     return IM_COL32(50, 150, 250, 255);
         case CombatEventId::Lunge_Vertical:    return IM_COL32(50, 250, 150, 255);
         case CombatEventId::Movement_Halt:     return IM_COL32(250, 120, 50, 255);

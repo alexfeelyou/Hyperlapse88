@@ -217,7 +217,7 @@ void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
                             playerLiftV_Y = ev.payload;
                             liftNormTime = ev.normalizedTime;
                         }
-                        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::CancelWindow_Open))
+                        else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Combo))
                         {
                             cancelNormTime = ev.normalizedTime;
                         }

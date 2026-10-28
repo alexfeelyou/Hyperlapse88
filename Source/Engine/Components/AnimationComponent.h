@@ -14,16 +14,18 @@
 enum class CombatEventId : std::uint32_t
 {
     None = 0,
-    Hitbox_Window,
-    CancelWindow_Open,
-    Invincible_Start,
-    Invincible_End,
-    Play_SFX,
-    Play_VFX,
-    Lunge_Impulse,
-    Lunge_Vertical,
-    Movement_Halt,
-    Pose_HoldMarker
+    Hitbox_Window = 1,
+    Cancel_Combo = 2,      
+    Invincible_Start = 3,
+    Invincible_End = 4,
+    Play_SFX = 5,
+    Play_VFX = 6,
+    Lunge_Impulse = 7,
+    Lunge_Vertical = 8,
+    Movement_Halt = 9,
+    Pose_HoldMarker = 10,
+    Cancel_Evade = 11,     
+    Cancel_Locomotion = 12 
 };
 
 enum class AnimStateType : std::uint8_t {
