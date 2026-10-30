@@ -1831,34 +1831,35 @@ void PlayerParkourWall::Update(PlayerControllerComponent* controller, float dt)
     const auto& intent{ controller->GetIntent() };
     if (!motor) return;
 
-    // Wall Jump Cancel
+    // Deterministic forward tangent along the wall surface (orthogonal to m_wallNormal):
+    // Left Wall  (m_wallSide == -1): Normal points Right (+X) -> Forward is (-nz,  nx)
+    // Right Wall (m_wallSide ==  1): Normal points Left  (-X) -> Forward is ( nz, -nx)
+    const DirectX::XMFLOAT2 wallForward{
+        (m_wallSide == -1) ? -m_wallNormal.z : m_wallNormal.z,
+        (m_wallSide == -1) ? m_wallNormal.x : -m_wallNormal.x
+    };
+
+    // Wall Jump Cancel: Camera-independent launch vector
     if (intent.bJumpTriggered)
     {
-        // Measure whether the player is attempting to steer into the wall
-        const float inwardDot{ (intent.worldMoveDirection.x * m_wallNormal.x) + (intent.worldMoveDirection.y * m_wallNormal.z) };
+        motor->Jump(7.5f); // Upward vertical kick
 
-        // Anti-Spam Gate: Reject the jump if steering heavily inward into the wall
-        if (inwardDot >= -0.2f)
-        {
-            motor->Jump(7.5f); // Vertical kick
+        // Fixed outward kick away from wall + forward momentum along the wall tangent
+        const float boost{ motor->GetConfig().sprintSpeed * 0.8f };
+        motor->AddImpulse({ (m_wallNormal.x * 12.0f) + (wallForward.x * boost),
+                            0.0f,
+                            (m_wallNormal.z * 12.0f) + (wallForward.y * boost) });
 
-            // Outward kick away from wall + forward momentum preservation
-            const float boost{ motor->GetConfig().sprintSpeed * 0.8f };
-            motor->AddImpulse({ (m_wallNormal.x * 12.0f) + (intent.worldMoveDirection.x * boost),
-                                0.0f,
-                                (m_wallNormal.z * 12.0f) + (intent.worldMoveDirection.y * boost) });
+        auto& blackboard{ controller->getAnimBlackboard() };
+        blackboard.currentJumps = 1; // Mark aerial jump usage
 
-            auto& blackboard{ controller->getAnimBlackboard() };
-            blackboard.currentJumps = 1; // Mark jump usage
+        // Takeoff Animation:
+        // Node 6: Jump_Start_L (Wall on Right, m_wallSide == 1 -> Leaps Left)
+        // Node 7: Jump_Start_R (Wall on Left,  m_wallSide == -1 -> Leaps Right)
+        blackboard.actionIndex = (m_wallSide == 1) ? 6 : 7;
 
-            // Directional Jump Takeoff Mapping:
-            // Node 6: Jump_Start_L (Wall is on Right, m_wallSide == 1 -> Kick Left)
-            // Node 7: Jump_Start_R (Wall is on Left,  m_wallSide == -1 -> Kick Right)
-            blackboard.actionIndex = (m_wallSide == 1) ? 6 : 7;
-
-            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
-            return;
-        }
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
+        return;
     }
 
     // Validate continued wall proximity
@@ -1867,7 +1868,7 @@ void PlayerParkourWall::Update(PlayerControllerComponent* controller, float dt)
     const bool stillOnWall{ motor->DetectFlankingWall(currentNormal, currentSide) };
     const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
 
-    // Natural Exits (ran out of wall, slowed down, or released Sprint)
+    // Natural Exits: Ran out of wall geometry, completely released input, or released Sprint
     if (!intent.bSprintHeld || inputSq < 0.01f || !stillOnWall)
     {
         auto& blackboard{ controller->getAnimBlackboard() };
@@ -1877,35 +1878,11 @@ void PlayerParkourWall::Update(PlayerControllerComponent* controller, float dt)
     }
 
     m_wallNormal = currentNormal; // Track curving geometry updates
+    m_wallSide = currentSide;
 
-    // Compute Forward Tangent using Input Direction (Prevents steering-drift)
-    const float inputDotNormal{ (intent.worldMoveDirection.x * m_wallNormal.x) + (intent.worldMoveDirection.y * m_wallNormal.z) };
-
-    // Explicit Detach: If the user deliberately yanks the stick away from the wall (> 45 degrees outward)
-    if (inputDotNormal > 0.5f)
-    {
-        auto& blackboard{ controller->getAnimBlackboard() };
-        blackboard.actionIndex = blackboard.getFlag(AnimFlag::is_combat_active) ? 5 : 2; // Fall Loop
-        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
-        return;
-    }
-
-    DirectX::XMFLOAT2 tangent{
-        intent.worldMoveDirection.x - (inputDotNormal * m_wallNormal.x),
-        intent.worldMoveDirection.y - (inputDotNormal * m_wallNormal.z)
-    };
-
-    const float magSq{ (tangent.x * tangent.x) + (tangent.y * tangent.y) };
-    if (magSq > 0.0001f)
-    {
-        const float invMag{ 1.0f / std::sqrt(magSq) };
-        tangent.x *= invMag;
-        tangent.y *= invMag;
-    }
-
-    // Drive the Kinematic Motor
+    // Drive the Kinematic Motor forward along the wall tangent
     motor->SetSprinting(true);
-    motor->SetDesiredDirection(tangent);
+    motor->SetDesiredDirection(wallForward);
 
     // Parabolic lift decay & Strict Height Lock
     float currentVelY{ motor->GetVerticalVelocity() };
@@ -1915,22 +1892,22 @@ void PlayerParkourWall::Update(PlayerControllerComponent* controller, float dt)
         currentVelY += motor->GetConfig().gravity * dt;
         if (currentVelY <= 0.0f)
         {
-            currentVelY = 0.0f; // Lock perfectly flat at the apex
-            m_isParabolicMount = false; // Transition to locked height
+            currentVelY = 0.0f; // Lock flat at the apex
+            m_isParabolicMount = false; // Transition to height lock
         }
     }
     else
     {
-        // Strictly lock the vertical velocity to 0 to prevent any height dropping (no fatigue)
+        // Strictly lock vertical velocity to 0 to prevent fatigue drop
         currentVelY = 0.0f;
     }
     motor->SetVerticalVelocity(currentVelY);
 
-    // Aggressive Anti-Drift: Lock the capsule flush against the collision mesh (15.0 overcomes PhysX contact offsets)
+    // Anti-Drift: Lock capsule flush against collision mesh (15.0 overcomes PhysX contact offsets)
     motor->AddImpulse({ -m_wallNormal.x * 15.0f * dt, 0.0f, -m_wallNormal.z * 15.0f * dt });
 
-    // 6. Visual Steering along Tangent
-    FacingResolver::SmoothFaceDirection(controller->GetOwner(), tangent, 720.0f, dt);
+    // Visual Steering along Tangent
+    FacingResolver::SmoothFaceDirection(controller->GetOwner(), wallForward, 720.0f, dt);
 }
 
 void PlayerParkourWall::Exit(PlayerControllerComponent* controller)
