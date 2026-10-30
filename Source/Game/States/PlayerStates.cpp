@@ -1329,17 +1329,100 @@ void PlayerAirTraversal::Update(PlayerControllerComponent* controller, float dt)
 
     if (motor->isGrounded() && velocity.y <= 0.05f)
     {
-        const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
+        // Land-Jump / Bunny-Hop Intercept:
+        // Preserves velocity and leaps immediately
+        if (intent.bJumpTriggered && velocity.y > -28.0f)
+        {
+            constexpr float JUMP_FORCE{ 6.5f };
+            motor->Jump(JUMP_FORCE);
 
-        // Slide Intercept: If the player lands with high momentum and is holding or tapping slide,
-        // completely bypass the Roll Landing and seamlessly transition into a Slide.
-        // (-28.0f check ensures Hard Landings still take absolute priority).
-        if (inputSq > 0.01f && blackboard.groundSpeed > 2.5f && velocity.y > -28.0f && (intent.bSlideHeld || intent.bSlideTriggered))
+            if (blackboard.groundSpeed > 2.5f)
+            {
+                const float boost{ blackboard.groundSpeed * motor->GetConfig().jumpForwardImpulse };
+                motor->AddImpulse({ intent.worldMoveDirection.x * boost, 0.0f, intent.worldMoveDirection.y * boost });
+            }
+
+            int actionIdx{ blackboard.groundSpeed > 2.5f ? 1 : 0 };
+            if (blackboard.getFlag(AnimFlag::is_combat_active)) actionIdx += 3;
+
+            blackboard.actionIndex = actionIdx;
+            blackboard.currentJumps = 1;
+            m_airTimer = 0.0f;
+            m_isAcrobatic = false;
+            if (auto* anim{ controller->GetAnimation() })
+            {
+                anim->PlaySlot(AnimSlot::AirTraversal, true);
+            }
+            return;
+        }
+
+        const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
+        const auto* capsule{ controller->GetOwner()->GetComponent<CapsuleColliderComponent>() };
+        const float capsuleRadius{ capsule ? capsule->GetConfig().radius : 0.37f };
+
+        const float hSpeedSq{ (velocity.x * velocity.x) + (velocity.z * velocity.z) };
+        const DirectX::XMFLOAT2 velDir{
+            hSpeedSq > 0.01f ? DirectX::XMFLOAT2{ velocity.x, velocity.z } : intent.worldMoveDirection
+        };
+
+        const float requiredSlideClearance{ (std::max)(3.5f, (blackboard.groundSpeed * 0.55f) + capsuleRadius + 0.5f) };
+        const bool safeAlongVel{ capsule && capsule->HasGroundAhead(velDir, requiredSlideClearance) };
+        const bool safeAlongIntent{ capsule && capsule->HasGroundAhead(intent.worldMoveDirection, requiredSlideClearance) };
+        const bool hasSafeGroundForSlide{ safeAlongVel && safeAlongIntent };
+
+        // Slide Intercept: If holding/tapping slide with high momentum and clearance exists
+        if (hasSafeGroundForSlide && inputSq > 0.01f && blackboard.groundSpeed > 2.5f && velocity.y > -28.0f && (intent.bSlideHeld || intent.bSlideTriggered))
         {
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Slide));
             return;
         }
 
+        // Hard landings always take absolute priority to stagger the player
+        if (velocity.y <= -28.0f)
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Landing));
+            return;
+        }
+
+        // High-Momentum Dynamic Decision (Zone 1: Roll | Zone 2: Run / Locomotion | Zone 3: Skid Stop)
+        if (inputSq > 0.01f && blackboard.groundSpeed > 2.5f)
+        {
+            const float speed{ blackboard.groundSpeed };
+            // Roll requires full somersault clearance: speed * commit time (0.65s) + margin
+            const float requiredRollClearance{ (std::max)(4.0f, (speed * 0.65f) + capsuleRadius + 1.2f) };
+            // Locomotion running only requires foot planting space (1-2 steps ahead)
+            const float requiredLocoClearance{ capsuleRadius + 0.35f };
+
+            const bool safeRollVel{ capsule && capsule->HasGroundAhead(velDir, requiredRollClearance) };
+            const bool safeRollIntent{ capsule && capsule->HasGroundAhead(intent.worldMoveDirection, requiredRollClearance) };
+            const bool canSafelyRoll{ safeRollVel && safeRollIntent };
+
+            if (canSafelyRoll)
+            {
+                // Zone 1: Ample runway -> execute full Landing Roll
+                controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Landing));
+                return;
+            }
+
+            const bool safeLocoVel{ capsule && capsule->HasGroundAhead(velDir, requiredLocoClearance) };
+            const bool safeLocoIntent{ capsule && capsule->HasGroundAhead(intent.worldMoveDirection, requiredLocoClearance) };
+            const bool canSafelyRun{ safeLocoVel && safeLocoIntent };
+
+            if (canSafelyRun)
+            {
+                // Zone 2: Insufficient space for roll, but solid runway ahead
+                controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+                return;
+            }
+
+            // Zone 3: Direct edge precipice (< 1 step of ground) -> Foot-skid brake at the edge
+            motor->HaltMomentum(1.0f);
+            controller->getAnimBlackboard().groundSpeed = 0.0f;
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Stop));
+            return;
+        }
+
+        // Stationary / Slow landing
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Landing));
         return;
     }
@@ -1470,6 +1553,9 @@ void PlayerLanding::Enter(PlayerControllerComponent* controller)
     m_canCancelEvade = false;
     m_canCancelLocomotion = false;
     m_hasAuthoredLocomotionCancel = false;
+    m_isEdgeBraked = false;
+    m_edgeDirection = { 0.0f, 0.0f };
+    m_rollDirection = { 0.0f, 0.0f };
 
     auto* motor{ controller->GetMovement() };
     auto* anim{ controller->GetAnimation() };
@@ -1504,25 +1590,63 @@ void PlayerLanding::Enter(PlayerControllerComponent* controller)
     if (terminalVelocity <= -28.0f)
     {
         actionIdx = 2; // Hard Land
+        motor->HaltMomentum(1.0f);
     }
-    // High-Momentum Roll: Bypass Y-velocity limits entirely.
-    // If the player lands while actively running/dashing (> 2.5m/s), 
-    // seamlessly transition into a forward roll to maintain combat pacing.
+    // Check predictive trajectory for edges/chasms before committing
     else if (holdingMove && controller->getAnimBlackboard().groundSpeed > 2.5f)
     {
-        // Tucking into a rapid forward somersault completely hides the socket transition
-        controller->getAnimBlackboard().setFlag(Engine::Animation::AnimFlag::is_combat_active, false);
+        const auto* capsule{ controller->GetOwner()->GetComponent<CapsuleColliderComponent>() };
+        const float speed{ controller->getAnimBlackboard().groundSpeed };
+        const float capsuleRadius{ capsule ? capsule->GetConfig().radius : 0.37f };
+        const float requiredRollClearance{ (std::max)(4.0f, (speed * 0.65f) + capsuleRadius + 1.2f) };
+        const float requiredLocoClearance{ capsuleRadius + 0.35f };
 
-        actionIdx = 1; // Roll Land
+        const DirectX::XMFLOAT3 currentVel{ motor->GetTotalVelocity() };
+        const float hSpeedSq{ (currentVel.x * currentVel.x) + (currentVel.z * currentVel.z) };
+        const DirectX::XMFLOAT2 velDir{
+            hSpeedSq > 0.01f ? DirectX::XMFLOAT2{ currentVel.x, currentVel.z } : intent.worldMoveDirection
+        };
 
-        // Preserve input direction momentum through the roll
-        motor->SetDesiredDirection(intent.worldMoveDirection);
-        FacingResolver::SnapFaceDirection(controller->GetOwner(), intent.worldMoveDirection);
+        const bool safeRollVel{ capsule && capsule->HasGroundAhead(velDir, requiredRollClearance) };
+        const bool safeRollIntent{ capsule && capsule->HasGroundAhead(intent.worldMoveDirection, requiredRollClearance) };
+        const bool canSafelyRoll{ safeRollVel && safeRollIntent };
+
+        if (canSafelyRoll)
+        {
+            // Zone 1: Safe for full somersault roll
+            controller->getAnimBlackboard().setFlag(Engine::Animation::AnimFlag::is_combat_active, false);
+            actionIdx = 1; // Roll Land
+            m_rollDirection = intent.worldMoveDirection;
+
+            motor->SetDesiredDirection(intent.worldMoveDirection);
+            FacingResolver::SnapFaceDirection(controller->GetOwner(), intent.worldMoveDirection);
+        }
+        else
+        {
+            const bool safeLocoVel{ capsule && capsule->HasGroundAhead(velDir, requiredLocoClearance) };
+            const bool safeLocoIntent{ capsule && capsule->HasGroundAhead(intent.worldMoveDirection, requiredLocoClearance) };
+            const bool canSafelyRun{ safeLocoVel && safeLocoIntent };
+
+            if (canSafelyRun)
+            {
+                // Zone 2: Solid runway ahead -> hand off immediately to Locomotion without losing momentum
+                controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+                return;
+            }
+
+            // Zone 3: Edge brink halt -> Foot-skid stop
+            motor->HaltMomentum(1.0f);
+            controller->getAnimBlackboard().groundSpeed = 0.0f;
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Stop));
+            return;
+        }
     }
     else
     {
         // Soft Land (Stationary jumps, slow walking, or no input)
         actionIdx = 0;
+        motor->HaltMomentum(1.0f);
+        controller->getAnimBlackboard().groundSpeed = 0.0f;
     }
 
     if (controller->getAnimBlackboard().getFlag(AnimFlag::is_combat_active)) actionIdx += 3;
@@ -1535,8 +1659,10 @@ void PlayerLanding::Enter(PlayerControllerComponent* controller)
 void PlayerLanding::Update(PlayerControllerComponent* controller, float dt)
 {
     m_timer -= dt;
+    auto* motor{ controller->GetMovement() };
+    auto* anim{ controller->GetAnimation() };
 
-    for (const auto& ev : controller->GetAnimation()->GetFiredEvents())
+    for (const auto& ev : anim->GetFiredEvents())
     {
         if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Combo))
         {
@@ -1552,13 +1678,69 @@ void PlayerLanding::Update(PlayerControllerComponent* controller, float dt)
         }
     }
 
+    // Mid-Roll Dynamic Ledge Guard: If rolling and an edge suddenly appears within stopping distance
+    const int currentAction{ controller->getAnimBlackboard().actionIndex };
+    const bool isCurrentlyRolling{ (currentAction == 1 || currentAction == 4) };
+    if (isCurrentlyRolling && motor)
+    {
+        const auto* capsule{ controller->GetOwner()->GetComponent<CapsuleColliderComponent>() };
+        const float immediateCheckDist{ (capsule ? capsule->GetConfig().radius : 0.37f) + 0.85f };
+        if (capsule && !capsule->HasGroundAhead(m_rollDirection, immediateCheckDist))
+        {
+            // Abort roll into emergency halt: Switch to PlayerStop (Locomotion_Stop)
+            motor->HaltMomentum(1.0f);
+            motor->SetDesiredDirection({ 0.0f, 0.0f });
+            controller->getAnimBlackboard().groundSpeed = 0.0f;
+
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Stop));
+            return;
+        }
+    }
+
     const auto& intent{ controller->GetIntent() };
     const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
     const bool playerWantsToMove{ inputSq > 0.01f };
 
     // Backward-compatible fallback: Allow evasion and locomotion
     const bool canEvade{ m_canCancelEvade || (!m_hasAuthoredLocomotionCancel && m_canCancelCombo) };
-    const bool canMove{ m_canCancelLocomotion || (!m_hasAuthoredLocomotionCancel && m_canCancelCombo) };
+    bool canMove{ m_canCancelLocomotion || (!m_hasAuthoredLocomotionCancel && m_canCancelCombo) };
+
+    // Jump Cancel out of landing recovery (Land-Jump / Bunny-Hop)
+    if (canEvade && intent.bJumpTriggered && motor && motor->isGrounded())
+    {
+        constexpr float JUMP_FORCE{ 6.5f };
+        motor->Jump(JUMP_FORCE);
+
+        if (controller->getAnimBlackboard().groundSpeed > 2.5f)
+        {
+            const float boost{ controller->getAnimBlackboard().groundSpeed * motor->GetConfig().jumpForwardImpulse };
+            motor->AddImpulse({ intent.worldMoveDirection.x * boost, 0.0f, intent.worldMoveDirection.y * boost });
+        }
+
+        int actionIdx{ controller->getAnimBlackboard().groundSpeed > 2.5f ? 1 : 0 };
+        if (controller->getAnimBlackboard().getFlag(AnimFlag::is_combat_active)) actionIdx += 3;
+
+        controller->getAnimBlackboard().actionIndex = actionIdx;
+        controller->getAnimBlackboard().currentJumps = 1;
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
+        return;
+    }
+
+    // Forbid early locomotion cancels directly towards the drop-off
+    if (m_isEdgeBraked && canMove && playerWantsToMove)
+    {
+        const float dotEdge{ (intent.worldMoveDirection.x * m_edgeDirection.x) + (intent.worldMoveDirection.y * m_edgeDirection.y) };
+        if (dotEdge > 0.1f)
+        {
+            // Player is steering off the cliff: hold them in the recovery pose
+            canMove = false;
+            if (motor)
+            {
+                motor->SetDesiredDirection({ 0.0f, 0.0f });
+                motor->HaltMomentum(1.0f);
+            }
+        }
+    }
 
     // Evasion out of landing recovery
     if (canEvade && intent.bDashTriggered)
@@ -1582,7 +1764,6 @@ void PlayerLanding::Update(PlayerControllerComponent* controller, float dt)
     }
 
     // Locomotion out of landing recovery
-    const auto* anim{ controller->GetAnimation() };
     const bool isAnimationDone{ anim && (anim->GetCurrentPhase() >= 0.999f || m_timer <= 0.0f) };
     if ((canMove && playerWantsToMove) || isAnimationDone)
     {
@@ -1590,7 +1771,10 @@ void PlayerLanding::Update(PlayerControllerComponent* controller, float dt)
     }
 }
 
-void PlayerLanding::Exit(PlayerControllerComponent* controller) {}
+void PlayerLanding::Exit(PlayerControllerComponent* controller)
+{
+    m_isEdgeBraked = false;
+}
 
 void PlayerParkourWall::Enter(PlayerControllerComponent* controller)
 {

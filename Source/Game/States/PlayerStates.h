@@ -92,6 +92,9 @@ private:
     bool m_canCancelEvade{ false };
     bool m_canCancelLocomotion{ false };
     bool m_hasAuthoredLocomotionCancel{ false };
+    bool m_isEdgeBraked{ false };
+    DirectX::XMFLOAT2 m_edgeDirection{ 0.0f, 0.0f };
+    DirectX::XMFLOAT2 m_rollDirection{ 0.0f, 0.0f };
 };
 
 class PlayerParkourWall final : public PlayerState

@@ -498,5 +498,103 @@ bool CapsuleColliderComponent::HasGroundBelow(float distance) const noexcept
     return scene->sweep(sphereGeom, startPose, sweepDir, distance, hitBuffer, physx::PxHitFlag::eDEFAULT, filterData);
 }
 
+bool CapsuleColliderComponent::HasGroundAhead(const DirectX::XMFLOAT2& directionXZ, const float distance, const float maxDropDepth) const noexcept
+{
+    if (!m_controller || distance <= 0.001f)
+    {
+        return false;
+    }
+
+    const float dirSq{ (directionXZ.x * directionXZ.x) + (directionXZ.y * directionXZ.y) };
+    float dirX{ 0.0f };
+    float dirZ{ 0.0f };
+
+    if (dirSq > 0.0001f)
+    {
+        const float invLen{ 1.0f / std::sqrt(dirSq) };
+        dirX = directionXZ.x * invLen;
+        dirZ = directionXZ.y * invLen;
+    }
+    else if (m_owner)
+    {
+        // Fall back to current physical character facing when direction vector is zero
+        const float yawRad{ DirectX::XMConvertToRadians(m_owner->GetRotation().y) };
+        dirX = std::sin(yawRad);
+        dirZ = std::cos(yawRad);
+    }
+    else
+    {
+        return false;
+    }
+
+    auto* scene{ PhysicsManager::Instance().GetScene() };
+    if (!scene)
+    {
+        return false;
+    }
+
+    const DirectX::XMFLOAT3 footPos{ GetFootPosition() };
+    const float rayStartOffsetY{ m_config.stepOffset + 0.1f };
+    const float maxAllowedDrop{ maxDropDepth > 0.0f ? maxDropDepth : (m_config.stepOffset + 0.15f) };
+    const float rayMaxDist{ rayStartOffsetY + maxAllowedDrop };
+    const float minWalkableNormalY{ std::cos(DirectX::XMConvertToRadians(m_config.slopeLimitDeg)) };
+
+    physx::PxQueryFilterData filterData{};
+    filterData.data.word0 = CollisionLayer::WorldStatic;
+    filterData.flags = physx::PxQueryFlag::eSTATIC;
+
+    const physx::PxVec3 downDir{ 0.0f, -1.0f, 0.0f };
+
+    // Multi-Ray Fan (Center + Left Flank + Right Flank):
+    // Verifies full capsule width (radius * 0.85) to catch corners where center ray hits but flank hangs in air
+    const float flankOffset{ m_config.radius * 0.85f };
+    const float perpX{ -dirZ * flankOffset };
+    const float perpZ{ dirX * flankOffset };
+
+    const struct ColumnOffset { float x; float z; } columns[3]{
+        { 0.0f,    0.0f },    // Center
+        { -perpX, -perpZ },   // Left Flank
+        {  perpX,  perpZ }    // Right Flank
+    };
+
+    // Dense equidistant forward stepping prevents overshooting narrow gaps on high-speed probes
+    const float nearDist{ m_config.radius + 0.10f };
+    const float farDist{ (std::max)(nearDist + 0.15f, distance) };
+    constexpr float stepInterval{ 0.90f };
+    const int stepCount{ std::clamp(static_cast<int>(std::ceil((farDist - nearDist) / stepInterval)) + 1, 2, 6) };
+
+    for (const auto& col : columns)
+    {
+        for (int i{ 0 }; i < stepCount; ++i)
+        {
+            const float t{ static_cast<float>(i) / static_cast<float>(stepCount - 1) };
+            const float distOffset{ nearDist + (t * (farDist - nearDist)) };
+
+            const physx::PxVec3 rayOrigin{
+                footPos.x + col.x + (dirX * distOffset),
+                footPos.y + rayStartOffsetY,
+                footPos.z + col.z + (dirZ * distOffset)
+            };
+
+            physx::PxRaycastBuffer hitBuffer{};
+            const bool hit{ scene->raycast(rayOrigin, downDir, rayMaxDist, hitBuffer, physx::PxHitFlag::eNORMAL, filterData) };
+
+            // Ray missed entirely (open chasm) or hit an unwalkable steep wall
+            if (!hit || hitBuffer.block.normal.y < minWalkableNormalY)
+            {
+                return false;
+            }
+
+            const float dropBelowFoot{ hitBuffer.block.distance - rayStartOffsetY };
+            if (dropBelowFoot > maxAllowedDrop)
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
+}
+
 // Automatically register component with dynamic Inspector factory
 REGISTER_COMPONENT(CapsuleColliderComponent)

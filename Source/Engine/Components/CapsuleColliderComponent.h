@@ -77,6 +77,9 @@ public:
     // Sweeps a sphere downward to detect stairs/slopes, preventing false fall animations.
     [[nodiscard]] bool HasGroundBelow(float distance) const noexcept;
 
+    // Predictively probes along a horizontal vector to verify continuous walkable ground before edge drop-offs
+    [[nodiscard]] bool HasGroundAhead(const DirectX::XMFLOAT2& directionXZ, float distance, float maxDropDepth = 0.45f) const noexcept;
+
     // Inspector & Editor Interop
     [[nodiscard]] CapsuleColliderConfig& GetConfig() noexcept { return m_config; }
     [[nodiscard]] const CapsuleColliderConfig& GetConfig() const noexcept { return m_config; }
