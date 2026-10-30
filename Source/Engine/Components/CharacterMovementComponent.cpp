@@ -101,7 +101,7 @@ DirectX::XMFLOAT3 CharacterMovementComponent::GetTotalVelocity() const noexcept
     };
 }
 
-bool CharacterMovementComponent::DetectFlankingWall(DirectX::XMFLOAT3& outNormal, int& outSide) const noexcept
+bool CharacterMovementComponent::DetectFlankingWall(DirectX::XMFLOAT3& outNormal, int& outSide, const float verticalOffset) const noexcept
 {
     auto* scene{ PhysicsManager::Instance().GetScene() };
     if (!m_capsule || !scene) return false;
@@ -112,8 +112,9 @@ bool CharacterMovementComponent::DetectFlankingWall(DirectX::XMFLOAT3& outNormal
     // Anti-Knee-High Geometry Gate (Shoulder-Height Probe):
     // Shift the ray origin up from the capsule center so we explicitly overshoot 
     // and ignore obstacles shorter than the player (e.g., crates, low fences).
+    // verticalOffset allows predictive queries along ballistic trajectories.
     const float shoulderOffsetY{ m_capsule->GetConfig().height * 0.4f };
-    const physx::PxVec3 pxPos{ center.x, center.y + shoulderOffsetY, center.z };
+    const physx::PxVec3 pxPos{ center.x, center.y + shoulderOffsetY + verticalOffset, center.z };
 
     const physx::PxVec3 right{ std::cos(yaw), 0.0f, -std::sin(yaw) };
 

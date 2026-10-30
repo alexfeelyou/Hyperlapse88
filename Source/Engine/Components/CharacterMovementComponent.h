@@ -64,7 +64,7 @@ public:
     void SetFrictionMultiplier(float multiplier) noexcept { m_frictionMultiplier = multiplier; }
 
     // Environment Probing
-    [[nodiscard]] bool DetectFlankingWall(DirectX::XMFLOAT3& outNormal, int& outSide) const noexcept;
+    [[nodiscard]] bool DetectFlankingWall(DirectX::XMFLOAT3& outNormal, int& outSide, float verticalOffset = 0.0f) const noexcept;
 
     // State Queries
     [[nodiscard]] DirectX::XMFLOAT3 GetTotalVelocity() const noexcept;

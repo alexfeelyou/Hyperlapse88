@@ -718,9 +718,22 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
             // Mount wall if glancing along it and not actively pulling the stick away
             if (inputDot <= 0.25f && std::abs((fwd.x * wNorm.x) + (fwd.z * wNorm.z)) < 0.85f)
             {
-                motor->SetVerticalVelocity(5.5f); // Upward parabolic lift impulse
-                controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::ParkourWall));
-                return;
+                // Predictive Trajectory Clearance
+                // Mounting from ground injects an upward parabolic impulse (5.5 m/s).
+                // Ensure the wall extends continuously to the trajectory apex (h = v^2 / 2g) so the
+                // character does not overshoot the wall height
+                constexpr float mountLaunchVelocityY{ 5.5f };
+                const float gravityMag{ std::abs(motor->GetConfig().gravity) };
+                const float trajectoryApexHeight{ (gravityMag > 0.001f) ? ((mountLaunchVelocityY * mountLaunchVelocityY) / (2.0f * gravityMag)) : 1.54f };
+
+                DirectX::XMFLOAT3 apexNorm{};
+                int apexSide{ 0 };
+                if (motor->DetectFlankingWall(apexNorm, apexSide, trajectoryApexHeight) && (apexSide == wSide))
+                {
+                    motor->SetVerticalVelocity(mountLaunchVelocityY); // Upward parabolic lift impulse
+                    controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::ParkourWall));
+                    return;
+                }
             }
         }
     }
