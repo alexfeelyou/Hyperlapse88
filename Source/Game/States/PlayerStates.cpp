@@ -48,9 +48,10 @@ namespace
 
         // Raw Up/W Input always triggers Up Attack inside combat, but only on fresh input in locomotion.
         // intent.moveVector.y maps directly to the raw W key or Left Stick Y-axis (+1.0 = Up).
+        constexpr float s_forwardFreshnessThreshold{ 0.25f }; // Synchronized with 250ms combat attack buffer
         if (intent.moveVector.y > 0.4f)
         {
-            if (!requireFreshInput || intent.forwardIntentTimer <= 0.15f) return 0; // Node 0: Attack_Up_Floor_to_Air_02
+            if (!requireFreshInput || intent.forwardIntentTimer <= s_forwardFreshnessThreshold) return 0; // Node 0: Attack_Up_Floor_to_Air_02
         }
 
         // Back Attack triggers when world input strictly opposes the character's physical facing.

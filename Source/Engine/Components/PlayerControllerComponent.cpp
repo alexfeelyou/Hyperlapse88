@@ -106,21 +106,22 @@ void PlayerControllerComponent::GatherHardwareInput(const float dt) noexcept
     // accepts node 0 while it is <= 0.15s. Seeding it with a stale value permanently disqualifies that run,
     // so node 0 fires only when "up" is pressed from a neutral stick/keyboard and stays straight up.
     constexpr float s_upThreshold{ 0.4f };           // Must match the up threshold in EvaluateCommandNormal 
-    constexpr float s_neutralAxisThreshold{ 0.3f };  // Previous frame counts as "no direction" below this on both axes
-    constexpr float s_lateralTaintThreshold{ 0.5f }; // Sideways push beyond ~30 deg off vertical spoils the run
-    constexpr float s_staleForwardIntent{ 1.0f };    // Any value above 0.15s works; it only has to fail the freshness check
+    constexpr float s_neutralAxisThreshold{ 0.35f }; // Lateral and backward deflection threshold for neutral origin
+    constexpr float s_lateralTaintThreshold{ 0.70f }; // Sideways push beyond ~45 deg off vertical spoils the run
+    constexpr float s_staleForwardIntent{ 1.0f };    // Any value above the 0.25s freshness window disqualifies the run
 
     if (targetZ > s_upThreshold)
     {
-        // Rising edge: "up" was not held last frame. Only a press that begins from neutral is a clean command normal
-        // (rejects W -> A/D -> W and analog up -> left/right -> up, where a sideways direction was already held)
+        // Rising edge: up was not held last frame.
+        // A flick beginning from neutral must have minimal lateral deflection and not originate from a backward pull.
+        // prevMove.y is checked against the negative threshold to avoid penalizing analog stick travel passing between 0.0 and 0.4.
         if (prevMove.y <= s_upThreshold)
         {
-            const bool cameFromNeutral{ (std::abs(prevMove.x) < s_neutralAxisThreshold) && (std::abs(prevMove.y) < s_neutralAxisThreshold) };
+            const bool cameFromNeutral{ (std::abs(prevMove.x) < s_neutralAxisThreshold) && (prevMove.y >= -s_neutralAxisThreshold) };
             m_intent.forwardIntentTimer = cameFromNeutral ? 0.0f : s_staleForwardIntent;
         }
 
-        // Holding A/D (or pushing the stick sideways) at any point during the run spoils it as well
+        // Holding A/D (or pushing the stick sideways beyond 45 deg) at any point during the run spoils it as well
         if ((std::abs(targetX) > s_lateralTaintThreshold) && (m_intent.forwardIntentTimer < s_staleForwardIntent))
         {
             m_intent.forwardIntentTimer = s_staleForwardIntent;
@@ -130,7 +131,7 @@ void PlayerControllerComponent::GatherHardwareInput(const float dt) noexcept
     }
     else
     {
-        // Run ended: the next "up" press is evaluated from scratch
+        // Run ended: the next up press is evaluated from scratch
         m_intent.forwardIntentTimer = 0.0f;
     }
 
