@@ -97,7 +97,7 @@
             "Components": [
                 {
                     "CameraCollisionEnabled": true,
-                    "CameraCollisionRadius": 0.15000000596046448,
+                    "CameraCollisionRadius": 0.4000000059604645,
                     "FarZ": 1000.0,
                     "FollowOffsetX": 0.10000000149011612,
                     "FollowOffsetY": 1.100000023841858,
@@ -115,6 +115,80 @@
                     "OrbitShoulderOffset": 0.5,
                     "PositionDamping": 5.0,
                     "Priority": 10,
+                    "Profiles": [
+                        {
+                            "BlendSpeed": 6.0,
+                            "Distance": 3.299999952316284,
+                            "Fov": 48.0,
+                            "PivotX": 0.0,
+                            "PivotY": 1.149999976158142,
+                            "PivotZ": 0.0,
+                            "PosDamping": 12.0,
+                            "Roll": 0.0,
+                            "RotDamping": 20.0,
+                            "Shoulder": 0.5
+                        },
+                        {
+                            "BlendSpeed": 4.0,
+                            "Distance": 2.5999999046325684,
+                            "Fov": 54.0,
+                            "PivotX": -0.30000001192092896,
+                            "PivotY": 0.949999988079071,
+                            "PivotZ": 0.6000000238418579,
+                            "PosDamping": 17.0,
+                            "Roll": 0.0,
+                            "RotDamping": 20.0,
+                            "Shoulder": 0.5
+                        },
+                        {
+                            "BlendSpeed": 4.0,
+                            "Distance": 3.5999999046325684,
+                            "Fov": 52.0,
+                            "PivotX": 0.0,
+                            "PivotY": 1.149999976158142,
+                            "PivotZ": 0.0,
+                            "PosDamping": 3.0,
+                            "Roll": 0.0,
+                            "RotDamping": 15.0,
+                            "Shoulder": 0.5
+                        },
+                        {
+                            "BlendSpeed": 4.0,
+                            "Distance": 2.299999952316284,
+                            "Fov": 56.0,
+                            "PivotX": -0.30000001192092896,
+                            "PivotY": 0.44999998807907104,
+                            "PivotZ": 0.6000000238418579,
+                            "PosDamping": 14.0,
+                            "Roll": 0.0,
+                            "RotDamping": 20.0,
+                            "Shoulder": 0.4000000059604645
+                        },
+                        {
+                            "BlendSpeed": 4.0,
+                            "Distance": 3.0999999046325684,
+                            "Fov": 52.0,
+                            "PivotX": 0.0,
+                            "PivotY": 1.2000000476837158,
+                            "PivotZ": 0.0,
+                            "PosDamping": 6.0,
+                            "Roll": 7.0,
+                            "RotDamping": 15.0,
+                            "Shoulder": 0.800000011920929
+                        },
+                        {
+                            "BlendSpeed": 6.0,
+                            "Distance": 2.700000047683716,
+                            "Fov": 50.0,
+                            "PivotX": -0.30000001192092896,
+                            "PivotY": 0.6499999761581421,
+                            "PivotZ": 0.6000000238418579,
+                            "PosDamping": 14.0,
+                            "Roll": 0.0,
+                            "RotDamping": 20.0,
+                            "Shoulder": 0.44999998807907104
+                        }
+                    ],
                     "RotationDamping": 5.0,
                     "Type": "VirtualCameraComponent"
                 },

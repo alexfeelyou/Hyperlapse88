@@ -10,6 +10,7 @@
 #include "OrbitCameraDriverComponent.h"
 #include "PlayerStates.h"
 #include "StateMachine.h"
+#include "VirtualCameraComponent.h"
 
 using namespace Engine::Animation;
 
@@ -461,6 +462,12 @@ void PlayerLocomotion::Enter(PlayerControllerComponent* controller)
     auto* anim{ controller->GetAnimation() };
     if (!motor || !anim) return;
 
+    // Reset camera framing to neutral locomotion profile on returning to neutral
+    if (auto* vcam{ OrbitCameraDriverComponent::GetActiveVirtualCamera() })
+    {
+        vcam->SetTargetProfile(CameraProfileType::locomotion);
+    }
+
     auto& blackboard{ controller->getAnimBlackboard() };
 
     // SAFE RESET: Only replenish air actions if physically touching the ground
@@ -682,8 +689,15 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
         appliedDirection.y /= mag;
     }
 
-    motor->SetSprinting(intent.bSprintHeld && isActivelyMoving);
+    const bool isSprinting{ intent.bSprintHeld && isActivelyMoving };
+    motor->SetSprinting(isSprinting);
     motor->SetDesiredDirection(appliedDirection);
+
+    // Dynamic lens push-in and FOV widen while sprinting
+    if (auto* vcam{ OrbitCameraDriverComponent::GetActiveVirtualCamera() })
+    {
+        vcam->SetTargetProfile(isSprinting ? CameraProfileType::sprint : CameraProfileType::locomotion);
+    }
 
     const DirectX::XMFLOAT3 velocity{ motor->GetTotalVelocity() };
     const float actualSpeed{ std::sqrt((velocity.x * velocity.x) + (velocity.z * velocity.z)) };
@@ -832,7 +846,14 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
 
 void PlayerLocomotion::Exit(PlayerControllerComponent* controller)
 {
-    // No explicit cleanup required
+    // Revert sprint zoom back to neutral locomotion framing when exiting locomotion
+    if (auto* vcam{ OrbitCameraDriverComponent::GetActiveVirtualCamera() })
+    {
+        if (vcam->GetTargetProfile() == CameraProfileType::sprint)
+        {
+            vcam->SetTargetProfile(CameraProfileType::locomotion);
+        }
+    }
 }
 
 // PLAYER STOP (BRAKING & DECELERATION)
@@ -844,6 +865,11 @@ void PlayerStop::Enter(PlayerControllerComponent* controller)
 
     // Cut engine propulsion. CharacterMovementComponent's impulseDrag will naturally slide the capsule to a halt.
     motor->SetDesiredDirection({ 0.0f, 0.0f });
+
+    if (auto* vcam{ OrbitCameraDriverComponent::GetActiveVirtualCamera() })
+    {
+        vcam->SetTargetProfile(CameraProfileType::locomotion);
+    }
 
     auto& blackboard{ controller->getAnimBlackboard() };
 
@@ -1080,6 +1106,12 @@ void PlayerSlide::Enter(PlayerControllerComponent* controller)
     auto* anim{ controller->GetAnimation() };
     if (!motor || !anim) return;
 
+    // Inject low ground-skimming camera vantage for the duration of the slide
+    if (auto* vcam{ OrbitCameraDriverComponent::GetActiveVirtualCamera() })
+    {
+        vcam->SetTargetProfile(CameraProfileType::slide);
+    }
+
     m_canCancelEvade = false;
     m_canCancelLocomotion = false;
     m_hasAuthoredEvadeCancel = false;
@@ -1257,6 +1289,14 @@ void PlayerSlide::Update(PlayerControllerComponent* controller, float dt)
 
 void PlayerSlide::Exit(PlayerControllerComponent* controller)
 {
+    if (auto* vcam{ OrbitCameraDriverComponent::GetActiveVirtualCamera() })
+    {
+        if (vcam->GetTargetProfile() == CameraProfileType::slide)
+        {
+            vcam->SetTargetProfile(CameraProfileType::locomotion);
+        }
+    }
+
     if (auto* motor{ controller->GetMovement() }) motor->SetFrictionMultiplier(1.0f);
     if (auto* anim{ controller->GetAnimation() }) anim->SetPlaybackSpeed(1.0f);
 
@@ -1279,7 +1319,16 @@ void PlayerAirTraversal::Enter(PlayerControllerComponent* controller)
     m_canCancelAcrobaticEvade = true; // Unlocked by default for standard falling
     m_canCancelAcrobaticCombo = true;
 
-    // State-Agnostic Forfeiture: If the player entered the air state without 
+    // Revert transient action camera profiles back to neutral locomotion
+    if (auto* vcam{ OrbitCameraDriverComponent::GetActiveVirtualCamera() })
+    {
+        if (vcam->GetTargetProfile() != CameraProfileType::wall_run)
+        {
+            vcam->SetTargetProfile(CameraProfileType::locomotion);
+        }
+    }
+
+    // State-Agnostic Forfeiture: If the player entered the air state without
     // spending a jump (e.g., walking or dodging off a cliff), we consume 
     // their first jump automatically so they are restricted to just one double jump.
     auto& blackboard{ controller->getAnimBlackboard() };
@@ -1634,9 +1683,19 @@ void PlayerLanding::Enter(PlayerControllerComponent* controller)
 
             motor->SetDesiredDirection(intent.worldMoveDirection);
             FacingResolver::SnapFaceDirection(controller->GetOwner(), intent.worldMoveDirection);
+
+            if (auto* vcam{ OrbitCameraDriverComponent::GetActiveVirtualCamera() })
+            {
+                vcam->SetTargetProfile(CameraProfileType::roll_landing);
+            }
         }
         else
         {
+            if (auto* vcam{ OrbitCameraDriverComponent::GetActiveVirtualCamera() })
+            {
+                vcam->SetTargetProfile(CameraProfileType::locomotion);
+            }
+
             const bool safeLocoVel{ capsule && capsule->HasGroundAhead(velDir, requiredLocoClearance) };
             const bool safeLocoIntent{ capsule && capsule->HasGroundAhead(intent.worldMoveDirection, requiredLocoClearance) };
             const bool canSafelyRun{ safeLocoVel && safeLocoIntent };
@@ -1661,6 +1720,11 @@ void PlayerLanding::Enter(PlayerControllerComponent* controller)
         actionIdx = 0;
         motor->HaltMomentum(1.0f);
         controller->getAnimBlackboard().groundSpeed = 0.0f;
+
+        if (auto* vcam{ OrbitCameraDriverComponent::GetActiveVirtualCamera() })
+        {
+            vcam->SetTargetProfile(CameraProfileType::locomotion);
+        }
     }
 
     if (controller->getAnimBlackboard().getFlag(AnimFlag::is_combat_active)) actionIdx += 3;
@@ -1788,6 +1852,14 @@ void PlayerLanding::Update(PlayerControllerComponent* controller, float dt)
 void PlayerLanding::Exit(PlayerControllerComponent* controller)
 {
     m_isEdgeBraked = false;
+
+    if (auto* vcam{ OrbitCameraDriverComponent::GetActiveVirtualCamera() })
+    {
+        if (vcam->GetTargetProfile() == CameraProfileType::roll_landing)
+        {
+            vcam->SetTargetProfile(CameraProfileType::locomotion);
+        }
+    }
 }
 
 void PlayerParkourWall::Enter(PlayerControllerComponent* controller)
@@ -1820,6 +1892,11 @@ void PlayerParkourWall::Enter(PlayerControllerComponent* controller)
     if (auto* motor{ controller->GetMovement() })
     {
         motor->DetectFlankingWall(m_wallNormal, m_wallSide);
+    }
+
+    if (auto* vcam{ OrbitCameraDriverComponent::GetActiveVirtualCamera() })
+    {
+        vcam->SetTargetProfile(CameraProfileType::wall_run, m_wallSide);
     }
 
     auto& bb{ controller->getAnimBlackboard() };
@@ -1926,6 +2003,11 @@ void PlayerParkourWall::Update(PlayerControllerComponent* controller, float dt)
 
 void PlayerParkourWall::Exit(PlayerControllerComponent* controller)
 {
+    if (auto* vcam{ OrbitCameraDriverComponent::GetActiveVirtualCamera() })
+    {
+        vcam->SetTargetProfile(CameraProfileType::locomotion);
+    }
+
     if (auto* motor{ controller->GetMovement() })
     {
         motor->GetConfig().useGravity = m_wasGravityEnabled;
@@ -1943,6 +2025,11 @@ void PlayerDashEvade::Enter(PlayerControllerComponent* controller)
 
     m_dashDir = FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection);
     FacingResolver::SnapFaceDirection(controller->GetOwner(), m_dashDir);
+
+    if (auto* vcam{ OrbitCameraDriverComponent::GetActiveVirtualCamera() })
+    {
+        vcam->SetTargetProfile(CameraProfileType::dash);
+    }
 
     auto* anim{ controller->GetAnimation() };
     auto* motor{ controller->GetMovement() };
@@ -2112,6 +2199,14 @@ void PlayerDashEvade::Update(PlayerControllerComponent* controller, float dt)
 
 void PlayerDashEvade::Exit(PlayerControllerComponent* controller)
 {
+    if (auto* vcam{ OrbitCameraDriverComponent::GetActiveVirtualCamera() })
+    {
+        if (vcam->GetTargetProfile() == CameraProfileType::dash)
+        {
+            vcam->SetTargetProfile(CameraProfileType::locomotion);
+        }
+    }
+
     if (auto* motor{ controller->GetMovement() })
     {
         motor->ClearKinematicOverride();
@@ -2121,6 +2216,12 @@ void PlayerDashEvade::Exit(PlayerControllerComponent* controller)
 // COMBAT (GROUND)
 void PlayerAttackPrimary::Enter(PlayerControllerComponent* controller)
 {
+    // Ensure camera reverts to neutral combat framing for ground attack combos
+    if (auto* vcam{ OrbitCameraDriverComponent::GetActiveVirtualCamera() })
+    {
+        vcam->SetTargetProfile(CameraProfileType::locomotion);
+    }
+
     auto& blackboard{ controller->getAnimBlackboard() };
 
     // Advance the macro-track on every new state entry to keep visuals fresh (0 -> 1 -> 2)
@@ -2326,6 +2427,12 @@ void PlayerAttackPrimary::Exit(PlayerControllerComponent* controller)
 // Placeholders for Expanded Combat
 void PlayerAttackContextual::Enter(PlayerControllerComponent* controller)
 {
+    // Ensure camera pulls back from sprint zoom into standard combat framing
+    if (auto* vcam{ OrbitCameraDriverComponent::GetActiveVirtualCamera() })
+    {
+        vcam->SetTargetProfile(CameraProfileType::locomotion);
+    }
+
     auto& blackboard{ controller->getAnimBlackboard() };
     blackboard.setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
 

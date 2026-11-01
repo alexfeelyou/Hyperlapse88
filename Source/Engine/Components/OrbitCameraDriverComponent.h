@@ -33,6 +33,9 @@ public:
     // Allows gameplay systems to check if the UI currently owns the mouse
     [[nodiscard]] static bool IsMouseCaptured() noexcept;
 
+    // Provides access to the active gameplay Virtual Camera for profile injection
+    [[nodiscard]] static class VirtualCameraComponent* GetActiveVirtualCamera() noexcept;
+
     [[nodiscard]] const char* GetTypeName() const noexcept override { return "OrbitCameraDriverComponent"; }
 
 private:

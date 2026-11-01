@@ -44,6 +44,11 @@ bool OrbitCameraDriverComponent::IsMouseCaptured() noexcept
     return s_activeInstance ? s_activeInstance->m_isCaptured : false;
 }
 
+VirtualCameraComponent* OrbitCameraDriverComponent::GetActiveVirtualCamera() noexcept
+{
+    return s_activeInstance ? s_activeInstance->m_orbitCamera : nullptr;
+}
+
 void OrbitCameraDriverComponent::Update(float dt)
 {
     // Fast fail outside Play: reset capture state so it automatically captures next time we hit Play.
