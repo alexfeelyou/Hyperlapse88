@@ -5,6 +5,7 @@
 #include "System/PhysicsManager.h"
 #include "System/ShapeRenderer.h"
 #include "AIControllerComponent.h"
+#include "AnimationComponent.h"
 #include "CapsuleColliderComponent.h"
 #include "CharacterMovementComponent.h"
 #include "CombatDirector.h"
@@ -23,6 +24,41 @@ namespace
         if (!go) return { 0.0f, 0.0f, 0.0f };
         const DirectX::XMFLOAT4X4 wMat{ go->transform.GetWorldMatrix() };
         return { wMat._41, wMat._42, wMat._43 };
+    }
+
+    // 4-quadrant relative impact direction 
+    // Returns Node Index: 0 = Front, 1 = Back, 2 = Left, 3 = Right
+    [[nodiscard]] std::uint8_t CalculateHitDirectionIndex(const GameObject* victim, const DirectX::XMFLOAT3& attackerPos) noexcept
+    {
+        if (!victim) return 0;
+
+        const DirectX::XMFLOAT3 victimPos{ GetWorldPosition(victim) };
+        const float dx{ attackerPos.x - victimPos.x };
+        const float dz{ attackerPos.z - victimPos.z };
+        const float distSq{ (dx * dx) + (dz * dz) };
+        if (distSq < 0.0001f) return 0;
+
+        const float invDist{ 1.0f / std::sqrt(distSq) };
+        const float toAttackerX{ dx * invDist };
+        const float toAttackerZ{ dz * invDist };
+
+        const float yawRad{ DirectX::XMConvertToRadians(victim->transform.rotation.y) };
+        const float fwdX{ std::sin(yawRad) };
+        const float fwdZ{ std::cos(yawRad) };
+        const float rightX{ fwdZ };
+        const float rightZ{ -fwdX };
+
+        const float fwdDot{ (toAttackerX * fwdX) + (toAttackerZ * fwdZ) };
+        const float rightDot{ (toAttackerX * rightX) + (toAttackerZ * rightZ) };
+
+        if (std::abs(fwdDot) >= std::abs(rightDot))
+        {
+            return (fwdDot >= 0.0f) ? 0 : 1; // 0 = Front, 1 = Back
+        }
+        else
+        {
+            return (rightDot >= 0.0f) ? 3 : 2; // 2 = Left, 3 = Right
+        }
     }
 }
 
@@ -49,6 +85,11 @@ void AIControllerComponent::OnAttach(GameObject* owner) noexcept
         }
         m_movement = m_owner->GetComponent<CharacterMovementComponent>();
         m_health = m_owner->GetComponent<HealthComponent>();
+        m_animation = m_owner->GetComponent<AnimationComponent>();
+        if (m_animation)
+        {
+            m_animation->SetBlackboard(&m_animBlackboard);
+        }
 
         // Cache initial spawn position in world coordinates for leash and wander constraints
         m_blackboard.spawnPosition = GetWorldPosition(m_owner);
@@ -91,6 +132,14 @@ void AIControllerComponent::OnEnable() noexcept
         if (m_capsule)
         {
             m_capsule->SetCollisionLayer(CollisionLayer::Enemy, CollisionLayer::Mask::Enemy);
+        }
+        if (!m_animation)
+        {
+            m_animation = m_owner->GetComponent<AnimationComponent>();
+        }
+        if (m_animation)
+        {
+            m_animation->SetBlackboard(&m_animBlackboard);
         }
     }
 }
@@ -224,6 +273,15 @@ void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
             m_movement->HaltMomentum(1.0f);
             m_movement->GetConfig().useGravity = true;
         }
+        if (m_animation)
+        {
+            m_animation->PlaySlot(Engine::Animation::AnimSlot::Landing, true);
+            const float animDuration{ m_animation->GetSlotDuration(Engine::Animation::AnimSlot::Landing) };
+            if (animDuration > 0.05f)
+            {
+                m_config.wallLandDuration = animDuration;
+            }
+        }
         // Re-Anchor: Relocate spawn & combat territory anchor to the landed floor coordinates
         m_blackboard.spawnPosition = GetWorldPosition(m_owner);
         m_blackboard.wanderDestination = m_blackboard.spawnPosition;
@@ -234,6 +292,10 @@ void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
         break;
 
     case EnemyState::ambush_burst:
+        if (m_animation)
+        {
+            m_animation->PlaySlot(Engine::Animation::AnimSlot::Attack_Contextual, true);
+        }
         if (m_movement && m_blackboard.target)
         {
             // Inject high-speed burst impulse directly toward target in world space
@@ -259,23 +321,74 @@ void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
 
     case EnemyState::airborne_juggle:
         StopMovement();
-        if (m_movement)
-        {
-            m_movement->SetGravityScale(1.0f);
-        }
         if (m_capsule)
         {
             // Temporarily ignore player capsule collisions so aerial attacks don't jitter against victim
             m_capsule->SetCollisionLayer(CollisionLayer::Enemy, CollisionLayer::Mask::Enemy & ~CollisionLayer::Player);
         }
-        m_jugglePhase = JugglePhase::None;
-        m_juggleHoldTimer = 0.0f;
         break;
 
     case EnemyState::idle:
+    case EnemyState::patrol:
+    case EnemyState::chase:
+        if (m_currentState == EnemyState::idle)
+        {
+            StopMovement();
+        }
+        if (m_animation)
+        {
+            m_animation->PlaySlot(Engine::Animation::AnimSlot::Locomotion);
+        }
+        break;
+
     case EnemyState::attack_windup:
+        StopMovement();
+        break;
+
     case EnemyState::attack_active:
+        StopMovement();
+        if (m_animation)
+        {
+            m_animation->PlaySlot(Engine::Animation::AnimSlot::Attack_Primary, true);
+            const float animDuration{ m_animation->GetSlotDuration(Engine::Animation::AnimSlot::Attack_Primary) };
+            if (animDuration > 0.05f)
+            {
+                m_config.attackActiveDuration = animDuration;
+            }
+        }
+        break;
+
     case EnemyState::hit_react:
+        StopMovement();
+        if (m_movement)
+        {
+            m_movement->HaltMomentum(1.0f);
+            m_movement->GetConfig().useGravity = true;
+        }
+        if (m_animation)
+        {
+            m_animBlackboard.actionIndex = static_cast<int>(m_hitDirectionIndex);
+            m_animation->PlaySlot(Engine::Animation::AnimSlot::HitReact, true, static_cast<int>(m_hitDirectionIndex));
+            const float animDuration{ m_animation->GetSlotDuration(Engine::Animation::AnimSlot::HitReact) };
+            if (animDuration > 0.05f)
+            {
+                m_config.hitReactDuration = animDuration;
+            }
+        }
+        // Frontal stagger faces attacker; back and lateral hits preserve orientation so flinches do not flip 180 degrees
+        if (m_hitDirectionIndex == 0 && m_blackboard.target)
+        {
+            const DirectX::XMFLOAT3 currentPos{ GetWorldPosition(m_owner) };
+            const DirectX::XMFLOAT3 targetPos{ GetWorldPosition(m_blackboard.target) };
+            const float dx{ targetPos.x - currentPos.x };
+            const float dz{ targetPos.z - currentPos.z };
+            if ((dx * dx) + (dz * dz) > 0.01f)
+            {
+                m_owner->transform.rotation.y = DirectX::XMConvertToDegrees(std::atan2(dx, dz));
+            }
+        }
+        break;
+
     case EnemyState::dead:
         StopMovement();
         break;
@@ -420,6 +533,9 @@ void AIControllerComponent::SteerTowards(const DirectX::XMFLOAT3& targetWorldPos
     // Arrival threshold: once within 40cm of the designated slot, settle into slot
     constexpr float arrivalThresholdSq{ 0.40f * 0.40f };
 
+    float targetYawDeg{ m_owner->transform.rotation.y };
+    bool hasTargetYaw{ false };
+
     if (lenSq > arrivalThresholdSq)
     {
         const float invLen{ 1.0f / std::sqrt(lenSq) };
@@ -497,6 +613,10 @@ void AIControllerComponent::SteerTowards(const DirectX::XMFLOAT3& targetWorldPos
 
         // Drive kinematic motor in world space (strafing occurs naturally when facing differs from normDir)
         m_movement->SetDesiredDirection({ normDir.x, normDir.z });
+
+        // Active locomotion to slot: body faces the actual travel heading
+        targetYawDeg = DirectX::XMConvertToDegrees(std::atan2(normDir.x, normDir.z));
+        hasTargetYaw = true;
     }
     else
     {
@@ -529,29 +649,18 @@ void AIControllerComponent::SteerTowards(const DirectX::XMFLOAT3& targetWorldPos
         {
             StopMovement();
         }
-    }
 
-    // Determine facing direction:
-    // When lookAtWorldPos is provided, face the combat target at all times.
-    float targetYawDeg{ m_owner->transform.rotation.y };
-    bool hasTargetYaw{ false };
-
-    if (lookAtWorldPos)
-    {
-        const float dxLook{ lookAtWorldPos->x - currentPos.x };
-        const float dzLook{ lookAtWorldPos->z - currentPos.z };
-        if ((dxLook * dxLook) + (dzLook * dzLook) > 0.01f)
+        // Settled in slot: orient body to face combat target
+        if (lookAtWorldPos)
         {
-            targetYawDeg = DirectX::XMConvertToDegrees(std::atan2(dxLook, dzLook));
-            hasTargetYaw = true;
+            const float dxLook{ lookAtWorldPos->x - currentPos.x };
+            const float dzLook{ lookAtWorldPos->z - currentPos.z };
+            if ((dxLook * dxLook) + (dzLook * dzLook) > 0.01f)
+            {
+                targetYawDeg = DirectX::XMConvertToDegrees(std::atan2(dxLook, dzLook));
+                hasTargetYaw = true;
+            }
         }
-    }
-    else if (lenSq > arrivalThresholdSq)
-    {
-        DirectX::XMFLOAT3 dirNorm{};
-        DirectX::XMStoreFloat3(&dirNorm, DirectX::XMVector3Normalize(vDir));
-        targetYawDeg = DirectX::XMConvertToDegrees(std::atan2(dirNorm.x, dirNorm.z));
-        hasTargetYaw = true;
     }
 
     if (hasTargetYaw)
@@ -585,12 +694,57 @@ void AIControllerComponent::NotifyHitReaction() noexcept
         ChangeState(EnemyState::dead);
         return;
     }
+
     // If airborne, maintain juggle instead of snapping to grounded hit_react
     if (m_currentState == EnemyState::airborne_juggle)
     {
         NotifyAirJuggle(0.06f);
         return;
     }
+
+    if (!m_blackboard.target)
+    {
+        AcquirePlayerTarget();
+    }
+    const DirectX::XMFLOAT3 attackerPos{ m_blackboard.target ? GetWorldPosition(m_blackboard.target) : DirectX::XMFLOAT3{ 0.0f, 0.0f, 0.0f } };
+    m_hitDirectionIndex = CalculateHitDirectionIndex(m_owner, attackerPos);
+
+    // Re-trigger stagger and reset cooldowns if already in hit reaction (ensures multi-hit combo responsiveness)
+    if (m_currentState == EnemyState::hit_react)
+    {
+        m_blackboard.stateTimer = 0.0f;
+        StopMovement();
+        if (m_movement)
+        {
+            m_movement->HaltMomentum(1.0f);
+        }
+        if (m_health)
+        {
+            m_health->ResetPoise();
+        }
+        if (m_animation)
+        {
+            m_animBlackboard.actionIndex = static_cast<int>(m_hitDirectionIndex);
+            m_animation->PlaySlot(Engine::Animation::AnimSlot::HitReact, true, static_cast<int>(m_hitDirectionIndex));
+            const float animDuration{ m_animation->GetSlotDuration(Engine::Animation::AnimSlot::HitReact) };
+            if (animDuration > 0.05f)
+            {
+                m_config.hitReactDuration = animDuration;
+            }
+        }
+        if (m_hitDirectionIndex == 0 && m_blackboard.target)
+        {
+            const DirectX::XMFLOAT3 currentPos{ GetWorldPosition(m_owner) };
+            const float dx{ attackerPos.x - currentPos.x };
+            const float dz{ attackerPos.z - currentPos.z };
+            if ((dx * dx) + (dz * dz) > 0.01f)
+            {
+                m_owner->transform.rotation.y = DirectX::XMConvertToDegrees(std::atan2(dx, dz));
+            }
+        }
+        return;
+    }
+
     ChangeState(EnemyState::hit_react);
 }
 
@@ -602,9 +756,20 @@ void AIControllerComponent::NotifyLaunch(const float launchVelocityY) noexcept
         return;
     }
 
-    ChangeState(EnemyState::airborne_juggle);
     m_jugglePhase = JugglePhase::Ascent;
     m_juggleHoldTimer = 0.0f;
+    m_recoveryTimer = 0.0f;
+
+    if (m_currentState != EnemyState::airborne_juggle)
+    {
+        ChangeState(EnemyState::airborne_juggle);
+    }
+
+    if (m_animation)
+    {
+        m_animBlackboard.actionIndex = 0; // Hit_To_Air.FBX
+        m_animation->PlaySlot(Engine::Animation::AnimSlot::AirTraversal, true, 0);
+    }
 
     if (m_movement)
     {
@@ -622,35 +787,61 @@ void AIControllerComponent::NotifyAirJuggle(const float hitStopDuration, const b
         return;
     }
 
+    if (!m_blackboard.target)
+    {
+        AcquirePlayerTarget();
+    }
+    const DirectX::XMFLOAT3 attackerPos{ m_blackboard.target ? GetWorldPosition(m_blackboard.target) : DirectX::XMFLOAT3{ 0.0f, 0.0f, 0.0f } };
+    const std::uint8_t hitDir{ CalculateHitDirectionIndex(m_owner, attackerPos) };
+
     if (m_currentState != EnemyState::airborne_juggle)
     {
+        m_jugglePhase = isFinisher ? JugglePhase::FinisherDrop : JugglePhase::FloatHold;
         ChangeState(EnemyState::airborne_juggle);
-    }
-
-    m_jugglePhase = JugglePhase::FloatHold;
-
-    if (m_movement)
-    {
-        // Complete Zero-G Lock: eliminate all vertical drop during air combos
-        m_movement->SetVerticalVelocity(0.0f);
-        m_movement->HaltMomentum(1.0f);
-        m_movement->SetGravityScale(0.0f);
     }
 
     if (isFinisher)
     {
-        // Finisher Hit: hold Zero-G for the exact remaining duration of the player's follow-through animation
+        m_jugglePhase = JugglePhase::FinisherDrop;
         m_juggleHoldTimer = finisherFollowThrough;
+
+        // Finisher Hit: Play Hit_Air_To_Floor_Start (Node 5 of AirTraversal)
+        if (m_animation)
+        {
+            m_animBlackboard.actionIndex = 5;
+            m_animation->PlaySlot(Engine::Animation::AnimSlot::AirTraversal, true, 5);
+            m_animation->ApplyHitStop(hitStopDuration);
+        }
+
+        if (m_movement)
+        {
+            m_movement->SetVerticalVelocity(0.0f);
+            m_movement->HaltMomentum(1.0f);
+            m_movement->SetGravityScale(0.0f);
+        }
     }
     else
     {
-        // Intermediate Hit: maintain Zero-G float window (0.85s) waiting for the next combo chain
+        m_jugglePhase = JugglePhase::FloatHold;
         m_juggleHoldTimer = 0.85f;
-    }
 
-    if (auto* anim{ m_owner ? m_owner->GetComponent<AnimationComponent>() : nullptr })
-    {
-        anim->ApplyHitStop(hitStopDuration);
+        // Directional Air Hit: Node 1: Hit_Air_F, Node 2: Hit_Air_B, Node 3: Hit_Air_L, Node 4: Hit_Air_R
+        const int airHitNode{ 1 + static_cast<int>(hitDir) };
+
+        if (m_animation)
+        {
+            m_animBlackboard.actionIndex = airHitNode;
+            m_animation->PlaySlot(Engine::Animation::AnimSlot::AirTraversal, true, airHitNode);
+            m_animation->ApplyHitStop(hitStopDuration);
+        }
+
+        if (m_movement)
+        {
+            // Complete Zero-G Lock: eliminate all vertical drop during air combos
+            m_movement->SetVerticalVelocity(0.0f);
+            m_movement->HaltMomentum(1.0f);
+            m_movement->SetGravityScale(0.0f);
+        }
     }
 }
 
@@ -662,16 +853,19 @@ void AIControllerComponent::NotifySpike(const float downwardVelocityY) noexcept
         return;
     }
 
+    m_jugglePhase = JugglePhase::FinisherDrop;
+    m_juggleHoldTimer = 0.0f; // Immediately drop
+
     if (m_currentState != EnemyState::airborne_juggle)
     {
         ChangeState(EnemyState::airborne_juggle);
     }
 
-    // Cancel any pending ascent / Zero-G hold so TickAirborneJuggle cannot overwrite
-    // the spike's downward velocity with 0 on the next frame.
-    // FloatHold + timer 0 means "gravity only, do not touch vertical velocity".
-    m_jugglePhase = JugglePhase::FloatHold;
-    m_juggleHoldTimer = 0.0f;
+    if (m_animation)
+    {
+        m_animBlackboard.actionIndex = 5; // Hit_Air_To_Floor_Start
+        m_animation->PlaySlot(Engine::Animation::AnimSlot::AirTraversal, true, 5);
+    }
 
     if (m_movement)
     {
@@ -681,58 +875,188 @@ void AIControllerComponent::NotifySpike(const float downwardVelocityY) noexcept
     }
 }
 
-void AIControllerComponent::TickAirborneJuggle(const float dt) noexcept
+void AIControllerComponent::NotifyPlungeSlam() noexcept
 {
-    StopMovement();
-
-    if (!m_movement || !m_capsule) return;
-
-    // Advance the state clock; it was never ticked here, so the 0.2s landing grace could never elapse
-    m_blackboard.stateTimer += dt;
-
-    // A live Zero-G hold window means the enemy is deliberately pinned in the air; never read it as a landing
-    const bool isHoldWindowActive{ m_jugglePhase == JugglePhase::FloatHold && m_juggleHoldTimer > 0.0f };
-
-    // Detect impact with level floor to recover (only once falling or landing)
-    if (!isHoldWindowActive && m_capsule->IsGrounded() && m_movement->GetVerticalVelocity() <= 0.05f && m_blackboard.stateTimer > 0.2f)
+    if (m_currentState == EnemyState::dead || (m_health && m_health->IsDead()))
     {
-        // Re-acquire the player: force a perception refresh on the next Update so recovery
-        // starts from fresh line-of-sight and distance data instead of pre-juggle values
-        m_blackboard.perceptionTimer = m_config.perceptionInterval;
-        ChangeState(EnemyState::hit_react);
+        ChangeState(EnemyState::dead);
         return;
     }
 
-    if (m_jugglePhase == JugglePhase::Ascent)
+    m_jugglePhase = JugglePhase::PlungeImpact;
+    m_juggleHoldTimer = 0.0f;
+
+    if (m_currentState != EnemyState::airborne_juggle)
     {
+        ChangeState(EnemyState::airborne_juggle);
+    }
+
+    StopMovement();
+    if (m_movement)
+    {
+        m_movement->HaltMomentum(1.0f);
+        m_movement->SetVerticalVelocity(0.0f);
+        m_movement->SetGravityScale(1.0f);
+    }
+
+    // Play Target (Node 2 of Landing)
+    if (m_animation)
+    {
+        m_animBlackboard.actionIndex = 2;
+        m_animation->PlaySlot(Engine::Animation::AnimSlot::Landing, true, 2);
+        m_recoveryTimer = m_animation->GetSlotDuration(Engine::Animation::AnimSlot::Landing);
+        if (m_recoveryTimer <= 0.05f)
+        {
+            m_recoveryTimer = 0.8f;
+        }
+    }
+}
+
+void AIControllerComponent::TickAirborneJuggle(const float dt) noexcept
+{
+    StopMovement();
+    if (!m_movement || !m_capsule) return;
+
+    m_blackboard.stateTimer += dt;
+
+    switch (m_jugglePhase)
+    {
+    case JugglePhase::Ascent:
         // Transition to Apex Float: as soon as upward launch velocity crosses zero
         if (m_movement->GetVerticalVelocity() <= 0.1f)
         {
             m_jugglePhase = JugglePhase::FloatHold;
             m_movement->SetVerticalVelocity(0.0f);
-            m_movement->SetGravityScale(0.0f); // Completely freeze gravity at apex
-            m_juggleHoldTimer = 0.85f; // Wait up to 0.85s for player's follow-up attack
+            m_movement->SetGravityScale(0.0f); // Freeze gravity at apex
+            m_juggleHoldTimer = 0.85f;          // Wait up to 0.85s for player's air combo
+
+            if (m_animation)
+            {
+                m_animBlackboard.actionIndex = 1; // Settle into Hit_Air_F
+                m_animation->PlaySlot(Engine::Animation::AnimSlot::AirTraversal, true, 1);
+            }
         }
-    }
-    else if (m_jugglePhase == JugglePhase::FloatHold)
-    {
+        break;
+
+    case JugglePhase::FloatHold:
         if (m_juggleHoldTimer > 0.0f)
         {
             m_juggleHoldTimer -= dt;
             m_movement->SetVerticalVelocity(0.0f);
-            m_movement->SetGravityScale(0.0f); // Maintain Zero-G lock
+            m_movement->SetGravityScale(0.0f);
 
-            // Hold window expired (player stopped attacking or finisher follow-through concluded): restore gravity
+            // Hold window expired (player stopped attacking): fall to floor
+            if (m_juggleHoldTimer <= 0.0f)
+            {
+                m_jugglePhase = JugglePhase::FallLoop;
+                m_movement->SetGravityScale(1.0f);
+
+                if (m_animation)
+                {
+                    m_animBlackboard.actionIndex = 6; // Hit_Air_To_Floor_Loop
+                    m_animation->PlaySlot(Engine::Animation::AnimSlot::AirTraversal, true, 6);
+                }
+            }
+        }
+        break;
+
+    case JugglePhase::FinisherDrop:
+        if (m_juggleHoldTimer > 0.0f)
+        {
+            m_juggleHoldTimer -= dt;
+            m_movement->SetVerticalVelocity(0.0f);
+            m_movement->SetGravityScale(0.0f);
+
             if (m_juggleHoldTimer <= 0.0f)
             {
                 m_movement->SetGravityScale(1.0f);
+                m_movement->SetVerticalVelocity(-18.0f); // Downward slam impulse
+
+                if (m_animation)
+                {
+                    m_animBlackboard.actionIndex = 6; // Hit_Air_To_Floor_Loop
+                    m_animation->PlaySlot(Engine::Animation::AnimSlot::AirTraversal, true, 6);
+                }
             }
         }
         else
         {
-            // Drop under standard gravity in perfect unison with the player
-            m_movement->SetGravityScale(1.0f);
+            // Detect floor impact from finisher drop
+            if (m_capsule->IsGrounded() && m_movement->GetVerticalVelocity() <= 0.05f)
+            {
+                m_jugglePhase = JugglePhase::ImpactLand;
+                m_movement->HaltMomentum(1.0f);
+                m_movement->SetVerticalVelocity(0.0f);
+
+                if (m_animation)
+                {
+                    m_animBlackboard.actionIndex = 0; // Hit_Air_To_Floor_End.FBX
+                    m_animation->PlaySlot(Engine::Animation::AnimSlot::Landing, true, 0);
+                    m_recoveryTimer = m_animation->GetSlotDuration(Engine::Animation::AnimSlot::Landing);
+                    if (m_recoveryTimer <= 0.05f) m_recoveryTimer = 0.6f;
+                }
+            }
         }
+        break;
+
+    case JugglePhase::FallLoop:
+        m_movement->SetGravityScale(1.0f);
+        if (m_capsule->IsGrounded() && m_movement->GetVerticalVelocity() <= 0.05f)
+        {
+            m_jugglePhase = JugglePhase::ImpactLand;
+            m_movement->HaltMomentum(1.0f);
+            m_movement->SetVerticalVelocity(0.0f);
+
+            if (m_animation)
+            {
+                m_animBlackboard.actionIndex = 0; // Hit_Air_To_Floor_End
+                m_animation->PlaySlot(Engine::Animation::AnimSlot::Landing, true, 0);
+                m_recoveryTimer = m_animation->GetSlotDuration(Engine::Animation::AnimSlot::Landing);
+                if (m_recoveryTimer <= 0.05f) m_recoveryTimer = 0.6f;
+            }
+        }
+        break;
+
+    case JugglePhase::ImpactLand:
+    case JugglePhase::PlungeImpact:
+        m_movement->HaltMomentum(1.0f);
+        m_movement->SetVerticalVelocity(0.0f);
+        m_recoveryTimer -= dt;
+
+        // Floor laying animation concluded: transition to standing recovery pose
+        if (m_recoveryTimer <= 0.0f || (m_animation && m_animation->GetCurrentPhase() >= 0.99f))
+        {
+            m_jugglePhase = JugglePhase::GetUp;
+            if (m_animation)
+            {
+                m_animBlackboard.actionIndex = 1; // Get_up.FBX
+                m_animation->PlaySlot(Engine::Animation::AnimSlot::Landing, true, 1);
+                m_recoveryTimer = m_animation->GetSlotDuration(Engine::Animation::AnimSlot::Landing);
+                if (m_recoveryTimer <= 0.05f) m_recoveryTimer = 1.0f;
+            }
+        }
+        break;
+
+    case JugglePhase::GetUp:
+        m_movement->HaltMomentum(1.0f);
+        m_movement->SetVerticalVelocity(0.0f);
+        m_recoveryTimer -= dt;
+
+        // Get_up concluded: recovery complete, re-engage combat pursuit
+        if (m_recoveryTimer <= 0.0f || (m_animation && m_animation->GetCurrentPhase() >= 0.99f))
+        {
+            m_jugglePhase = JugglePhase::None;
+            if (m_health)
+            {
+                m_health->ResetPoise();
+            }
+            m_blackboard.perceptionTimer = m_config.perceptionInterval;
+            ChangeState(EnemyState::chase);
+        }
+        break;
+
+    default:
+        break;
     }
 }
 
@@ -848,6 +1172,23 @@ void AIControllerComponent::TickGrunt(const float dt) noexcept
     case EnemyState::attack_windup:
         m_blackboard.stateTimer += dt;
         StopMovement();
+        if (m_blackboard.target)
+        {
+            // Smoothly track target during windup so attack aligns cleanly to player
+            const DirectX::XMFLOAT3 currentPos{ GetWorldPosition(m_owner) };
+            const DirectX::XMFLOAT3 targetPos{ GetWorldPosition(m_blackboard.target) };
+            const float dx{ targetPos.x - currentPos.x };
+            const float dz{ targetPos.z - currentPos.z };
+            if ((dx * dx) + (dz * dz) > 0.01f)
+            {
+                const float targetYawDeg{ DirectX::XMConvertToDegrees(std::atan2(dx, dz)) };
+                float deltaYaw{ targetYawDeg - m_owner->transform.rotation.y };
+                while (deltaYaw > 180.0f) deltaYaw -= 360.0f;
+                while (deltaYaw < -180.0f) deltaYaw += 360.0f;
+                const float maxStep{ m_config.turnSpeedDeg * dt };
+                m_owner->transform.rotation.y += std::clamp(deltaYaw, -maxStep, maxStep);
+            }
+        }
         if (m_blackboard.stateTimer >= m_config.attackWindupDuration)
         {
             ChangeState(EnemyState::attack_active);
@@ -1045,39 +1386,121 @@ void AIControllerComponent::TickWallLurker(const float dt) noexcept
             playerVel = playerMotor->GetTotalVelocity();
         }
 
-        const float pSpeedXZ{ std::sqrt((playerVel.x * playerVel.x) + (playerVel.z * playerVel.z)) };
         const float dxToLedge{ dropLedgePos.x - playerPos.x };
         const float dzToLedge{ dropLedgePos.z - playerPos.z };
         const float horizDistSq{ (dxToLedge * dxToLedge) + (dzToLedge * dzToLedge) };
         const float horizDist{ std::sqrt(horizDistSq) };
 
-        // Calculate player approach velocity towards the drop ledge footprint
-        float vApproach{ 0.0f };
-        if (horizDist > 0.001f && pSpeedXZ > 0.01f)
+        // Point-blank fallback: if player is directly underneath the drop ledge footprint, trigger immediately
+        const bool isPointBlank{ horizDist <= m_config.wallDropTriggerRadius };
+
+        if (!isPointBlank)
         {
-            const float toLedgeX{ dxToLedge / horizDist };
-            const float toLedgeZ{ dzToLedge / horizDist };
-            vApproach = (playerVel.x * toLedgeX) + (playerVel.z * toLedgeZ);
+            // Ambient Combat Suppression. Discard trigger if player is still fighting previous enemies nearby
+            bool isNearbyCombatActive{ false };
+            for (const auto* otherEnemy : CombatDirector::Instance().GetEnemies())
+            {
+                if (!otherEnemy || otherEnemy == this || !otherEnemy->GetOwner()) continue;
+                const EnemyState otherSt{ otherEnemy->GetCurrentState() };
+                if (otherSt == EnemyState::chase || otherSt == EnemyState::attack_windup ||
+                    otherSt == EnemyState::attack_active || otherSt == EnemyState::hit_react ||
+                    otherSt == EnemyState::airborne_juggle)
+                {
+                    const DirectX::XMFLOAT3 otherPos{ GetWorldPosition(otherEnemy->GetOwner()) };
+                    const float odx{ otherPos.x - playerPos.x };
+                    const float odz{ otherPos.z - playerPos.z };
+                    if ((odx * odx) + (odz * odz) < (12.0f * 12.0f))
+                    {
+                        isNearbyCombatActive = true;
+                        break;
+                    }
+                }
+            }
+            if (isNearbyCombatActive)
+            {
+                break;
+            }
+
+            // Player Melee Action Suppression. Prevent premature drops caused by attack lunges
+            const auto* playerCtrl{ m_blackboard.target->GetComponent<PlayerControllerComponent>() };
+            if (!playerCtrl) break;
+
+            const auto& intent{ playerCtrl->GetIntent() };
+            const bool isPlayerAttacking{ intent.bAttackPressed || intent.bAttackHeld ||
+                                         intent.bHeavyAttackPressed || intent.bHeavyAttackHeld ||
+                                         intent.bSkillTriggered };
+            if (isPlayerAttacking)
+            {
+                break;
+            }
+
+            // Intent Alignment. Verify that player analog movement is aimed within ~45 deg of corridor drop point
+            const float inputLenSq{ (intent.worldMoveDirection.x * intent.worldMoveDirection.x) +
+                                    (intent.worldMoveDirection.y * intent.worldMoveDirection.y) };
+            if (inputLenSq < 0.15f)
+            {
+                break;
+            }
+
+            const float invHorizDist{ (horizDist > 0.001f) ? (1.0f / horizDist) : 0.0f };
+            const float toLedgeNormX{ dxToLedge * invHorizDist };
+            const float toLedgeNormZ{ dzToLedge * invHorizDist };
+
+            const float invInputLen{ 1.0f / std::sqrt(inputLenSq) };
+            const float inputDirX{ intent.worldMoveDirection.x * invInputLen };
+            const float inputDirZ{ intent.worldMoveDirection.y * invInputLen };
+            const float alignmentDot{ (inputDirX * toLedgeNormX) + (inputDirZ * toLedgeNormZ) };
+
+            if (alignmentDot < 0.70f)
+            {
+                break;
+            }
+
+            // Dynamic Intercept Distance. Scale lead distance directly with intended locomotion speed
+            const float baseSpeed{ intent.bSprintHeld
+                ? (playerMotor ? playerMotor->GetConfig().sprintSpeed : 16.0f)
+                : (playerMotor ? playerMotor->GetConfig().maxRunSpeed : 8.0f) };
+            const float vApproach{ baseSpeed * (std::min)(1.0f, std::sqrt(inputLenSq)) * alignmentDot };
+
+            // Ensure enemy lands with a comfortable visual space (~4.5m) in front of the player
+            const float noticeDistanceBuffer{ (std::max)(4.5f, m_config.wallDropTriggerRadius + 1.0f) };
+            const float leadDistance{ vApproach * tTotal };
+            const float triggerDistance{ noticeDistanceBuffer + leadDistance };
+
+            if (horizDist > triggerDistance)
+            {
+                break;
+            }
+
+            // Static Mesh Occlusion. Ensure clear corridor line-of-sight from floor impact point to player
+            if (scene)
+            {
+                const physx::PxVec3 dropFloorOrigin{ dropLedgePos.x, floorY + 1.2f, dropLedgePos.z };
+                const physx::PxVec3 playerChestTarget{ playerPos.x, playerPos.y + 1.2f, playerPos.z };
+                const physx::PxVec3 losDiff{ playerChestTarget - dropFloorOrigin };
+                const float losDist{ losDiff.magnitude() };
+                if (losDist > 0.2f)
+                {
+                    physx::PxRaycastBuffer losHit{};
+                    physx::PxQueryFilterData filterData{};
+                    filterData.data.word0 = CollisionLayer::WorldStatic;
+                    filterData.flags = physx::PxQueryFlag::eSTATIC;
+                    if (scene->raycast(dropFloorOrigin, losDiff / losDist, losDist - 0.20f, losHit, physx::PxHitFlag::eDEFAULT, filterData))
+                    {
+                        break;
+                    }
+                }
+            }
         }
 
-        const float safeApproachSpeed{ (std::max)(0.0f, vApproach) };
-
-        // Dynamic Compound Lead Tripwire: accounts for scramble time and fall time
-        const float dramaticStandoff{ m_config.wallDropTriggerRadius };
-        const float leadDistance{ safeApproachSpeed * tTotal };
-        const float triggerDistance{ dramaticStandoff + leadDistance };
-
-        if (horizDist <= triggerDistance && (safeApproachSpeed > 0.5f || horizDist <= dramaticStandoff))
+        // If the enemy is hiding further back on the roof (>60cm from ledge), scramble first; else drop immediately
+        if (distRoof > 0.6f)
         {
-            // If the enemy is hiding further back on the roof (>60cm from ledge), scramble first; else drop immediately
-            if (distRoof > 0.6f)
-            {
-                ChangeState(EnemyState::wall_scramble);
-            }
-            else
-            {
-                ChangeState(EnemyState::wall_drop);
-            }
+            ChangeState(EnemyState::wall_scramble);
+        }
+        else
+        {
+            ChangeState(EnemyState::wall_drop);
         }
         break;
     }
@@ -1166,6 +1589,15 @@ void AIControllerComponent::Update(const float dt)
     if (!m_owner)
     {
         return;
+    }
+
+    if (!m_animation)
+    {
+        m_animation = m_owner->GetComponent<AnimationComponent>();
+        if (m_animation)
+        {
+            m_animation->SetBlackboard(&m_animBlackboard);
+        }
     }
 
     const EditorMode mode{ EditorManager::Instance().GetEditorMode() };
@@ -1262,10 +1694,19 @@ void AIControllerComponent::Update(const float dt)
             m_blackboard.deaggroCooldownTimer = m_config.deaggroDuration;
         }
     }
-    // 2. Hysteresis Recovery: Clear leashed status once safely inside inner boundary
+    // Hysteresis Recovery: Clear leashed status once safely inside inner boundary
     else if (distFromSpawnSq <= innerLeashSq)
     {
         m_blackboard.setFlag(SensoryFlag::is_leashed, false);
+    }
+
+    // Synchronize kinematic motor velocity with animation blend tree contract
+    if (m_movement)
+    {
+        const DirectX::XMFLOAT3 vel{ m_movement->GetTotalVelocity() };
+        m_animBlackboard.groundSpeed = std::sqrt((vel.x * vel.x) + (vel.z * vel.z));
+        m_animBlackboard.verticalVelocity = vel.y;
+        m_animBlackboard.setFlag(Engine::Animation::AnimFlag::is_grounded, m_movement->isGrounded());
     }
 
     // Amortized perception update
@@ -1699,19 +2140,24 @@ void AIControllerComponent::DrawGizmo(const GizmoContext& ctx) noexcept
         // Base landing impact footprint
         DrawWireCircle(ctx.shapes, { floorPos.x, floorPos.y + 0.05f, floorPos.z }, m_config.wallDropTriggerRadius, dropColor);
 
-        // Calculate lead trigger radius including scramble duration
+        // Calculate total lead time (roof scramble + free-fall drop) for gizmo visualization
         const float dxRoof{ dropLedgePos.x - pos.x };
         const float dzRoof{ dropLedgePos.z - pos.z };
-        const float dRoof{ std::sqrt((dxRoof * dxRoof) + (dzRoof * dzRoof)) };
+        const float distRoof{ std::sqrt((dxRoof * dxRoof) + (dzRoof * dzRoof)) };
         const float scrambleSpeed{ m_movement ? m_movement->GetConfig().maxRunSpeed : 8.0f };
-        const float tScramble{ dRoof / (scrambleSpeed > 0.1f ? scrambleSpeed : 8.0f) };
+        const float tScramble{ distRoof / (scrambleSpeed > 0.1f ? scrambleSpeed : 8.0f) };
 
-        const float h{ (std::max)(1.5f, dropLedgePos.y - floorY) };
-        const float tDrop{ (-10.0f + std::sqrt(100.0f + (2.0f * 9.81f * h))) / 9.81f };
+        const float dropHeight{ (std::max)(1.5f, dropLedgePos.y - floorY) };
+        constexpr float v0y{ 10.0f };
+        constexpr float g{ 9.81f };
+        const float tDrop{ (-v0y + std::sqrt((v0y * v0y) + (2.0f * g * dropHeight))) / g };
         const float tTotal{ tScramble + tDrop };
 
-        const float sprintLeadRadius{ m_config.wallDropTriggerRadius + (16.0f * tTotal) };
-        DrawWireCircle(ctx.shapes, { floorPos.x, floorPos.y + 0.03f, floorPos.z }, sprintLeadRadius, sprintTriggerColor);
+        // Draw dynamic sprint lead horizon matching runtime predictive intercept
+        const float noticeBuffer{ (std::max)(4.5f, m_config.wallDropTriggerRadius + 1.0f) };
+        const float maxSprintTriggerRadius{ noticeBuffer + (16.0f * tTotal) };
+        DrawWireCircle(ctx.shapes, { floorPos.x, floorPos.y + 0.03f, floorPos.z }, noticeBuffer, { 0.2f, 1.0f, 0.4f, 0.85f });
+        DrawWireCircle(ctx.shapes, { floorPos.x, floorPos.y + 0.03f, floorPos.z }, maxSprintTriggerRadius, sprintTriggerColor);
     }
 
     // Sensory Line-of-Sight Ray to Acquired Target

@@ -3038,6 +3038,14 @@ void PlayerAttackAerial::PlayCurrentAttack(PlayerControllerComponent* controller
             }
         }
     }
+
+    // Combo hit 2 is the 3rd and final air hit: flag victim as finisher drop
+    const bool isFinisher{ m_comboIndex == 2 };
+    const DirectX::XMFLOAT3 pPos{ controller->GetOwner()->GetPosition() };
+    if (auto* targetEnemy{ CombatDirector::Instance().FindNearestAirborneEnemy(pPos, 4.0f) })
+    {
+        targetEnemy->NotifyAirJuggle(0.06f, isFinisher, isFinisher ? 0.45f : 0.85f);
+    }
 }
 
 void PlayerAttackAerial::Update(PlayerControllerComponent* controller, float dt)
@@ -3284,6 +3292,12 @@ void PlayerAttackPlunge::Update(PlayerControllerComponent* controller, float dt)
 
             motor->SetFrictionMultiplier(1.0f);
             motor->HaltMomentum(1.0f);
+
+            // Ground impact: slam nearby target into Target knockdown
+            if (auto* targetEnemy{ FindPlungeSoftLockTarget(controller->GetOwner(), m_lungeDirection, 4.0f) })
+            {
+                targetEnemy->NotifyPlungeSlam();
+            }
         }
     }
     else if (m_phase == PlungeSubPhase::End)

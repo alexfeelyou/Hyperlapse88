@@ -3,8 +3,10 @@
 #include <DirectXMath.h>
 #include <json.hpp>
 #include "AIBlackboard.h"
+#include "AnimBlackboard.h"
 #include "IComponent.h"
 
+class AnimationComponent;
 class CapsuleColliderComponent;
 class CharacterMovementComponent;
 class HealthComponent;
@@ -72,11 +74,17 @@ public:
     void NotifyLaunch(float launchVelocityY) noexcept;
     void NotifyAirJuggle(float hitStopDuration, bool isFinisher = false, float finisherFollowThrough = 0.55f) noexcept;
     void NotifySpike(float downwardVelocityY) noexcept;
+    void NotifyPlungeSlam() noexcept;
 
     // State accessors
     [[nodiscard]] EnemyState GetCurrentState() const noexcept { return m_currentState; }
     [[nodiscard]] const AIBlackboard& GetBlackboard() const noexcept { return m_blackboard; }
     [[nodiscard]] AIControllerConfig& GetConfig() noexcept { return m_config; }
+
+    // Animation contract accessors
+    [[nodiscard]] AnimationComponent* GetAnimation() const noexcept { return m_animation; }
+    [[nodiscard]] Engine::Animation::AnimBlackboard& GetAnimBlackboard() noexcept { return m_animBlackboard; }
+    [[nodiscard]] const Engine::Animation::AnimBlackboard& GetAnimBlackboard() const noexcept { return m_animBlackboard; }
 
 private:
     void ChangeState(EnemyState newState) noexcept;
@@ -100,8 +108,13 @@ private:
     enum class JugglePhase : std::uint8_t
     {
         None = 0,
-        Ascent,     // Ballistic ascent under 1.0x natural gravity alongside player
-        FloatHold   // Zero-G lock: floating at eye-level waiting for air combo or finisher recovery
+        Ascent,         // Ballistic ascent under 1.0x natural gravity alongside player (Hit_To_Air)
+        FloatHold,      // Zero-G lock: floating at eye-level waiting for air combo (Hit_Air_F/B/L/R)
+        FallLoop,       // Dropped combo: falling under gravity (Hit_Air_To_Floor_Loop)
+        FinisherDrop,   // Finisher/spike: playing Hit_Air_To_Floor_Start, then dropping
+        ImpactLand,     // Ground impact: lying on floor (Hit_Air_To_Floor_End)
+        PlungeImpact,   // Plunge slam impact: lying on floor (Target)
+        GetUp           // Recovering to feet (Get_up)
     };
 
     AIControllerConfig m_config{};
@@ -109,11 +122,17 @@ private:
     AIBlackboard m_blackboard{};
     JugglePhase m_jugglePhase{ JugglePhase::None };
     float m_juggleHoldTimer{ 0.0f };
+    float m_recoveryTimer{ 0.0f };
+    std::uint8_t m_hitDirectionIndex{ 0 }; // 0: Front, 1: Back, 2: Left, 3: Right
 
     // Sibling component caches
+    AnimationComponent* m_animation{ nullptr };
     CapsuleColliderComponent* m_capsule{ nullptr };
     CharacterMovementComponent* m_movement{ nullptr };
     HealthComponent* m_health{ nullptr };
+
+    // Shared memory contract for skeletal animation evaluator
+    Engine::Animation::AnimBlackboard m_animBlackboard{};
 
     // Initial gravity backup to guarantee proper restoration after wall-lurker drops
     bool m_initialGravity{ true };
