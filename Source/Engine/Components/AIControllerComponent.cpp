@@ -570,88 +570,86 @@ void AIControllerComponent::SteerTowards(const DirectX::XMFLOAT3& targetWorldPos
     }
 
     const DirectX::XMFLOAT3 currentPos{ GetWorldPosition(m_owner) };
-    const DirectX::XMVECTOR vCurrent{ DirectX::XMLoadFloat3(&currentPos) };
-    const DirectX::XMVECTOR vTarget{ DirectX::XMLoadFloat3(&targetWorldPos) };
+    const float toSlotX{ targetWorldPos.x - currentPos.x };
+    const float toSlotZ{ targetWorldPos.z - currentPos.z };
+    const float distSq{ (toSlotX * toSlotX) + (toSlotZ * toSlotZ) };
 
-    DirectX::XMVECTOR vDir{ DirectX::XMVectorSubtract(vTarget, vCurrent) };
-    vDir = DirectX::XMVectorSetY(vDir, 0.0f);
-
-    const DirectX::XMVECTOR vLengthSq{ DirectX::XMVector3LengthSq(vDir) };
-    float lenSq{ 0.0f };
-    DirectX::XMStoreFloat(&lenSq, vLengthSq);
-
-    // Arrival threshold: once within 40cm of the designated slot, settle into slot
-    constexpr float arrivalThresholdSq{ 0.40f * 0.40f };
+    // Arrival Kinematics: Smooth deceleration zone replaces sudden binary threshold
+    constexpr float arrivalRadius{ 0.25f };     // Final deadzone settling distance
+    constexpr float slowdownRadius{ 1.30f };    // Deceleration start horizon
+    constexpr float arrivalRadiusSq{ arrivalRadius * arrivalRadius };
 
     float targetYawDeg{ m_owner->transform.rotation.y };
     bool hasTargetYaw{ false };
 
-    if (lenSq > arrivalThresholdSq)
+    if (distSq > arrivalRadiusSq)
     {
-        const float invLen{ 1.0f / std::sqrt(lenSq) };
-        DirectX::XMFLOAT3 normDir{
-            (targetWorldPos.x - currentPos.x) * invLen,
-            0.0f,
-            (targetWorldPos.z - currentPos.z) * invLen
-        };
+        const float distToSlot{ std::sqrt(distSq) };
+        const float invLen{ 1.0f / distToSlot };
+        DirectX::XMFLOAT3 normDir{ toSlotX * invLen, 0.0f, toSlotZ * invLen };
 
-        // Smooth orbital steering: prevent capsule pathing from piercing through player space
+        // Continuous Player Cylinder Avoidance without Tangent Chatter
         if (lookAtWorldPos)
         {
             const float toPlayerX{ lookAtWorldPos->x - currentPos.x };
             const float toPlayerZ{ lookAtWorldPos->z - currentPos.z };
-            const float distToPlayerSq{ (toPlayerX * toPlayerX) + (toPlayerZ * toPlayerZ) };
+            const float fromPlayerX{ currentPos.x - lookAtWorldPos->x };
+            const float fromPlayerZ{ currentPos.z - lookAtWorldPos->z };
+            const float fromPlayerDistSq{ (fromPlayerX * fromPlayerX) + (fromPlayerZ * fromPlayerZ) };
 
-            // Clearance boundary: keeps attackers from pushing inside 1.85m of player center
             constexpr float playerAvoidRadius{ 1.85f };
             constexpr float playerAvoidRadiusSq{ playerAvoidRadius * playerAvoidRadius };
 
-            const float toSlotX{ targetWorldPos.x - currentPos.x };
-            const float toSlotZ{ targetWorldPos.z - currentPos.z };
-            const float projectionT{ ((toPlayerX * toSlotX) + (toPlayerZ * toSlotZ)) / lenSq };
+            // Project player onto the direct navigation segment
+            const float projectionT{ ((toPlayerX * toSlotX) + (toPlayerZ * toSlotZ)) / distSq };
 
-            // Evaluates if the direct navigation vector slices through the player
-            if (projectionT > 0.0f)
+            // Only evaluate avoidance if direct path physically intersects player boundary before reaching slot
+            if (projectionT > 0.0f && projectionT < 1.0f && fromPlayerDistSq > 0.001f)
             {
-                const float clampedT{ (std::min)(projectionT, 1.0f) };
-                const float closestPointX{ currentPos.x + (toSlotX * clampedT) };
-                const float closestPointZ{ currentPos.z + (toSlotZ * clampedT) };
+                const float closestPointX{ currentPos.x + (toSlotX * projectionT) };
+                const float closestPointZ{ currentPos.z + (toSlotZ * projectionT) };
                 const float dToPlayerX{ closestPointX - lookAtWorldPos->x };
                 const float dToPlayerZ{ closestPointZ - lookAtWorldPos->z };
                 const float closestDistSq{ (dToPlayerX * dToPlayerX) + (dToPlayerZ * dToPlayerZ) };
 
-                if (closestDistSq < playerAvoidRadiusSq && distToPlayerSq > 0.001f)
+                if (closestDistSq < playerAvoidRadiusSq)
                 {
-                    const float distToPlayer{ std::sqrt(distToPlayerSq) };
-                    const float radialX{ -toPlayerX / distToPlayer };
-                    const float radialZ{ -toPlayerZ / distToPlayer };
+                    const float fromPlayerDist{ std::sqrt(fromPlayerDistSq) };
+                    const float invFromPlayerDist{ 1.0f / fromPlayerDist };
+                    const float radialX{ fromPlayerX * invFromPlayerDist };
+                    const float radialZ{ fromPlayerZ * invFromPlayerDist };
 
-                    // Perpendicular tangential vectors around player
-                    const float tang1X{ -radialZ };
-                    const float tang1Z{ radialX };
-                    const float tang2X{ radialZ };
-                    const float tang2Z{ -radialX };
+                    // Deterministic 2D Cross Product (P -> E) x (P -> Slot):
+                    // Permanently locks the orbital direction (clockwise vs counter-clockwise) based on slot placement,
+                    // eliminating per-frame dot product sign-flipping.
+                    const float fromPlayerToSlotX{ targetWorldPos.x - lookAtWorldPos->x };
+                    const float fromPlayerToSlotZ{ targetWorldPos.z - lookAtWorldPos->z };
+                    const float crossY{ (fromPlayerX * fromPlayerToSlotZ) - (fromPlayerZ * fromPlayerToSlotX) };
 
-                    // Select the tangent advancing shortest toward the target slot
-                    const float dot1{ (tang1X * toSlotX) + (tang1Z * toSlotZ) };
-                    const float dot2{ (tang2X * toSlotX) + (tang2Z * toSlotZ) };
-                    const float chosenTangX{ (dot1 >= dot2) ? tang1X : tang2X };
-                    const float chosenTangZ{ (dot1 >= dot2) ? tang1Z : tang2Z };
+                    // crossY >= 0 selects CCW tangent (-z, x); crossY < 0 selects CW tangent (z, -x)
+                    const float chosenTangX{ (crossY >= 0.0f) ? -radialZ : radialZ };
+                    const float chosenTangZ{ (crossY >= 0.0f) ? radialX : -radialX };
 
+                    // C1-Continuous Hermite smoothstep avoids step discontinuities at boundary
                     const float closestDist{ std::sqrt(closestDistSq) };
-                    const float avoidBlend{ std::clamp(1.0f - (closestDist / playerAvoidRadius), 0.45f, 1.0f) };
-                    const float radialPush{ (distToPlayer < playerAvoidRadius) ? (1.0f - (distToPlayer / playerAvoidRadius)) : 0.0f };
+                    const float penetration{ std::clamp(1.0f - (closestDist / playerAvoidRadius), 0.0f, 1.0f) };
+                    const float avoidBlend{ penetration * penetration * (3.0f - (2.0f * penetration)) };
 
-                    normDir.x = (normDir.x * (1.0f - avoidBlend)) + (chosenTangX * avoidBlend) + (radialX * radialPush * 0.8f);
-                    normDir.z = (normDir.z * (1.0f - avoidBlend)) + (chosenTangZ * avoidBlend) + (radialZ * radialPush * 0.8f);
+                    const float radialPush{ (fromPlayerDist < playerAvoidRadius)
+                        ? (1.0f - (fromPlayerDist / playerAvoidRadius)) * 0.6f
+                        : 0.0f };
+
+                    normDir.x = (normDir.x * (1.0f - avoidBlend)) + (chosenTangX * avoidBlend) + (radialX * radialPush);
+                    normDir.z = (normDir.z * (1.0f - avoidBlend)) + (chosenTangZ * avoidBlend) + (radialZ * radialPush);
                 }
             }
         }
 
-        // Swarm Boid Anti-Stacking: Blend lateral repulsion away from immediate neighbors
+        // Swarm Boid Anti-Stacking: Scale repulsion weight down as the agent approaches the destination
         const DirectX::XMFLOAT3 repForce{ CombatDirector::Instance().ComputeSeparationForce(this) };
-        normDir.x += repForce.x * 0.75f;
-        normDir.z += repForce.z * 0.75f;
+        const float separationWeight{ std::clamp(distToSlot / slowdownRadius, 0.15f, 0.55f) };
+        normDir.x += repForce.x * separationWeight;
+        normDir.z += repForce.z * separationWeight;
 
         const float finalLenSq{ (normDir.x * normDir.x) + (normDir.z * normDir.z) };
         if (finalLenSq > 0.001f)
@@ -661,46 +659,66 @@ void AIControllerComponent::SteerTowards(const DirectX::XMFLOAT3& targetWorldPos
             normDir.z *= invLenFinal;
         }
 
-        // Drive kinematic motor in world space (strafing occurs naturally when facing differs from normDir)
-        m_movement->SetDesiredDirection({ normDir.x, normDir.z });
+        // Smooth arrival deceleration (100% run speed down to 15% crawl at final contact)
+        const float speedFactor{ std::clamp((distToSlot - arrivalRadius) / (slowdownRadius - arrivalRadius), 0.15f, 1.0f) };
+        const DirectX::XMFLOAT2 targetInput{ normDir.x * speedFactor, normDir.z * speedFactor };
 
-        // Active locomotion to slot: body faces the actual travel heading
-        targetYawDeg = DirectX::XMConvertToDegrees(std::atan2(normDir.x, normDir.z));
+        // Frame-rate independent exponential low-pass filter to guarantee zero lateral vibration
+        constexpr float filterRate{ 16.0f };
+        const float blendFactor{ 1.0f - std::exp(-filterRate * dt) };
+        m_blackboard.moveDirection.x += (targetInput.x - m_blackboard.moveDirection.x) * blendFactor;
+        m_blackboard.moveDirection.y += (targetInput.y - m_blackboard.moveDirection.y) * blendFactor;
+
+        m_movement->SetDesiredDirection(m_blackboard.moveDirection);
+
+        // Body Yaw Transition: Smoothly interpolates from travel direction to player facing upon entering deceleration zone
+        const float travelYawDeg{ DirectX::XMConvertToDegrees(std::atan2(normDir.x, normDir.z)) };
+        if (lookAtWorldPos && distToSlot < slowdownRadius)
+        {
+            const float dxLook{ lookAtWorldPos->x - currentPos.x };
+            const float dzLook{ lookAtWorldPos->z - currentPos.z };
+            if ((dxLook * dxLook) + (dzLook * dzLook) > 0.01f)
+            {
+                const float lookYawDeg{ DirectX::XMConvertToDegrees(std::atan2(dxLook, dzLook)) };
+                const float blendT{ 1.0f - std::clamp((distToSlot - arrivalRadius) / (slowdownRadius - arrivalRadius), 0.0f, 1.0f) };
+
+                float deltaYawLook{ lookYawDeg - travelYawDeg };
+                while (deltaYawLook > 180.0f) deltaYawLook -= 360.0f;
+                while (deltaYawLook < -180.0f) deltaYawLook += 360.0f;
+
+                targetYawDeg = travelYawDeg + (deltaYawLook * blendT);
+            }
+            else
+            {
+                targetYawDeg = travelYawDeg;
+            }
+        }
+        else
+        {
+            targetYawDeg = travelYawDeg;
+        }
         hasTargetYaw = true;
     }
     else
     {
-        // At slot position: check if neighboring enemies crowd the personal bubble or player encroaches
-        const DirectX::XMFLOAT3 repForce{ CombatDirector::Instance().ComputeSeparationForce(this) };
-        float repX{ repForce.x * 0.5f };
-        float repZ{ repForce.z * 0.5f };
+        // Settled inside arrival threshold: decay residual input smoothly to prevent abrupt stopping snap
+        constexpr float decayRate{ 20.0f };
+        const float decayFactor{ 1.0f - std::exp(-decayRate * dt) };
+        m_blackboard.moveDirection.x += (0.0f - m_blackboard.moveDirection.x) * decayFactor;
+        m_blackboard.moveDirection.y += (0.0f - m_blackboard.moveDirection.y) * decayFactor;
 
-        // Gently yield backward if player moves directly into slot occupant
-        if (lookAtWorldPos)
+        if (((m_blackboard.moveDirection.x * m_blackboard.moveDirection.x) +
+            (m_blackboard.moveDirection.y * m_blackboard.moveDirection.y)) < 0.001f)
         {
-            const float dxP{ currentPos.x - lookAtWorldPos->x };
-            const float dzP{ currentPos.z - lookAtWorldPos->z };
-            const float dPlayerSq{ (dxP * dxP) + (dzP * dzP) };
-            constexpr float minPlayerBufferSq{ 1.6f * 1.6f };
-            if (dPlayerSq < minPlayerBufferSq && dPlayerSq > 0.001f)
-            {
-                const float invD{ 1.0f / std::sqrt(dPlayerSq) };
-                repX += dxP * invD * 0.6f;
-                repZ += dzP * invD * 0.6f;
-            }
-        }
-
-        const float repLenSq{ (repX * repX) + (repZ * repZ) };
-        if (repLenSq > 0.01f)
-        {
-            m_movement->SetDesiredDirection({ repX, repZ });
+            m_blackboard.moveDirection = { 0.0f, 0.0f };
+            StopMovement();
         }
         else
         {
-            StopMovement();
+            m_movement->SetDesiredDirection(m_blackboard.moveDirection);
         }
 
-        // Settled in slot: orient body to face combat target
+        // Settled in slot: face combat target continuously
         if (lookAtWorldPos)
         {
             const float dxLook{ lookAtWorldPos->x - currentPos.x };
@@ -730,6 +748,7 @@ void AIControllerComponent::SteerTowards(const DirectX::XMFLOAT3& targetWorldPos
 
 void AIControllerComponent::StopMovement() noexcept
 {
+    m_blackboard.moveDirection = { 0.0f, 0.0f };
     if (m_movement)
     {
         m_movement->SetDesiredDirection({ 0.0f, 0.0f });
