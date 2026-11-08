@@ -3,6 +3,7 @@
 #include "System/PhysicsManager.h"
 #include "System/ShapeRenderer.h"
 #include "CapsuleColliderComponent.h"
+#include "CharacterMovementComponent.h"
 #include "ComponentRegistry.h"
 #include "EditorManager.h"
 #include "GameObject.h"
@@ -94,8 +95,29 @@ physx::PxControllerCollisionFlags CapsuleColliderComponent::Move(const DirectX::
         m_controller->move(pxDisplacement, minStepDistance, dt, filters)
     };
 
-    // Use PhysX's explicit isSet() method to avoid ambiguous implicit conversions
-    m_isGrounded = flags.isSet(physx::PxControllerCollisionFlag::eCOLLISION_DOWN);
+    const bool collisionDown{ flags.isSet(physx::PxControllerCollisionFlag::eCOLLISION_DOWN) };
+    if (collisionDown)
+    {
+        // Enforce Ground Invariant: A character can only be grounded on walkable WorldStatic level geometry.
+        // If collision down was triggered by landing on another character capsule (Player or Enemy),
+        // they are not grounded and must deflect laterally off the head dome.
+        constexpr float groundProbeCushion{ 0.15f };
+        const bool onWorldGround{ HasGroundBelow(m_config.stepOffset + groundProbeCushion) };
+
+        if (onWorldGround)
+        {
+            m_isGrounded = true;
+        }
+        else
+        {
+            m_isGrounded = false;
+            ResolveHeadStackingDeflection(dt);
+        }
+    }
+    else
+    {
+        m_isGrounded = false;
+    }
 
     // Read back solved position directly into GameObject Transform
     const DirectX::XMFLOAT3 footPos{ GetFootPosition() };
@@ -103,6 +125,98 @@ physx::PxControllerCollisionFlags CapsuleColliderComponent::Move(const DirectX::
     m_lastFramePos = footPos;
 
     return flags;
+}
+
+void CapsuleColliderComponent::ResolveHeadStackingDeflection(const float dt) noexcept
+{
+    if (!m_controller || !m_owner) return;
+
+    auto* scene{ PhysicsManager::Instance().GetScene() };
+    if (!scene) return;
+
+    const DirectX::XMFLOAT3 footPos{ GetFootPosition() };
+    const physx::PxExtendedVec3 centerPos{ m_controller->getPosition() };
+
+    // Query for dynamic character shapes beneath the capsule feet
+    const physx::PxSphereGeometry probeSphere{ m_config.radius * 1.1f };
+    const physx::PxTransform probePose{ physx::PxVec3{
+        static_cast<float>(centerPos.x),
+        footPos.y + (m_config.radius * 0.5f),
+        static_cast<float>(centerPos.z)
+    } };
+
+    physx::PxOverlapBufferN<8> overlapBuffer{};
+    physx::PxQueryFilterData filterData{};
+    filterData.flags = physx::PxQueryFlag::eDYNAMIC | physx::PxQueryFlag::eNO_BLOCK;
+
+    float pushX{ 0.0f };
+    float pushZ{ 0.0f };
+    bool foundObstacle{ false };
+
+    const physx::PxActor* myActor{ m_controller->getActor() };
+
+    if (scene->overlap(probeSphere, probePose, overlapBuffer, filterData))
+    {
+        const physx::PxU32 hitCount{ overlapBuffer.getNbAnyHits() };
+        for (physx::PxU32 i{ 0 }; i < hitCount; ++i)
+        {
+            const auto& hit{ overlapBuffer.getAnyHit(i) };
+            if (!hit.actor || hit.actor == myActor) continue;
+
+            void* rawUserData{ hit.actor->userData };
+            if (!rawUserData && hit.shape) rawUserData = hit.shape->userData;
+            if (!rawUserData) continue;
+
+            auto* otherObj{ static_cast<GameObject*>(rawUserData) };
+            if (!otherObj || otherObj == m_owner) continue;
+
+            // Only deflect against other character entities (Player or Enemy capsules)
+            if (!otherObj->GetComponent<CapsuleColliderComponent>() && !otherObj->GetComponent<CharacterMovementComponent>())
+            {
+                continue;
+            }
+
+            const physx::PxVec3 otherPos{ hit.actor->getGlobalPose().p };
+            const float dx{ static_cast<float>(centerPos.x) - otherPos.x };
+            const float dz{ static_cast<float>(centerPos.z) - otherPos.z };
+            const float distSq{ (dx * dx) + (dz * dz) };
+
+            if (distSq > 0.0001f)
+            {
+                const float invDist{ 1.0f / std::sqrt(distSq) };
+                pushX = dx * invDist;
+                pushZ = dz * invDist;
+            }
+            foundObstacle = true;
+            break;
+        }
+    }
+
+    // Fallback: If perfectly aligned with obstacle or query missed, push along character facing or forward
+    if (!foundObstacle || ((pushX * pushX) + (pushZ * pushZ) < 0.001f))
+    {
+        const float yawRad{ DirectX::XMConvertToRadians(m_owner->transform.rotation.y) };
+        pushX = std::sin(yawRad);
+        pushZ = std::cos(yawRad);
+        if ((pushX * pushX) + (pushZ * pushZ) < 0.001f)
+        {
+            pushZ = 1.0f;
+        }
+    }
+
+    constexpr float minStepDistance{ 0.001f };
+    constexpr float lateralSlideSpeed{ 7.0f };
+    const float lateralStep{ lateralSlideSpeed * dt };
+    physx::PxControllerFilters cctFilters{};
+
+    // Immediately displace the kinematic controller laterally to slide off the head dome
+    m_controller->move(physx::PxVec3{ pushX * lateralStep, -0.5f * dt, pushZ * lateralStep }, minStepDistance, dt, cctFilters);
+
+    // Inject lateral momentum into the locomotion motor so the glance carries through smoothly
+    if (auto* motor{ m_owner->GetComponent<CharacterMovementComponent>() })
+    {
+        motor->AddImpulse(DirectX::XMFLOAT3{ pushX * 8.0f, 0.0f, pushZ * 8.0f });
+    }
 }
 
 void CapsuleColliderComponent::Teleport(const DirectX::XMFLOAT3& worldPos) noexcept

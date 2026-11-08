@@ -90,6 +90,7 @@ public:
 private:
     void CreateController() noexcept;
     void DestroyController() noexcept;
+    void ResolveHeadStackingDeflection(float dt) noexcept;
 
     [[nodiscard]] static constexpr bool IsFloatEqual(float a, float b, float epsilon = 0.0001f) noexcept
     {

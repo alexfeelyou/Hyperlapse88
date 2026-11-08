@@ -1057,6 +1057,17 @@ void AIControllerComponent::TickAirborneJuggle(const float dt) noexcept
 
     case JugglePhase::ImpactLand:
     case JugglePhase::PlungeImpact:
+        if (!m_capsule->IsGrounded())
+        {
+            m_jugglePhase = JugglePhase::FallLoop;
+            m_movement->SetGravityScale(1.0f);
+            if (m_animation)
+            {
+                m_animBlackboard.actionIndex = 6; // Hit_Air_To_Floor_Loop
+                m_animation->PlaySlot(Engine::Animation::AnimSlot::AirTraversal, true, 6);
+            }
+            break;
+        }
         m_movement->HaltMomentum(1.0f);
         m_movement->SetVerticalVelocity(0.0f);
         m_recoveryTimer -= dt;
@@ -1076,6 +1087,17 @@ void AIControllerComponent::TickAirborneJuggle(const float dt) noexcept
         break;
 
     case JugglePhase::GetUp:
+        if (!m_capsule->IsGrounded())
+        {
+            m_jugglePhase = JugglePhase::FallLoop;
+            m_movement->SetGravityScale(1.0f);
+            if (m_animation)
+            {
+                m_animBlackboard.actionIndex = 6; // Hit_Air_To_Floor_Loop
+                m_animation->PlaySlot(Engine::Animation::AnimSlot::AirTraversal, true, 6);
+            }
+            break;
+        }
         m_movement->HaltMomentum(1.0f);
         m_movement->SetVerticalVelocity(0.0f);
         m_recoveryTimer -= dt;
@@ -1581,6 +1603,11 @@ void AIControllerComponent::TickWallLurker(const float dt) noexcept
 
     case EnemyState::wall_land:
         StopMovement();
+        if (m_capsule && !m_capsule->IsGrounded())
+        {
+            ChangeState(EnemyState::wall_drop);
+            break;
+        }
         m_blackboard.stateTimer += dt;
 
         // Smoothly orient toward player during landing impact recovery
