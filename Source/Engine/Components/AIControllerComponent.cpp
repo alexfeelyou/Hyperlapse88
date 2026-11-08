@@ -62,6 +62,19 @@ namespace
     }
 }
 
+bool AIControllerComponent::IsInvincible() const noexcept
+{
+    // Node 0 (ImpactLand) and Node 2 (PlungeImpact) grant full OTG recovery invulnerability
+    return m_currentState == EnemyState::airborne_juggle &&
+        (m_jugglePhase == JugglePhase::ImpactLand || m_jugglePhase == JugglePhase::PlungeImpact);
+}
+
+bool AIControllerComponent::IsGetUp() const noexcept
+{
+    // Node 1 (GetUp) recovery pose on the floor
+    return m_currentState == EnemyState::airborne_juggle && m_jugglePhase == JugglePhase::GetUp;
+}
+
 AIControllerComponent::AIControllerComponent(const AIControllerConfig& config) noexcept
     : m_config{ config }
 {}
@@ -363,6 +376,8 @@ void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
         if (m_movement)
         {
             m_movement->HaltMomentum(1.0f);
+            m_movement->SetVerticalVelocity(0.0f);
+            m_movement->SetGravityScale(1.0f);
             m_movement->GetConfig().useGravity = true;
         }
         if (m_animation)
@@ -689,14 +704,18 @@ void AIControllerComponent::StopMovement() noexcept
 void AIControllerComponent::NotifyHitReaction() noexcept
 {
     // Fast-fail: immediately transition lethal blows to dead, freeing director slots
-    if (m_currentState == EnemyState::dead || (m_health && m_health->IsDead()))
+    if (m_currentState == EnemyState::dead || (m_health && m_health->IsDead()) || IsInvincible())
     {
-        ChangeState(EnemyState::dead);
+        if (m_health && m_health->IsDead() && m_currentState != EnemyState::dead)
+        {
+            ChangeState(EnemyState::dead);
+        }
         return;
     }
 
     // If airborne, maintain juggle instead of snapping to grounded hit_react
-    if (m_currentState == EnemyState::airborne_juggle)
+    // Grounded recovery (Node 1: GetUp) falls through to standard grounded hit_react
+    if (m_currentState == EnemyState::airborne_juggle && m_jugglePhase != JugglePhase::GetUp)
     {
         NotifyAirJuggle(0.06f);
         return;
@@ -750,9 +769,19 @@ void AIControllerComponent::NotifyHitReaction() noexcept
 
 void AIControllerComponent::NotifyLaunch(const float launchVelocityY) noexcept
 {
-    if (m_currentState == EnemyState::dead || (m_health && m_health->IsDead()))
+    if (m_currentState == EnemyState::dead || (m_health && m_health->IsDead()) || IsInvincible())
     {
-        ChangeState(EnemyState::dead);
+        if (m_health && m_health->IsDead() && m_currentState != EnemyState::dead)
+        {
+            ChangeState(EnemyState::dead);
+        }
+        return;
+    }
+
+    // While recovering in GetUp pose, ground contact prevents re-launching into the air
+    if (m_jugglePhase == JugglePhase::GetUp)
+    {
+        NotifyHitReaction();
         return;
     }
 
@@ -781,9 +810,19 @@ void AIControllerComponent::NotifyLaunch(const float launchVelocityY) noexcept
 
 void AIControllerComponent::NotifyAirJuggle(const float hitStopDuration, const bool isFinisher, const float finisherFollowThrough) noexcept
 {
-    if (m_currentState == EnemyState::dead || (m_health && m_health->IsDead()))
+    if (m_currentState == EnemyState::dead || (m_health && m_health->IsDead()) || IsInvincible())
     {
-        ChangeState(EnemyState::dead);
+        if (m_health && m_health->IsDead() && m_currentState != EnemyState::dead)
+        {
+            ChangeState(EnemyState::dead);
+        }
+        return;
+    }
+
+    // Prohibit airborne juggle re-entry during ground get-up pose
+    if (m_jugglePhase == JugglePhase::GetUp)
+    {
+        NotifyHitReaction();
         return;
     }
 
@@ -889,9 +928,18 @@ void AIControllerComponent::NotifyAirDrop() noexcept
 
 void AIControllerComponent::NotifySpike(const float downwardVelocityY) noexcept
 {
-    if (m_currentState == EnemyState::dead || (m_health && m_health->IsDead()))
+    if (m_currentState == EnemyState::dead || (m_health && m_health->IsDead()) || IsInvincible())
     {
-        ChangeState(EnemyState::dead);
+        if (m_health && m_health->IsDead() && m_currentState != EnemyState::dead)
+        {
+            ChangeState(EnemyState::dead);
+        }
+        return;
+    }
+
+    if (m_jugglePhase == JugglePhase::GetUp)
+    {
+        NotifyHitReaction();
         return;
     }
 
@@ -919,9 +967,12 @@ void AIControllerComponent::NotifySpike(const float downwardVelocityY) noexcept
 
 void AIControllerComponent::NotifyPlungeSlam() noexcept
 {
-    if (m_currentState == EnemyState::dead || (m_health && m_health->IsDead()))
+    if (m_currentState == EnemyState::dead || (m_health && m_health->IsDead()) || IsInvincible())
     {
-        ChangeState(EnemyState::dead);
+        if (m_health && m_health->IsDead() && m_currentState != EnemyState::dead)
+        {
+            ChangeState(EnemyState::dead);
+        }
         return;
     }
 

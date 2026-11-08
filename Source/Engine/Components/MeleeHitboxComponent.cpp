@@ -155,8 +155,12 @@ void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
             // 敵判定フィルター: Enemyレイヤーを持つか、AIControllerComponent を有する敵エンティティのみ受理
             auto* victimCapsule{ victimObj->GetComponent<CapsuleColliderComponent>() };
             const bool isEnemyLayer{ victimCapsule && (victimCapsule->GetConfig().layer & m_config.targetLayer) != 0 };
-            const bool isEnemyAI{ victimObj->GetComponent<AIControllerComponent>() != nullptr };
+            auto* victimAi{ victimObj->GetComponent<AIControllerComponent>() };
+            const bool isEnemyAI{ victimAi != nullptr };
             if (!isEnemyLayer && !isEnemyAI) continue;
+
+            // Landing invulnerability: ignore entities lying on the ground (Node 0 and Node 2)
+            if (victimAi && victimAi->IsInvincible()) continue;
 
             // 重複排除チェック: 1回のスイング内で同一敵カプセルが多段ヒットするのを防止
             bool alreadyHit{ false };
@@ -195,7 +199,6 @@ void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
 
             DirectX::XMFLOAT3 impulse{ 0.0f, 0.0f, 0.0f };
             float calculatedLaunchVelocityY{ 10.5f };
-            auto* victimAi{ victimObj->GetComponent<AIControllerComponent>() };
 
             if (isLauncher)
             {
@@ -298,7 +301,8 @@ void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
 
                 const float finalKnockback{ m_config.knockbackImpulse * m_activeDamageMultiplier };
                 DirectX::XMStoreFloat3(&impulse, DirectX::XMVectorScale(vKnockDir, finalKnockback));
-                impulse.y = 2.5f;
+                // Clamp vertical impulse to 0 when victim is in ground get-up recovery
+                impulse.y = (victimAi && victimAi->IsGetUp()) ? 0.0f : 2.5f;
             }
 
             // Deliver damage, poise break evaluation, and hit-stop to victim
@@ -328,8 +332,14 @@ void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
                 }
                 else if (isAirCombo)
                 {
-                    float holdDuration{ 0.55f };
-                    if (isAirFinisher && activeNode)
+                    if (victimAi->IsGetUp())
+                    {
+                        victimAi->NotifyHitReaction();
+                    }
+                    else
+                    {
+                        float holdDuration{ 0.55f };
+                        if (isAirFinisher && activeNode)
                     {
                         const float stateDuration{ m_animation->GetSlotDuration(attackSlot) };
                         const float currentPhase{ m_animation->GetCurrentPhase() };
@@ -346,8 +356,9 @@ void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
                         const float currentPhase{ m_animation->GetCurrentPhase() };
                         const float remainingTime{ (stateDuration > 0.001f && currentPhase < 1.0f) ? ((1.0f - currentPhase) * stateDuration) : 0.85f };
                         holdDuration = (std::max)(1.2f, remainingTime + 0.6f);
+                        }
+                        victimAi->NotifyAirJuggle(m_config.hitStopDuration, isAirFinisher, holdDuration);
                     }
-                    victimAi->NotifyAirJuggle(m_config.hitStopDuration, isAirFinisher, holdDuration);
                 }
                 else if (isPlunge)
                 {

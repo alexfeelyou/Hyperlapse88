@@ -81,6 +81,8 @@ public:
     [[nodiscard]] EnemyState GetCurrentState() const noexcept { return m_currentState; }
     [[nodiscard]] const AIBlackboard& GetBlackboard() const noexcept { return m_blackboard; }
     [[nodiscard]] AIControllerConfig& GetConfig() noexcept { return m_config; }
+    [[nodiscard]] bool IsInvincible() const noexcept;
+    [[nodiscard]] bool IsGetUp() const noexcept;
 
     // Animation contract accessors
     [[nodiscard]] AnimationComponent* GetAnimation() const noexcept { return m_animation; }
