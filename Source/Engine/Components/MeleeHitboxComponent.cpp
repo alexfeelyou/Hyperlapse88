@@ -334,30 +334,30 @@ void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
                 {
                     if (victimAi->IsGetUp())
                     {
-                        victimAi->NotifyHitReaction();
+                        victimAi->NotifyHitReaction(m_currentSlashDir);
                     }
                     else
                     {
                         float holdDuration{ 0.55f };
                         if (isAirFinisher && activeNode)
-                    {
-                        const float stateDuration{ m_animation->GetSlotDuration(attackSlot) };
-                        const float currentPhase{ m_animation->GetCurrentPhase() };
-                        if (stateDuration > 0.001f && currentPhase < 1.0f)
                         {
-                            holdDuration = std::clamp((1.0f - currentPhase) * stateDuration, 0.30f, 0.80f);
+                            const float stateDuration{ m_animation->GetSlotDuration(attackSlot) };
+                            const float currentPhase{ m_animation->GetCurrentPhase() };
+                            if (stateDuration > 0.001f && currentPhase < 1.0f)
+                            {
+                                holdDuration = std::clamp((1.0f - currentPhase) * stateDuration, 0.30f, 0.80f);
+                            }
                         }
-                    }
-                    else if (activeNode)
-                    {
-                        // Regular air hits: Hold enemy through the full attack animation and cancel window.
-                        // Release is handled deterministically by PlayerAttackAerial::Exit when the attack concludes.
-                        const float stateDuration{ m_animation->GetSlotDuration(attackSlot) };
-                        const float currentPhase{ m_animation->GetCurrentPhase() };
-                        const float remainingTime{ (stateDuration > 0.001f && currentPhase < 1.0f) ? ((1.0f - currentPhase) * stateDuration) : 0.85f };
-                        holdDuration = (std::max)(1.2f, remainingTime + 0.6f);
+                        else if (activeNode)
+                        {
+                            // Regular air hits: Hold enemy through the full attack animation and cancel window.
+                            // Release is handled deterministically by PlayerAttackAerial::Exit when the attack concludes.
+                            const float stateDuration{ m_animation->GetSlotDuration(attackSlot) };
+                            const float currentPhase{ m_animation->GetCurrentPhase() };
+                            const float remainingTime{ (stateDuration > 0.001f && currentPhase < 1.0f) ? ((1.0f - currentPhase) * stateDuration) : 0.85f };
+                            holdDuration = (std::max)(1.2f, remainingTime + 0.6f);
                         }
-                        victimAi->NotifyAirJuggle(m_config.hitStopDuration, isAirFinisher, holdDuration);
+                        victimAi->NotifyAirJuggle(m_config.hitStopDuration, isAirFinisher, holdDuration, m_currentSlashDir);
                     }
                 }
                 else if (isPlunge)
@@ -366,7 +366,7 @@ void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
                 }
                 else if (poiseBrokeOrDead)
                 {
-                    victimAi->NotifyHitReaction();
+                    victimAi->NotifyHitReaction(m_currentSlashDir);
                 }
             }
 
@@ -384,6 +384,53 @@ void MeleeHitboxComponent::Update(const float /*dt*/)
     if (!m_animation)
     {
         ResolveAnimationSource();
+    }
+
+    // Kinematic blade trajectory tracking: compute instantaneous velocity delta across frames
+    if (m_owner)
+    {
+        const Transform& t{ m_owner->transform };
+        const DirectX::XMFLOAT4X4 worldF4{ t.GetWorldMatrix() };
+        const DirectX::XMMATRIX objWorld{ DirectX::XMLoadFloat4x4(&worldF4) };
+
+        DirectX::XMVECTOR vScale, vRotQuat, vTrans;
+        if (DirectX::XMMatrixDecompose(&vScale, &vRotQuat, &vTrans, objWorld))
+        {
+            const DirectX::XMMATRIX socketWorldUnscaled{
+                DirectX::XMMatrixRotationQuaternion(vRotQuat) *
+                DirectX::XMMatrixTranslationFromVector(vTrans)
+            };
+
+            const DirectX::XMMATRIX locRot{ DirectX::XMMatrixRotationRollPitchYaw(
+                DirectX::XMConvertToRadians(m_config.localRotation.x),
+                DirectX::XMConvertToRadians(m_config.localRotation.y),
+                DirectX::XMConvertToRadians(m_config.localRotation.z))
+            };
+
+            const DirectX::XMMATRIX locTrans{ DirectX::XMMatrixTranslation(
+                m_config.localOffset.x,
+                m_config.localOffset.y,
+                m_config.localOffset.z)
+            };
+
+            const DirectX::XMMATRIX hitboxWorld{ locRot * locTrans * socketWorldUnscaled };
+            DirectX::XMVECTOR vFinalScale, vFinalRotQuat, vFinalTrans;
+            DirectX::XMMatrixDecompose(&vFinalScale, &vFinalRotQuat, &vFinalTrans, hitboxWorld);
+
+            DirectX::XMFLOAT3 currentPos{};
+            DirectX::XMStoreFloat3(&currentPos, vFinalTrans);
+
+            if (m_hasPrevHitboxPos)
+            {
+                m_currentSlashDir = {
+                    currentPos.x - m_prevHitboxPos.x,
+                    currentPos.y - m_prevHitboxPos.y,
+                    currentPos.z - m_prevHitboxPos.z
+                };
+            }
+            m_prevHitboxPos = currentPos;
+            m_hasPrevHitboxPos = true;
+        }
     }
 
     if (m_animation)

@@ -26,9 +26,12 @@ namespace
         return { wMat._41, wMat._42, wMat._43 };
     }
 
-    // 4-quadrant relative impact direction 
+    // 4-quadrant relative impact direction with kinematic slash-arc trajectory refinement
     // Returns Node Index: 0 = Front, 1 = Back, 2 = Left, 3 = Right
-    [[nodiscard]] std::uint8_t CalculateHitDirectionIndex(const GameObject* victim, const DirectX::XMFLOAT3& attackerPos) noexcept
+    [[nodiscard]] std::uint8_t CalculateHitDirectionIndex(
+        const GameObject* victim,
+        const DirectX::XMFLOAT3& attackerPos,
+        const DirectX::XMFLOAT3& slashDir = { 0.0f, 0.0f, 0.0f }) noexcept
     {
         if (!victim) return 0;
 
@@ -53,7 +56,39 @@ namespace
 
         if (std::abs(fwdDot) >= std::abs(rightDot))
         {
-            return (fwdDot >= 0.0f) ? 0 : 1; // 0 = Front, 1 = Back
+            // Back impact takes absolute priority when attacker is behind victim
+            if (fwdDot < 0.0f)
+            {
+                return 1; // 1 = Back
+            }
+
+            // Attacker is in front: resolve frontal cleave direction using blade sweep velocity
+            const float slashLenSq{ (slashDir.x * slashDir.x) + (slashDir.z * slashDir.z) };
+            constexpr float minSlashSpeedSq{ 0.02f * 0.02f }; // 2 cm/frame lateral sweep noise floor
+
+            if (slashLenSq > minSlashSpeedSq)
+            {
+                const float invSlashLen{ 1.0f / std::sqrt(slashLenSq) };
+                const float slashNormX{ slashDir.x * invSlashLen };
+                const float slashNormZ{ slashDir.z * invSlashLen };
+
+                // Project blade velocity onto victim's local Right axis
+                const float slashRightDot{ (slashNormX * rightX) + (slashNormZ * rightZ) };
+                constexpr float lateralDeadzone{ 0.42f }; // ~25 deg deadzone preserving clean frontal cuts
+
+                if (slashRightDot < -lateralDeadzone)
+                {
+                    // Blade sweeps towards victim's Left -> weapon sliced in from victim's Right
+                    return 3; // 3 = Right
+                }
+                if (slashRightDot > lateralDeadzone)
+                {
+                    // Blade sweeps towards victim's Right -> weapon sliced in from victim's Left
+                    return 2; // 2 = Left
+                }
+            }
+
+            return 0; // 0 = Front (Center cut, vertical chop, or no lateral bias)
         }
         else
         {
@@ -701,7 +736,7 @@ void AIControllerComponent::StopMovement() noexcept
     }
 }
 
-void AIControllerComponent::NotifyHitReaction() noexcept
+void AIControllerComponent::NotifyHitReaction(const DirectX::XMFLOAT3& slashDir) noexcept
 {
     // Fast-fail: immediately transition lethal blows to dead, freeing director slots
     if (m_currentState == EnemyState::dead || (m_health && m_health->IsDead()) || IsInvincible())
@@ -717,7 +752,7 @@ void AIControllerComponent::NotifyHitReaction() noexcept
     // Grounded recovery (Node 1: GetUp) falls through to standard grounded hit_react
     if (m_currentState == EnemyState::airborne_juggle && m_jugglePhase != JugglePhase::GetUp)
     {
-        NotifyAirJuggle(0.06f);
+        NotifyAirJuggle(0.06f, false, 0.55f, slashDir);
         return;
     }
 
@@ -726,7 +761,7 @@ void AIControllerComponent::NotifyHitReaction() noexcept
         AcquirePlayerTarget();
     }
     const DirectX::XMFLOAT3 attackerPos{ m_blackboard.target ? GetWorldPosition(m_blackboard.target) : DirectX::XMFLOAT3{ 0.0f, 0.0f, 0.0f } };
-    m_hitDirectionIndex = CalculateHitDirectionIndex(m_owner, attackerPos);
+    m_hitDirectionIndex = CalculateHitDirectionIndex(m_owner, attackerPos, slashDir);
 
     // Re-trigger stagger and reset cooldowns if already in hit reaction (ensures multi-hit combo responsiveness)
     if (m_currentState == EnemyState::hit_react)
@@ -808,7 +843,7 @@ void AIControllerComponent::NotifyLaunch(const float launchVelocityY) noexcept
     }
 }
 
-void AIControllerComponent::NotifyAirJuggle(const float hitStopDuration, const bool isFinisher, const float finisherFollowThrough) noexcept
+void AIControllerComponent::NotifyAirJuggle(const float hitStopDuration, const bool isFinisher, const float finisherFollowThrough, const DirectX::XMFLOAT3& slashDir) noexcept
 {
     if (m_currentState == EnemyState::dead || (m_health && m_health->IsDead()) || IsInvincible())
     {
@@ -822,7 +857,7 @@ void AIControllerComponent::NotifyAirJuggle(const float hitStopDuration, const b
     // Prohibit airborne juggle re-entry during ground get-up pose
     if (m_jugglePhase == JugglePhase::GetUp)
     {
-        NotifyHitReaction();
+        NotifyHitReaction(slashDir);
         return;
     }
 
@@ -831,7 +866,7 @@ void AIControllerComponent::NotifyAirJuggle(const float hitStopDuration, const b
         AcquirePlayerTarget();
     }
     const DirectX::XMFLOAT3 attackerPos{ m_blackboard.target ? GetWorldPosition(m_blackboard.target) : DirectX::XMFLOAT3{ 0.0f, 0.0f, 0.0f } };
-    const std::uint8_t hitDir{ CalculateHitDirectionIndex(m_owner, attackerPos) };
+    const std::uint8_t hitDir{ CalculateHitDirectionIndex(m_owner, attackerPos, slashDir) };
 
     if (m_currentState != EnemyState::airborne_juggle)
     {
@@ -881,8 +916,9 @@ void AIControllerComponent::NotifyAirJuggle(const float hitStopDuration, const b
         m_jugglePhase = JugglePhase::FloatHold;
         m_juggleHoldTimer = (finisherFollowThrough > 0.001f) ? finisherFollowThrough : 0.85f;
 
-        // Directional Air Hit: Node 1: Hit_Air_F, Node 2: Hit_Air_B, Node 3: Hit_Air_L, Node 4: Hit_Air_R
-        const int airHitNode{ 1 + static_cast<int>(hitDir) };
+        // AirTraversal Graph Node Map: 0 -> Node 1 (Front), 1 -> Node 2 (Back), 2 -> Node 4 (Left), 3 -> Node 3 (Right)
+        constexpr std::array<int, 4> s_airHitNodeLookup{ 1, 2, 4, 3 };
+        const int airHitNode{ s_airHitNodeLookup[hitDir & 0x03] };
 
         // Only replay flinch and impact freeze on genuine weapon contact (hitStopDuration > 0)
         if (m_animation && hitStopDuration > 0.001f)

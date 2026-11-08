@@ -70,6 +70,11 @@ private:
     const AnimNode* m_lastEvaluatedNode{ nullptr };
     int m_activeWindowIndex{ -1 };
 
+    // Temporal blade trajectory registers (continuous velocity derivative)
+    DirectX::XMFLOAT3 m_prevHitboxPos{ 0.0f, 0.0f, 0.0f };
+    DirectX::XMFLOAT3 m_currentSlashDir{ 0.0f, 0.0f, 0.0f };
+    bool m_hasPrevHitboxPos{ false };
+
     // Deduplication buffer: ensures each enemy capsule is struck only once per swing
     std::array<GameObject*, s_maxVictimsPerSwing> m_hitVictims{};
     std::size_t m_victimCount{ 0 };

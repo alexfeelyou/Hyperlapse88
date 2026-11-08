@@ -70,9 +70,9 @@ public:
     [[nodiscard]] const char* GetTypeName() const noexcept override { return "AIControllerComponent"; }
 
     // Direct interface for external combat interruptions (e.g., player heavy weapon impacts)
-    void NotifyHitReaction() noexcept;
+    void NotifyHitReaction(const DirectX::XMFLOAT3& slashDir = { 0.0f, 0.0f, 0.0f }) noexcept;
     void NotifyLaunch(float launchVelocityY) noexcept;
-    void NotifyAirJuggle(float hitStopDuration, bool isFinisher = false, float finisherFollowThrough = 0.55f) noexcept;
+    void NotifyAirJuggle(float hitStopDuration, bool isFinisher = false, float finisherFollowThrough = 0.55f, const DirectX::XMFLOAT3& slashDir = { 0.0f, 0.0f, 0.0f }) noexcept;
     void NotifyAirDrop() noexcept;
     void NotifySpike(float downwardVelocityY) noexcept;
     void NotifyPlungeSlam() noexcept;
