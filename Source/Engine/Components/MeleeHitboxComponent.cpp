@@ -328,18 +328,26 @@ void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
                 }
                 else if (isAirCombo)
                 {
-                    // Calculate Player's remaining follow-through animation time so the enemy drops at the exact same frame
-                    float finisherFollowThroughDuration{ 0.55f };
+                    float holdDuration{ 0.55f };
                     if (isAirFinisher && activeNode)
                     {
                         const float stateDuration{ m_animation->GetSlotDuration(attackSlot) };
                         const float currentPhase{ m_animation->GetCurrentPhase() };
                         if (stateDuration > 0.001f && currentPhase < 1.0f)
                         {
-                            finisherFollowThroughDuration = std::clamp((1.0f - currentPhase) * stateDuration, 0.30f, 0.80f);
+                            holdDuration = std::clamp((1.0f - currentPhase) * stateDuration, 0.30f, 0.80f);
                         }
                     }
-                    victimAi->NotifyAirJuggle(m_config.hitStopDuration, isAirFinisher, finisherFollowThroughDuration);
+                    else if (activeNode)
+                    {
+                        // Regular air hits: Hold enemy through the full attack animation and cancel window.
+                        // Release is handled deterministically by PlayerAttackAerial::Exit when the attack concludes.
+                        const float stateDuration{ m_animation->GetSlotDuration(attackSlot) };
+                        const float currentPhase{ m_animation->GetCurrentPhase() };
+                        const float remainingTime{ (stateDuration > 0.001f && currentPhase < 1.0f) ? ((1.0f - currentPhase) * stateDuration) : 0.85f };
+                        holdDuration = (std::max)(1.2f, remainingTime + 0.6f);
+                    }
+                    victimAi->NotifyAirJuggle(m_config.hitStopDuration, isAirFinisher, holdDuration);
                 }
                 else if (isPlunge)
                 {

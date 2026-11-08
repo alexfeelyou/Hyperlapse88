@@ -11856,12 +11856,12 @@
                         {
                             "CollidesWith": 126,
                             "ContactOffset": 0.019999999552965164,
-                            "Height": 1.0,
+                            "Height": 1.059999942779541,
                             "Layer": 8,
                             "LocalOffsetX": 0.0,
                             "LocalOffsetY": 0.0,
                             "LocalOffsetZ": 0.0,
-                            "Radius": 0.5,
+                            "Radius": 0.3400000035762787,
                             "SlopeLimitDeg": 45.0,
                             "StepOffset": 0.30000001192092896,
                             "Type": "CapsuleColliderComponent"
@@ -12196,7 +12196,7 @@
                                             "HasGripOverride": false,
                                             "LockRootX": false,
                                             "LockRootY": true,
-                                            "LockRootZ": false,
+                                            "LockRootZ": true,
                                             "Loop": false,
                                             "RootBoneIndex": 1,
                                             "Speed": 0.8999999761581421,

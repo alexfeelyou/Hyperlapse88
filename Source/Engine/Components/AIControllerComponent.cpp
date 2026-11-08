@@ -800,6 +800,23 @@ void AIControllerComponent::NotifyAirJuggle(const float hitStopDuration, const b
         ChangeState(EnemyState::airborne_juggle);
     }
 
+    // Synchronize airborne victim vertical position to attacker's aerial combat plane
+    if (m_owner && m_capsule && m_blackboard.target)
+    {
+        const auto* attackerMotor{ m_blackboard.target->GetComponent<CharacterMovementComponent>() };
+        if (attackerMotor && !attackerMotor->isGrounded())
+        {
+            const DirectX::XMFLOAT3 myPos{ GetWorldPosition(m_owner) };
+            const float heightDiff{ attackerPos.y - myPos.y };
+            if (std::abs(heightDiff) > 0.03f && std::abs(heightDiff) < 3.0f)
+            {
+                const DirectX::XMFLOAT3 alignedPos{ myPos.x, attackerPos.y, myPos.z };
+                m_owner->SetPosition(alignedPos);
+                m_capsule->Teleport(alignedPos);
+            }
+        }
+    }
+
     if (isFinisher)
     {
         m_jugglePhase = JugglePhase::FinisherDrop;
@@ -823,12 +840,13 @@ void AIControllerComponent::NotifyAirJuggle(const float hitStopDuration, const b
     else
     {
         m_jugglePhase = JugglePhase::FloatHold;
-        m_juggleHoldTimer = 0.85f;
+        m_juggleHoldTimer = (finisherFollowThrough > 0.001f) ? finisherFollowThrough : 0.85f;
 
         // Directional Air Hit: Node 1: Hit_Air_F, Node 2: Hit_Air_B, Node 3: Hit_Air_L, Node 4: Hit_Air_R
         const int airHitNode{ 1 + static_cast<int>(hitDir) };
 
-        if (m_animation)
+        // Only replay flinch and impact freeze on genuine weapon contact (hitStopDuration > 0)
+        if (m_animation && hitStopDuration > 0.001f)
         {
             m_animBlackboard.actionIndex = airHitNode;
             m_animation->PlaySlot(Engine::Animation::AnimSlot::AirTraversal, true, airHitNode);
@@ -842,6 +860,30 @@ void AIControllerComponent::NotifyAirJuggle(const float hitStopDuration, const b
             m_movement->HaltMomentum(1.0f);
             m_movement->SetGravityScale(0.0f);
         }
+    }
+}
+
+void AIControllerComponent::NotifyAirDrop() noexcept
+{
+    // Strictly target enemies floating in active juggle suspension; ignore finisher drops and grounded entities
+    if (m_currentState != EnemyState::airborne_juggle || m_jugglePhase != JugglePhase::FloatHold)
+    {
+        return;
+    }
+
+    m_jugglePhase = JugglePhase::FallLoop;
+    m_juggleHoldTimer = 0.0f;
+
+    if (m_movement)
+    {
+        m_movement->SetGravityScale(1.0f);
+        m_movement->SetVerticalVelocity(0.0f);
+    }
+
+    if (m_animation)
+    {
+        m_animBlackboard.actionIndex = 6; // Hit_Air_To_Floor_Loop
+        m_animation->PlaySlot(Engine::Animation::AnimSlot::AirTraversal, true, 6);
     }
 }
 
@@ -927,14 +969,9 @@ void AIControllerComponent::TickAirborneJuggle(const float dt) noexcept
         {
             m_jugglePhase = JugglePhase::FloatHold;
             m_movement->SetVerticalVelocity(0.0f);
-            m_movement->SetGravityScale(0.0f); // Freeze gravity at apex
+            m_movement->SetGravityScale(0.0f);  // Freeze gravity at apex
             m_juggleHoldTimer = 0.85f;          // Wait up to 0.85s for player's air combo
-
-            if (m_animation)
-            {
-                m_animBlackboard.actionIndex = 1; // Settle into Hit_Air_F
-                m_animation->PlaySlot(Engine::Animation::AnimSlot::AirTraversal, true, 1);
-            }
+            // Retain Node 0 (Hit_To_Air) clamped at apex; directional air hits trigger strictly upon actual combo contact
         }
         break;
 
@@ -969,8 +1006,9 @@ void AIControllerComponent::TickAirborneJuggle(const float dt) noexcept
 
             if (m_juggleHoldTimer <= 0.0f)
             {
+                m_jugglePhase = JugglePhase::FallLoop;
                 m_movement->SetGravityScale(1.0f);
-                m_movement->SetVerticalVelocity(-18.0f); // Downward slam impulse
+                m_movement->SetVerticalVelocity(0.0f); // Natural fall from rest under 1.0x gravity (identical to dropped juggle)
 
                 if (m_animation)
                 {

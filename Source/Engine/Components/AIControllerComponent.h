@@ -73,6 +73,7 @@ public:
     void NotifyHitReaction() noexcept;
     void NotifyLaunch(float launchVelocityY) noexcept;
     void NotifyAirJuggle(float hitStopDuration, bool isFinisher = false, float finisherFollowThrough = 0.55f) noexcept;
+    void NotifyAirDrop() noexcept;
     void NotifySpike(float downwardVelocityY) noexcept;
     void NotifyPlungeSlam() noexcept;
 

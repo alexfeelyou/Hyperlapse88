@@ -98,9 +98,9 @@ namespace
             // Auto-converge horizontal facing toward victim
             FacingResolver::SnapFaceDirection(controller->GetOwner(), lockDir);
 
-            if (distSq > (sweetSpotDist * sweetSpotDist))
+            if (distXZ > sweetSpotDist)
             {
-                // Solve v0 = Gap * Drag so Player glides exactly to the sweet spot boundary
+                // Solve v0 = Gap * Drag so Player glides smoothly to the sweet spot boundary
                 const float gap{ distXZ - sweetSpotDist };
                 const float drag{ (std::max)(0.1f, motor->GetConfig().impulseDrag) };
                 const float requiredImpulse{ gap * drag };
@@ -111,17 +111,32 @@ namespace
             }
             else
             {
-                // Multi-lunge support: already inside sweet spot, apply a controlled forward step-in impulse for follow-up strikes
-                const float stepInSpeed{ (std::min)(payload, 10.0f) };
+                // Already at or inside sweet spot: clamp player to prevent overshooting behind victim
                 motor->HaltMomentum(1.0f);
-                motor->AddImpulse(DirectX::XMFLOAT3{ lockDir.x * stepInSpeed, 0.0f, lockDir.y * stepInSpeed });
+
+                // If cramped (< 1.3m), push victim backward along lock direction to preserve blade sweep arc
+                const float pushGap{ sweetSpotDist - distXZ };
+                if (pushGap > 0.02f)
+                {
+                    if (auto* eMotor{ targetEnemy->GetOwner()->GetComponent<CharacterMovementComponent>() })
+                    {
+                        const float eDrag{ (std::max)(0.1f, eMotor->GetConfig().impulseDrag) };
+                        eMotor->HaltMomentum(1.0f);
+                        eMotor->AddImpulse(DirectX::XMFLOAT3{ lockDir.x * (pushGap * eDrag), 0.0f, lockDir.y * (pushGap * eDrag) });
+                    }
+                }
             }
 
-            // Smooth vertical height convergence to victim torso
-            const float dy{ (ePos.y - 0.35f) - pPos.y };
-            if (std::abs(dy) > 0.05f && std::abs(dy) < 1.5f)
+            // Synchronize victim elevation directly to attacker's aerial combat plane
+            if (auto* eCapsule{ targetEnemy->GetOwner()->GetComponent<CapsuleColliderComponent>() })
             {
-                controller->GetOwner()->transform.position.y += dy * (std::min)(1.0f, dt * 10.0f);
+                const float heightDiff{ pPos.y - ePos.y };
+                if (std::abs(heightDiff) > 0.03f && std::abs(heightDiff) < 3.0f)
+                {
+                    const DirectX::XMFLOAT3 alignedPos{ ePos.x, pPos.y, ePos.z };
+                    targetEnemy->GetOwner()->SetPosition(alignedPos);
+                    eCapsule->Teleport(alignedPos);
+                }
             }
         }
         else
@@ -3019,6 +3034,28 @@ void PlayerAttackAerial::PlayCurrentAttack(PlayerControllerComponent* controller
     m_bufferedAttack = {};
 
     controller->getAnimBlackboard().actionIndex = m_comboIndex;
+
+    // Halt lingering momentum from prior attack so character does not drift into victim during windup
+    if (auto* motor{ controller->GetMovement() })
+    {
+        motor->HaltMomentum(1.0f);
+    }
+
+    const DirectX::XMFLOAT3 pPos{ controller->GetOwner()->GetPosition() };
+    auto* targetEnemy{ CombatDirector::Instance().FindNearestAirborneEnemy(pPos, 4.0f) };
+    if (targetEnemy && targetEnemy->GetOwner())
+    {
+        const DirectX::XMFLOAT3 ePos{ targetEnemy->GetOwner()->GetPosition() };
+        const float dx{ ePos.x - pPos.x };
+        const float dz{ ePos.z - pPos.z };
+        const float distSq{ (dx * dx) + (dz * dz) };
+        if (distSq > 0.0001f)
+        {
+            const float invDist{ 1.0f / std::sqrt(distSq) };
+            m_lungeDirection = { dx * invDist, dz * invDist };
+        }
+    }
+
     FacingResolver::SnapFaceDirection(controller->GetOwner(), m_lungeDirection);
 
     if (auto* anim{ controller->GetAnimation() })
@@ -3039,12 +3076,12 @@ void PlayerAttackAerial::PlayCurrentAttack(PlayerControllerComponent* controller
         }
     }
 
-    // Combo hit 2 is the 3rd and final air hit: flag victim as finisher drop
-    const bool isFinisher{ m_comboIndex == 2 };
-    const DirectX::XMFLOAT3 pPos{ controller->GetOwner()->GetPosition() };
-    if (auto* targetEnemy{ CombatDirector::Instance().FindNearestAirborneEnemy(pPos, 4.0f) })
+    if (targetEnemy)
     {
-        targetEnemy->NotifyAirJuggle(0.06f, isFinisher, isFinisher ? 0.45f : 0.85f);
+        // Maintain FloatHold suspension during attack startup and execution across all nodes.
+        // Node 0 & 1 hold through the full duration; Node 2 covers the spin windup before impact.
+        const float holdDuration{ (m_comboIndex == 2) ? ((std::max)(0.85f, m_exitTimer + 0.35f)) : ((std::max)(1.2f, m_exitTimer + 0.6f)) };
+        targetEnemy->NotifyAirJuggle(0.0f, false, holdDuration);
     }
 }
 
@@ -3144,6 +3181,17 @@ void PlayerAttackAerial::Exit(PlayerControllerComponent* controller)
     if (auto* motor = controller->GetMovement())
     {
         motor->GetConfig().useGravity = m_wasGravityEnabled;
+    }
+
+    // When ending aerial combo without chaining (Node 0 or 1 finished with no continuation),
+    // deterministically release the juggled victim from FloatHold into FallLoop in lockstep with the player
+    if (controller && controller->GetOwner())
+    {
+        const DirectX::XMFLOAT3 pPos{ controller->GetOwner()->GetPosition() };
+        if (auto* targetEnemy{ CombatDirector::Instance().FindNearestAirborneEnemy(pPos, 4.0f) })
+        {
+            targetEnemy->NotifyAirDrop();
+        }
     }
 
     ClosePlayerHitbox(controller);
