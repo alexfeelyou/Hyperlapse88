@@ -787,10 +787,6 @@ void AIControllerComponent::NotifyHitReaction(const DirectX::XMFLOAT3& slashDir)
     {
         m_blackboard.stateTimer = 0.0f;
         StopMovement();
-        if (m_movement)
-        {
-            m_movement->HaltMomentum(1.0f);
-        }
         if (m_health)
         {
             m_health->ResetPoise();
