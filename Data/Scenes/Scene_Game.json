@@ -11867,13 +11867,13 @@
                             "Type": "CapsuleColliderComponent"
                         },
                         {
-                            "Acceleration": 4.0,
+                            "Acceleration": 5.0,
                             "DashAirImpulse": 35.0,
                             "DashGroundDistance": 4.5,
-                            "Deceleration": 3.0,
+                            "Deceleration": 20.0,
                             "ImpulseDrag": 7.5,
                             "JumpForwardImpulse": 1.0,
-                            "MaxRunSpeed": 5.0,
+                            "MaxRunSpeed": 6.0,
                             "SlideFriction": 0.15000000596046448,
                             "SlideImpulse": 15.0,
                             "SprintSpeed": 12.0,

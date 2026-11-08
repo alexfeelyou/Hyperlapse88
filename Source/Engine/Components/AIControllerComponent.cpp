@@ -1299,30 +1299,17 @@ void AIControllerComponent::TickGrunt(const float dt) noexcept
             break;
         }
 
-        // Swarm Arbiter: Request token from CombatDirector before triggering attack
+        // Swarm Arbiter: Execute direct melee attack as soon as inside attack range
         if (m_blackboard.targetDistanceSq <= attackRangeSq)
         {
             if (m_blackboard.attackCooldownTimer <= 0.0f && CombatDirector::Instance().RequestAttackToken(this))
             {
                 ChangeState(EnemyState::attack_windup);
+                break;
             }
-            else
-            {
-                // In melee range but awaiting attack token: strafe smoothly around slot while facing player
-                const DirectX::XMFLOAT3 slotPos{ CombatDirector::Instance().GetAssignedSlotPosition(this) };
-                if (slotPos.x != 0.0f || slotPos.z != 0.0f)
-                {
-                    SteerTowards(slotPos, dt, &m_blackboard.targetPosition);
-                }
-                else
-                {
-                    StopMovement();
-                }
-            }
-        }
-        else
-        {
-            // Swarm Slot Navigation: Steer toward designated ring slot while continuously facing player
+
+            // In melee range but awaiting attack token or on cooldown:
+            // Settle smoothly near assigned slot or yield slightly while maintaining focus on player
             const DirectX::XMFLOAT3 slotPos{ CombatDirector::Instance().GetAssignedSlotPosition(this) };
             if (slotPos.x != 0.0f || slotPos.z != 0.0f)
             {
@@ -1330,7 +1317,35 @@ void AIControllerComponent::TickGrunt(const float dt) noexcept
             }
             else
             {
+                StopMovement();
+            }
+        }
+        else
+        {
+            // Dynamic Engagement:
+            // When ready to attack, pursue the player directly from the current approach angle
+            const bool isFrontline{ CombatDirector::Instance().GetAssignedRing(this) == SwarmRing::inner ||
+                                    m_blackboard.targetDistanceSq <= (m_config.attackRange + 1.5f) * (m_config.attackRange + 1.5f) };
+            const bool isReadyToAttack{ m_blackboard.attackCooldownTimer <= 0.0f &&
+                                        CombatDirector::Instance().GetActiveTokenCount() < CombatDirector::Instance().GetMaxAttackTokens() };
+
+            if (isFrontline && isReadyToAttack)
+            {
+                // Advance directly on the player to strike from the current approach bearing
                 SteerTowards(m_blackboard.targetPosition, dt, &m_blackboard.targetPosition);
+            }
+            else
+            {
+                // On cooldown or awaiting turn: navigate to nearest assigned ring slot
+                const DirectX::XMFLOAT3 slotPos{ CombatDirector::Instance().GetAssignedSlotPosition(this) };
+                if (slotPos.x != 0.0f || slotPos.z != 0.0f)
+                {
+                    SteerTowards(slotPos, dt, &m_blackboard.targetPosition);
+                }
+                else
+                {
+                    SteerTowards(m_blackboard.targetPosition, dt, &m_blackboard.targetPosition);
+                }
             }
         }
         break;

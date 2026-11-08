@@ -195,20 +195,28 @@ void CombatDirector::Update(const float dt, GameObject* playerObject) noexcept
         return a.distSq < b.distSq;
         });
 
-    // Dynamic slot allocation: fill inner frontline first, promoting outer ring enemies into newly opened slots
+    // Snapshot previous occupants for hysteresis to avoid slot ping-ponging when equidistant
+    std::array<AIControllerComponent*, s_innerSlotCount> prevInnerOccupants{};
+    for (std::size_t i{ 0 }; i < s_innerSlotCount; ++i)
+    {
+        prevInnerOccupants[i] = m_innerSlots[i].occupant;
+        m_innerSlots[i].isOccupied = false;
+        m_innerSlots[i].occupant = nullptr;
+    }
+
+    std::array<AIControllerComponent*, s_outerSlotCount> prevOuterOccupants{};
+    for (std::size_t i{ 0 }; i < s_outerSlotCount; ++i)
+    {
+        prevOuterOccupants[i] = m_outerSlots[i].occupant;
+        m_outerSlots[i].isOccupied = false;
+        m_outerSlots[i].occupant = nullptr;
+    }
+
+    // Dynamic slot allocation: assign closest available slot to each candidate's current position
     for (const auto& cand : s_candidates)
     {
-        const SwarmRing currentRing{ GetAssignedRing(cand.enemy) };
-
-        // Frontline enemies already secured in an inner slot preserve their spot
-        if (currentRing == SwarmRing::inner)
-        {
-            continue;
-        }
-
         const DirectX::XMFLOAT4X4 eWorld{ cand.enemy->GetOwner()->transform.GetWorldMatrix() };
 
-        // Check for open inner slot vacancies (promotes outer enemies or assigns unslotted candidates)
         float bestInnerDistSq{ 999999.0f };
         int bestInnerSlotIdx{ -1 };
 
@@ -218,7 +226,13 @@ void CombatDirector::Update(const float dt, GameObject* playerObject) noexcept
 
             const float dsx{ m_innerSlots[s].worldPosition.x - eWorld._41 };
             const float dsz{ m_innerSlots[s].worldPosition.z - eWorld._43 };
-            const float dSq{ (dsx * dsx) + (dsz * dsz) };
+            float dSq{ (dsx * dsx) + (dsz * dsz) };
+
+            // Hysteresis bias: favor retaining the slot held on the prior frame to eliminate boundary jitter
+            if (prevInnerOccupants[s] == cand.enemy)
+            {
+                dSq -= 1.0f;
+            }
 
             if (dSq < bestInnerDistSq)
             {
@@ -229,32 +243,12 @@ void CombatDirector::Update(const float dt, GameObject* playerObject) noexcept
 
         if (bestInnerSlotIdx >= 0)
         {
-            // If promoted from outer ring, vacate previous outer slot so reinforcements can take it
-            if (currentRing == SwarmRing::outer)
-            {
-                for (auto& outerSlot : m_outerSlots)
-                {
-                    if (outerSlot.occupant == cand.enemy)
-                    {
-                        outerSlot.occupant = nullptr;
-                        outerSlot.isOccupied = false;
-                        break;
-                    }
-                }
-            }
-
             m_innerSlots[bestInnerSlotIdx].isOccupied = true;
             m_innerSlots[bestInnerSlotIdx].occupant = cand.enemy;
             continue;
         }
 
-        // Inner ring is full: existing outer ring occupants preserve their slot
-        if (currentRing == SwarmRing::outer)
-        {
-            continue;
-        }
-
-        // Candidate is completely unslotted: assign to nearest available outer ring slot
+        // Inner ring is full: assign to nearest available outer ring slot
         float bestOuterDistSq{ 999999.0f };
         int bestOuterSlotIdx{ -1 };
 
@@ -264,7 +258,12 @@ void CombatDirector::Update(const float dt, GameObject* playerObject) noexcept
 
             const float dsx{ m_outerSlots[s].worldPosition.x - eWorld._41 };
             const float dsz{ m_outerSlots[s].worldPosition.z - eWorld._43 };
-            const float dSq{ (dsx * dsx) + (dsz * dsz) };
+            float dSq{ (dsx * dsx) + (dsz * dsz) };
+
+            if (prevOuterOccupants[s] == cand.enemy)
+            {
+                dSq -= 1.0f;
+            }
 
             if (dSq < bestOuterDistSq)
             {
@@ -285,10 +284,15 @@ bool CombatDirector::RequestAttackToken(AIControllerComponent* enemy) noexcept
 {
     if (!enemy) return false;
 
-    // Must be in the inner ring and cadence interval must be satisfied
-    if (GetAssignedRing(enemy) != SwarmRing::inner)
+    // Frontline validation: enemy must be assigned to the inner ring or physically within inner radius combat space
+    const SwarmRing ring{ GetAssignedRing(enemy) };
+    if (ring != SwarmRing::inner)
     {
-        return false;
+        const float innerRadiusSq{ m_innerRadius * m_innerRadius };
+        if (enemy->GetBlackboard().targetDistanceSq > innerRadiusSq)
+        {
+            return false;
+        }
     }
 
     if (m_activeTokens < m_maxAttackTokens && m_tokenDispatchTimer <= 0.0f)
