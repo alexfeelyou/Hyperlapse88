@@ -170,7 +170,8 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
         "Skill Buff",
         "Speed Attack Ground",
         "Speed Attack Aerial",
-        "Locomotion Combat"
+        "Locomotion Combat",
+        "Crouch Idle"
     };
 
     // Safety Standard: Guarantee compile-time synchronization between the Enum and the UI string array.

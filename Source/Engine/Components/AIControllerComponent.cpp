@@ -340,6 +340,19 @@ void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
         m_blackboard.perceptionTimer = m_config.perceptionInterval; // Force immediate perception refresh
         break;
 
+    case EnemyState::ambush_dormant:
+        m_isAmbushSettled = false;
+        StopMovement();
+        if (m_movement)
+        {
+            m_movement->HaltMomentum(1.0f);
+        }
+        if (m_animation)
+        {
+            m_animation->PlaySlot(Engine::Animation::AnimSlot::Crouch_Idle);
+        }
+        break;
+
     case EnemyState::ambush_burst:
         if (m_animation)
         {
@@ -347,23 +360,61 @@ void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
         }
         if (m_movement && m_blackboard.target)
         {
-            // Inject high-speed burst impulse directly toward target in world space
             const DirectX::XMFLOAT3 currentPos{ GetWorldPosition(m_owner) };
             const DirectX::XMFLOAT3 targetPos{ GetWorldPosition(m_blackboard.target) };
 
-            const DirectX::XMVECTOR vCurrent{ DirectX::XMLoadFloat3(&currentPos) };
-            const DirectX::XMVECTOR vTarget{ DirectX::XMLoadFloat3(&targetPos) };
-            DirectX::XMVECTOR vDir{ DirectX::XMVectorSubtract(vTarget, vCurrent) };
-            vDir = DirectX::XMVectorSetY(vDir, 0.0f); // Ground plane only
-            vDir = DirectX::XMVector3Normalize(vDir);
-
             DirectX::XMFLOAT3 launchDir{};
-            DirectX::XMStoreFloat3(&launchDir, DirectX::XMVectorScale(vDir, 16.0f));
 
-            // Instantly snap orientation toward player so burst lunges directly into combat
+            // Corner-Flank Solver: If an obstacle blocks direct line-of-sight, route around the corner
+            if (!m_blackboard.getFlag(SensoryFlag::has_line_of_sight) && m_currentCoverObstacle)
+            {
+                const DirectX::XMFLOAT3 propPos{ GetWorldPosition(m_currentCoverObstacle) };
+                const float toPlayerX{ targetPos.x - currentPos.x };
+                const float toPlayerZ{ targetPos.z - currentPos.z };
+                const float toPropX{ propPos.x - currentPos.x };
+                const float toPropZ{ propPos.z - currentPos.z };
+
+                // 2D Cross product determines whether flanking left or right gets around the obstacle faster
+                const float crossY{ (toPropX * toPlayerZ) - (toPropZ * toPlayerX) };
+
+                // Orthogonal tangent vector away from obstacle center
+                const float propDist{ std::sqrt((toPropX * toPropX) + (toPropZ * toPropZ)) };
+                const float invPropDist{ (propDist > 0.001f) ? (1.0f / propDist) : 1.0f };
+                const float radX{ toPropX * invPropDist };
+                const float radZ{ toPropZ * invPropDist };
+
+                // crossY >= 0 selects CCW tangent (-z, x); crossY < 0 selects CW tangent (z, -x)
+                const float tangX{ (crossY >= 0.0f) ? -radZ : radZ };
+                const float tangZ{ (crossY >= 0.0f) ? radX : -radX };
+
+                // Blend outward flank tangent (60%) with forward player direction (40%) to round the corner cleanly
+                const float pDist{ std::sqrt((toPlayerX * toPlayerX) + (toPlayerZ * toPlayerZ)) };
+                const float invPDist{ (pDist > 0.001f) ? (1.0f / pDist) : 1.0f };
+                float flankDirX{ (tangX * 0.65f) + (toPlayerX * invPDist * 0.35f) };
+                float flankDirZ{ (tangZ * 0.65f) + (toPlayerZ * invPDist * 0.35f) };
+
+                const float flankLen{ std::sqrt((flankDirX * flankDirX) + (flankDirZ * flankDirZ)) };
+                const float invFlankLen{ (flankLen > 0.001f) ? (1.0f / flankLen) : 1.0f };
+                flankDirX *= invFlankLen;
+                flankDirZ *= invFlankLen;
+
+                launchDir = { flankDirX * 16.0f, 0.0f, flankDirZ * 16.0f };
+            }
+            else
+            {
+                // Direct Line-of-Sight burst
+                const DirectX::XMVECTOR vCurrent{ DirectX::XMLoadFloat3(&currentPos) };
+                const DirectX::XMVECTOR vTarget{ DirectX::XMLoadFloat3(&targetPos) };
+                DirectX::XMVECTOR vDir{ DirectX::XMVectorSubtract(vTarget, vCurrent) };
+                vDir = DirectX::XMVectorSetY(vDir, 0.0f);
+                vDir = DirectX::XMVector3Normalize(vDir);
+                DirectX::XMStoreFloat3(&launchDir, DirectX::XMVectorScale(vDir, 16.0f));
+            }
+
             const float targetYawDeg{ DirectX::XMConvertToDegrees(std::atan2(launchDir.x, launchDir.z)) };
             m_owner->transform.rotation.y = targetYawDeg;
 
+            m_movement->HaltMomentum(1.0f);
             m_movement->AddImpulse(launchDir);
         }
         break;
@@ -1308,11 +1359,20 @@ void AIControllerComponent::TickGrunt(const float dt) noexcept
         break;
 
     case EnemyState::chase:
+        // Investigation Persistence: Allow ambush hunters to maintain chase around corners for up to 2.5s after bursting
         if (!hasLos)
         {
-            // Lost sight; stand-down in idle
-            ChangeState(EnemyState::idle);
-            break;
+            m_blackboard.stateTimer += dt;
+            constexpr float cornerInvestigationWindow{ 2.5f };
+            if (m_blackboard.stateTimer >= cornerInvestigationWindow)
+            {
+                ChangeState(EnemyState::idle);
+                break;
+            }
+        }
+        else
+        {
+            m_blackboard.stateTimer = 0.0f;
         }
 
         // Swarm Arbiter: Execute direct melee attack as soon as inside attack range
@@ -1491,9 +1551,15 @@ void AIControllerComponent::TickGroundAmbush(const float dt) noexcept
     {
     case EnemyState::ambush_dormant:
     {
+        m_blackboard.stateTimer += dt;
+
         if (!m_blackboard.target)
         {
             StopMovement();
+            if (m_animation)
+            {
+                m_animation->PlaySlot(Engine::Animation::AnimSlot::Crouch_Idle);
+            }
             break;
         }
 
@@ -1527,19 +1593,14 @@ void AIControllerComponent::TickGroundAmbush(const float dt) noexcept
             break;
         }
 
-        // Blind-Spot Repositioning: Stealthily creep behind the active cover obstacle
-        const float dx{ m_blackboard.wanderDestination.x - currentPos.x };
-        const float dz{ m_blackboard.wanderDestination.z - currentPos.z };
-        const float distToHideSq{ (dx * dx) + (dz * dz) };
-
-        // Threshold of 35 cm: creep toward hide point; once there, stop and orient toward flank
-        if (distToHideSq > (0.35f * 0.35f))
-        {
-            SteerTowards(m_blackboard.wanderDestination, dt);
-        }
-        else
+        // Latched Cover Gate: Once arrived at cover, hold Crouch_Idle posture and orient toward flank
+        if (m_isAmbushSettled)
         {
             StopMovement();
+            if (m_animation)
+            {
+                m_animation->PlaySlot(Engine::Animation::AnimSlot::Crouch_Idle);
+            }
 
             // Face toward anticipated player approach angle so enemy is primed to burst
             const float dxT{ playerPos.x - currentPos.x };
@@ -1552,14 +1613,99 @@ void AIControllerComponent::TickGroundAmbush(const float dt) noexcept
                 while (deltaYaw < -180.0f) deltaYaw += 360.0f;
                 m_owner->transform.rotation.y += std::clamp(deltaYaw, -m_config.turnSpeedDeg * dt, m_config.turnSpeedDeg * dt);
             }
+            break;
+        }
+
+        // Composite Cover Arrival Evaluation
+        const float dx{ m_blackboard.wanderDestination.x - currentPos.x };
+        const float dz{ m_blackboard.wanderDestination.z - currentPos.z };
+        const float distToHideSq{ (dx * dx) + (dz * dz) };
+        constexpr float arrivalThresholdSq{ 0.50f * 0.50f }; // 50 cm settling radius
+
+        // Geometric arrival at destination
+        bool hasReachedCover{ distToHideSq <= arrivalThresholdSq };
+
+        if (!hasReachedCover)
+        {
+            // Physical wall proximity probe (detects touching the cover building)
+            auto* scene{ PhysicsManager::Instance().GetScene() };
+            if (scene)
+            {
+                const float capsuleRadius{ m_capsule ? m_capsule->GetConfig().radius : 0.5f };
+                const float probeDistance{ capsuleRadius + 0.35f };
+                const float halfHeight{ m_capsule ? m_capsule->GetTotalHalfHeight() : 1.0f };
+                const physx::PxVec3 rayOrigin{ currentPos.x, currentPos.y + halfHeight, currentPos.z };
+
+                // Determine probe direction from active motor steering or towards destination
+                float pDirX{ m_blackboard.moveDirection.x };
+                float pDirZ{ m_blackboard.moveDirection.y };
+                if ((pDirX * pDirX) + (pDirZ * pDirZ) < 0.001f)
+                {
+                    pDirX = dx;
+                    pDirZ = dz;
+                }
+
+                const float pLenSq{ (pDirX * pDirX) + (pDirZ * pDirZ) };
+                if (pLenSq > 0.001f)
+                {
+                    const float invPLen{ 1.0f / std::sqrt(pLenSq) };
+                    const physx::PxVec3 probeRayDir{ pDirX * invPLen, 0.0f, pDirZ * invPLen };
+
+                    physx::PxRaycastBuffer wallHit{};
+                    physx::PxQueryFilterData filterData{};
+                    filterData.data.word0 = CollisionLayer::WorldStatic;
+                    filterData.flags = physx::PxQueryFlag::eSTATIC;
+
+                    if (scene->raycast(rayOrigin, probeRayDir, probeDistance, wallHit, physx::PxHitFlag::eDEFAULT, filterData))
+                    {
+                        hasReachedCover = true;
+                    }
+                }
+            }
+
+            // Kinematic stall guard (AI commands movement, but static wall blocks capsule)
+            if (!hasReachedCover && m_blackboard.stateTimer > 0.20f && m_animBlackboard.groundSpeed < 0.15f)
+            {
+                hasReachedCover = true;
+            }
+        }
+
+        if (hasReachedCover)
+        {
+            m_isAmbushSettled = true;
+            StopMovement();
+            if (m_movement)
+            {
+                m_movement->HaltMomentum(1.0f);
+            }
+            if (m_animation)
+            {
+                m_animation->PlaySlot(Engine::Animation::AnimSlot::Crouch_Idle);
+            }
+        }
+        else
+        {
+            SteerTowards(m_blackboard.wanderDestination, dt);
+            if (m_animation)
+            {
+                m_animation->PlaySlot(Engine::Animation::AnimSlot::Locomotion);
+            }
         }
         break;
     }
 
     case EnemyState::ambush_burst:
         m_blackboard.stateTimer += dt;
-        // Allow the launch impulse to carry the enemy forward out from cover before transitioning to chase
-        if (m_blackboard.stateTimer >= 0.4f)
+        // Steer actively along the corner clearance vector during burst rollout
+        if (m_movement && m_blackboard.target)
+        {
+            const DirectX::XMFLOAT3 currentPos{ GetWorldPosition(m_owner) };
+            const DirectX::XMFLOAT3 targetPos{ GetWorldPosition(m_blackboard.target) };
+            SteerTowards(targetPos, dt, &targetPos);
+        }
+
+        // Allow the launch impulse to clear the corner before smoothly handing off to chase
+        if (m_blackboard.stateTimer >= 0.45f)
         {
             ChangeState(EnemyState::chase);
         }
@@ -2066,7 +2212,8 @@ void AIControllerComponent::FindCoverProps() noexcept
 
 void AIControllerComponent::UpdateAmbushCover(const float dt) noexcept
 {
-    if (m_currentState != EnemyState::ambush_dormant || !m_blackboard.target)
+    // Suspend dynamic shadow recalculation once latched behind cover to prevent destination oscillation
+    if (m_currentState != EnemyState::ambush_dormant || !m_blackboard.target || m_isAmbushSettled)
     {
         return;
     }

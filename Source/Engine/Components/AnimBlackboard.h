@@ -32,6 +32,7 @@ namespace Engine::Animation
         Attack_Speed_Ground,
         Attack_Speed_Aerial,
         Locomotion_Combat,
+        Crouch_Idle,
         Count // Used strictly for array sizing
     };
 

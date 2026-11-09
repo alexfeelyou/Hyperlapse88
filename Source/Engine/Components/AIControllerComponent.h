@@ -143,6 +143,7 @@ private:
     // Initial gravity backup to guarantee proper restoration after wall-lurker drops
     bool m_initialGravity{ true };
     bool m_wasPlayMode{ false };
+    bool m_isAmbushSettled{ false }; // Latched once arrived at cover to prevent shadow jitter
 
     // Cover obstacle caches
     GameObject* m_currentCoverObstacle{ nullptr };
