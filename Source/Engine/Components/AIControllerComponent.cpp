@@ -232,10 +232,11 @@ void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
         m_juggleHoldTimer = 0.0f;
     }
 
-    // Release combat token when exiting attack states
+    // Release combat token and reset combo progression when exiting attack states
     if (m_currentState == EnemyState::attack_windup || m_currentState == EnemyState::attack_active)
     {
         CombatDirector::Instance().ReleaseAttackToken(this);
+        m_comboIndex = 0;
     }
 
     // Immediately evict dead enemies from director slots and spatial buffers
@@ -390,20 +391,12 @@ void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
         break;
 
     case EnemyState::attack_windup:
+        m_comboIndex = 0;
         StopMovement();
         break;
 
     case EnemyState::attack_active:
-        StopMovement();
-        if (m_animation)
-        {
-            m_animation->PlaySlot(Engine::Animation::AnimSlot::Attack_Primary, true);
-            const float animDuration{ m_animation->GetSlotDuration(Engine::Animation::AnimSlot::Attack_Primary) };
-            if (animDuration > 0.05f)
-            {
-                m_config.attackActiveDuration = animDuration;
-            }
-        }
+        TriggerAttackComboStep(m_comboIndex);
         break;
 
     case EnemyState::hit_react:
@@ -445,6 +438,33 @@ void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
 
     default:
         break;
+    }
+}
+
+void AIControllerComponent::TriggerAttackComboStep(const std::uint8_t comboIndex) noexcept
+{
+    m_comboIndex = comboIndex;
+    m_blackboard.stateTimer = 0.0f;
+    StopMovement();
+
+    if (m_animation)
+    {
+        m_animBlackboard.actionIndex = static_cast<int>(m_comboIndex);
+        m_animation->PlaySlot(Engine::Animation::AnimSlot::Attack_Primary, true, static_cast<int>(m_comboIndex));
+        const float animDuration{ m_animation->GetSlotDuration(Engine::Animation::AnimSlot::Attack_Primary) };
+        if (animDuration > 0.05f)
+        {
+            m_config.attackActiveDuration = animDuration;
+        }
+    }
+
+    // Kinematic Weight: Subtle forward step-in impulse per strike if space permits
+    if (m_movement && m_owner && m_blackboard.targetDistanceSq > (0.8f * 0.8f))
+    {
+        const float yawRad{ DirectX::XMConvertToRadians(m_owner->transform.rotation.y) };
+        constexpr std::array<float, 3> s_comboStepSpeeds{ 2.2f, 2.8f, 3.8f };
+        const float stepSpeed{ s_comboStepSpeeds[m_comboIndex % s_comboStepSpeeds.size()] };
+        m_movement->AddImpulse(DirectX::XMFLOAT3{ std::sin(yawRad) * stepSpeed, 0.0f, std::cos(yawRad) * stepSpeed });
     }
 }
 
@@ -1373,14 +1393,80 @@ void AIControllerComponent::TickGrunt(const float dt) noexcept
         break;
 
     case EnemyState::attack_active:
+    {
         m_blackboard.stateTimer += dt;
         StopMovement();
-        if (m_blackboard.stateTimer >= m_config.attackActiveDuration)
+
+        bool canCancelCombo{ false };
+        if (m_animation)
         {
+            for (const auto& ev : m_animation->GetFiredEvents())
+            {
+                if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Combo))
+                {
+                    canCancelCombo = true;
+                }
+                else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse) && m_movement)
+                {
+                    const float yawRad{ DirectX::XMConvertToRadians(m_owner->transform.rotation.y) };
+                    m_movement->AddImpulse(DirectX::XMFLOAT3{ std::sin(yawRad) * ev.payload, 0.0f, std::cos(yawRad) * ev.payload });
+                }
+            }
+        }
+
+        // Combat Tracking: Maintain gentle directional alignment towards target during startup of each swing
+        if (m_blackboard.target)
+        {
+            const float attackProgress{ (m_config.attackActiveDuration > 0.001f)
+                ? (m_blackboard.stateTimer / m_config.attackActiveDuration)
+                : 1.0f };
+            if (attackProgress <= 0.35f)
+            {
+                const DirectX::XMFLOAT3 currentPos{ GetWorldPosition(m_owner) };
+                const DirectX::XMFLOAT3 targetPos{ GetWorldPosition(m_blackboard.target) };
+                const float dx{ targetPos.x - currentPos.x };
+                const float dz{ targetPos.z - currentPos.z };
+                if ((dx * dx) + (dz * dz) > 0.01f)
+                {
+                    const float targetYawDeg{ DirectX::XMConvertToDegrees(std::atan2(dx, dz)) };
+                    float deltaYaw{ targetYawDeg - m_owner->transform.rotation.y };
+                    while (deltaYaw > 180.0f) deltaYaw -= 360.0f;
+                    while (deltaYaw < -180.0f) deltaYaw += 360.0f;
+                    const float maxStep{ (m_config.turnSpeedDeg * 0.75f) * dt };
+                    m_owner->transform.rotation.y += std::clamp(deltaYaw, -maxStep, maxStep);
+                }
+            }
+        }
+
+        const bool hasNextHit{ static_cast<std::uint8_t>(m_comboIndex + 1) < m_config.maxComboHits };
+        const bool swingFinished{ m_blackboard.stateTimer >= m_config.attackActiveDuration };
+
+        // Link to next combo strike if early cancel window opened or current swing fully concluded
+        if ((canCancelCombo && hasNextHit) || swingFinished)
+        {
+            if (hasNextHit)
+            {
+                // Verify target viability before chaining next strike
+                const auto* targetHealth{ m_blackboard.target ? m_blackboard.target->GetComponent<HealthComponent>() : nullptr };
+                const bool isTargetDead{ targetHealth && targetHealth->IsDead() };
+                const float comboRetentionRangeSq{ (m_config.attackRange + 1.25f) * (m_config.attackRange + 1.25f) };
+                const bool isTargetInComboRange{ m_blackboard.targetDistanceSq <= comboRetentionRangeSq };
+                const bool canContinueCombo{ !isTargetDead && isTargetInComboRange && !m_blackboard.getFlag(SensoryFlag::is_leashed) };
+
+                if (canContinueCombo)
+                {
+                    TriggerAttackComboStep(static_cast<std::uint8_t>(m_comboIndex + 1));
+                    break;
+                }
+            }
+
+            // Entire combo finished, or target dead/escaped: reset progression and enter cooldown
+            m_comboIndex = 0;
             m_blackboard.attackCooldownTimer = m_config.attackCooldownDuration;
             ChangeState(EnemyState::chase);
         }
         break;
+    }
 
     case EnemyState::hit_react:
         m_blackboard.stateTimer += dt;
@@ -2407,6 +2493,11 @@ void AIControllerComponent::DrawInspector()
     ImGui::DragFloat("Active Duration", &m_config.attackActiveDuration, 0.05f, 0.05f, 3.0f, "%.2f s");
     ImGui::DragFloat("Attack Cooldown", &m_config.attackCooldownDuration, 0.1f, 0.1f, 5.0f, "%.2f s");
     ImGui::DragFloat("Hit React Time", &m_config.hitReactDuration, 0.05f, 0.05f, 2.0f, "%.2f s");
+    int maxComboHits{ static_cast<int>(m_config.maxComboHits) };
+    if (ImGui::SliderInt("Max Combo Hits", &maxComboHits, 1, 3))
+    {
+        m_config.maxComboHits = static_cast<std::uint8_t>(maxComboHits);
+    }
 
     ImGui::Spacing();
     ImGui::TextDisabled("RUNTIME TELEMETRY");
@@ -2453,6 +2544,7 @@ void AIControllerComponent::Serialize(nlohmann::json& outJson) const
     outJson["AttackActiveDuration"] = m_config.attackActiveDuration;
     outJson["AttackCooldownDuration"] = m_config.attackCooldownDuration;
     outJson["HitReactDuration"] = m_config.hitReactDuration;
+    outJson["MaxComboHits"] = static_cast<int>(m_config.maxComboHits);
 }
 
 void AIControllerComponent::Deserialize(const nlohmann::json& inJson)
@@ -2482,6 +2574,7 @@ void AIControllerComponent::Deserialize(const nlohmann::json& inJson)
     m_config.attackActiveDuration = inJson.value("AttackActiveDuration", 0.35f);
     m_config.attackCooldownDuration = inJson.value("AttackCooldownDuration", 1.2f);
     m_config.hitReactDuration = inJson.value("HitReactDuration", 0.45f);
+    m_config.maxComboHits = static_cast<std::uint8_t>(inJson.value("MaxComboHits", 3));
 
     switch (m_config.archetype)
     {

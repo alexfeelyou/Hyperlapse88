@@ -35,6 +35,7 @@ struct AIControllerConfig
     float attackCooldownDuration{ 1.2f };
     float hitReactDuration{ 0.45f };
     float deaggroDuration{ 2.5f };   // Time enemy remains disinterested after reaching leash limit
+    std::uint8_t maxComboHits{ 3 };  // Number of chained strikes in Attack_Primary (Combo_Attack_01 to 03)
 
     // Perception update rate (amortized time-slicing at ~6.6 Hz)
     float perceptionInterval{ 0.15f };
@@ -93,6 +94,7 @@ private:
     void ChangeState(EnemyState newState) noexcept;
     void AcquirePlayerTarget() noexcept;
     void UpdatePerception(float dt) noexcept;
+    void TriggerAttackComboStep(std::uint8_t comboIndex) noexcept;
 
     // Archetype tick handlers
     void TickGrunt(float dt) noexcept;
@@ -127,6 +129,7 @@ private:
     float m_juggleHoldTimer{ 0.0f };
     float m_recoveryTimer{ 0.0f };
     std::uint8_t m_hitDirectionIndex{ 0 }; // 0: Front, 1: Back, 2: Left, 3: Right
+    std::uint8_t m_comboIndex{ 0 };        // Active combo strike index (0: Attack_01, 1: Attack_02, 2: Attack_03)
 
     // Sibling component caches
     AnimationComponent* m_animation{ nullptr };
