@@ -157,6 +157,8 @@ void AIControllerComponent::OnAttach(GameObject* owner) noexcept
             ChangeState(EnemyState::idle);
             break;
         case EnemyArchetype::ground_ambush:
+            m_isAmbushRunAttackPrimed = true;
+            m_isExecutingRunAttack = false;
             ChangeState(EnemyState::ambush_dormant);
             break;
         case EnemyArchetype::wall_lurker:
@@ -205,6 +207,13 @@ void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
         return;
     }
 
+    // Interruption Invariant: Any player hit or juggle immediately wipes the ambush run attack prime
+    if (newState == EnemyState::hit_react || newState == EnemyState::airborne_juggle)
+    {
+        m_isAmbushRunAttackPrimed = false;
+        m_isExecutingRunAttack = false;
+    }
+
     // State exit logic
     if (m_currentState == EnemyState::wall_hang && m_movement)
     {
@@ -232,11 +241,15 @@ void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
         m_juggleHoldTimer = 0.0f;
     }
 
-    // Release combat token and reset combo progression when exiting attack states
-    if (m_currentState == EnemyState::attack_windup || m_currentState == EnemyState::attack_active)
+    // Release combat token and reset combo progression when completely exiting attack states
+    const bool isExitingAttackState{ m_currentState == EnemyState::attack_windup || m_currentState == EnemyState::attack_active };
+    const bool isEnteringAttackState{ newState == EnemyState::attack_windup || newState == EnemyState::attack_active };
+
+    if (isExitingAttackState && !isEnteringAttackState)
     {
         CombatDirector::Instance().ReleaseAttackToken(this);
         m_comboIndex = 0;
+        m_isExecutingRunAttack = false;
     }
 
     // Immediately evict dead enemies from director slots and spatial buffers
@@ -342,6 +355,8 @@ void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
 
     case EnemyState::ambush_dormant:
         m_isAmbushSettled = false;
+        m_isAmbushRunAttackPrimed = true;
+        m_isExecutingRunAttack = false;
         StopMovement();
         if (m_movement)
         {
@@ -356,7 +371,8 @@ void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
     case EnemyState::ambush_burst:
         if (m_animation)
         {
-            m_animation->PlaySlot(Engine::Animation::AnimSlot::Attack_Contextual, true);
+            // Burst from cover into a sprint; attack is executed only after reaching the player
+            m_animation->PlaySlot(Engine::Animation::AnimSlot::Locomotion);
         }
         if (m_movement && m_blackboard.target)
         {
@@ -443,14 +459,26 @@ void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
 
     case EnemyState::attack_windup:
         m_comboIndex = 0;
-        StopMovement();
+        if (!m_isExecutingRunAttack)
+        {
+            StopMovement();
+        }
         break;
 
     case EnemyState::attack_active:
-        TriggerAttackComboStep(m_comboIndex);
+        if (m_isExecutingRunAttack)
+        {
+            TriggerRunAttack();
+        }
+        else
+        {
+            TriggerAttackComboStep(m_comboIndex);
+        }
         break;
 
     case EnemyState::hit_react:
+        m_isAmbushRunAttackPrimed = false;
+        m_isExecutingRunAttack = false;
         StopMovement();
         if (m_movement)
         {
@@ -516,6 +544,41 @@ void AIControllerComponent::TriggerAttackComboStep(const std::uint8_t comboIndex
         constexpr std::array<float, 3> s_comboStepSpeeds{ 2.2f, 2.8f, 3.8f };
         const float stepSpeed{ s_comboStepSpeeds[m_comboIndex % s_comboStepSpeeds.size()] };
         m_movement->AddImpulse(DirectX::XMFLOAT3{ std::sin(yawRad) * stepSpeed, 0.0f, std::cos(yawRad) * stepSpeed });
+    }
+}
+
+void AIControllerComponent::TriggerRunAttack() noexcept
+{
+    m_comboIndex = 0;
+    m_blackboard.stateTimer = 0.0f;
+    StopMovement();
+
+    if (m_animation)
+    {
+        m_animBlackboard.actionIndex = 0;
+        m_animation->PlaySlot(Engine::Animation::AnimSlot::Attack_Contextual, true, 0);
+        const float animDuration{ m_animation->GetSlotDuration(Engine::Animation::AnimSlot::Attack_Contextual) };
+        if (animDuration > 0.05f)
+        {
+            m_config.attackActiveDuration = animDuration;
+        }
+        else
+        {
+            // Fallback duration in case the user has not wired the AnimSlot::Attack_Contextual graph node yet
+            m_config.attackActiveDuration = 0.65f;
+        }
+    }
+    else
+    {
+        m_config.attackActiveDuration = 0.65f;
+    }
+
+    // Kinematic Lunge: propel enemy forward with dynamic running slash momentum
+    if (m_movement && m_owner)
+    {
+        const float yawRad{ DirectX::XMConvertToRadians(m_owner->transform.rotation.y) };
+        constexpr float s_runAttackImpulse{ 6.0f };
+        m_movement->AddImpulse(DirectX::XMFLOAT3{ std::sin(yawRad) * s_runAttackImpulse, 0.0f, std::cos(yawRad) * s_runAttackImpulse });
     }
 }
 
@@ -837,6 +900,9 @@ void AIControllerComponent::NotifyHitReaction(const DirectX::XMFLOAT3& slashDir)
         }
         return;
     }
+
+    m_isAmbushRunAttackPrimed = false;
+    m_isExecutingRunAttack = false;
 
     // If airborne, maintain juggle instead of snapping to grounded hit_react
     // Grounded recovery (Node 1: GetUp) falls through to standard grounded hit_react
@@ -1359,6 +1425,7 @@ void AIControllerComponent::TickGrunt(const float dt) noexcept
         break;
 
     case EnemyState::chase:
+    {
         // Investigation Persistence: Allow ambush hunters to maintain chase around corners for up to 2.5s after bursting
         if (!hasLos)
         {
@@ -1376,10 +1443,22 @@ void AIControllerComponent::TickGrunt(const float dt) noexcept
         }
 
         // Swarm Arbiter: Execute direct melee attack as soon as inside attack range
-        if (m_blackboard.targetDistanceSq <= attackRangeSq)
+        const float effectiveAttackRange{ (m_isAmbushRunAttackPrimed) ? (m_config.attackRange + 0.8f) : m_config.attackRange };
+        const float effectiveAttackRangeSq{ effectiveAttackRange * effectiveAttackRange };
+
+        if (m_blackboard.targetDistanceSq <= effectiveAttackRangeSq)
         {
             if (m_blackboard.attackCooldownTimer <= 0.0f && CombatDirector::Instance().RequestAttackToken(this))
             {
+                if (m_isAmbushRunAttackPrimed)
+                {
+                    m_isExecutingRunAttack = true;
+                    m_isAmbushRunAttackPrimed = false; // Consumed on first attack trigger
+                }
+                else
+                {
+                    m_isExecutingRunAttack = false;
+                }
                 ChangeState(EnemyState::attack_windup);
                 break;
             }
@@ -1425,10 +1504,20 @@ void AIControllerComponent::TickGrunt(const float dt) noexcept
             }
         }
         break;
+    }
 
     case EnemyState::attack_windup:
+    {
         m_blackboard.stateTimer += dt;
-        StopMovement();
+        if (m_isExecutingRunAttack && m_blackboard.target)
+        {
+            // Maintain sprint pursuit momentum and tracking towards target during the 0.10s windup tell
+            SteerTowards(m_blackboard.targetPosition, dt, &m_blackboard.targetPosition);
+        }
+        else
+        {
+            StopMovement();
+        }
         if (m_blackboard.target)
         {
             // Smoothly track target during windup so attack aligns cleanly to player
@@ -1446,11 +1535,14 @@ void AIControllerComponent::TickGrunt(const float dt) noexcept
                 m_owner->transform.rotation.y += std::clamp(deltaYaw, -maxStep, maxStep);
             }
         }
-        if (m_blackboard.stateTimer >= m_config.attackWindupDuration)
+        // Run attacks preserve forward drive with a punchy 0.10s tell rather than static pause
+        const float activeWindup{ m_isExecutingRunAttack ? 0.10f : m_config.attackWindupDuration };
+        if (m_blackboard.stateTimer >= activeWindup)
         {
             ChangeState(EnemyState::attack_active);
         }
         break;
+    }
 
     case EnemyState::attack_active:
     {
@@ -1498,7 +1590,7 @@ void AIControllerComponent::TickGrunt(const float dt) noexcept
             }
         }
 
-        const bool hasNextHit{ static_cast<std::uint8_t>(m_comboIndex + 1) < m_config.maxComboHits };
+        const bool hasNextHit{ !m_isExecutingRunAttack && (static_cast<std::uint8_t>(m_comboIndex + 1) < m_config.maxComboHits) };
         const bool swingFinished{ m_blackboard.stateTimer >= m_config.attackActiveDuration };
 
         // Link to next combo strike if early cancel window opened or current swing fully concluded
@@ -1522,6 +1614,7 @@ void AIControllerComponent::TickGrunt(const float dt) noexcept
 
             // Entire combo finished, or target dead/escaped: reset progression and enter cooldown
             m_comboIndex = 0;
+            m_isExecutingRunAttack = false;
             m_blackboard.attackCooldownTimer = m_config.attackCooldownDuration;
             ChangeState(EnemyState::chase);
         }
@@ -1704,8 +1797,8 @@ void AIControllerComponent::TickGroundAmbush(const float dt) noexcept
             SteerTowards(targetPos, dt, &targetPos);
         }
 
-        // Allow the launch impulse to clear the corner before smoothly handing off to chase
-        if (m_blackboard.stateTimer >= 0.45f)
+        // Hand off to chase once the corner is cleared, or immediately if player is already in attack range
+        if (m_blackboard.stateTimer >= 0.45f || m_blackboard.targetDistanceSq <= (m_config.attackRange * m_config.attackRange))
         {
             ChangeState(EnemyState::chase);
         }
@@ -2054,6 +2147,8 @@ void AIControllerComponent::Update(const float dt)
             m_blackboard.stateTimer = m_config.idleDuration;
             break;
         case EnemyArchetype::ground_ambush:
+            m_isAmbushRunAttackPrimed = true;
+            m_isExecutingRunAttack = false;
             FindCoverProps();
             ChangeState(EnemyState::ambush_dormant);
             break;
@@ -2662,6 +2757,8 @@ void AIControllerComponent::DrawInspector()
     bool fovCheck = m_blackboard.getFlag(SensoryFlag::is_target_in_fov);
     ImGui::Checkbox("Has Line of Sight", &losCheck);
     ImGui::Checkbox("Is in FOV", &fovCheck);
+    bool runAttackPrimed{ m_isAmbushRunAttackPrimed };
+    ImGui::Checkbox("Ambush Run Attack Primed", &runAttackPrimed);
 
     ImGui::EndDisabled();
 }

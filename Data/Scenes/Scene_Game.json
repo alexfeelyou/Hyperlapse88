@@ -14080,6 +14080,37 @@
                                     ],
                                     "Slot": 23,
                                     "Type": 0
+                                },
+                                {
+                                    "BlendParam": 0,
+                                    "Name": "Attack Contextual",
+                                    "Nodes": [
+                                        {
+                                            "Blend": 0.20000000298023224,
+                                            "ClipIndex": 4,
+                                            "Events": [],
+                                            "GripPosX": 0.0,
+                                            "GripPosY": 0.0,
+                                            "GripPosZ": 0.0,
+                                            "GripRotX": 0.0,
+                                            "GripRotY": 0.0,
+                                            "GripRotZ": 0.0,
+                                            "HasGripOverride": false,
+                                            "LockRootX": false,
+                                            "LockRootY": false,
+                                            "LockRootZ": true,
+                                            "Loop": false,
+                                            "RootBoneIndex": 1,
+                                            "Speed": 1.2000000476837158,
+                                            "SpeedCurve": [],
+                                            "StartOffset": 0.0,
+                                            "SyncPhase": false,
+                                            "Threshold": 0.0,
+                                            "Transitions": []
+                                        }
+                                    ],
+                                    "Slot": 12,
+                                    "Type": 0
                                 }
                             ],
                             "Type": "AnimationComponent"

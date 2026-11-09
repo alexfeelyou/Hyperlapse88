@@ -84,6 +84,8 @@ public:
     [[nodiscard]] AIControllerConfig& GetConfig() noexcept { return m_config; }
     [[nodiscard]] bool IsInvincible() const noexcept;
     [[nodiscard]] bool IsGetUp() const noexcept;
+    [[nodiscard]] bool IsAmbushRunAttackPrimed() const noexcept { return m_isAmbushRunAttackPrimed; }
+    [[nodiscard]] bool IsExecutingRunAttack() const noexcept { return m_isExecutingRunAttack; }
 
     // Animation contract accessors
     [[nodiscard]] AnimationComponent* GetAnimation() const noexcept { return m_animation; }
@@ -95,6 +97,7 @@ private:
     void AcquirePlayerTarget() noexcept;
     void UpdatePerception(float dt) noexcept;
     void TriggerAttackComboStep(std::uint8_t comboIndex) noexcept;
+    void TriggerRunAttack() noexcept;
 
     // Archetype tick handlers
     void TickGrunt(float dt) noexcept;
@@ -130,6 +133,8 @@ private:
     float m_recoveryTimer{ 0.0f };
     std::uint8_t m_hitDirectionIndex{ 0 }; // 0: Front, 1: Back, 2: Left, 3: Right
     std::uint8_t m_comboIndex{ 0 };        // Active combo strike index (0: Attack_01, 1: Attack_02, 2: Attack_03)
+    bool m_isAmbushRunAttackPrimed{ false }; // Primed in ambush; consumed on attack execution or taking damage
+    bool m_isExecutingRunAttack{ false };    // Active state marker during the initial contextual running slash
 
     // Sibling component caches
     AnimationComponent* m_animation{ nullptr };
