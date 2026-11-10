@@ -265,11 +265,17 @@ void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
     switch (m_currentState)
     {
     case EnemyState::wall_hang:
+        StopMovement();
         if (m_movement)
         {
             // Suspend gravity and halt momentum to cling securely to wall
             m_movement->GetConfig().useGravity = false;
             m_movement->HaltMomentum(1.0f);
+        }
+        if (m_animation)
+        {
+            // Assert low-profile crouching posture while waiting on the wall perch
+            m_animation->PlaySlot(Engine::Animation::AnimSlot::Crouch_Idle);
         }
         break;
 
@@ -318,6 +324,13 @@ void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
 
             m_movement->AddImpulse(ejectDir);
         }
+        if (m_animation)
+        {
+            // Node 7 of AirTraversal = Jump_Loop
+            m_animBlackboard.actionIndex = 7;
+            m_animation->PlaySlot(Engine::Animation::AnimSlot::AirTraversal, true, 7);
+        }
+        m_animBlackboard.setFlag(Engine::Animation::AnimFlag::is_grounded, false);
         break;
 
     case EnemyState::wall_scramble:
@@ -326,6 +339,11 @@ void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
             // Enable gravity and allow movement so the capsule moves across the roof to the ledge
             m_movement->GetConfig().useGravity = true;
         }
+        if (m_animation)
+        {
+            // Restore locomotion blend tree when scrambling from the perch to the ledge
+            m_animation->PlaySlot(Engine::Animation::AnimSlot::Locomotion);
+        }
         break;
 
     case EnemyState::wall_land:
@@ -333,17 +351,21 @@ void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
         if (m_movement)
         {
             m_movement->HaltMomentum(1.0f);
+            m_movement->SetVerticalVelocity(0.0f);
             m_movement->GetConfig().useGravity = true;
         }
         if (m_animation)
         {
-            m_animation->PlaySlot(Engine::Animation::AnimSlot::Landing, true);
+            // Select Node 3 (Jump_End) 
+            m_animBlackboard.actionIndex = 3;
+            m_animation->PlaySlot(Engine::Animation::AnimSlot::Landing, true, 3);
             const float animDuration{ m_animation->GetSlotDuration(Engine::Animation::AnimSlot::Landing) };
             if (animDuration > 0.05f)
             {
                 m_config.wallLandDuration = animDuration;
             }
         }
+        m_animBlackboard.setFlag(Engine::Animation::AnimFlag::is_grounded, true);
         // Re-Anchor: Relocate spawn & combat territory anchor to the landed floor coordinates
         m_blackboard.spawnPosition = GetWorldPosition(m_owner);
         m_blackboard.wanderDestination = m_blackboard.spawnPosition;
@@ -1825,6 +1847,19 @@ void AIControllerComponent::TickWallLurker(const float dt) noexcept
     {
     case EnemyState::wall_hang:
     {
+        StopMovement();
+        if (m_movement)
+        {
+            // Suspend gravity and halt momentum to cling securely to wall
+            m_movement->GetConfig().useGravity = false;
+            m_movement->HaltMomentum(1.0f);
+        }
+        if (m_animation)
+        {
+            // Assert low-profile crouching posture continuously while perched
+            m_animation->PlaySlot(Engine::Animation::AnimSlot::Crouch_Idle);
+        }
+
         if (!m_blackboard.target)
         {
             AcquirePlayerTarget();
@@ -2034,16 +2069,22 @@ void AIControllerComponent::TickWallLurker(const float dt) noexcept
     }
 
     case EnemyState::wall_drop:
+    {
         // Enforce zero horizontal steering while in free-fall to prevent airborne drift
         StopMovement();
-        // Free-fall until the capsule controller strikes ground geometry
-        if (m_capsule && m_capsule->IsGrounded())
+        m_blackboard.stateTimer += dt;
+
+        // Free-fall until capsule controller strikes ground geometry (guarded by detachment air time)
+        constexpr float minDropAirTime{ 0.12f };
+        if (m_blackboard.stateTimer >= minDropAirTime && m_capsule && m_capsule->IsGrounded())
         {
             ChangeState(EnemyState::wall_land);
         }
         break;
+    }
 
     case EnemyState::wall_land:
+    {
         StopMovement();
         if (m_capsule && !m_capsule->IsGrounded())
         {
@@ -2071,11 +2112,14 @@ void AIControllerComponent::TickWallLurker(const float dt) noexcept
         }
 
         // Theatrical recovery window concludes: transition directly to combat pursuit
-        if (m_blackboard.stateTimer >= m_config.wallLandDuration)
+        const bool animFinished{ m_animation && m_animation->GetCurrentPhase() >= 0.99f };
+        const bool timerFinished{ m_blackboard.stateTimer >= m_config.wallLandDuration };
+        if (animFinished || timerFinished)
         {
             ChangeState(EnemyState::chase);
         }
         break;
+    }
 
     case EnemyState::idle:
     case EnemyState::patrol:
@@ -2138,6 +2182,9 @@ void AIControllerComponent::Update(const float dt)
         {
             m_initialGravity = m_movement->GetConfig().useGravity;
         }
+
+        // Invalidate cached state so ChangeState executes entry logic on Play Mode start
+        m_currentState = EnemyState::count;
 
         switch (m_config.archetype)
         {
