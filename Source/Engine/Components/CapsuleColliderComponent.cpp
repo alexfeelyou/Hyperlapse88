@@ -158,6 +158,10 @@ void CapsuleColliderComponent::ResolveHeadStackingDeflection(const float dt) noe
     if (scene->overlap(probeSphere, probePose, overlapBuffer, filterData))
     {
         const physx::PxU32 hitCount{ overlapBuffer.getNbAnyHits() };
+        float accumPushX{ 0.0f };
+        float accumPushZ{ 0.0f };
+
+        // Crowd Centroid Solver: Accumulate repulsion across all underlying characters instead of breaking early
         for (physx::PxU32 i{ 0 }; i < hitCount; ++i)
         {
             const auto& hit{ overlapBuffer.getAnyHit(i) };
@@ -184,15 +188,22 @@ void CapsuleColliderComponent::ResolveHeadStackingDeflection(const float dt) noe
             if (distSq > 0.0001f)
             {
                 const float invDist{ 1.0f / std::sqrt(distSq) };
-                pushX = dx * invDist;
-                pushZ = dz * invDist;
+                accumPushX += dx * invDist;
+                accumPushZ += dz * invDist;
             }
             foundObstacle = true;
-            break;
+        }
+
+        const float accumLenSq{ (accumPushX * accumPushX) + (accumPushZ * accumPushZ) };
+        if (accumLenSq > 0.0001f)
+        {
+            const float invAccumLen{ 1.0f / std::sqrt(accumLenSq) };
+            pushX = accumPushX * invAccumLen;
+            pushZ = accumPushZ * invAccumLen;
         }
     }
 
-    // Fallback: If perfectly aligned with obstacle or query missed, push along character facing or forward
+    // Fallback: If perfectly centered on obstacle or net repulsion cancelled out, push along character facing
     if (!foundObstacle || ((pushX * pushX) + (pushZ * pushZ) < 0.001f))
     {
         const float yawRad{ DirectX::XMConvertToRadians(m_owner->transform.rotation.y) };
@@ -205,17 +216,25 @@ void CapsuleColliderComponent::ResolveHeadStackingDeflection(const float dt) noe
     }
 
     constexpr float minStepDistance{ 0.001f };
-    constexpr float lateralSlideSpeed{ 7.0f };
+    constexpr float lateralSlideSpeed{ 5.5f }; // Clamped natural slide speed (m/s)
     const float lateralStep{ lateralSlideSpeed * dt };
     physx::PxControllerFilters cctFilters{};
 
-    // Immediately displace the kinematic controller laterally to slide off the head dome
-    m_controller->move(physx::PxVec3{ pushX * lateralStep, -0.5f * dt, pushZ * lateralStep }, minStepDistance, dt, cctFilters);
+    // Immediate kinematic micro-step off the apex with downward slope adhesion
+    m_controller->move(physx::PxVec3{ pushX * lateralStep, -0.75f * dt, pushZ * lateralStep }, minStepDistance, dt, cctFilters);
 
-    // Inject lateral momentum into the locomotion motor so the glance carries through smoothly
+    // Deficit Clamping: Bound the slide speed ceiling to prevent compounding impulse explosions
     if (auto* motor{ m_owner->GetComponent<CharacterMovementComponent>() })
     {
-        motor->AddImpulse(DirectX::XMFLOAT3{ pushX * 8.0f, 0.0f, pushZ * 8.0f });
+        const DirectX::XMFLOAT3 currentVel{ motor->GetTotalVelocity() };
+        const float currentSpeedAlongPush{ (currentVel.x * pushX) + (currentVel.z * pushZ) };
+
+        // Only inject deficit impulse if velocity along the escape direction is below the target slide speed
+        if (currentSpeedAlongPush < lateralSlideSpeed)
+        {
+            const float speedDeficit{ lateralSlideSpeed - (std::max)(0.0f, currentSpeedAlongPush) };
+            motor->AddImpulse(DirectX::XMFLOAT3{ pushX * speedDeficit, 0.0f, pushZ * speedDeficit });
+        }
     }
 }
 
