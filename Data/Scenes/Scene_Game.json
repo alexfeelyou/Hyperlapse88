@@ -12221,15 +12221,7 @@
                                             "SyncPhase": false,
                                             "Threshold": 0.0,
                                             "Transitions": []
-                                        }
-                                    ],
-                                    "Slot": 18,
-                                    "Type": 2
-                                },
-                                {
-                                    "BlendParam": 0,
-                                    "Name": "Air Traversal",
-                                    "Nodes": [
+                                        },
                                         {
                                             "Blend": 0.20000000298023224,
                                             "ClipIndex": 12,
@@ -12268,7 +12260,7 @@
                                             "LockRootY": false,
                                             "LockRootZ": false,
                                             "Loop": false,
-                                            "RootBoneIndex": 1,
+                                            "RootBoneIndex": 0,
                                             "Speed": 1.0,
                                             "SpeedCurve": [],
                                             "StartOffset": 0.0,
@@ -12392,8 +12384,39 @@
                                             "Transitions": []
                                         }
                                     ],
-                                    "Slot": 6,
+                                    "Slot": 18,
                                     "Type": 2
+                                },
+                                {
+                                    "BlendParam": 0,
+                                    "Name": "Air Traversal",
+                                    "Nodes": [
+                                        {
+                                            "Blend": 0.20000000298023224,
+                                            "ClipIndex": 23,
+                                            "Events": [],
+                                            "GripPosX": 0.0,
+                                            "GripPosY": 0.0,
+                                            "GripPosZ": 0.0,
+                                            "GripRotX": 0.0,
+                                            "GripRotY": 0.0,
+                                            "GripRotZ": 0.0,
+                                            "HasGripOverride": false,
+                                            "LockRootX": false,
+                                            "LockRootY": false,
+                                            "LockRootZ": false,
+                                            "Loop": true,
+                                            "RootBoneIndex": 0,
+                                            "Speed": 1.0,
+                                            "SpeedCurve": [],
+                                            "StartOffset": 0.0,
+                                            "SyncPhase": false,
+                                            "Threshold": 0.0,
+                                            "Transitions": []
+                                        }
+                                    ],
+                                    "Slot": 6,
+                                    "Type": 0
                                 },
                                 {
                                     "BlendParam": 0,
@@ -12410,9 +12433,9 @@
                                             "GripRotY": 0.0,
                                             "GripRotZ": 0.0,
                                             "HasGripOverride": false,
-                                            "LockRootX": true,
-                                            "LockRootY": true,
-                                            "LockRootZ": true,
+                                            "LockRootX": false,
+                                            "LockRootY": false,
+                                            "LockRootZ": false,
                                             "Loop": false,
                                             "RootBoneIndex": 1,
                                             "Speed": 1.0,
@@ -12448,6 +12471,29 @@
                                         {
                                             "Blend": 0.20000000298023224,
                                             "ClipIndex": 20,
+                                            "Events": [],
+                                            "GripPosX": 0.0,
+                                            "GripPosY": 0.0,
+                                            "GripPosZ": 0.0,
+                                            "GripRotX": 0.0,
+                                            "GripRotY": 0.0,
+                                            "GripRotZ": 0.0,
+                                            "HasGripOverride": false,
+                                            "LockRootX": false,
+                                            "LockRootY": false,
+                                            "LockRootZ": false,
+                                            "Loop": false,
+                                            "RootBoneIndex": 0,
+                                            "Speed": 1.0,
+                                            "SpeedCurve": [],
+                                            "StartOffset": 0.0,
+                                            "SyncPhase": false,
+                                            "Threshold": 0.0,
+                                            "Transitions": []
+                                        },
+                                        {
+                                            "Blend": 0.20000000298023224,
+                                            "ClipIndex": 24,
                                             "Events": [],
                                             "GripPosX": 0.0,
                                             "GripPosY": 0.0,
@@ -13799,15 +13845,7 @@
                                             "SyncPhase": false,
                                             "Threshold": 0.0,
                                             "Transitions": []
-                                        }
-                                    ],
-                                    "Slot": 18,
-                                    "Type": 2
-                                },
-                                {
-                                    "BlendParam": 0,
-                                    "Name": "Air Traversal",
-                                    "Nodes": [
+                                        },
                                         {
                                             "Blend": 0.20000000298023224,
                                             "ClipIndex": 12,
@@ -13846,7 +13884,7 @@
                                             "LockRootY": false,
                                             "LockRootZ": false,
                                             "Loop": false,
-                                            "RootBoneIndex": 1,
+                                            "RootBoneIndex": 0,
                                             "Speed": 1.0,
                                             "SpeedCurve": [],
                                             "StartOffset": 0.0,
@@ -13961,6 +13999,37 @@
                                             "LockRootY": false,
                                             "LockRootZ": false,
                                             "Loop": true,
+                                            "RootBoneIndex": 2,
+                                            "Speed": 1.0,
+                                            "SpeedCurve": [],
+                                            "StartOffset": 0.0,
+                                            "SyncPhase": false,
+                                            "Threshold": 0.0,
+                                            "Transitions": []
+                                        }
+                                    ],
+                                    "Slot": 18,
+                                    "Type": 2
+                                },
+                                {
+                                    "BlendParam": 0,
+                                    "Name": "Air Traversal",
+                                    "Nodes": [
+                                        {
+                                            "Blend": 0.20000000298023224,
+                                            "ClipIndex": 23,
+                                            "Events": [],
+                                            "GripPosX": 0.0,
+                                            "GripPosY": 0.0,
+                                            "GripPosZ": 0.0,
+                                            "GripRotX": 0.0,
+                                            "GripRotY": 0.0,
+                                            "GripRotZ": 0.0,
+                                            "HasGripOverride": false,
+                                            "LockRootX": false,
+                                            "LockRootY": false,
+                                            "LockRootZ": false,
+                                            "Loop": true,
                                             "RootBoneIndex": 0,
                                             "Speed": 1.0,
                                             "SpeedCurve": [],
@@ -13971,7 +14040,7 @@
                                         }
                                     ],
                                     "Slot": 6,
-                                    "Type": 2
+                                    "Type": 0
                                 },
                                 {
                                     "BlendParam": 0,
@@ -13988,9 +14057,9 @@
                                             "GripRotY": 0.0,
                                             "GripRotZ": 0.0,
                                             "HasGripOverride": false,
-                                            "LockRootX": true,
-                                            "LockRootY": true,
-                                            "LockRootZ": true,
+                                            "LockRootX": false,
+                                            "LockRootY": false,
+                                            "LockRootZ": false,
                                             "Loop": false,
                                             "RootBoneIndex": 1,
                                             "Speed": 1.0,
@@ -14026,6 +14095,29 @@
                                         {
                                             "Blend": 0.20000000298023224,
                                             "ClipIndex": 20,
+                                            "Events": [],
+                                            "GripPosX": 0.0,
+                                            "GripPosY": 0.0,
+                                            "GripPosZ": 0.0,
+                                            "GripRotX": 0.0,
+                                            "GripRotY": 0.0,
+                                            "GripRotZ": 0.0,
+                                            "HasGripOverride": false,
+                                            "LockRootX": false,
+                                            "LockRootY": false,
+                                            "LockRootZ": false,
+                                            "Loop": false,
+                                            "RootBoneIndex": 0,
+                                            "Speed": 1.0,
+                                            "SpeedCurve": [],
+                                            "StartOffset": 0.0,
+                                            "SyncPhase": false,
+                                            "Threshold": 0.0,
+                                            "Transitions": []
+                                        },
+                                        {
+                                            "Blend": 0.20000000298023224,
+                                            "ClipIndex": 24,
                                             "Events": [],
                                             "GripPosX": 0.0,
                                             "GripPosY": 0.0,
@@ -14977,15 +15069,7 @@
                                             "SyncPhase": false,
                                             "Threshold": 0.0,
                                             "Transitions": []
-                                        }
-                                    ],
-                                    "Slot": 18,
-                                    "Type": 2
-                                },
-                                {
-                                    "BlendParam": 0,
-                                    "Name": "Air Traversal",
-                                    "Nodes": [
+                                        },
                                         {
                                             "Blend": 0.20000000298023224,
                                             "ClipIndex": 12,
@@ -15024,7 +15108,7 @@
                                             "LockRootY": false,
                                             "LockRootZ": false,
                                             "Loop": false,
-                                            "RootBoneIndex": 1,
+                                            "RootBoneIndex": 0,
                                             "Speed": 1.0,
                                             "SpeedCurve": [],
                                             "StartOffset": 0.0,
@@ -15146,7 +15230,15 @@
                                             "SyncPhase": false,
                                             "Threshold": 0.0,
                                             "Transitions": []
-                                        },
+                                        }
+                                    ],
+                                    "Slot": 18,
+                                    "Type": 2
+                                },
+                                {
+                                    "BlendParam": 0,
+                                    "Name": "Air Traversal",
+                                    "Nodes": [
                                         {
                                             "Blend": 0.20000000298023224,
                                             "ClipIndex": 23,
@@ -15172,7 +15264,7 @@
                                         }
                                     ],
                                     "Slot": 6,
-                                    "Type": 2
+                                    "Type": 0
                                 },
                                 {
                                     "BlendParam": 0,
@@ -15189,9 +15281,9 @@
                                             "GripRotY": 0.0,
                                             "GripRotZ": 0.0,
                                             "HasGripOverride": false,
-                                            "LockRootX": true,
-                                            "LockRootY": true,
-                                            "LockRootZ": true,
+                                            "LockRootX": false,
+                                            "LockRootY": false,
+                                            "LockRootZ": false,
                                             "Loop": false,
                                             "RootBoneIndex": 1,
                                             "Speed": 1.0,

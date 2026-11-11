@@ -326,9 +326,9 @@ void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
         }
         if (m_animation)
         {
-            // Node 7 of AirTraversal = Jump_Loop
-            m_animBlackboard.actionIndex = 7;
-            m_animation->PlaySlot(Engine::Animation::AnimSlot::AirTraversal, true, 7);
+            // Node 0 of AirTraversal = Jump_Loop
+            m_animBlackboard.actionIndex = 0;
+            m_animation->PlaySlot(Engine::Animation::AnimSlot::AirTraversal, true, 0);
         }
         m_animBlackboard.setFlag(Engine::Animation::AnimFlag::is_grounded, false);
         break;
@@ -1005,8 +1005,8 @@ void AIControllerComponent::NotifyLaunch(const float launchVelocityY) noexcept
 
     if (m_animation)
     {
-        m_animBlackboard.actionIndex = 0; // Hit_To_Air.FBX
-        m_animation->PlaySlot(Engine::Animation::AnimSlot::AirTraversal, true, 0);
+        m_animBlackboard.actionIndex = 4; // Hit_To_Air (Node 4 of HitReact)
+        m_animation->PlaySlot(Engine::Animation::AnimSlot::HitReact, true, 4);
     }
 
     if (m_movement)
@@ -1070,11 +1070,11 @@ void AIControllerComponent::NotifyAirJuggle(const float hitStopDuration, const b
         m_jugglePhase = JugglePhase::FinisherDrop;
         m_juggleHoldTimer = finisherFollowThrough;
 
-        // Finisher Hit: Play Hit_Air_To_Floor_Start (Node 5 of AirTraversal)
+        // Finisher Hit: Play Hit_Air_To_Floor_Start (Node 9 of HitReact)
         if (m_animation)
         {
-            m_animBlackboard.actionIndex = 5;
-            m_animation->PlaySlot(Engine::Animation::AnimSlot::AirTraversal, true, 5);
+            m_animBlackboard.actionIndex = 9;
+            m_animation->PlaySlot(Engine::Animation::AnimSlot::HitReact, true, 9);
             m_animation->ApplyHitStop(hitStopDuration);
         }
 
@@ -1090,15 +1090,16 @@ void AIControllerComponent::NotifyAirJuggle(const float hitStopDuration, const b
         m_jugglePhase = JugglePhase::FloatHold;
         m_juggleHoldTimer = (finisherFollowThrough > 0.001f) ? finisherFollowThrough : 0.85f;
 
-        // AirTraversal Graph Node Map: 0 -> Node 1 (Front), 1 -> Node 2 (Back), 2 -> Node 4 (Left), 3 -> Node 3 (Right)
-        constexpr std::array<int, 4> s_airHitNodeLookup{ 1, 2, 4, 3 };
+        // HitReact Graph Node Map (Kinematic Recoil Inversion):
+        // hitDir: 0 (Front) -> Node 5, 1 (Back) -> Node 6, 2 (Hit from Left -> Flinch Right) -> Node 8, 3 (Hit from Right -> Flinch Left) -> Node 7
+        constexpr std::array<int, 4> s_airHitNodeLookup{ 5, 6, 8, 7 };
         const int airHitNode{ s_airHitNodeLookup[hitDir & 0x03] };
 
         // Only replay flinch and impact freeze on genuine weapon contact (hitStopDuration > 0)
         if (m_animation && hitStopDuration > 0.001f)
         {
             m_animBlackboard.actionIndex = airHitNode;
-            m_animation->PlaySlot(Engine::Animation::AnimSlot::AirTraversal, true, airHitNode);
+            m_animation->PlaySlot(Engine::Animation::AnimSlot::HitReact, true, airHitNode);
             m_animation->ApplyHitStop(hitStopDuration);
         }
 
@@ -1131,8 +1132,8 @@ void AIControllerComponent::NotifyAirDrop() noexcept
 
     if (m_animation)
     {
-        m_animBlackboard.actionIndex = 6; // Hit_Air_To_Floor_Loop
-        m_animation->PlaySlot(Engine::Animation::AnimSlot::AirTraversal, true, 6);
+        m_animBlackboard.actionIndex = 10; // Hit_Air_To_Floor_Loop (Node 10 of HitReact)
+        m_animation->PlaySlot(Engine::Animation::AnimSlot::HitReact, true, 10);
     }
 }
 
@@ -1163,8 +1164,8 @@ void AIControllerComponent::NotifySpike(const float downwardVelocityY) noexcept
 
     if (m_animation)
     {
-        m_animBlackboard.actionIndex = 5; // Hit_Air_To_Floor_Start
-        m_animation->PlaySlot(Engine::Animation::AnimSlot::AirTraversal, true, 5);
+        m_animBlackboard.actionIndex = 9; // Hit_Air_To_Floor_Start (Node 9 of HitReact)
+        m_animation->PlaySlot(Engine::Animation::AnimSlot::HitReact, true, 9);
     }
 
     if (m_movement)
@@ -1251,8 +1252,8 @@ void AIControllerComponent::TickAirborneJuggle(const float dt) noexcept
 
                 if (m_animation)
                 {
-                    m_animBlackboard.actionIndex = 6; // Hit_Air_To_Floor_Loop
-                    m_animation->PlaySlot(Engine::Animation::AnimSlot::AirTraversal, true, 6);
+                    m_animBlackboard.actionIndex = 10; // Hit_Air_To_Floor_Loop (Node 10 of HitReact)
+                    m_animation->PlaySlot(Engine::Animation::AnimSlot::HitReact, true, 10);
                 }
             }
         }
@@ -1273,8 +1274,8 @@ void AIControllerComponent::TickAirborneJuggle(const float dt) noexcept
 
                 if (m_animation)
                 {
-                    m_animBlackboard.actionIndex = 6; // Hit_Air_To_Floor_Loop
-                    m_animation->PlaySlot(Engine::Animation::AnimSlot::AirTraversal, true, 6);
+                    m_animBlackboard.actionIndex = 10; // Hit_Air_To_Floor_Loop (Node 10 of HitReact)
+                    m_animation->PlaySlot(Engine::Animation::AnimSlot::HitReact, true, 10);
                 }
             }
         }
@@ -1324,8 +1325,8 @@ void AIControllerComponent::TickAirborneJuggle(const float dt) noexcept
             m_movement->SetGravityScale(1.0f);
             if (m_animation)
             {
-                m_animBlackboard.actionIndex = 6; // Hit_Air_To_Floor_Loop
-                m_animation->PlaySlot(Engine::Animation::AnimSlot::AirTraversal, true, 6);
+                m_animBlackboard.actionIndex = 10; // Hit_Air_To_Floor_Loop (Node 10 of HitReact)
+                m_animation->PlaySlot(Engine::Animation::AnimSlot::HitReact, true, 10);
             }
             break;
         }
@@ -1354,8 +1355,8 @@ void AIControllerComponent::TickAirborneJuggle(const float dt) noexcept
             m_movement->SetGravityScale(1.0f);
             if (m_animation)
             {
-                m_animBlackboard.actionIndex = 6; // Hit_Air_To_Floor_Loop
-                m_animation->PlaySlot(Engine::Animation::AnimSlot::AirTraversal, true, 6);
+                m_animBlackboard.actionIndex = 10; // Hit_Air_To_Floor_Loop (Node 10 of HitReact)
+                m_animation->PlaySlot(Engine::Animation::AnimSlot::HitReact, true, 10);
             }
             break;
         }
