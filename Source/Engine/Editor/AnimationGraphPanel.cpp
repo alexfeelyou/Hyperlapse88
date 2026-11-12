@@ -1,9 +1,11 @@
 #include <imgui.h>
 #include <string>
 #include "System/Model.h"
+#include "AIControllerComponent.h"
 #include "AnimationGraphPanel.h"
 #include "AnimationComponent.h"
 #include "EditorManager.h"
+#include "GameObject.h"
 #include "StringHash.h"
 
 void AnimationGraphPanel::SetTarget(AnimationComponent* target) noexcept
@@ -420,7 +422,9 @@ void AnimationGraphPanel::Draw(bool* pOpen) noexcept
         ? static_cast<std::size_t>(m_selectedNodeForProps)
         : m_targetComponent->GetCurrentNodeIndex() };
 
-    const bool requiresCombatStance{ EvaluatesToCombat(state.slot, activeNodeIdx) };
+    // AI characters keep their weapons drawn across all animation nodes
+    const bool isAiActor{ targetOwner != nullptr && targetOwner->GetComponent<AIControllerComponent>() != nullptr };
+    const bool requiresCombatStance{ isAiActor || EvaluatesToCombat(state.slot, activeNodeIdx) };
 
     // Edge-triggered auto-sync: Only force the unified default when the selected state/node actually changes.
     // This allows the user to still manually click the checkbox below for testing.

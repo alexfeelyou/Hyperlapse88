@@ -18,12 +18,17 @@ MeleeHitboxComponent::MeleeHitboxComponent(const MeleeHitboxConfig& config) noex
 void MeleeHitboxComponent::ResolveAnimationSource() noexcept
 {
     m_animation = nullptr;
-    // Ascend hierarchy to find root AnimationComponent on Alex even if attached to Socket_Weapon_Back
+    // Ascend hierarchy to find root character actor (Player or Enemy)
     for (GameObject* curr = m_owner; curr != nullptr; curr = curr->GetParent())
     {
         if (auto* anim = curr->GetComponent<AnimationComponent>())
         {
             m_animation = anim;
+            // Auto-orient default Enemy target mask toward Player when attached to an AI character
+            if (curr->GetComponent<AIControllerComponent>() && m_config.targetLayer == CollisionLayer::Enemy)
+            {
+                m_config.targetLayer = CollisionLayer::Player;
+            }
             break;
         }
     }
@@ -116,16 +121,21 @@ void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
     // eNO_BLOCK: 最初のヒットでクエリを中断せず、全重複アクターを配列に漏れなく収集
     filterData.flags = physx::PxQueryFlag::eDYNAMIC | physx::PxQueryFlag::eNO_BLOCK;
 
-    // 攻撃者（プレイヤー本体）のルート階層を特定して自爆ヒットを確実に防止
-    const GameObject* playerRoot{ m_owner };
-    while (playerRoot && playerRoot->GetParent())
+    // Resolve the attacking actor's root entity (Player or Enemy) to prevent self-inflicted hits
+    const GameObject* attackerRoot{ m_owner };
+    while (attackerRoot && attackerRoot->GetParent())
     {
-        if (playerRoot->GetComponent<AnimationComponent>())
+        if (attackerRoot->GetComponent<AnimationComponent>())
         {
             break;
         }
-        playerRoot = playerRoot->GetParent();
+        attackerRoot = attackerRoot->GetParent();
     }
+
+    const bool isAttackerAi{ attackerRoot != nullptr && attackerRoot->GetComponent<AIControllerComponent>() != nullptr };
+    const std::uint32_t effectiveTargetLayer{ (isAttackerAi && m_config.targetLayer == CollisionLayer::Enemy)
+        ? static_cast<std::uint32_t>(CollisionLayer::Player)
+        : m_config.targetLayer };
 
     // Multi-Hit Overlap Query (Elden Ring 準拠のカプセル間接触走査)
     if (scene->overlap(capsuleGeom, pxPose, overlapBuffer, filterData, nullptr))
@@ -148,18 +158,22 @@ void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
             auto* victimObj{ static_cast<GameObject*>(rawUserData) };
             if (!victimObj) continue;
 
-            // 攻撃者自身、武器ソケット、およびプレイヤー本体階層を除外
-            if (victimObj == m_owner || victimObj == playerRoot) continue;
+            // Exclude the weapon socket, immediate parent, and the attacker's root character hierarchy
+            if (victimObj == m_owner || victimObj == attackerRoot) continue;
             if (m_owner && victimObj == m_owner->GetParent()) continue;
 
-            // 敵判定フィルター: Enemyレイヤーを持つか、AIControllerComponent を有する敵エンティティのみ受理
-            auto* victimCapsule{ victimObj->GetComponent<CapsuleColliderComponent>() };
-            const bool isEnemyLayer{ victimCapsule && (victimCapsule->GetConfig().layer & m_config.targetLayer) != 0 };
             auto* victimAi{ victimObj->GetComponent<AIControllerComponent>() };
-            const bool isEnemyAI{ victimAi != nullptr };
-            if (!isEnemyLayer && !isEnemyAI) continue;
 
-            // Landing invulnerability: ignore entities lying on the ground (Node 0 and Node 2)
+            // Hard Faction Isolation Invariant: Enemies never friendly-fire or knock back other enemies
+            if (isAttackerAi && victimAi != nullptr) continue;
+
+            // Strict layer mask gate: isolates Player vs. Enemy targets
+            auto* victimCapsule{ victimObj->GetComponent<CapsuleColliderComponent>() };
+            const bool matchesTargetLayer{ victimCapsule && (victimCapsule->GetConfig().layer & effectiveTargetLayer) != 0 };
+            if (!matchesTargetLayer) continue;
+
+            // Ignore dead corpses and ground-recovery invulnerability frames (Node 0 and Node 2)
+            if (const auto* victimHealth{ victimObj->GetComponent<HealthComponent>() }; victimHealth && victimHealth->IsDead()) continue;
             if (victimAi && victimAi->IsInvincible()) continue;
 
             // 重複排除チェック: 1回のスイング内で同一敵カプセルが多段ヒットするのを防止
@@ -203,7 +217,7 @@ void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
             if (isLauncher)
             {
                 // Dynamic Kinematic Prediction: Calculate exact launch height from timeline events
-                const float attackerYawRad{ DirectX::XMConvertToRadians(playerRoot ? playerRoot->transform.rotation.y : m_owner->transform.rotation.y) };
+                const float attackerYawRad{ DirectX::XMConvertToRadians(attackerRoot ? attackerRoot->transform.rotation.y : m_owner->transform.rotation.y) };
                 const DirectX::XMFLOAT2 fwd{ std::sin(attackerYawRad), std::cos(attackerYawRad) };
 
                 float playerLiftV_Y{ 11.0f };
@@ -237,7 +251,7 @@ void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
                 const float remainingNorm{ (cancelNormTime > currentPhase) ? (cancelNormTime - currentPhase) : (cancelNormTime - liftNormTime) };
                 const float timeToCancel{ (std::max)(0.1f, remainingNorm * effectiveDuration) };
 
-                auto* playerMotor{ playerRoot ? playerRoot->GetComponent<CharacterMovementComponent>() : nullptr };
+                auto* playerMotor{ attackerRoot ? attackerRoot->GetComponent<CharacterMovementComponent>() : nullptr };
                 const float grav{ playerMotor ? std::abs(playerMotor->GetConfig().gravity) : 9.81f };
                 const float currentVelY{ playerMotor ? playerMotor->GetVerticalVelocity() : playerLiftV_Y };
 
@@ -257,7 +271,7 @@ void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
                     playerForwardTravel = (lungeImpulseVal / drag) * (1.0f - std::exp(-drag * timeToCancel));
                 }
 
-                const DirectX::XMFLOAT3 pPos{ playerRoot ? playerRoot->GetPosition() : DirectX::XMFLOAT3{ 0.0f, 0.0f, 0.0f } };
+                const DirectX::XMFLOAT3 pPos{ attackerRoot ? attackerRoot->GetPosition() : DirectX::XMFLOAT3{ 0.0f, 0.0f, 0.0f } };
                 const DirectX::XMFLOAT3 ePos{ victimObj->GetPosition() };
                 const float currentDistFwd{ ((ePos.x - pPos.x) * fwd.x) + ((ePos.z - pPos.z) * fwd.y) };
                 constexpr float sweetSpotDist{ 1.3f };
@@ -286,7 +300,7 @@ void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
                 // Standard Ground Knockback: compute outward radial vector away from attacker
                 const DirectX::XMFLOAT4X4 vWorld{ victimObj->transform.GetWorldMatrix() };
                 const DirectX::XMVECTOR vVictimPos{ DirectX::XMVectorSet(vWorld._41, vWorld._42, vWorld._43, 0.0f) };
-                const DirectX::XMFLOAT4X4 attackerWorld{ playerRoot ? playerRoot->transform.GetWorldMatrix() : worldF4 };
+                const DirectX::XMFLOAT4X4 attackerWorld{ attackerRoot ? attackerRoot->transform.GetWorldMatrix() : worldF4 };
                 const DirectX::XMVECTOR vAttackerPos{ DirectX::XMVectorSet(attackerWorld._41, attackerWorld._42, attackerWorld._43, 0.0f) };
 
                 DirectX::XMVECTOR vKnockDir{ DirectX::XMVectorSubtract(vVictimPos, vAttackerPos) };
@@ -294,7 +308,7 @@ void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
 
                 if (DirectX::XMVector3Equal(vKnockDir, DirectX::XMVectorZero()) || DirectX::XMVector3LengthSq(vKnockDir).m128_f32[0] < 0.0001f)
                 {
-                    const float yawRad{ DirectX::XMConvertToRadians(playerRoot ? playerRoot->transform.rotation.y : m_owner->transform.rotation.y) };
+                    const float yawRad{ DirectX::XMConvertToRadians(attackerRoot ? attackerRoot->transform.rotation.y : m_owner->transform.rotation.y) };
                     vKnockDir = DirectX::XMVectorSet(std::sin(yawRad), 0.0f, std::cos(yawRad), 0.0f);
                 }
                 vKnockDir = DirectX::XMVector3Normalize(vKnockDir);
@@ -569,6 +583,26 @@ void MeleeHitboxComponent::DrawInspector()
 
     ImGui::Spacing();
     ImGui::TextDisabled("COMBAT IMPACT TUNING");
+
+    static constexpr const char* s_targetLayerNames[] = { "None", "WorldDynamic", "Player", "Enemy" };
+    int targetLayerIdx{ 3 }; // Default Enemy
+    if (m_config.targetLayer == CollisionLayer::None) targetLayerIdx = 0;
+    else if (m_config.targetLayer == CollisionLayer::WorldDynamic) targetLayerIdx = 1;
+    else if (m_config.targetLayer == CollisionLayer::Player) targetLayerIdx = 2;
+    else if (m_config.targetLayer == CollisionLayer::Enemy) targetLayerIdx = 3;
+
+    if (ImGui::Combo("Target Layer", &targetLayerIdx, s_targetLayerNames, 4))
+    {
+        switch (targetLayerIdx)
+        {
+        case 0: m_config.targetLayer = CollisionLayer::None; break;
+        case 1: m_config.targetLayer = CollisionLayer::WorldDynamic; break;
+        case 2: m_config.targetLayer = CollisionLayer::Player; break;
+        case 3: m_config.targetLayer = CollisionLayer::Enemy; break;
+        default: break;
+        }
+    }
+
     ImGui::DragFloat("Base Damage", &m_config.baseDamage, 1.0f, 0.0f, 1000.0f, "%.0f");
     ImGui::DragFloat("Poise Damage", &m_config.poiseDamage, 1.0f, 0.0f, 500.0f, "%.0f");
     ImGui::DragFloat("Knockback Impulse", &m_config.knockbackImpulse, 0.5f, 0.0f, 100.0f, "%.1f m/s");

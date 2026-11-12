@@ -139,6 +139,9 @@ void AIControllerComponent::OnAttach(GameObject* owner) noexcept
             m_animation->SetBlackboard(&m_animBlackboard);
         }
 
+        // Enemies remain armed in combat stance across all animation states
+        m_animBlackboard.setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
+
         // Cache initial spawn position in world coordinates for leash and wander constraints
         m_blackboard.spawnPosition = GetWorldPosition(m_owner);
         m_blackboard.wanderDestination = m_blackboard.spawnPosition;
@@ -191,6 +194,7 @@ void AIControllerComponent::OnEnable() noexcept
         {
             m_animation->SetBlackboard(&m_animBlackboard);
         }
+        m_animBlackboard.setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
     }
 }
 
@@ -2155,10 +2159,11 @@ void AIControllerComponent::Update(const float dt)
     const EditorMode mode{ EditorManager::Instance().GetEditorMode() };
     const bool isPlayMode{ mode == EditorMode::Play };
 
-    // EDIT MODE: Synchronize spawn anchor in real-time as the designer moves the entity
+    // EDIT MODE: Synchronize spawn anchor and keep enemies locked in armed combat stance
     if (mode == EditorMode::Edit)
     {
         m_blackboard.spawnPosition = GetWorldPosition(m_owner);
+        m_animBlackboard.setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
         m_wasPlayMode = false;
         return;
     }
@@ -2178,6 +2183,7 @@ void AIControllerComponent::Update(const float dt)
         m_blackboard.target = nullptr;
         m_blackboard.resetTimers();
         m_blackboard.flags.reset();
+        m_animBlackboard.setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
 
         if (m_movement)
         {

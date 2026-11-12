@@ -2,6 +2,7 @@
 #include <cmath>
 #include <imgui.h>
 #include "System/Model.h"
+#include "AIControllerComponent.h"
 #include "ComponentRegistry.h"
 #include "EditorManager.h"
 #include "GameObject.h"
@@ -35,6 +36,12 @@ void SocketComponent::ResolveBoneIndex() noexcept
 
 [[nodiscard]] std::size_t SocketComponent::GetActiveProfileIndex() const noexcept
 {
+    // AI Invariant: Enemies hold their weapons in Combat Profile (1) across every state, node, and editor mode
+    if (m_owner && m_owner->GetParent() && m_owner->GetParent()->GetComponent<AIControllerComponent>())
+    {
+        return 1;
+    }
+
     // Highest Priority: Live Blackboard Contract.
     // This allows the Combat Stance UI checkbox to instantly draw the weapon in the Editor.
     if (m_targetAnim)

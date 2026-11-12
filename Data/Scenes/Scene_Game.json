@@ -311,15 +311,15 @@
                     ],
                     "IsActive": true,
                     "Name": "Socket_Weapon_Back",
-                    "PosX": -0.4436783194541931,
-                    "PosY": 0.4655759334564209,
-                    "PosZ": 0.3163749575614929,
-                    "RotX": 4.234800815582275,
-                    "RotY": -131.75721740722656,
-                    "RotZ": 31.10491180419922,
-                    "ScaleX": 1.309999942779541,
-                    "ScaleY": 1.9099996089935303,
-                    "ScaleZ": 0.9099999666213989
+                    "PosX": -0.2953503131866455,
+                    "PosY": 1.1147706508636475,
+                    "PosZ": -0.7827161550521851,
+                    "RotX": -48.70220947265625,
+                    "RotY": 109.74520874023438,
+                    "RotZ": 119.48554992675781,
+                    "ScaleX": 1.3100000619888306,
+                    "ScaleY": 1.909999966621399,
+                    "ScaleZ": 0.9100000858306885
                 }
             ],
             "Components": [
@@ -11217,9 +11217,9 @@
                                                     ],
                                                     "EnableOutline": true,
                                                     "IsOccludable": true,
-                                                    "IsOccluder": true,
+                                                    "IsOccluder": false,
                                                     "Metalness": 0.0,
-                                                    "Name": "Material",
+                                                    "Name": "Base_Material.001",
                                                     "OccluderScale": 0.949999988079071,
                                                     "OutlineColor": [
                                                         0.05000000074505806,
@@ -11230,23 +11230,23 @@
                                                     "OutlineFadeEnd": 28.0,
                                                     "OutlineFadeStart": 12.0,
                                                     "OutlineWidth": 0.014999999664723873,
-                                                    "Roughness": 0.5,
-                                                    "ShaderId": 1,
+                                                    "Roughness": 1.0,
+                                                    "ShaderId": 2,
                                                     "SubsurfaceStrength": 0.0,
-                                                    "TexBase": "C:\\Users\\2240823\\Documents\\School\\GameDev\\Hyperlapse 88\\Data\\Texture\\Prototype Textures\\Dark\\texture_12.png",
+                                                    "TexBase": "",
                                                     "TexNormal": "",
                                                     "UVOffset": [
-                                                        0.5,
-                                                        0.5
+                                                        0.0,
+                                                        0.0
                                                     ],
-                                                    "UVProjectionMode": 1,
+                                                    "UVProjectionMode": 0,
                                                     "UVTiling": [
-                                                        0.5,
-                                                        0.5
+                                                        1.0,
+                                                        1.0
                                                     ]
                                                 }
                                             ],
-                                            "ModelPath": "C:\\Users\\2240823\\Documents\\School\\GameDev\\Hyperlapse 88\\Data\\Model\\Stage\\GBX.glb",
+                                            "ModelPath": "C:\\Users\\2240823\\Documents\\School\\GameDev\\Hyperlapse 88\\Data\\Model\\Weapon\\WPN_AXE_ENEMY.glb",
                                             "Type": "MeshComponent"
                                         },
                                         {
@@ -11267,16 +11267,16 @@
                                         }
                                     ],
                                     "IsActive": true,
-                                    "Name": "Building_05",
-                                    "PosX": 92.96576690673828,
-                                    "PosY": -6.652318477630615,
-                                    "PosZ": -797.7058715820313,
-                                    "RotX": -40.373287200927734,
-                                    "RotY": 17.836950302124023,
-                                    "RotZ": 59.8607177734375,
-                                    "ScaleX": 2.999969244003296,
-                                    "ScaleY": 10.170966148376465,
-                                    "ScaleZ": 2.999974012374878
+                                    "Name": "Socket_Anchor",
+                                    "PosX": 0.2905732989311218,
+                                    "PosY": 0.5107147097587585,
+                                    "PosZ": -0.6524379849433899,
+                                    "RotX": -5.765129089355469,
+                                    "RotY": 108.86414337158203,
+                                    "RotZ": 71.75638580322266,
+                                    "ScaleX": 1.0,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999998211860657
                                 },
                                 {
                                     "Children": [],
@@ -11851,7 +11851,119 @@
         {
             "Children": [
                 {
-                    "Children": [],
+                    "Children": [
+                        {
+                            "Children": [],
+                            "Components": [
+                                {
+                                    "Color": [
+                                        1.0,
+                                        1.0,
+                                        1.0,
+                                        1.0
+                                    ],
+                                    "Materials": [
+                                        {
+                                            "AlphaCutoff": 0.5,
+                                            "AlphaMode": 0,
+                                            "BaseColor": [
+                                                1.0,
+                                                1.0,
+                                                1.0,
+                                                1.0
+                                            ],
+                                            "Emissive": [
+                                                0.0,
+                                                0.0,
+                                                0.0
+                                            ],
+                                            "EnableOutline": true,
+                                            "IsOccludable": true,
+                                            "IsOccluder": false,
+                                            "Metalness": 0.0,
+                                            "Name": "Base_Material.001",
+                                            "OccluderScale": 0.949999988079071,
+                                            "OutlineColor": [
+                                                0.05000000074505806,
+                                                0.05000000074505806,
+                                                0.05000000074505806,
+                                                1.0
+                                            ],
+                                            "OutlineFadeEnd": 28.0,
+                                            "OutlineFadeStart": 12.0,
+                                            "OutlineWidth": 0.014999999664723873,
+                                            "Roughness": 1.0,
+                                            "ShaderId": 2,
+                                            "SubsurfaceStrength": 0.0,
+                                            "TexBase": "",
+                                            "TexNormal": "",
+                                            "UVOffset": [
+                                                0.0,
+                                                0.0
+                                            ],
+                                            "UVProjectionMode": 0,
+                                            "UVTiling": [
+                                                1.0,
+                                                1.0
+                                            ]
+                                        }
+                                    ],
+                                    "ModelPath": "C:\\Users\\2240823\\Documents\\School\\GameDev\\Hyperlapse 88\\Data\\Model\\Weapon\\WPN_AXE_ENEMY.glb",
+                                    "Type": "MeshComponent"
+                                },
+                                {
+                                    "CombatBoneName": "hand_r",
+                                    "CombatLocalPosX": -0.07000000029802322,
+                                    "CombatLocalPosY": 0.029999999329447746,
+                                    "CombatLocalPosZ": -0.5899999737739563,
+                                    "CombatLocalRotX": -63.0,
+                                    "CombatLocalRotY": 95.0,
+                                    "CombatLocalRotZ": 104.0,
+                                    "CombatLocalSclX": 1.0,
+                                    "CombatLocalSclY": 1.0,
+                                    "CombatLocalSclZ": 0.44999998807907104,
+                                    "HolsterBoneName": "",
+                                    "HolsterLocalPosX": 0.0,
+                                    "HolsterLocalPosY": 0.0,
+                                    "HolsterLocalPosZ": 0.0,
+                                    "HolsterLocalRotX": 0.0,
+                                    "HolsterLocalRotY": 0.0,
+                                    "HolsterLocalRotZ": 0.0,
+                                    "HolsterLocalSclX": 1.0,
+                                    "HolsterLocalSclY": 1.0,
+                                    "HolsterLocalSclZ": 1.0,
+                                    "Type": "SocketComponent"
+                                },
+                                {
+                                    "BaseDamage": 35.0,
+                                    "Height": 0.11999999731779099,
+                                    "HitStopDuration": 0.05999999865889549,
+                                    "KnockbackImpulse": 18.0,
+                                    "OffsetX": -0.07999999821186066,
+                                    "OffsetY": 0.9599999785423279,
+                                    "OffsetZ": 0.0,
+                                    "PoiseDamage": 45.0,
+                                    "Radius": 0.20999999344348907,
+                                    "RotX": 0.0,
+                                    "RotY": 0.0,
+                                    "RotZ": -180.0,
+                                    "TargetLayer": 8,
+                                    "Type": "MeleeHitboxComponent"
+                                }
+                            ],
+                            "IsActive": true,
+                            "Name": "Socket_Anchor",
+                            "PosX": 0.41806602478027344,
+                            "PosY": 0.41623127460479736,
+                            "PosZ": -0.6433689594268799,
+                            "RotX": -13.12855339050293,
+                            "RotY": 110.4271011352539,
+                            "RotZ": 54.98822021484375,
+                            "ScaleX": 0.999997615814209,
+                            "ScaleY": 0.9999982118606567,
+                            "ScaleZ": 0.4499984383583069
+                        }
+                    ],
                     "Components": [
                         {
                             "CollidesWith": 126,
@@ -11890,7 +12002,7 @@
                         {
                             "AmbushStandoffDistance": 2.299999952316284,
                             "AmbushTriggerRadius": 5.0,
-                            "Archetype": 1,
+                            "Archetype": 0,
                             "AttackActiveDuration": 0.3499999940395355,
                             "AttackCooldownDuration": 1.2000000476837158,
                             "AttackRange": 1.7999999523162842,
@@ -12056,7 +12168,15 @@
                                         {
                                             "Blend": 0.20000000298023224,
                                             "ClipIndex": 5,
-                                            "Events": [],
+                                            "Events": [
+                                                {
+                                                    "EndTime": 0.41100001335144043,
+                                                    "Id": 1,
+                                                    "IsRange": true,
+                                                    "Payload": 1.0,
+                                                    "Time": 0.31980305910110474
+                                                }
+                                            ],
                                             "GripPosX": 0.0,
                                             "GripPosY": 0.0,
                                             "GripPosZ": 0.0,
@@ -12079,7 +12199,22 @@
                                         {
                                             "Blend": 0.20000000298023224,
                                             "ClipIndex": 6,
-                                            "Events": [],
+                                            "Events": [
+                                                {
+                                                    "EndTime": 0.4339999854564667,
+                                                    "Id": 1,
+                                                    "IsRange": true,
+                                                    "Payload": 1.0,
+                                                    "Time": 0.2988930344581604
+                                                },
+                                                {
+                                                    "EndTime": 0.6420000195503235,
+                                                    "Id": 1,
+                                                    "IsRange": true,
+                                                    "Payload": 1.0,
+                                                    "Time": 0.5301352143287659
+                                                }
+                                            ],
                                             "GripPosX": 0.0,
                                             "GripPosY": 0.0,
                                             "GripPosZ": 0.0,
@@ -12102,7 +12237,15 @@
                                         {
                                             "Blend": 0.20000000298023224,
                                             "ClipIndex": 7,
-                                            "Events": [],
+                                            "Events": [
+                                                {
+                                                    "EndTime": 0.441512793302536,
+                                                    "Id": 1,
+                                                    "IsRange": true,
+                                                    "Payload": 1.0,
+                                                    "Time": 0.29151278734207153
+                                                }
+                                            ],
                                             "GripPosX": 0.0,
                                             "GripPosY": 0.0,
                                             "GripPosZ": 0.0,
@@ -12523,7 +12666,7 @@
                         }
                     ],
                     "IsActive": true,
-                    "Name": "Enemy_Grunt",
+                    "Name": "Enemy_Grunt_01",
                     "PosX": 109.84629821777344,
                     "PosY": -46.47600173950195,
                     "PosZ": -545.424072265625,

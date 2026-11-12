@@ -4,6 +4,7 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <string>
+#include "AIControllerComponent.h"
 #include "AnimationTimelinePanel.h"
 #include "AnimationComponent.h"
 #include "CapsuleColliderComponent.h"
@@ -389,7 +390,9 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
             }
             };
 
-        const bool requiresCombatStance{ EvaluatesToCombat(state.slot, m_selectedNodeIndex) };
+        // AI actors keep weapons drawn across all states and nodes
+        const bool isAiActor{ targetOwner != nullptr && targetOwner->GetComponent<AIControllerComponent>() != nullptr };
+        const bool requiresCombatStance{ isAiActor || EvaluatesToCombat(state.slot, m_selectedNodeIndex) };
 
         // Edge-triggered auto-sync ensures unified defaults while keeping the checkbox interactive
         static std::size_t s_lastTimelineState = SIZE_MAX;
