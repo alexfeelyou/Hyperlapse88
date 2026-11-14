@@ -149,6 +149,7 @@
     <ClInclude Include="Source\Engine\Camera\CameraInput.h" />
     <ClInclude Include="Source\Engine\Camera\FreeCameraController.h" />
     <ClInclude Include="Source\Engine\Combat\CombatDirector.h" />
+    <ClInclude Include="Source\Engine\Combat\CombatMath.h" />
     <ClInclude Include="Source\Engine\Components\AIBlackboard.h" />
     <ClInclude Include="Source\Engine\Components\AIControllerComponent.h" />
     <ClInclude Include="Source\Engine\Components\AnimationComponent.h" />

@@ -282,12 +282,29 @@ public:
     void Exit(PlayerControllerComponent* controller) override;
 };
 
+enum class HitReactPhase : std::uint8_t
+{
+    GroundedFlinch = 0, // 4-way Hit_Large / Hit_Combat_Large (F/B/L/R)
+    AirFlinch,          // 4-way Hit_Combat_Air (F/B/L/R, no L/R inversion) -> hands off to normal air/landing
+    Knockdown,          // Hit_Large_Knockdown / Hit_Combat_Large_Knockdown
+    GetUp,              // Get_Up / Get_up_Combat with wake-up invulnerability
+    Dead                // Terminal HP == 0 state (clamped at end of Knockdown clip, never gets up)
+};
+
 class PlayerHitReact final : public PlayerState
 {
 public:
     void Enter(PlayerControllerComponent* controller) override;
     void Update(PlayerControllerComponent* controller, float dt) override;
     void Exit(PlayerControllerComponent* controller) override;
+
+private:
+    void TransitionToGetUp(PlayerControllerComponent* controller) noexcept;
+
+    HitReactPhase m_phase{ HitReactPhase::GroundedFlinch };
+    float m_stateTimer{ 0.0f };
+    bool m_canCancelEvade{ false };
+    bool m_canCancelLocomotion{ false };
 };
 
 class PlayerSkillBuff final : public PlayerState

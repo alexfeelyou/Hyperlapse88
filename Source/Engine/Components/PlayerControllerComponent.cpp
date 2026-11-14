@@ -2,10 +2,13 @@
 #include <imgui.h>
 #include "System/Input.h"
 #include "AnimationComponent.h"
+#include "CapsuleColliderComponent.h"
 #include "CharacterMovementComponent.h"
+#include "CombatMath.h"
 #include "ComponentRegistry.h"
 #include "EditorManager.h"
 #include "GameObject.h"
+#include "HealthComponent.h"
 #include "OrbitCameraDriverComponent.h"
 #include "PlayerControllerComponent.h"
 #include "PlayerStates.h"
@@ -248,6 +251,16 @@ void PlayerControllerComponent::Update(const float dt)
     {
         m_blackboard.setFlag(Engine::Animation::AnimFlag::is_combat_active, false);
         m_blackboard.actionIndex = 0;
+        m_lastHitReaction = PlayerHitReactionData{};
+        SetInvincible(false);
+        SetInputEnabled(true);
+        if (m_owner)
+        {
+            if (auto* capsule{ m_owner->GetComponent<CapsuleColliderComponent>() })
+            {
+                capsule->SetCollisionLayer(CollisionLayer::Player, CollisionLayer::Mask::Player);
+            }
+        }
         if (m_stateMachine) m_stateMachine->ChangeState(this, GetState(PlayerStateType::Locomotion));
     }
     s_wasPlayMode = isPlayMode;
@@ -282,6 +295,41 @@ void PlayerControllerComponent::Update(const float dt)
     {
         m_stateMachine->Update(this, dt);
     }
+}
+
+void PlayerControllerComponent::SetInvincible(const bool invincible) noexcept
+{
+    m_isInvincible = invincible;
+    if (m_owner)
+    {
+        if (auto* health{ m_owner->GetComponent<HealthComponent>() })
+        {
+            health->SetInvincible(invincible);
+        }
+    }
+}
+
+void PlayerControllerComponent::NotifyHitReaction(
+    const DirectX::XMFLOAT3& attackerPos,
+    const DirectX::XMFLOAT3& slashDir,
+    const bool isHeavyKnockdown) noexcept
+{
+    if (!m_owner || !m_stateMachine || m_isInvincible)
+    {
+        return;
+    }
+
+    const auto* health{ m_owner->GetComponent<HealthComponent>() };
+    const bool isLethal{ health && health->IsDead() };
+
+    // PlayerHitReact::Enter routes to Dead, AirFlinch, Knockdown, or 4-way GroundedFlinch
+    m_lastHitReaction.attackerPos = attackerPos;
+    m_lastHitReaction.directionIndex = Engine::Combat::CalculateHitDirectionIndex(m_owner, attackerPos, slashDir);
+    m_lastHitReaction.isHeavyKnockdown = isHeavyKnockdown;
+    m_lastHitReaction.isLethal = isLethal;
+
+    // Route through ChangeState so Exit() runs on the interrupted state and Enter() initializes/re-triggers HitReact
+    m_stateMachine->ChangeState(this, GetState(PlayerStateType::HitReact));
 }
 
 void PlayerControllerComponent::DrawInspector()

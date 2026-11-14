@@ -10,6 +10,7 @@
 #include "GameObject.h"
 #include "HealthComponent.h"
 #include "MeleeHitboxComponent.h"
+#include "PlayerControllerComponent.h"
 
 MeleeHitboxComponent::MeleeHitboxComponent(const MeleeHitboxConfig& config) noexcept
     : m_config{ config }
@@ -172,9 +173,11 @@ void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
             const bool matchesTargetLayer{ victimCapsule && (victimCapsule->GetConfig().layer & effectiveTargetLayer) != 0 };
             if (!matchesTargetLayer) continue;
 
-            // Ignore dead corpses and ground-recovery invulnerability frames (Node 0 and Node 2)
+            // Ignore dead corpses and ground-recovery / wake-up invulnerability frames
+            auto* victimPlayer{ victimObj->GetComponent<PlayerControllerComponent>() };
             if (const auto* victimHealth{ victimObj->GetComponent<HealthComponent>() }; victimHealth && victimHealth->IsDead()) continue;
             if (victimAi && victimAi->IsInvincible()) continue;
+            if (victimPlayer && victimPlayer->IsInvincible()) continue;
 
             // 重複排除チェック: 1回のスイング内で同一敵カプセルが多段ヒットするのを防止
             bool alreadyHit{ false };
@@ -315,8 +318,8 @@ void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
 
                 const float finalKnockback{ m_config.knockbackImpulse * m_activeDamageMultiplier };
                 DirectX::XMStoreFloat3(&impulse, DirectX::XMVectorScale(vKnockDir, finalKnockback));
-                // Clamp vertical impulse to 0 when victim is in ground get-up recovery
-                impulse.y = (victimAi && victimAi->IsGetUp()) ? 0.0f : 2.5f;
+                // Clamp vertical impulse to 0 for player ground hits and AI get-up recovery so feet stay planted
+                impulse.y = (victimPlayer || (victimAi && victimAi->IsGetUp())) ? 0.0f : 2.5f;
             }
 
             // Deliver damage, poise break evaluation, and hit-stop to victim
@@ -382,6 +385,20 @@ void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
                 {
                     victimAi->NotifyHitReaction(m_currentSlashDir);
                 }
+            }
+            else if (victimPlayer)
+            {
+                const DirectX::XMFLOAT4X4 attackerWorld{ attackerRoot ? attackerRoot->transform.GetWorldMatrix() : worldF4 };
+                const DirectX::XMFLOAT3 attackerPos{ attackerWorld._41, attackerWorld._42, attackerWorld._43 };
+
+                // Trigger Knockdown only on AI combo finisher (3rd strike), ambush running slash, or high-poise heavy attacks (>= 75)
+                const bool isHeavyKnockdown{
+                    (isAttackerAi && attackSlot == Engine::Animation::AnimSlot::Attack_Primary && attackNodeIdx >= 2) ||
+                    (isAttackerAi && attackSlot == Engine::Animation::AnimSlot::Attack_Contextual) ||
+                    ((m_config.poiseDamage * m_activeDamageMultiplier) >= 75.0f)
+                };
+
+                victimPlayer->NotifyHitReaction(attackerPos, m_currentSlashDir, isHeavyKnockdown);
             }
 
             // Freeze attacker's weapon animation directly (75% resistance ratio) for heavy tactile drag

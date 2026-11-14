@@ -37,6 +37,15 @@ class CharacterMovementComponent;
 class AnimationComponent;
 class PlayerState;
 
+// Flat POD payload passed from incoming combat sweeps into PlayerHitReact
+struct PlayerHitReactionData
+{
+    DirectX::XMFLOAT3 attackerPos{ 0.0f, 0.0f, 0.0f };
+    std::uint8_t directionIndex{ 0 }; // 0 = Front, 1 = Back, 2 = Left, 3 = Right
+    bool isHeavyKnockdown{ false };
+    bool isLethal{ false };
+};
+
 struct InputIntent
 {
     DirectX::XMFLOAT2 moveVector{ 0.0f, 0.0f }; // Raw input space: x = strafe (D/A, stick X), y = forward (W/S, stick Y)
@@ -90,6 +99,16 @@ public:
         return m_states[static_cast<std::size_t>(type)].get();
     }
 
+    // Combat hit reception interface (invoked by MeleeHitboxComponent on valid enemy contact)
+    void NotifyHitReaction(
+        const DirectX::XMFLOAT3& attackerPos,
+        const DirectX::XMFLOAT3& slashDir,
+        bool isHeavyKnockdown) noexcept;
+
+    [[nodiscard]] const PlayerHitReactionData& GetLastHitReaction() const noexcept { return m_lastHitReaction; }
+    [[nodiscard]] bool IsInvincible() const noexcept { return m_isInvincible; }
+    void SetInvincible(bool invincible) noexcept;
+
     // Transient Mailbox for State Handoffs (DOD Isolation)
     void SetPendingComboHit(int index) noexcept { m_pendingComboHit = index; }
     [[nodiscard]] int ConsumePendingComboHit() noexcept { const int val = m_pendingComboHit; m_pendingComboHit = -1; return val; }
@@ -101,7 +120,9 @@ private:
     void ResolveIntentToWorldSpace() noexcept;
 
     InputIntent m_intent{};
+    PlayerHitReactionData m_lastHitReaction{};
     bool m_inputEnabled{ true };
+    bool m_isInvincible{ false };
     int m_pendingComboHit{ -1 }; // Transient state token
 
     float m_shiftHoldTimer{ 0.0f };   // Accumulates continuous press duration for the Shift key

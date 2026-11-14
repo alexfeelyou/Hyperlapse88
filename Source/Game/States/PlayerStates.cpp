@@ -3,6 +3,7 @@
 #include "CapsuleColliderComponent.h"
 #include "CharacterMovementComponent.h"
 #include "CombatDirector.h"
+#include "CombatMath.h"
 #include "FacingResolver.h"
 #include "GameObject.h"
 #include "HealthComponent.h"
@@ -3393,19 +3394,292 @@ void PlayerParryCounter::Exit(PlayerControllerComponent*) {}
 
 void PlayerHitReact::Enter(PlayerControllerComponent* controller)
 {
-    controller->getAnimBlackboard().setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
-    if (auto* motor = controller->GetMovement()) motor->SetDesiredDirection({ 0.0f, 0.0f });
-    if (auto* anim = controller->GetAnimation()) anim->PlaySlot(Engine::Animation::AnimSlot::HitReact, true);
-}
-void PlayerHitReact::Update(PlayerControllerComponent* controller, float)
-{
-    if (auto* anim = controller->GetAnimation()) {
-        if (anim->GetCurrentTimer() >= anim->GetSlotDuration(Engine::Animation::AnimSlot::HitReact) - 0.05f) {
-            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+    if (!controller)
+    {
+        return;
+    }
+
+    auto* motor{ controller->GetMovement() };
+    auto* anim{ controller->GetAnimation() };
+    auto& blackboard{ controller->getAnimBlackboard() };
+    const PlayerHitReactionData& hitData{ controller->GetLastHitReaction() };
+
+    m_canCancelEvade = false;
+    m_canCancelLocomotion = false;
+    m_stateTimer = 0.0f;
+
+    if (motor)
+    {
+        motor->SetDesiredDirection({ 0.0f, 0.0f });
+        motor->ClearKinematicOverride();
+        // Normal gravity in case we were interrupted out of WallRun, Plunge, or AirCombo
+        motor->GetConfig().useGravity = true;
+        motor->SetGravityScale(1.0f);
+    }
+
+    const bool isCombat{ blackboard.getFlag(AnimFlag::is_combat_active) };
+    const int dirIdx{ static_cast<int>(hitData.directionIndex & 0x03u) };
+    const bool isAirborne{ motor && !motor->isGrounded() };
+
+    if (hitData.isLethal)
+    {
+        // Terminal Death (HP == 0): Play Knockdown clip once, clamp on floor, disable input & dynamic combat collisions
+        m_phase = HitReactPhase::Dead;
+        controller->SetInvincible(true);
+        controller->SetInputEnabled(false);
+
+        if (motor)
+        {
+            motor->HaltMomentum(0.5f);
+        }
+
+        if (auto* owner{ controller->GetOwner() })
+        {
+            if (auto* capsule{ owner->GetComponent<CapsuleColliderComponent>() })
+            {
+                capsule->SetCollisionLayer(CollisionLayer::Player, CollisionLayer::WorldStatic);
+            }
+        }
+
+        const int knockdownNode{ isCombat ? 13 : 12 }; // 12: Hit_Large_Knockdown, 13: Hit_Combat_Large_Knockdown
+        blackboard.actionIndex = knockdownNode;
+        if (anim)
+        {
+            anim->PlaySlot(AnimSlot::HitReact, true, knockdownNode);
+            m_stateTimer = anim->GetSlotDuration(AnimSlot::HitReact);
+        }
+        return;
+    }
+
+    if (isAirborne)
+    {
+        // Airborne Hit: Play directional Air Hit (8..11, 1:1 F/B/L/R with NO L/R inversion), then land normally
+        m_phase = HitReactPhase::AirFlinch;
+        controller->SetInvincible(false);
+
+        const int airHitNode{ 8 + dirIdx }; // 8: F, 9: B, 10: L, 11: R
+        blackboard.actionIndex = airHitNode;
+        if (anim)
+        {
+            anim->PlaySlot(AnimSlot::HitReact, true, airHitNode);
+            m_stateTimer = anim->GetSlotDuration(AnimSlot::HitReact);
+        }
+        return;
+    }
+
+    if (hitData.isHeavyKnockdown)
+    {
+        // Hard Knockdown (Alive): Play Knockdown clip with full wake-up protection, followed by Get_Up
+        m_phase = HitReactPhase::Knockdown;
+        controller->SetInvincible(true);
+
+        const int knockdownNode{ isCombat ? 13 : 12 }; // 12: Hit_Large_Knockdown, 13: Hit_Combat_Large_Knockdown
+        blackboard.actionIndex = knockdownNode;
+        if (anim)
+        {
+            anim->PlaySlot(AnimSlot::HitReact, true, knockdownNode);
+            m_stateTimer = anim->GetSlotDuration(AnimSlot::HitReact);
+        }
+        return;
+    }
+
+    // Standard Grounded 4-Way Hit Large (Holster: 0..3, Combat: 4..7)
+    m_phase = HitReactPhase::GroundedFlinch;
+    controller->SetInvincible(false);
+
+    const int groundedNode{ (isCombat ? 4 : 0) + dirIdx };
+    blackboard.actionIndex = groundedNode;
+    if (anim)
+    {
+        anim->PlaySlot(AnimSlot::HitReact, true, groundedNode);
+        m_stateTimer = anim->GetSlotDuration(AnimSlot::HitReact);
+    }
+
+    // Frontal stagger faces attacker; back and lateral hits preserve orientation so flinches do not flip 180 degrees
+    if (dirIdx == 0 && controller->GetOwner())
+    {
+        const DirectX::XMFLOAT3 currentPos{ Engine::Combat::GetWorldPosition(controller->GetOwner()) };
+        const DirectX::XMFLOAT2 toAttacker{
+            hitData.attackerPos.x - currentPos.x,
+            hitData.attackerPos.z - currentPos.z
+        };
+        if (((toAttacker.x * toAttacker.x) + (toAttacker.y * toAttacker.y)) > 0.01f)
+        {
+            FacingResolver::SnapFaceDirection(controller->GetOwner(), toAttacker);
         }
     }
 }
-void PlayerHitReact::Exit(PlayerControllerComponent*) {}
+
+void PlayerHitReact::TransitionToGetUp(PlayerControllerComponent* controller) noexcept
+{
+    if (!controller)
+    {
+        return;
+    }
+
+    m_phase = HitReactPhase::GetUp;
+    m_canCancelEvade = false;
+    m_canCancelLocomotion = false;
+    controller->SetInvincible(true); // Maintain wake-up invulnerability through standing recovery
+
+    if (auto* motor{ controller->GetMovement() })
+    {
+        motor->HaltMomentum(1.0f);
+        motor->SetDesiredDirection({ 0.0f, 0.0f });
+    }
+
+    auto& blackboard{ controller->getAnimBlackboard() };
+    const bool isCombat{ blackboard.getFlag(AnimFlag::is_combat_active) };
+    const int getUpNode{ isCombat ? 15 : 14 }; // 14: Get_Up, 15: Get_up_Combat
+    blackboard.actionIndex = getUpNode;
+
+    if (auto* anim{ controller->GetAnimation() })
+    {
+        anim->PlaySlot(AnimSlot::HitReact, true, getUpNode);
+        m_stateTimer = anim->GetSlotDuration(AnimSlot::HitReact);
+    }
+}
+
+void PlayerHitReact::Update(PlayerControllerComponent* controller, float dt)
+{
+    if (!controller)
+    {
+        return;
+    }
+
+    auto* anim{ controller->GetAnimation() };
+    auto* motor{ controller->GetMovement() };
+    auto& blackboard{ controller->getAnimBlackboard() };
+
+    if (motor)
+    {
+        const DirectX::XMFLOAT3 vel{ motor->GetTotalVelocity() };
+        blackboard.groundSpeed = std::sqrt((vel.x * vel.x) + (vel.z * vel.z));
+        blackboard.verticalVelocity = vel.y;
+        blackboard.setFlag(AnimFlag::is_grounded, motor->isGrounded());
+    }
+
+    if (!anim || !anim->IsHitStopped())
+    {
+        m_stateTimer -= dt;
+    }
+
+    const bool isAnimDone{ !anim || anim->GetCurrentPhase() >= 0.99f || m_stateTimer <= 0.0f };
+
+    switch (m_phase)
+    {
+    case HitReactPhase::Dead:
+        // Terminal state: remain lying on floor; never transition to GetUp or Locomotion
+        if (motor)
+        {
+            motor->SetDesiredDirection({ 0.0f, 0.0f });
+        }
+        break;
+
+    case HitReactPhase::GroundedFlinch:
+        // If knocked off a ledge mid-stagger, fall normally
+        if (motor && !motor->isGrounded() && motor->GetVerticalVelocity() < -1.5f)
+        {
+            blackboard.actionIndex = blackboard.getFlag(AnimFlag::is_combat_active) ? 5 : 2;
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
+            return;
+        }
+
+        if (isAnimDone)
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+        }
+        break;
+
+    case HitReactPhase::AirFlinch:
+        // Land as usual if feet touch the ground during air stagger
+        if (motor && motor->isGrounded() && motor->GetVerticalVelocity() <= 0.05f)
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Landing));
+            return;
+        }
+
+        // Once the air hit flinch finishes in mid-air, hand off cleanly to normal AirTraversal falling
+        if (isAnimDone)
+        {
+            blackboard.actionIndex = blackboard.getFlag(AnimFlag::is_combat_active) ? 5 : 2; // Jump_Combat_Loop / Jump_Loop
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
+        }
+        break;
+
+    case HitReactPhase::Knockdown:
+        if (isAnimDone && (!motor || motor->isGrounded()))
+        {
+            TransitionToGetUp(controller);
+        }
+        break;
+
+    case HitReactPhase::GetUp:
+        if (anim)
+        {
+            for (const auto& ev : anim->GetFiredEvents())
+            {
+                if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Evade))
+                {
+                    m_canCancelEvade = true;
+                }
+                else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Locomotion))
+                {
+                    m_canCancelLocomotion = true;
+                }
+            }
+        }
+
+        {
+            const auto& intent{ controller->GetIntent() };
+            const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
+
+            if (m_canCancelEvade && intent.bDashTriggered)
+            {
+                controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
+                return;
+            }
+
+            if (m_canCancelLocomotion && inputSq > 0.01f)
+            {
+                controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+                return;
+            }
+        }
+
+        if (isAnimDone)
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+        }
+        break;
+
+    default:
+        break;
+    }
+}
+
+void PlayerHitReact::Exit(PlayerControllerComponent* controller)
+{
+    if (!controller)
+    {
+        return;
+    }
+
+    // Clear wake-up invulnerability unless player is dead
+    if (m_phase != HitReactPhase::Dead)
+    {
+        controller->SetInvincible(false);
+    }
+
+    // Replenish poise gauge back to max upon recovering from hit reaction 
+    if (auto* owner{ controller->GetOwner() })
+    {
+        if (auto* health{ owner->GetComponent<HealthComponent>() })
+        {
+            health->ResetPoise();
+        }
+    }
+}
 
 // SKILLS & BUFFS
 void PlayerSkillBuff::Enter(PlayerControllerComponent* controller)
