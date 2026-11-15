@@ -66,12 +66,11 @@ struct InputIntent
     float forwardIntentTimer{ 0.0f }; // Tracks input freshness for command normals
 };
 
-// Data-driven tuning parameters for post-parry temporal dilation (Chrono Punk / Witch Time feel)
+// Data-driven tuning parameters for post-parry temporal dilation
 struct ParrySlowMoConfig
 {
     bool enabled{ true };
     float timeScale{ 0.22f };        // Target world time scale during parry slow-mo (0.22 = 22% speed)
-    float hitStopDelay{ 0.06f };     // Real-time delay matching blade-clash hit-stop before slow-mo engages
     float holdDuration{ 0.18f };     // Real-time duration held at target timeScale
     float recoveryDuration{ 0.15f }; // Real-time C1 smooth ease-out duration back to 1.0x
 };

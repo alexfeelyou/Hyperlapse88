@@ -3557,12 +3557,6 @@ void PlayerParryCounter::NotifyParrySuccess(PlayerControllerComponent* controlle
             FacingResolver::SnapFaceDirection(owner, toAttacker);
         }
     }
-
-    // Tactile blade-clash impact freeze
-    if (auto* anim{ controller->GetAnimation() })
-    {
-        anim->ApplyHitStop(0.08f);
-    }
 }
 
 void PlayerParryCounter::Update(PlayerControllerComponent* controller, float dt)

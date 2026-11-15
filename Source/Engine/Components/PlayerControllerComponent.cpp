@@ -325,11 +325,11 @@ bool PlayerControllerComponent::TryConsumeParry(
 
     if (m_parrySlowMo.enabled)
     {
+        // Engage slow-motion immediately with zero hit-stop delay so the enemy stagger reads clearly
         Engine::Time::TimeManager::Instance().TriggerSlowMotion(
             m_parrySlowMo.timeScale,
             m_parrySlowMo.holdDuration,
-            m_parrySlowMo.recoveryDuration,
-            m_parrySlowMo.hitStopDelay
+            m_parrySlowMo.recoveryDuration
         );
     }
 
@@ -353,12 +353,6 @@ void PlayerControllerComponent::DrawInspector()
         ImGui::SetTooltip("Target world playback speed during parry slow-motion (0.22x = 22%% speed)");
     }
 
-    ImGui::DragFloat("Hit-Stop Delay", &m_parrySlowMo.hitStopDelay, 0.005f, 0.0f, 0.25f, "%.3f s");
-    if (ImGui::IsItemHovered())
-    {
-        ImGui::SetTooltip("Real-time delay matching the initial blade-clash freeze before slow-mo begins");
-    }
-
     ImGui::DragFloat("Hold Duration", &m_parrySlowMo.holdDuration, 0.01f, 0.0f, 1.5f, "%.2f s");
     ImGui::DragFloat("Ease-Out Recovery", &m_parrySlowMo.recoveryDuration, 0.01f, 0.0f, 1.5f, "%.2f s");
 
@@ -369,8 +363,7 @@ void PlayerControllerComponent::DrawInspector()
         Engine::Time::TimeManager::Instance().TriggerSlowMotion(
             m_parrySlowMo.timeScale,
             m_parrySlowMo.holdDuration,
-            m_parrySlowMo.recoveryDuration,
-            m_parrySlowMo.hitStopDelay
+            m_parrySlowMo.recoveryDuration
         );
     }
     ImGui::EndDisabled();
@@ -381,7 +374,6 @@ void PlayerControllerComponent::Serialize(nlohmann::json& outJson) const
 {
     outJson["ParrySlowMoEnabled"] = m_parrySlowMo.enabled;
     outJson["ParrySlowMoScale"] = m_parrySlowMo.timeScale;
-    outJson["ParrySlowMoHitStopDelay"] = m_parrySlowMo.hitStopDelay;
     outJson["ParrySlowMoHoldDuration"] = m_parrySlowMo.holdDuration;
     outJson["ParrySlowMoRecoveryDuration"] = m_parrySlowMo.recoveryDuration;
 }
@@ -390,7 +382,6 @@ void PlayerControllerComponent::Deserialize(const nlohmann::json& inJson)
 {
     m_parrySlowMo.enabled = inJson.value("ParrySlowMoEnabled", true);
     m_parrySlowMo.timeScale = std::clamp(inJson.value("ParrySlowMoScale", 0.22f), 0.05f, 1.0f);
-    m_parrySlowMo.hitStopDelay = (std::max)(0.0f, inJson.value("ParrySlowMoHitStopDelay", 0.06f));
     m_parrySlowMo.holdDuration = (std::max)(0.0f, inJson.value("ParrySlowMoHoldDuration", 0.18f));
     m_parrySlowMo.recoveryDuration = (std::max)(0.0f, inJson.value("ParrySlowMoRecoveryDuration", 0.15f));
 }

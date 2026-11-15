@@ -72,7 +72,7 @@ public:
 
     // Direct interface for external combat interruptions (e.g., player heavy weapon impacts)
     void NotifyHitReaction(const DirectX::XMFLOAT3& slashDir = { 0.0f, 0.0f, 0.0f }) noexcept;
-    void NotifyParried(const DirectX::XMFLOAT3& parrierPos, float poiseDamage = 35.0f, float hitStopDuration = 0.08f) noexcept;
+    void NotifyParried(const DirectX::XMFLOAT3& parrierPos, float poiseDamage = 35.0f, float hitStopDuration = 0.0f) noexcept;
     void NotifyLaunch(float launchVelocityY) noexcept;
     void NotifyAirJuggle(float hitStopDuration, bool isFinisher = false, float finisherFollowThrough = 0.55f, const DirectX::XMFLOAT3& slashDir = { 0.0f, 0.0f, 0.0f }) noexcept;
     void NotifyAirDrop() noexcept;

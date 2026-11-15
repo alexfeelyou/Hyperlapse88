@@ -337,7 +337,8 @@ void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
                         {
                             const DirectX::XMFLOAT4X4 vWorld{ victimObj->transform.GetWorldMatrix() };
                             const DirectX::XMFLOAT3 playerPos{ vWorld._41, vWorld._42, vWorld._43 };
-                            attackerAi->NotifyParried(playerPos, m_config.poiseDamage, 0.08f);
+                            // Pass 0.0f hit-stop so the parried enemy transitions straight into slow-motion stagger
+                            attackerAi->NotifyParried(playerPos, m_config.poiseDamage, 0.0f);
                         }
                     }
                     CloseHitbox();

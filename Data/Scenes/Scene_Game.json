@@ -4496,6 +4496,10 @@
                     "UseGravity": true
                 },
                 {
+                    "ParrySlowMoEnabled": true,
+                    "ParrySlowMoHoldDuration": 0.18000000715255737,
+                    "ParrySlowMoRecoveryDuration": 0.15000000596046448,
+                    "ParrySlowMoScale": 0.15000000596046448,
                     "Type": "PlayerControllerComponent"
                 },
                 {
@@ -12406,15 +12410,15 @@
                             ],
                             "IsActive": true,
                             "Name": "Socket_Anchor",
-                            "PosX": -2.9300824895463096e+18,
-                            "PosY": -1.0659293815677911e+18,
-                            "PosZ": -1.5030598829604864e+18,
-                            "RotX": -44.82423782348633,
-                            "RotY": 5.111209869384766,
-                            "RotZ": -54.847049713134766,
+                            "PosX": 0.3754078447818756,
+                            "PosY": 0.44665995240211487,
+                            "PosZ": -0.6527297496795654,
+                            "RotX": -4.226253986358643,
+                            "RotY": 102.54512786865234,
+                            "RotZ": 63.19502258300781,
                             "ScaleX": 1.0000001192092896,
-                            "ScaleY": 0.9999998807907104,
-                            "ScaleZ": 0.44999998807907104
+                            "ScaleY": 1.0,
+                            "ScaleZ": 0.44999992847442627
                         }
                     ],
                     "Components": [

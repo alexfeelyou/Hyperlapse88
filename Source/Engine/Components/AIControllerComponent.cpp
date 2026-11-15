@@ -945,7 +945,7 @@ void AIControllerComponent::NotifyHitReaction(const DirectX::XMFLOAT3& slashDir)
 void AIControllerComponent::NotifyParried(
     const DirectX::XMFLOAT3& parrierPos,
     const float poiseDamage,
-    const float hitStopDuration) noexcept
+    const float /*hitStopDuration*/) noexcept
 {
     if (m_currentState == EnemyState::dead || (m_health && m_health->IsDead()) || IsInvincible())
     {
@@ -977,14 +977,10 @@ void AIControllerComponent::NotifyParried(
         }
     }
 
-    // Apply poise damage (0 HP damage) and impact hit-stop so the blade clash freezes cleanly
+    // Apply poise damage (0 HP damage) and recoil impulse with 0.0f hit-stop so slow-motion stagger plays uninterrupted
     if (m_health)
     {
-        m_health->ApplyDamage(0.0f, poiseDamage, recoilImpulse, hitStopDuration);
-    }
-    if (m_animation)
-    {
-        m_animation->ApplyHitStop(hitStopDuration);
+        m_health->ApplyDamage(0.0f, poiseDamage, recoilImpulse, 0.0f);
     }
 
     // Force frontal stagger (Node 0) and transition into hit_react (which releases the CombatDirector attack token)
