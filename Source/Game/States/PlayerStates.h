@@ -283,9 +283,16 @@ public:
 
     [[nodiscard]] bool IsParryWindowActive() const noexcept { return m_isParryWindowOpen; }
     void NotifyParrySuccess(PlayerControllerComponent* controller, const DirectX::XMFLOAT3& attackerPos) noexcept;
+    void SetTargetAttackerPos(const DirectX::XMFLOAT3& attackerPos) noexcept
+    {
+        m_targetAttackerPos = attackerPos;
+        m_hasTargetAttacker = true;
+    }
 
 private:
     std::uint8_t m_nextParryNode{ 0 }; // Alternates 0 (Parry_01) <-> 1 (Parry_02)
+    DirectX::XMFLOAT3 m_targetAttackerPos{ 0.0f, 0.0f, 0.0f };
+    bool m_hasTargetAttacker{ false };
     float m_stateTimer{ 0.0f };
     float m_exitTimer{ 0.0f };
     BufferedAttackIntent m_bufferedAttack{};

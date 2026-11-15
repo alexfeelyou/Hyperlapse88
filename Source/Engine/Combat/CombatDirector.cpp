@@ -425,6 +425,63 @@ AIControllerComponent* CombatDirector::FindNearestAirborneEnemy(const DirectX::X
     return bestEnemy;
 }
 
+bool CombatDirector::TryConsumeParryOpportunity(const DirectX::XMFLOAT3& playerPos, DirectX::XMFLOAT3& outAttackerPos) noexcept
+{
+    AIControllerComponent* bestEnemy{ nullptr };
+    DirectX::XMFLOAT3 bestPos{ 0.0f, 0.0f, 0.0f };
+    float bestDistSq{ 999999.0f };
+
+    for (auto* enemy : m_enemies)
+    {
+        if (!enemy || !enemy->HasOpenParryWindow())
+        {
+            continue;
+        }
+
+        const auto* health{ enemy->GetOwner()->GetComponent<HealthComponent>() };
+        if (health && health->IsDead())
+        {
+            continue;
+        }
+
+        const DirectX::XMFLOAT4X4 eWorld{ enemy->GetOwner()->transform.GetWorldMatrix() };
+        const float dy{ std::abs(eWorld._42 - playerPos.y) };
+        if (dy > 2.0f)
+        {
+            continue;
+        }
+
+        const float dx{ eWorld._41 - playerPos.x };
+        const float dz{ eWorld._43 - playerPos.z };
+        const float distSq{ (dx * dx) + (dz * dz) };
+
+        // Scale parry reach to the enemy's authored melee attack range plus blade lunge margin
+        const float maxParryRange{ enemy->GetConfig().attackRange + 1.2f };
+        const float maxParryRangeSq{ maxParryRange * maxParryRange };
+        if (distSq > maxParryRangeSq)
+        {
+            continue;
+        }
+
+        if (distSq < bestDistSq)
+        {
+            bestDistSq = distSq;
+            bestEnemy = enemy;
+            bestPos = { eWorld._41, eWorld._42, eWorld._43 };
+        }
+    }
+
+    if (!bestEnemy)
+    {
+        return false;
+    }
+
+    // Atomically lock this enemy's current swing window so F cannot be spammed even after locomotion/evade cancels
+    bestEnemy->ConsumeParryOpportunity();
+    outAttackerPos = bestPos;
+    return true;
+}
+
 void CombatDirector::DrawGizmos(const GizmoContext& ctx) noexcept
 {
     if (!(ctx.categoryMask & static_cast<std::uint32_t>(GizmoCategory::Navigation)) || !ctx.shapes)

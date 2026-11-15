@@ -12420,15 +12420,15 @@
                             ],
                             "IsActive": true,
                             "Name": "Socket_Anchor",
-                            "PosX": 0.3426070809364319,
-                            "PosY": 0.4759255051612854,
-                            "PosZ": -0.8488613963127136,
-                            "RotX": 12.426902770996094,
-                            "RotY": 92.89498138427734,
-                            "RotZ": 65.57205963134766,
-                            "ScaleX": 1.0,
-                            "ScaleY": 0.9999999403953552,
-                            "ScaleZ": 0.44999998807907104
+                            "PosX": 0.3754078447818756,
+                            "PosY": 0.44665995240211487,
+                            "PosZ": -0.6527297496795654,
+                            "RotX": -4.226253986358643,
+                            "RotY": 102.54512786865234,
+                            "RotZ": 63.19502258300781,
+                            "ScaleX": 1.0000001192092896,
+                            "ScaleY": 1.0,
+                            "ScaleZ": 0.44999992847442627
                         }
                     ],
                     "Components": [
@@ -12642,6 +12642,13 @@
                                                     "IsRange": true,
                                                     "Payload": 1.0,
                                                     "Time": 0.31980305910110474
+                                                },
+                                                {
+                                                    "EndTime": 0.31700000166893005,
+                                                    "Id": 13,
+                                                    "IsRange": true,
+                                                    "Payload": 0.0,
+                                                    "Time": 0.20999999344348907
                                                 }
                                             ],
                                             "GripPosX": 0.0,
@@ -12680,6 +12687,20 @@
                                                     "IsRange": true,
                                                     "Payload": 1.0,
                                                     "Time": 0.5301352143287659
+                                                },
+                                                {
+                                                    "EndTime": 0.29469165205955505,
+                                                    "Id": 13,
+                                                    "IsRange": true,
+                                                    "Payload": 0.0,
+                                                    "Time": 0.19460724294185638
+                                                },
+                                                {
+                                                    "EndTime": 0.5210000276565552,
+                                                    "Id": 13,
+                                                    "IsRange": true,
+                                                    "Payload": 0.0,
+                                                    "Time": 0.4396248459815979
                                                 }
                                             ],
                                             "GripPosX": 0.0,
@@ -12694,7 +12715,7 @@
                                             "LockRootZ": false,
                                             "Loop": false,
                                             "RootBoneIndex": 0,
-                                            "Speed": 1.0,
+                                            "Speed": 1.600000023841858,
                                             "SpeedCurve": [],
                                             "StartOffset": 0.0,
                                             "SyncPhase": false,
@@ -12711,6 +12732,13 @@
                                                     "IsRange": true,
                                                     "Payload": 1.0,
                                                     "Time": 0.29151278734207153
+                                                },
+                                                {
+                                                    "EndTime": 0.28874561190605164,
+                                                    "Id": 13,
+                                                    "IsRange": true,
+                                                    "Payload": 0.0,
+                                                    "Time": 0.18874560296535492
                                                 }
                                             ],
                                             "GripPosX": 0.0,
@@ -12725,7 +12753,7 @@
                                             "LockRootZ": true,
                                             "Loop": false,
                                             "RootBoneIndex": 1,
-                                            "Speed": 1.0,
+                                            "Speed": 1.600000023841858,
                                             "SpeedCurve": [],
                                             "StartOffset": 0.0,
                                             "SyncPhase": false,

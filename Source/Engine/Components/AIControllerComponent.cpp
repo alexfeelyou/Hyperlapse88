@@ -33,6 +33,42 @@ bool AIControllerComponent::IsGetUp() const noexcept
     return m_currentState == EnemyState::airborne_juggle && m_jugglePhase == JugglePhase::GetUp;
 }
 
+bool AIControllerComponent::HasOpenParryWindow() const noexcept
+{
+    // Reject dead/invalid entities, non-attacking states, or swings whose parry window was already spent
+    if (!m_owner || m_owner->IsDestroyed() || m_currentState != EnemyState::attack_active || m_parryOpportunityConsumed)
+    {
+        return false;
+    }
+
+    if (!m_animation)
+    {
+        return false;
+    }
+
+    const AnimNode* activeNode{ m_animation->GetActiveAnimNode() };
+    if (!activeNode)
+    {
+        return false;
+    }
+
+    const float currentPhase{ m_animation->GetCurrentPhase() };
+    for (const auto& ev : activeNode->events)
+    {
+        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Parry_Window))
+        {
+            const float windowStart{ ev.normalizedTime };
+            const float windowEnd{ ev.isRange ? ev.normalizedEndTime : (ev.normalizedTime + 0.15f) };
+            if (currentPhase >= windowStart && currentPhase <= windowEnd)
+            {
+                return true;
+            }
+        }
+    }
+
+    return false;
+}
+
 AIControllerComponent::AIControllerComponent(const AIControllerConfig& config) noexcept
     : m_config{ config }
 {}
@@ -171,12 +207,12 @@ void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
     // Release combat token and reset combo progression when completely exiting attack states
     const bool isExitingAttackState{ m_currentState == EnemyState::attack_windup || m_currentState == EnemyState::attack_active };
     const bool isEnteringAttackState{ newState == EnemyState::attack_windup || newState == EnemyState::attack_active };
-
     if (isExitingAttackState && !isEnteringAttackState)
     {
         CombatDirector::Instance().ReleaseAttackToken(this);
         m_comboIndex = 0;
         m_isExecutingRunAttack = false;
+        m_parryOpportunityConsumed = false;
     }
 
     // Immediately evict dead enemies from director slots and spatial buffers
@@ -472,6 +508,7 @@ void AIControllerComponent::ChangeState(const EnemyState newState) noexcept
 void AIControllerComponent::TriggerAttackComboStep(const std::uint8_t comboIndex) noexcept
 {
     m_comboIndex = comboIndex;
+    m_parryOpportunityConsumed = false;
     m_blackboard.stateTimer = 0.0f;
     StopMovement();
 
@@ -499,6 +536,7 @@ void AIControllerComponent::TriggerAttackComboStep(const std::uint8_t comboIndex
 void AIControllerComponent::TriggerRunAttack() noexcept
 {
     m_comboIndex = 0;
+    m_parryOpportunityConsumed = false;
     m_blackboard.stateTimer = 0.0f;
     StopMovement();
 
@@ -852,6 +890,7 @@ void AIControllerComponent::NotifyHitReaction(const DirectX::XMFLOAT3& slashDir)
 
     m_isAmbushRunAttackPrimed = false;
     m_isExecutingRunAttack = false;
+    m_parryOpportunityConsumed = true;
 
     // If airborne, maintain juggle instead of snapping to grounded hit_react
     // Grounded recovery (Node 1: GetUp) falls through to standard grounded hit_react
@@ -919,6 +958,7 @@ void AIControllerComponent::NotifyParried(
 
     m_isAmbushRunAttackPrimed = false;
     m_isExecutingRunAttack = false;
+    m_parryOpportunityConsumed = true;
     StopMovement();
 
     // Compute slight backward recoil impulse away from the player's parry

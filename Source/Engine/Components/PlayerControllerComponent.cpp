@@ -216,8 +216,8 @@ void PlayerControllerComponent::GatherHardwareInput(const float dt) noexcept
     // Parry / Deflect: Keyboard F
     m_intent.bParryPressed = input.GetKeyboard().IsTriggered('F');
 
-    // Sustain Combat Stance on Aggressive or Defensive Actions
-    if (m_intent.bAttackPressed || m_intent.bAttackHeld || m_intent.bHeavyAttackPressed || m_intent.bHeavyAttackHeld || m_intent.bSkillTriggered || m_intent.bParryPressed)
+    // Sustain Combat Stance on Aggressive Actions (Parry sets combat stance only when a valid parry window is claimed)
+    if (m_intent.bAttackPressed || m_intent.bAttackHeld || m_intent.bHeavyAttackPressed || m_intent.bHeavyAttackHeld || m_intent.bSkillTriggered)
     {
         m_blackboard.setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
     }

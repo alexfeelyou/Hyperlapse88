@@ -43,6 +43,31 @@ namespace
         }
     }
 
+    // Validates enemy proximity + active unconsumed enemy Parry_Window before allowing ParryCounter entry
+    [[nodiscard]] bool TryStartParry(PlayerControllerComponent* controller)
+    {
+        if (!controller || !controller->GetOwner() || !controller->GetStateMachine())
+        {
+            return false;
+        }
+
+        const DirectX::XMFLOAT3 playerPos{ Engine::Combat::GetWorldPosition(controller->GetOwner()) };
+        DirectX::XMFLOAT3 attackerPos{ 0.0f, 0.0f, 0.0f };
+        if (!CombatDirector::Instance().TryConsumeParryOpportunity(playerPos, attackerPos))
+        {
+            return false;
+        }
+
+        if (auto* parryState{ static_cast<PlayerParryCounter*>(controller->GetState(PlayerStateType::ParryCounter)) })
+        {
+            parryState->SetTargetAttackerPos(attackerPos);
+            controller->GetStateMachine()->ChangeState(controller, parryState);
+            return true;
+        }
+
+        return false;
+    }
+
     // Evaluates directional combat intent (Command Normals). Returns Target Node Index, or -1 if none.
     [[nodiscard]] int EvaluateCommandNormal(const GameObject* owner, const InputIntent& intent, bool requireFreshInput = true) noexcept
     {
@@ -604,9 +629,8 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
         return;
     }
 
-    if (intent.bParryPressed)
+    if (intent.bParryPressed && TryStartParry(controller))
     {
-        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::ParryCounter));
         return;
     }
 
@@ -955,9 +979,8 @@ void PlayerStop::Update(PlayerControllerComponent* controller, float dt)
     }
 
     // INTERRUPTS: The player can cancel a stop animation instantly at any time.
-    if (intent.bParryPressed)
+    if (intent.bParryPressed && TryStartParry(controller))
     {
-        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::ParryCounter));
         return;
     }
 
@@ -2376,9 +2399,8 @@ void PlayerAttackPrimary::Update(PlayerControllerComponent* controller, float dt
     if (canEvade)
     {
         auto& blackboard{ controller->getAnimBlackboard() };
-        if (intent.bParryPressed && (!motor || motor->isGrounded()))
+        if (intent.bParryPressed && (!motor || motor->isGrounded()) && TryStartParry(controller))
         {
-            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::ParryCounter));
             return;
         }
         if (intent.bDashTriggered)
@@ -3419,10 +3441,23 @@ void PlayerParryCounter::Enter(PlayerControllerComponent* controller)
     m_nextParryNode ^= 1u;
     blackboard.actionIndex = selectedNode;
 
-    // Snap facing toward soft-locked attacker in front if present so the parry aligns cleanly
-    const auto& intent{ controller->GetIntent() };
-    const DirectX::XMFLOAT2 faceDir{ ResolveSoftLockOrFacingDirection(controller->GetOwner(), intent.worldMoveDirection, 4.5f) };
-    FacingResolver::SnapFaceDirection(controller->GetOwner(), faceDir);
+    // Snap facing directly toward the parried attacker whose Parry_Window was claimed
+    if (m_hasTargetAttacker && controller->GetOwner())
+    {
+        const DirectX::XMFLOAT3 pPos{ Engine::Combat::GetWorldPosition(controller->GetOwner()) };
+        const DirectX::XMFLOAT2 toAttacker{ m_targetAttackerPos.x - pPos.x, m_targetAttackerPos.z - pPos.z };
+        if (((toAttacker.x * toAttacker.x) + (toAttacker.y * toAttacker.y)) > 0.0001f)
+        {
+            FacingResolver::SnapFaceDirection(controller->GetOwner(), toAttacker);
+        }
+        m_hasTargetAttacker = false;
+    }
+    else
+    {
+        const auto& intent{ controller->GetIntent() };
+        const DirectX::XMFLOAT2 faceDir{ ResolveSoftLockOrFacingDirection(controller->GetOwner(), intent.worldMoveDirection, 4.5f) };
+        FacingResolver::SnapFaceDirection(controller->GetOwner(), faceDir);
+    }
 
     if (auto* motor{ controller->GetMovement() })
     {
@@ -3592,7 +3627,7 @@ void PlayerParryCounter::Update(PlayerControllerComponent* controller, float dt)
             }
             else
             {
-                constexpr float s_fallbackParryDuration{ 0.22f };
+                constexpr float s_fallbackParryDuration{ 0.28f };
                 m_isParryWindowOpen = (m_stateTimer <= s_fallbackParryDuration);
             }
         }
@@ -3640,10 +3675,9 @@ void PlayerParryCounter::Update(PlayerControllerComponent* controller, float dt)
 
     const bool canEvade{ m_canCancelEvade || (!m_hasAuthoredEvadeCancel && m_canCancelCombo) };
 
-    // Re-parry chain: if parry succeeded (or Cancel_Evade opened) and player presses Parry again
-    if ((m_parrySucceeded || canEvade) && intent.bParryPressed && (!motor || motor->isGrounded()))
+    // Re-parry chain: permitted ONLY when a distinct enemy attack opens a fresh unconsumed Parry_Window
+    if ((m_parrySucceeded || canEvade) && intent.bParryPressed && (!motor || motor->isGrounded()) && TryStartParry(controller))
     {
-        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::ParryCounter));
         return;
     }
 
