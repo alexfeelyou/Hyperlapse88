@@ -64,6 +64,7 @@ private:
 
     MeleeHitboxConfig m_config{};
     bool m_isActive{ false };
+    bool m_isParrySweepOnly{ false };
     float m_activeDamageMultiplier{ 1.0f };
 
     AnimationComponent* m_animation{ nullptr };

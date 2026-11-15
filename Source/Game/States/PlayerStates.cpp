@@ -604,6 +604,12 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
         return;
     }
 
+    if (intent.bParryPressed)
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::ParryCounter));
+        return;
+    }
+
     if (intent.bDashTriggered)
     {
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
@@ -948,7 +954,13 @@ void PlayerStop::Update(PlayerControllerComponent* controller, float dt)
         }
     }
 
-    // PLATINUM-STYLE INTERRUPTS: The player can cancel a stop animation instantly at any time.
+    // INTERRUPTS: The player can cancel a stop animation instantly at any time.
+    if (intent.bParryPressed)
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::ParryCounter));
+        return;
+    }
+
     if (intent.bDashTriggered)
     {
         controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
@@ -2360,10 +2372,15 @@ void PlayerAttackPrimary::Update(PlayerControllerComponent* controller, float dt
     auto* motor{ controller->GetMovement() };
     const bool canEvade{ m_canCancelEvade || (!m_hasAuthoredEvadeCancel && m_canCancelCombo) };
 
-    // Evasion Cancels (Dash, Jump, Slide)
+    // Defensive & Evasion Cancels (Parry, Dash, Jump, Slide)
     if (canEvade)
     {
         auto& blackboard{ controller->getAnimBlackboard() };
+        if (intent.bParryPressed && (!motor || motor->isGrounded()))
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::ParryCounter));
+            return;
+        }
         if (intent.bDashTriggered)
         {
             if (!motor || motor->isGrounded() || !blackboard.getFlag(AnimFlag::has_air_dashed))
@@ -3378,19 +3395,345 @@ void PlayerAttackPlunge::Exit(PlayerControllerComponent* controller)
 // DEFENSE & REACTION
 void PlayerParryCounter::Enter(PlayerControllerComponent* controller)
 {
-    controller->getAnimBlackboard().setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
-    if (auto* motor = controller->GetMovement()) motor->SetDesiredDirection({ 0.0f, 0.0f });
-    if (auto* anim = controller->GetAnimation()) anim->PlaySlot(Engine::Animation::AnimSlot::Parry_Counter, true);
-}
-void PlayerParryCounter::Update(PlayerControllerComponent* controller, float)
-{
-    if (auto* anim = controller->GetAnimation()) {
-        if (anim->GetCurrentTimer() >= anim->GetSlotDuration(Engine::Animation::AnimSlot::Parry_Counter) - 0.05f) {
-            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+    if (!controller)
+    {
+        return;
+    }
+
+    m_stateTimer = 0.0f;
+    m_exitTimer = 0.0f;
+    m_bufferedAttack = {};
+    m_isParryWindowOpen = false;
+    m_hasAuthoredParryWindow = false;
+    m_parrySucceeded = false;
+    m_canCancelCombo = false;
+    m_canCancelEvade = false;
+    m_canCancelLocomotion = false;
+    m_hasAuthoredEvadeCancel = false;
+
+    auto& blackboard{ controller->getAnimBlackboard() };
+    blackboard.setFlag(AnimFlag::is_combat_active, true);
+
+    // Deterministic alternation between Node 0 (Parry_01) and Node 1 (Parry_02) via Selector actionIndex
+    const int selectedNode{ static_cast<int>(m_nextParryNode) };
+    m_nextParryNode ^= 1u;
+    blackboard.actionIndex = selectedNode;
+
+    // Snap facing toward soft-locked attacker in front if present so the parry aligns cleanly
+    const auto& intent{ controller->GetIntent() };
+    const DirectX::XMFLOAT2 faceDir{ ResolveSoftLockOrFacingDirection(controller->GetOwner(), intent.worldMoveDirection, 4.5f) };
+    FacingResolver::SnapFaceDirection(controller->GetOwner(), faceDir);
+
+    if (auto* motor{ controller->GetMovement() })
+    {
+        motor->SetDesiredDirection({ 0.0f, 0.0f });
+        motor->HaltMomentum(0.85f);
+    }
+
+    if (auto* anim{ controller->GetAnimation() })
+    {
+        // Leave forceNodeIndex at default (-1) so Selector resolves blackboard.actionIndex without locking m_isolatedNodeIndex
+        anim->PlaySlot(AnimSlot::Parry_Counter, true);
+
+        // Compute exact clip duration from the active node so Parry_01 and Parry_02 each use their own length
+        float nodeDuration{ anim->GetSlotDuration(AnimSlot::Parry_Counter) };
+        if (const auto* activeNode{ anim->GetActiveAnimNode() })
+        {
+            if (const auto model{ anim->GetModel() })
+            {
+                const auto& animations{ model->GetAnimations() };
+                if (activeNode->clipIndex >= 0 && static_cast<std::size_t>(activeNode->clipIndex) < animations.size())
+                {
+                    const float rawLen{ animations[static_cast<std::size_t>(activeNode->clipIndex)].secondsLength };
+                    const float avgSpeed{ (std::max)(0.01f, activeNode->GetAverageSpeedMultiplier()) };
+                    const float remLen{ (rawLen - activeNode->startOffset) / avgSpeed };
+                    if (remLen > 0.05f)
+                    {
+                        nodeDuration = remLen;
+                    }
+                }
+            }
+
+            for (const auto& ev : activeNode->events)
+            {
+                if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Parry_Window))
+                {
+                    m_hasAuthoredParryWindow = true;
+                    const float windowEnd{ ev.isRange ? ev.normalizedEndTime : (ev.normalizedTime + 0.25f) };
+                    if (0.0f >= ev.normalizedTime && 0.0f <= windowEnd)
+                    {
+                        m_isParryWindowOpen = true;
+                    }
+                }
+                else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Evade))
+                {
+                    m_hasAuthoredEvadeCancel = true;
+                    if (ev.normalizedTime <= 0.0f)
+                    {
+                        m_canCancelEvade = true;
+                    }
+                }
+                else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Locomotion))
+                {
+                    if (ev.normalizedTime <= 0.0f)
+                    {
+                        m_canCancelLocomotion = true;
+                    }
+                }
+                else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Combo))
+                {
+                    if (ev.normalizedTime <= 0.0f)
+                    {
+                        m_canCancelCombo = true;
+                    }
+                }
+            }
+        }
+
+        m_exitTimer = (nodeDuration > 0.05f) ? nodeDuration : 0.65f;
+
+        // Fallback deflect window if no Parry_Window event is authored on the clip yet
+        if (!m_hasAuthoredParryWindow)
+        {
+            m_isParryWindowOpen = true;
         }
     }
 }
-void PlayerParryCounter::Exit(PlayerControllerComponent*) {}
+
+void PlayerParryCounter::NotifyParrySuccess(PlayerControllerComponent* controller, const DirectX::XMFLOAT3& attackerPos) noexcept
+{
+    if (!controller || m_parrySucceeded)
+    {
+        return;
+    }
+
+    m_parrySucceeded = true;
+    m_isParryWindowOpen = false; // Consume window so one deflect cannot chain infinitely
+
+    // Grant full invulnerability during successful parry follow-through so multi-enemy swings cannot clip the player
+    controller->SetInvincible(true);
+
+    if (auto* owner{ controller->GetOwner() })
+    {
+        const DirectX::XMFLOAT3 pPos{ Engine::Combat::GetWorldPosition(owner) };
+        const DirectX::XMFLOAT2 toAttacker{ attackerPos.x - pPos.x, attackerPos.z - pPos.z };
+        if (((toAttacker.x * toAttacker.x) + (toAttacker.y * toAttacker.y)) > 0.0001f)
+        {
+            FacingResolver::SnapFaceDirection(owner, toAttacker);
+        }
+    }
+
+    // Tactile blade-clash impact freeze
+    if (auto* anim{ controller->GetAnimation() })
+    {
+        anim->ApplyHitStop(0.08f);
+    }
+}
+
+void PlayerParryCounter::Update(PlayerControllerComponent* controller, float dt)
+{
+    if (!controller)
+    {
+        return;
+    }
+
+    auto* anim{ controller->GetAnimation() };
+    auto* motor{ controller->GetMovement() };
+    const auto& intent{ controller->GetIntent() };
+
+    if (!anim || !anim->IsHitStopped())
+    {
+        m_stateTimer += dt;
+        m_exitTimer -= dt;
+    }
+
+    if (m_bufferedAttack.timer > 0.0f) m_bufferedAttack.timer -= dt;
+
+    const int liveDirectionalIntent{ EvaluateCommandNormal(controller->GetOwner(), intent, true) };
+    if (intent.bAttackPressed)
+    {
+        m_bufferedAttack.timer = 0.25f;
+        if (liveDirectionalIntent != -1 || m_bufferedAttack.targetCommandNormal == -1)
+        {
+            m_bufferedAttack.targetCommandNormal = liveDirectionalIntent;
+        }
+    }
+    else if (m_bufferedAttack.timer > 0.0f && liveDirectionalIntent != -1)
+    {
+        m_bufferedAttack.targetCommandNormal = liveDirectionalIntent;
+    }
+
+    // Evaluate active Parry_Window interval and Cancel_Evade / Cancel_Locomotion / Cancel_Combo markers
+    if (anim)
+    {
+        const float currentPhase{ anim->GetCurrentPhase() };
+        if (!m_parrySucceeded)
+        {
+            if (m_hasAuthoredParryWindow)
+            {
+                bool windowActive{ false };
+                if (const auto* activeNode{ anim->GetActiveAnimNode() })
+                {
+                    for (const auto& ev : activeNode->events)
+                    {
+                        if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Parry_Window))
+                        {
+                            const float windowStart{ ev.normalizedTime };
+                            const float windowEnd{ ev.isRange ? ev.normalizedEndTime : (ev.normalizedTime + 0.25f) };
+                            if (currentPhase >= windowStart && currentPhase <= windowEnd)
+                            {
+                                windowActive = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+                m_isParryWindowOpen = windowActive;
+            }
+            else
+            {
+                constexpr float s_fallbackParryDuration{ 0.22f };
+                m_isParryWindowOpen = (m_stateTimer <= s_fallbackParryDuration);
+            }
+        }
+
+        // Check both fired events and phase thresholds so hit-stop never swallows a cancel marker
+        for (const auto& ev : anim->GetFiredEvents())
+        {
+            if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Combo))
+            {
+                m_canCancelCombo = true;
+            }
+            else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Evade))
+            {
+                m_canCancelEvade = true;
+            }
+            else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Locomotion))
+            {
+                m_canCancelLocomotion = true;
+            }
+            else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt) && motor)
+            {
+                motor->HaltMomentum(ev.payload);
+            }
+        }
+
+        if (const auto* activeNode{ anim->GetActiveAnimNode() })
+        {
+            for (const auto& ev : activeNode->events)
+            {
+                if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Combo) && currentPhase >= ev.normalizedTime)
+                {
+                    m_canCancelCombo = true;
+                }
+                else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Evade) && currentPhase >= ev.normalizedTime)
+                {
+                    m_canCancelEvade = true;
+                }
+                else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Cancel_Locomotion) && currentPhase >= ev.normalizedTime)
+                {
+                    m_canCancelLocomotion = true;
+                }
+            }
+        }
+    }
+
+    const bool canEvade{ m_canCancelEvade || (!m_hasAuthoredEvadeCancel && m_canCancelCombo) };
+
+    // Re-parry chain: if parry succeeded (or Cancel_Evade opened) and player presses Parry again
+    if ((m_parrySucceeded || canEvade) && intent.bParryPressed && (!motor || motor->isGrounded()))
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::ParryCounter));
+        return;
+    }
+
+    // Manual Cancel_Evade window (Dash, Jump, or Slide out of parry — evaluated on live trigger like PlayerAttackPrimary)
+    if (canEvade)
+    {
+        auto& blackboard{ controller->getAnimBlackboard() };
+        if (intent.bDashTriggered)
+        {
+            if (!motor || motor->isGrounded() || !blackboard.getFlag(AnimFlag::has_air_dashed))
+            {
+                controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
+                return;
+            }
+        }
+        if (intent.bJumpTriggered && motor && motor->isGrounded())
+        {
+            motor->Jump(6.5f);
+            blackboard.actionIndex = 0;
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
+            return;
+        }
+        if ((intent.bSlideTriggered || intent.bSlideHeld) && motor && motor->isGrounded() && blackboard.groundSpeed > 2.5f)
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Slide));
+            return;
+        }
+    }
+
+    // Counterattack cancel (Cancel_Combo)
+    if (m_canCancelCombo)
+    {
+        if (intent.bHeavyAttackPressed)
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackCharged));
+            return;
+        }
+        if (m_bufferedAttack.timer > 0.0f)
+        {
+            int activeCommand{ liveDirectionalIntent };
+            if (activeCommand == -1) activeCommand = m_bufferedAttack.targetCommandNormal;
+
+            if (controller->getAnimBlackboard().getFlag(AnimFlag::is_speed_buff_active) && activeCommand != 0)
+            {
+                controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackSpeed));
+                return;
+            }
+            if (activeCommand != -1)
+            {
+                controller->SetPendingComboHit(activeCommand);
+                controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackDirectional));
+                return;
+            }
+            controller->SetPendingComboHit(0);
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AttackPrimary));
+            return;
+        }
+    }
+
+    // Manual Cancel_Locomotion window
+    const float inputSq{ (intent.moveVector.x * intent.moveVector.x) + (intent.moveVector.y * intent.moveVector.y) };
+    if (m_canCancelLocomotion && inputSq > 0.01f && motor && motor->isGrounded())
+    {
+        controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+        return;
+    }
+
+    // Natural clip completion
+    const bool isAnimationDone{ anim && (anim->GetCurrentPhase() >= 0.999f || m_exitTimer <= -0.2f) };
+    if (isAnimationDone)
+    {
+        if (!motor || motor->isGrounded())
+        {
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::Locomotion));
+        }
+        else
+        {
+            controller->getAnimBlackboard().actionIndex = controller->getAnimBlackboard().getFlag(AnimFlag::is_combat_active) ? 5 : 2;
+            controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::AirTraversal));
+        }
+    }
+}
+
+void PlayerParryCounter::Exit(PlayerControllerComponent* controller)
+{
+    if (controller)
+    {
+        controller->SetInvincible(false);
+    }
+}
 
 void PlayerHitReact::Enter(PlayerControllerComponent* controller)
 {

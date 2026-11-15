@@ -213,8 +213,11 @@ void PlayerControllerComponent::GatherHardwareInput(const float dt) noexcept
     m_intent.bSkillTriggered = input.GetKeyboard().IsTriggered('Q') ||
         ((pad.GetButtonDown() & GamePad::BTN_RIGHT_TRIGGER) != 0);
 
-    // Sustain Combat Stance on Aggressive Actions
-    if (m_intent.bAttackPressed || m_intent.bAttackHeld || m_intent.bHeavyAttackPressed || m_intent.bHeavyAttackHeld || m_intent.bSkillTriggered)
+    // Parry / Deflect: Keyboard F
+    m_intent.bParryPressed = input.GetKeyboard().IsTriggered('F');
+
+    // Sustain Combat Stance on Aggressive or Defensive Actions
+    if (m_intent.bAttackPressed || m_intent.bAttackHeld || m_intent.bHeavyAttackPressed || m_intent.bHeavyAttackHeld || m_intent.bSkillTriggered || m_intent.bParryPressed)
     {
         m_blackboard.setFlag(Engine::Animation::AnimFlag::is_combat_active, true);
     }
@@ -285,6 +288,7 @@ void PlayerControllerComponent::Update(const float dt)
         m_intent.bDashTriggered = false;
         m_intent.bJumpTriggered = false;
         m_intent.bSprintHeld = false;
+        m_intent.bParryPressed = false;
         m_shiftHoldTimer = 0.0f;
         m_wasShiftPressed = false;
     }
@@ -330,6 +334,30 @@ void PlayerControllerComponent::NotifyHitReaction(
 
     // Route through ChangeState so Exit() runs on the interrupted state and Enter() initializes/re-triggers HitReact
     m_stateMachine->ChangeState(this, GetState(PlayerStateType::HitReact));
+}
+
+bool PlayerControllerComponent::TryConsumeParry(
+    const DirectX::XMFLOAT3& attackerPos,
+    const DirectX::XMFLOAT3& /*slashDir*/) noexcept
+{
+    if (!m_owner || !m_stateMachine)
+    {
+        return false;
+    }
+
+    auto* parryState{ static_cast<PlayerParryCounter*>(GetState(PlayerStateType::ParryCounter)) };
+    if (!parryState || m_stateMachine->GetCurrentState() != parryState)
+    {
+        return false;
+    }
+
+    if (!parryState->IsParryWindowActive())
+    {
+        return false;
+    }
+
+    parryState->NotifyParrySuccess(this, attackerPos);
+    return true;
 }
 
 void PlayerControllerComponent::DrawInspector()

@@ -18,7 +18,7 @@ namespace
          "None", "Hitbox_Window",
          "Cancel_Combo", "Invincible_Start", "Invincible_End",
          "Play_SFX", "Play_VFX", "Lunge_Impulse", "Lunge_Vertical", "Movement_Halt",
-         "Pose_HoldMarker", "Cancel_Evade", "Cancel_Locomotion"
+         "Pose_HoldMarker", "Cancel_Evade", "Cancel_Locomotion", "Parry_Window"
     };
 
     [[nodiscard]] ImU32 GetColorForEvent(std::uint32_t eventId) noexcept
@@ -29,6 +29,7 @@ namespace
         case CombatEventId::Cancel_Combo:      return IM_COL32(250, 200, 50, 255); // Gold
         case CombatEventId::Cancel_Evade:      return IM_COL32(50, 220, 250, 255); // Cyan
         case CombatEventId::Cancel_Locomotion: return IM_COL32(80, 250, 80, 255);  // Green
+        case CombatEventId::Parry_Window:      return IM_COL32(255, 180, 60, 255); // Amber
         case CombatEventId::Lunge_Impulse:     return IM_COL32(50, 150, 250, 255);
         case CombatEventId::Lunge_Vertical:    return IM_COL32(50, 250, 150, 255);
         case CombatEventId::Movement_Halt:     return IM_COL32(250, 120, 50, 255);
@@ -150,18 +151,19 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
     if (isGameLive)
     {
         const std::size_t runtimeState = m_targetComponent->GetCurrentStateIndex();
+        const std::size_t runtimeNode = m_targetComponent->GetCurrentNodeIndex();
         if (runtimeState < states.size() && runtimeState != m_selectedStateIndex)
         {
             m_selectedStateIndex = runtimeState;
-            m_selectedNodeIndex = 0;
+            m_selectedNodeIndex = (runtimeNode < states[runtimeState].nodes.size()) ? runtimeNode : 0;
             m_selectedEventIndex = -1;
             m_selectedCurveKeyIndex = -1;
             m_isDraggingCurveKey = false;
         }
     }
 
-    // Move Dynamic Sync OUTSIDE the play check
-    if (m_targetComponent->GetIsolatedNodeIndex() == -1)
+    // Keep timeline node synchronized with the active runtime node during Play Mode or non-isolated preview
+    if (isGameLive || m_targetComponent->GetIsolatedNodeIndex() == -1)
     {
         const std::size_t runtimeState = m_targetComponent->GetCurrentStateIndex();
         const std::size_t runtimeNode = m_targetComponent->GetCurrentNodeIndex();

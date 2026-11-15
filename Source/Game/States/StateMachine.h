@@ -46,6 +46,8 @@ public:
         }
     }
 
+    [[nodiscard]] PlayerState* GetCurrentState() const noexcept { return m_currentState; }
+
 private:
     // Only pointing to active state, memory is safely managed in Controller component
     PlayerState* m_currentState{ nullptr };

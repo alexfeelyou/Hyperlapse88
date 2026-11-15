@@ -280,6 +280,22 @@ public:
     void Enter(PlayerControllerComponent* controller) override;
     void Update(PlayerControllerComponent* controller, float dt) override;
     void Exit(PlayerControllerComponent* controller) override;
+
+    [[nodiscard]] bool IsParryWindowActive() const noexcept { return m_isParryWindowOpen; }
+    void NotifyParrySuccess(PlayerControllerComponent* controller, const DirectX::XMFLOAT3& attackerPos) noexcept;
+
+private:
+    std::uint8_t m_nextParryNode{ 0 }; // Alternates 0 (Parry_01) <-> 1 (Parry_02)
+    float m_stateTimer{ 0.0f };
+    float m_exitTimer{ 0.0f };
+    BufferedAttackIntent m_bufferedAttack{};
+    bool m_isParryWindowOpen{ false };
+    bool m_hasAuthoredParryWindow{ false };
+    bool m_parrySucceeded{ false };
+    bool m_canCancelCombo{ false };
+    bool m_canCancelEvade{ false };
+    bool m_canCancelLocomotion{ false };
+    bool m_hasAuthoredEvadeCancel{ false };
 };
 
 enum class HitReactPhase : std::uint8_t

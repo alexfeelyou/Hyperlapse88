@@ -61,6 +61,7 @@ struct InputIntent
     bool bJumpTriggered{ false };
     bool bSkillTriggered{ false };
     bool bSprintHeld{ false };
+    bool bParryPressed{ false };
     float forwardIntentTimer{ 0.0f }; // Tracks input freshness for command normals
 };
 
@@ -104,6 +105,11 @@ public:
         const DirectX::XMFLOAT3& attackerPos,
         const DirectX::XMFLOAT3& slashDir,
         bool isHeavyKnockdown) noexcept;
+
+    // Evaluates whether the player is currently in an active parry window and consumes the deflect
+    [[nodiscard]] bool TryConsumeParry(
+        const DirectX::XMFLOAT3& attackerPos,
+        const DirectX::XMFLOAT3& slashDir) noexcept;
 
     [[nodiscard]] const PlayerHitReactionData& GetLastHitReaction() const noexcept { return m_lastHitReaction; }
     [[nodiscard]] bool IsInvincible() const noexcept { return m_isInvincible; }

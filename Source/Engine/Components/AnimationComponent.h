@@ -24,8 +24,9 @@ enum class CombatEventId : std::uint32_t
     Lunge_Vertical = 8,
     Movement_Halt = 9,
     Pose_HoldMarker = 10,
-    Cancel_Evade = 11,     
-    Cancel_Locomotion = 12 
+    Cancel_Evade = 11,
+    Cancel_Locomotion = 12,
+    Parry_Window = 13
 };
 
 enum class AnimStateType : std::uint8_t {

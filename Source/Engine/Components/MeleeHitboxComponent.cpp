@@ -52,6 +52,7 @@ void MeleeHitboxComponent::OpenHitbox(const float damageMultiplier) noexcept
 void MeleeHitboxComponent::CloseHitbox() noexcept
 {
     m_isActive = false;
+    m_isParrySweepOnly = false;
     m_activeDamageMultiplier = 1.0f;
     m_victimCount = 0;
     m_hitVictims.fill(nullptr);
@@ -322,6 +323,34 @@ void MeleeHitboxComponent::ExecuteCleaveSweep() noexcept
                 impulse.y = (victimPlayer || (victimAi && victimAi->IsGetUp())) ? 0.0f : 2.5f;
             }
 
+            // Parry Interception: Check if player's active Parry_Window intersects this swing before applying damage
+            if (victimPlayer)
+            {
+                const DirectX::XMFLOAT4X4 attackerWorld{ attackerRoot ? attackerRoot->transform.GetWorldMatrix() : worldF4 };
+                const DirectX::XMFLOAT3 attackerPos{ attackerWorld._41, attackerWorld._42, attackerWorld._43 };
+
+                if (victimPlayer->TryConsumeParry(attackerPos, m_currentSlashDir))
+                {
+                    if (attackerRoot)
+                    {
+                        if (auto* attackerAi{ attackerRoot->GetComponent<AIControllerComponent>() })
+                        {
+                            const DirectX::XMFLOAT4X4 vWorld{ victimObj->transform.GetWorldMatrix() };
+                            const DirectX::XMFLOAT3 playerPos{ vWorld._41, vWorld._42, vWorld._43 };
+                            attackerAi->NotifyParried(playerPos, m_config.poiseDamage, 0.08f);
+                        }
+                    }
+                    CloseHitbox();
+                    return;
+                }
+
+                // If sweeping during an early enemy Parry_Window before Hitbox_Window opens, never deal damage
+                if (m_isParrySweepOnly)
+                {
+                    continue;
+                }
+            }
+
             // Deliver damage, poise break evaluation, and hit-stop to victim
             bool poiseBrokeOrDead{ false };
             if (auto* health{ victimObj->GetComponent<HealthComponent>() })
@@ -484,8 +513,9 @@ void MeleeHitboxComponent::Update(const float /*dt*/)
             const float currentPhase{ m_animation->GetCurrentPhase() };
             int matchedWindowIndex{ -1 };
             float matchedDamageMultiplier{ 1.0f };
+            bool matchedParryOnly{ false };
 
-            // Scan node events for active Hitbox_Window intervals
+            // Scan node events for active Hitbox_Window intervals first (authoritative damage + parry contact)
             for (std::size_t i{ 0 }; i < activeNode->events.size(); ++i)
             {
                 const auto& ev{ activeNode->events[i] };
@@ -493,12 +523,33 @@ void MeleeHitboxComponent::Update(const float /*dt*/)
                 {
                     const float windowStart{ ev.normalizedTime };
                     const float windowEnd{ ev.isRange ? ev.normalizedEndTime : (ev.normalizedTime + 0.1f) };
-
                     if (currentPhase >= windowStart && currentPhase <= windowEnd)
                     {
                         matchedWindowIndex = static_cast<int>(i);
                         matchedDamageMultiplier = ev.payload;
+                        matchedParryOnly = false;
                         break;
+                    }
+                }
+            }
+
+            // Optional early enemy Parry_Window: allows parry sweep before damage frames open if authored
+            if (matchedWindowIndex == -1)
+            {
+                for (std::size_t i{ 0 }; i < activeNode->events.size(); ++i)
+                {
+                    const auto& ev{ activeNode->events[i] };
+                    if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Parry_Window))
+                    {
+                        const float windowStart{ ev.normalizedTime };
+                        const float windowEnd{ ev.isRange ? ev.normalizedEndTime : (ev.normalizedTime + 0.15f) };
+                        if (currentPhase >= windowStart && currentPhase <= windowEnd)
+                        {
+                            matchedWindowIndex = static_cast<int>(i);
+                            matchedDamageMultiplier = 1.0f;
+                            matchedParryOnly = true;
+                            break;
+                        }
                     }
                 }
             }
@@ -511,6 +562,7 @@ void MeleeHitboxComponent::Update(const float /*dt*/)
                     m_activeWindowIndex = matchedWindowIndex;
                     OpenHitbox(matchedDamageMultiplier);
                 }
+                m_isParrySweepOnly = matchedParryOnly;
             }
             else
             {

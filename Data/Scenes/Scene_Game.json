@@ -311,15 +311,15 @@
                     ],
                     "IsActive": true,
                     "Name": "Socket_Weapon_Back",
-                    "PosX": -0.557754635810852,
-                    "PosY": 1.8506901264190674,
-                    "PosZ": -0.45024409890174866,
-                    "RotX": -50.936248779296875,
-                    "RotY": 25.01726722717285,
-                    "RotZ": -117.89694213867188,
+                    "PosX": -0.4436783194541931,
+                    "PosY": 0.4655759334564209,
+                    "PosZ": 0.3163749575614929,
+                    "RotX": 4.234800815582275,
+                    "RotY": -131.75721740722656,
+                    "RotZ": 31.10491180419922,
                     "ScaleX": 1.309999942779541,
-                    "ScaleY": 1.909999966621399,
-                    "ScaleZ": 0.9100000858306885
+                    "ScaleY": 1.9099996089935303,
+                    "ScaleZ": 0.9099999666213989
                 }
             ],
             "Components": [
@@ -4393,6 +4393,90 @@
                                 }
                             ],
                             "Slot": 18,
+                            "Type": 2
+                        },
+                        {
+                            "BlendParam": 0,
+                            "Name": "Parry",
+                            "Nodes": [
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 95,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 11,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.40467411279678345
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 12,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.5498155355453491
+                                        }
+                                    ],
+                                    "GripPosX": 0.0,
+                                    "GripPosY": 0.0,
+                                    "GripPosZ": 0.0,
+                                    "GripRotX": 0.0,
+                                    "GripRotY": 0.0,
+                                    "GripRotZ": 0.0,
+                                    "HasGripOverride": false,
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "SpeedCurve": [],
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                },
+                                {
+                                    "Blend": 0.20000000298023224,
+                                    "ClipIndex": 96,
+                                    "Events": [
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 11,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.31980326771736145
+                                        },
+                                        {
+                                            "EndTime": 0.10000000149011612,
+                                            "Id": 12,
+                                            "IsRange": false,
+                                            "Payload": 0.0,
+                                            "Time": 0.47109454870224
+                                        }
+                                    ],
+                                    "GripPosX": 0.0,
+                                    "GripPosY": 0.0,
+                                    "GripPosZ": 0.0,
+                                    "GripRotX": 0.0,
+                                    "GripRotY": 0.0,
+                                    "GripRotZ": 0.0,
+                                    "HasGripOverride": false,
+                                    "LockRootX": false,
+                                    "LockRootY": false,
+                                    "LockRootZ": false,
+                                    "Loop": false,
+                                    "RootBoneIndex": 0,
+                                    "Speed": 1.0,
+                                    "SpeedCurve": [],
+                                    "StartOffset": 0.0,
+                                    "SyncPhase": false,
+                                    "Threshold": 0.0,
+                                    "Transitions": []
+                                }
+                            ],
+                            "Slot": 17,
                             "Type": 2
                         }
                     ],
@@ -12318,10 +12402,10 @@
                                     "Type": "SocketComponent"
                                 },
                                 {
-                                    "BaseDamage": 35.0,
+                                    "BaseDamage": 5.0,
                                     "Height": 0.11999999731779099,
                                     "HitStopDuration": 0.05999999865889549,
-                                    "KnockbackImpulse": 18.0,
+                                    "KnockbackImpulse": 2.5,
                                     "OffsetX": -0.07999999821186066,
                                     "OffsetY": 0.9599999785423279,
                                     "OffsetZ": 0.0,

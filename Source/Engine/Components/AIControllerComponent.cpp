@@ -903,6 +903,66 @@ void AIControllerComponent::NotifyHitReaction(const DirectX::XMFLOAT3& slashDir)
     ChangeState(EnemyState::hit_react);
 }
 
+void AIControllerComponent::NotifyParried(
+    const DirectX::XMFLOAT3& parrierPos,
+    const float poiseDamage,
+    const float hitStopDuration) noexcept
+{
+    if (m_currentState == EnemyState::dead || (m_health && m_health->IsDead()) || IsInvincible())
+    {
+        if (m_health && m_health->IsDead() && m_currentState != EnemyState::dead)
+        {
+            ChangeState(EnemyState::dead);
+        }
+        return;
+    }
+
+    m_isAmbushRunAttackPrimed = false;
+    m_isExecutingRunAttack = false;
+    StopMovement();
+
+    // Compute slight backward recoil impulse away from the player's parry
+    DirectX::XMFLOAT3 recoilImpulse{ 0.0f, 0.0f, 0.0f };
+    if (m_owner)
+    {
+        const DirectX::XMFLOAT3 myPos{ GetWorldPosition(m_owner) };
+        const float dx{ myPos.x - parrierPos.x };
+        const float dz{ myPos.z - parrierPos.z };
+        const float distSq{ (dx * dx) + (dz * dz) };
+        if (distSq > 0.0001f)
+        {
+            const float invDist{ 1.0f / std::sqrt(distSq) };
+            constexpr float s_parryRecoilSpeed{ 4.5f };
+            recoilImpulse = { dx * invDist * s_parryRecoilSpeed, 0.0f, dz * invDist * s_parryRecoilSpeed };
+        }
+    }
+
+    // Apply poise damage (0 HP damage) and impact hit-stop so the blade clash freezes cleanly
+    if (m_health)
+    {
+        m_health->ApplyDamage(0.0f, poiseDamage, recoilImpulse, hitStopDuration);
+    }
+    if (m_animation)
+    {
+        m_animation->ApplyHitStop(hitStopDuration);
+    }
+
+    // Force frontal stagger (Node 0) and transition into hit_react (which releases the CombatDirector attack token)
+    m_hitDirectionIndex = 0;
+    if (m_currentState == EnemyState::hit_react)
+    {
+        m_blackboard.stateTimer = 0.0f;
+        if (m_animation)
+        {
+            m_animBlackboard.actionIndex = 0;
+            m_animation->PlaySlot(Engine::Animation::AnimSlot::HitReact, true, 0);
+        }
+        return;
+    }
+
+    ChangeState(EnemyState::hit_react);
+}
+
 void AIControllerComponent::NotifyLaunch(const float launchVelocityY) noexcept
 {
     if (m_currentState == EnemyState::dead || (m_health && m_health->IsDead()) || IsInvincible())
