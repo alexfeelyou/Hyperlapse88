@@ -236,6 +236,7 @@
     <ClInclude Include="Source\System\ShadowCasterShader.h" />
     <ClInclude Include="Source\System\ShapeRenderer.h" />
     <ClInclude Include="Source\System\Sprite.h" />
+    <ClInclude Include="Source\System\TimeManager.h" />
     <ClInclude Include="Source\System\ToonShader.h" />
     <ClInclude Include="Source\System\TransformUtils.h" />
     <ClInclude Include="Source\System\VelocityShader.h" />

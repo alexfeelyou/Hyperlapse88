@@ -1,7 +1,8 @@
 #include <filesystem>
 #include "System/PhysicsManager.h"
+#include "System/TimeManager.h"
 #include "EditorManager.h"
-#include "SceneGame.h" 
+#include "SceneGame.h"
 
 using namespace DirectX;
 
@@ -174,6 +175,7 @@ void SceneGame::Update(const float elapsedTime)
     {
         if (currentMode == EditorMode::Play && m_lastEditorMode == EditorMode::Edit)
         {
+            Engine::Time::TimeManager::Instance().ResetGameplayDilation();
             EditorManager::Instance().SaveUserPreferences(this, CameraController::Instance().GetActiveCamera().get());
             SceneSerializer::Save("Data/Scenes/AutoSave_PlayMode.json", m_sceneRoot.get(), false);
 
@@ -208,6 +210,8 @@ void SceneGame::Update(const float elapsedTime)
         }
         else if (currentMode == EditorMode::Edit)
         {
+            Engine::Time::TimeManager::Instance().ResetGameplayDilation();
+            Engine::Time::TimeManager::Instance().ResetDebugTimeScale();
             EditorManager::Instance().ClearSelection();
 
             if (m_sceneRoot)
@@ -348,7 +352,11 @@ void SceneGame::Update(const float elapsedTime)
             return;
         }
 
-        m_globalTime += elapsedTime;
+        auto& timeMgr{ Engine::Time::TimeManager::Instance() };
+        timeMgr.Update(elapsedTime);
+        const float worldDt{ timeMgr.GetWorldDeltaTime(elapsedTime) };
+
+        m_globalTime += worldDt;
         if (m_globalTime > Config::TIME_LOOP_MAX) m_globalTime -= Config::TIME_LOOP_MAX;
 
         if (m_bootTimer > 0.0f)
@@ -359,7 +367,7 @@ void SceneGame::Update(const float elapsedTime)
 
             m_postProcess->GetVignette().GetData().smoothness = FX_BASE_SMOOTHNESS + (FX_BLACK_SMOOTHNESS - FX_BASE_SMOOTHNESS) * t;
             m_postProcess->GetVignette().GetData().intensity = FX_BASE_INTENSITY + (FX_BLACK_INTENSITY - FX_BASE_INTENSITY) * t;
-            
+
             if (m_bootTimer <= 0.0f && m_playerCtrl)
             {
                 m_playerCtrl->SetInputEnabled(true);
@@ -411,12 +419,15 @@ void SceneGame::Update(const float elapsedTime)
 
         if (m_dialogueBox) m_dialogueBox->Update(elapsedTime);
 
-        PhysicsManager::Instance().Simulate(elapsedTime);
+        if (worldDt > 0.00001f)
+        {
+            PhysicsManager::Instance().Simulate(worldDt);
+        }
     }
 
     CameraController::Instance().Update(elapsedTime);
 
-    const float sceneDt = isPlaying ? elapsedTime : 0.0f;
+    const float sceneDt{ isPlaying ? Engine::Time::TimeManager::Instance().GetWorldDeltaTime(elapsedTime) : 0.0f };
     Scene::Update(sceneDt);
     Scene::LateUpdate(sceneDt);
 
@@ -439,7 +450,7 @@ void SceneGame::StartIntroDialogueTest()
 
 void SceneGame::Render(float elapsedTime, Camera* camera)
 {
-    const float renderTime{ m_isPaused ? 0.0f : elapsedTime };
+    const float renderTime{ m_isPaused ? 0.0f : Engine::Time::TimeManager::Instance().GetWorldDeltaTime(elapsedTime) };
 
     // Dynamic Camera Resolution
     // Default to the Editor Free Camera (m_mainCamera)

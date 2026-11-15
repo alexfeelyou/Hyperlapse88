@@ -2,10 +2,11 @@
 
 #include <array>           
 #include <DirectXMath.h>
+#include <json.hpp>
 #include <memory>
 #include "AnimBlackboard.h"
 #include "IComponent.h"
-#include "StateMachine.h" 
+#include "StateMachine.h"
 
 // Strongly typed enum representing discrete gameplay logic layers
 enum class PlayerStateType : std::uint8_t
@@ -65,6 +66,16 @@ struct InputIntent
     float forwardIntentTimer{ 0.0f }; // Tracks input freshness for command normals
 };
 
+// Data-driven tuning parameters for post-parry temporal dilation (Chrono Punk / Witch Time feel)
+struct ParrySlowMoConfig
+{
+    bool enabled{ true };
+    float timeScale{ 0.22f };        // Target world time scale during parry slow-mo (0.22 = 22% speed)
+    float hitStopDelay{ 0.06f };     // Real-time delay matching blade-clash hit-stop before slow-mo engages
+    float holdDuration{ 0.18f };     // Real-time duration held at target timeScale
+    float recoveryDuration{ 0.15f }; // Real-time C1 smooth ease-out duration back to 1.0x
+};
+
 // Translates hardware input into InputIntent and evaluates the State Machine
 class PlayerControllerComponent final : public IComponent
 {
@@ -79,7 +90,12 @@ public:
     void Update(float dt) override;
     void DrawInspector() override;
 
+    void Serialize(nlohmann::json& outJson) const override;
+    void Deserialize(const nlohmann::json& inJson) override;
+
     [[nodiscard]] const char* GetTypeName() const noexcept override { return "PlayerControllerComponent"; }
+    [[nodiscard]] ParrySlowMoConfig& GetParrySlowMoConfig() noexcept { return m_parrySlowMo; }
+    [[nodiscard]] const ParrySlowMoConfig& GetParrySlowMoConfig() const noexcept { return m_parrySlowMo; }
 
     // Core Component Accessors
     [[nodiscard]] const InputIntent& GetIntent() const noexcept { return m_intent; }
@@ -125,6 +141,7 @@ private:
     void GatherHardwareInput(float dt) noexcept;
     void ResolveIntentToWorldSpace() noexcept;
 
+    ParrySlowMoConfig m_parrySlowMo{};
     InputIntent m_intent{};
     PlayerHitReactionData m_lastHitReaction{};
     bool m_inputEnabled{ true };

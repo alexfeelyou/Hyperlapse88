@@ -1,6 +1,7 @@
 #include <filesystem>
 #include <fstream>
 #include <json.hpp>
+#include "System/TimeManager.h"
 #include "Camera.h"
 #include "CameraComponent.h"
 #include "CapsuleColliderComponent.h"
@@ -1158,9 +1159,42 @@ void EditorManager::DrawMenuBar(Scene* currentScene) noexcept
 
             ImGui::EndMenu();
         }
-        if (ImGui::BeginMenu("Time")) { ImGui::EndMenu(); }
-        if (ImGui::BeginMenu("Curve Manager")) { ImGui::EndMenu(); }
+        if (ImGui::BeginMenu("Time"))
+        {
+            auto& timeMgr{ Engine::Time::TimeManager::Instance() };
+            ImGui::TextDisabled("QA / DEBUG TIME SCALE");
+            ImGui::Separator();
 
+            float debugScale{ timeMgr.GetDebugTimeScale() };
+            if (ImGui::SliderFloat("Debug Speed", &debugScale, 0.10f, 2.0f, "%.2fx"))
+            {
+                timeMgr.SetDebugTimeScale(debugScale);
+            }
+
+            if (ImGui::MenuItem("0.10x (Frame Step Inspection)", nullptr, std::abs(debugScale - 0.10f) < 0.01f))
+            {
+                timeMgr.SetDebugTimeScale(0.10f);
+            }
+            if (ImGui::MenuItem("0.25x (Slow-Mo QA)", nullptr, std::abs(debugScale - 0.25f) < 0.01f))
+            {
+                timeMgr.SetDebugTimeScale(0.25f);
+            }
+            if (ImGui::MenuItem("0.50x (Half Speed)", nullptr, std::abs(debugScale - 0.50f) < 0.01f))
+            {
+                timeMgr.SetDebugTimeScale(0.50f);
+            }
+            if (ImGui::MenuItem("1.00x (Normal)", nullptr, std::abs(debugScale - 1.0f) < 0.01f))
+            {
+                timeMgr.ResetDebugTimeScale();
+            }
+
+            ImGui::Separator();
+            ImGui::TextDisabled("LIVE TELEMETRY");
+            ImGui::Text("Gameplay Dilation: %.2fx", timeMgr.GetGameplayTimeScale());
+            ImGui::Text("Effective World Scale: %.2fx", timeMgr.GetWorldTimeScale());
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Curve Manager")) { ImGui::EndMenu(); }
         ImGui::EndMenuBar();
     }
 }

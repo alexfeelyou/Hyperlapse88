@@ -766,6 +766,9 @@
     <ClInclude Include="Source\Engine\Combat\CombatMath.h">
       <Filter>Source\Engine\Combat</Filter>
     </ClInclude>
+    <ClInclude Include="Source\System\TimeManager.h">
+      <Filter>System</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Shader\Basic.hlsli">
