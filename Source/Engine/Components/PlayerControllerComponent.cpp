@@ -78,8 +78,6 @@ void PlayerControllerComponent::GatherHardwareInput(const float dt) noexcept
     if (!m_inputEnabled)
     {
         m_intent = InputIntent{};
-        m_shiftHoldTimer = 0.0f;
-        m_wasShiftPressed = false;
         return;
     }
 
@@ -138,45 +136,16 @@ void PlayerControllerComponent::GatherHardwareInput(const float dt) noexcept
         m_intent.forwardIntentTimer = 0.0f;
     }
 
-    // KEYBOARD SHIFT: TAP-TO-DASH VS HOLD-TO-SPRINT 
-    // Threshold 200ms for discriminates between an intentional tap and a sustained hold
-    constexpr float s_shiftHoldThreshold{ 0.20f };
-
-    const bool isShiftDown{ input.GetKeyboard().IsPress(VK_SHIFT) };
-    bool isShiftTapDash{ false };
-    bool isShiftHoldingSprint{ false };
-
-    if (isShiftDown)
-    {
-        m_shiftHoldTimer += dt;
-        if (m_shiftHoldTimer >= s_shiftHoldThreshold)
-        {
-            // The key has been held long enough: activate sprinting
-            isShiftHoldingSprint = true;
-        }
-    }
-    else
-    {
-        // Key is not pressed this frame. If it was pressed last frame, the player just released it.
-        if (m_wasShiftPressed)
-        {
-            // Only fire the dash if the key was released before reaching the sprint hold threshold
-            if (m_shiftHoldTimer > 0.0f && m_shiftHoldTimer < s_shiftHoldThreshold)
-            {
-                isShiftTapDash = true;
-            }
-        }
-        m_shiftHoldTimer = 0.0f;
-    }
-    m_wasShiftPressed = isShiftDown;
-
     // INPUT INTENT ASSIGNMENTS
 
-    // Dash / Evade:
-    // Keyboard: Quick tap-release on Shift (< 200ms)
-    // Gamepad: Single press on B button 
-    m_intent.bDashTriggered = isShiftTapDash ||
-        ((pad.GetButtonDown() & GamePad::BTN_B) != 0);
+    // Contextual Parry / Dash Trigger:
+    // Keyboard: F | Gamepad: B
+    // States evaluate TryStartParry first when grounded; if no parry window is active, execution falls through to DashEvade.
+    const bool isParryOrDashTriggered{ input.GetKeyboard().IsTriggered('F') ||
+        ((pad.GetButtonDown() & GamePad::BTN_B) != 0) };
+
+    m_intent.bParryPressed = isParryOrDashTriggered;
+    m_intent.bDashTriggered = isParryOrDashTriggered;
 
     // Slide:
     // Keyboard: Sustained hold on Left Control
@@ -188,9 +157,9 @@ void PlayerControllerComponent::GatherHardwareInput(const float dt) noexcept
         ((pad.GetButtonDown() & GamePad::BTN_LEFT_SHOULDER) != 0);
 
     // Sprint:
-    // Keyboard: Sustained hold on Shift (>= 200ms)
+    // Keyboard: Sustained hold on Shift
     // Gamepad: Sustained hold on Right Bumper / RB
-    m_intent.bSprintHeld = isShiftHoldingSprint ||
+    m_intent.bSprintHeld = input.GetKeyboard().IsPress(VK_SHIFT) ||
         ((pad.GetButton() & GamePad::BTN_RIGHT_SHOULDER) != 0);
 
     // Light Attack: Left Mouse Button or Gamepad X
@@ -212,9 +181,6 @@ void PlayerControllerComponent::GatherHardwareInput(const float dt) noexcept
     // Buff Activation: Keyboard Q or Gamepad RT (Right Trigger)
     m_intent.bSkillTriggered = input.GetKeyboard().IsTriggered('Q') ||
         ((pad.GetButtonDown() & GamePad::BTN_RIGHT_TRIGGER) != 0);
-
-    // Parry / Deflect: Keyboard F
-    m_intent.bParryPressed = input.GetKeyboard().IsTriggered('F');
 
     // Sustain Combat Stance on Aggressive Actions (Parry sets combat stance only when a valid parry window is claimed)
     if (m_intent.bAttackPressed || m_intent.bAttackHeld || m_intent.bHeavyAttackPressed || m_intent.bHeavyAttackHeld || m_intent.bSkillTriggered)
@@ -289,8 +255,6 @@ void PlayerControllerComponent::Update(const float dt)
         m_intent.bJumpTriggered = false;
         m_intent.bSprintHeld = false;
         m_intent.bParryPressed = false;
-        m_shiftHoldTimer = 0.0f;
-        m_wasShiftPressed = false;
     }
 
     ResolveIntentToWorldSpace();

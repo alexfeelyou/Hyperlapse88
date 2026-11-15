@@ -629,7 +629,7 @@ void PlayerLocomotion::Update(PlayerControllerComponent* controller, float dt)
         return;
     }
 
-    if (intent.bParryPressed && TryStartParry(controller))
+    if (intent.bParryPressed && motor->isGrounded() && TryStartParry(controller))
     {
         return;
     }

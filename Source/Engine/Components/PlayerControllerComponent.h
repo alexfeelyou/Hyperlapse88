@@ -131,9 +131,6 @@ private:
     bool m_isInvincible{ false };
     int m_pendingComboHit{ -1 }; // Transient state token
 
-    float m_shiftHoldTimer{ 0.0f };   // Accumulates continuous press duration for the Shift key
-    bool  m_wasShiftPressed{ false }; // Tracks the previous frame's press state to detect key release
-
     // Component Caches
     CharacterMovementComponent* m_movement{ nullptr };
     AnimationComponent* m_animation{ nullptr };
