@@ -12,6 +12,8 @@ void CombatDirectorComponent::PushSettingsToDirector() const noexcept
     director.SetOuterRadius(m_outerRadius);
     director.SetMaxAttackTokens(m_maxAttackTokens);
     director.SetCadenceInterval(m_cadenceInterval);
+    director.SetPostHitGraceDuration(m_postHitGraceDuration);
+    director.SetWakeUpGraceDuration(m_wakeUpGraceDuration);
 }
 
 void CombatDirectorComponent::OnAttach(GameObject* owner) noexcept
@@ -73,7 +75,9 @@ void CombatDirectorComponent::DrawInspector()
         changed = true;
     }
 
-    changed |= ImGui::DragFloat("Cadence Interval", &m_cadenceInterval, 0.05f, 0.05f, 2.0f, "%.2f s");
+    changed |= ImGui::DragFloat("Cadence Interval", &m_cadenceInterval, 0.05f, 0.05f, 3.0f, "%.2f s");
+    changed |= ImGui::DragFloat("Post-Hit Grace", &m_postHitGraceDuration, 0.05f, 0.0f, 3.0f, "%.2f s");
+    changed |= ImGui::DragFloat("Wake-Up Grace", &m_wakeUpGraceDuration, 0.05f, 0.0f, 3.0f, "%.2f s");
 
     if (changed)
     {
@@ -87,6 +91,8 @@ void CombatDirectorComponent::DrawInspector()
     ImGui::Text("Inner Slots Occupied: %zu / 6", CombatDirector::Instance().GetOccupiedInnerSlotCount());
     ImGui::Text("Outer Slots Occupied: %zu / 12", CombatDirector::Instance().GetOccupiedOuterSlotCount());
     ImGui::Text("Active Attack Tokens: %u / %u", CombatDirector::Instance().GetActiveTokenCount(), m_maxAttackTokens);
+    bool playerProtected{ CombatDirector::Instance().IsPlayerSafeFromNewAttacks() };
+    ImGui::Checkbox("Player Grace Active", &playerProtected);
     ImGui::EndDisabled();
 }
 
@@ -96,14 +102,18 @@ void CombatDirectorComponent::Serialize(nlohmann::json& outJson) const
     outJson["OuterRadius"] = m_outerRadius;
     outJson["MaxAttackTokens"] = m_maxAttackTokens;
     outJson["CadenceInterval"] = m_cadenceInterval;
+    outJson["PostHitGraceDuration"] = m_postHitGraceDuration;
+    outJson["WakeUpGraceDuration"] = m_wakeUpGraceDuration;
 }
 
 void CombatDirectorComponent::Deserialize(const nlohmann::json& inJson)
 {
     m_innerRadius = inJson.value("InnerRadius", 2.8f);
     m_outerRadius = inJson.value("OuterRadius", 5.5f);
-    m_maxAttackTokens = inJson.value("MaxAttackTokens", 3u);
-    m_cadenceInterval = inJson.value("CadenceInterval", 0.25f);
+    m_maxAttackTokens = inJson.value("MaxAttackTokens", 1u);
+    m_cadenceInterval = inJson.value("CadenceInterval", 0.85f);
+    m_postHitGraceDuration = inJson.value("PostHitGraceDuration", 0.70f);
+    m_wakeUpGraceDuration = inJson.value("WakeUpGraceDuration", 0.85f);
 
     PushSettingsToDirector();
 }

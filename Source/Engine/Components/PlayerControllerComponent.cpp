@@ -222,6 +222,7 @@ void PlayerControllerComponent::Update(const float dt)
         m_blackboard.setFlag(Engine::Animation::AnimFlag::is_combat_active, false);
         m_blackboard.actionIndex = 0;
         m_lastHitReaction = PlayerHitReactionData{};
+        m_isInKnockdownRecovery = false;
         SetInvincible(false);
         SetInputEnabled(true);
         if (m_owner)

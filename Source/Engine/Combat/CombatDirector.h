@@ -29,8 +29,9 @@ struct CombatSlot
 class CombatDirector final
 {
 public:
-    static constexpr std::size_t s_innerSlotCount{ 6 };  // Maximum simultaneous frontline attackers
-    static constexpr std::size_t s_outerSlotCount{ 12 }; // Surrounding mob circle slots
+    static constexpr std::size_t s_innerSlotCount{ 6 };      // Maximum simultaneous frontline attackers
+    static constexpr std::size_t s_outerSlotCount{ 12 };     // Surrounding mob circle slots
+    static constexpr std::size_t s_maxSupportedTokens{ 10 }; // Fixed token ownership table capacity
 
     [[nodiscard]] static CombatDirector& Instance() noexcept
     {
@@ -53,9 +54,12 @@ public:
     void UpdateSlotPositions(const GameObject* playerObject, float dt = 0.0f) noexcept;
     void DrawGizmos(const GizmoContext& ctx) noexcept;
 
-    // Token arbitration
+    // Token arbitration & swing serialization
     [[nodiscard]] bool RequestAttackToken(AIControllerComponent* enemy) noexcept;
     void ReleaseAttackToken(AIControllerComponent* enemy) noexcept;
+    [[nodiscard]] bool HasAttackToken(const AIControllerComponent* enemy) const noexcept;
+    [[nodiscard]] bool CanBeginActiveSwing(const AIControllerComponent* enemy) const noexcept;
+    [[nodiscard]] bool IsPlayerSafeFromNewAttacks() const noexcept;
 
     // Spatial queries for AI steering & player combat arbitration
     [[nodiscard]] DirectX::XMFLOAT3 GetAssignedSlotPosition(const AIControllerComponent* enemy) const noexcept;
@@ -72,12 +76,17 @@ public:
     void SetOuterRadius(float r) noexcept { m_outerRadius = r; }
 
     [[nodiscard]] std::uint32_t GetMaxAttackTokens() const noexcept { return m_maxAttackTokens; }
-    void SetMaxAttackTokens(std::uint32_t tokens) noexcept { m_maxAttackTokens = tokens; }
+    void SetMaxAttackTokens(std::uint32_t tokens) noexcept;
     [[nodiscard]] float GetCadenceInterval() const noexcept { return m_tokenCadenceInterval; }
     void SetCadenceInterval(float interval) noexcept { m_tokenCadenceInterval = interval; }
 
+    [[nodiscard]] float GetPostHitGraceDuration() const noexcept { return m_postHitGraceDuration; }
+    void SetPostHitGraceDuration(float duration) noexcept { m_postHitGraceDuration = duration; }
+    [[nodiscard]] float GetWakeUpGraceDuration() const noexcept { return m_wakeUpGraceDuration; }
+    void SetWakeUpGraceDuration(float duration) noexcept { m_wakeUpGraceDuration = duration; }
+
     [[nodiscard]] std::size_t GetRegisteredEnemyCount() const noexcept { return m_enemies.size(); }
-    [[nodiscard]] std::uint32_t GetActiveTokenCount() const noexcept { return m_activeTokens; }
+    [[nodiscard]] std::uint32_t GetActiveTokenCount() const noexcept;
     [[nodiscard]] std::size_t GetOccupiedInnerSlotCount() const noexcept;
     [[nodiscard]] std::size_t GetOccupiedOuterSlotCount() const noexcept;
 
@@ -85,14 +94,27 @@ private:
     CombatDirector() noexcept;
     ~CombatDirector() = default;
 
+    void EvaluatePlayerCombatWindow(float dt, GameObject* playerObject) noexcept;
+    void RevokePendingWindups() noexcept;
+    void SelectPreferredAttacker(const DirectX::XMFLOAT3& playerPos) noexcept;
+
     float m_innerRadius{ 2.8f }; // Frontline distance from player
     float m_outerRadius{ 5.5f }; // Swarm mob distance from player
 
     float m_tokenDispatchTimer{ 0.0f };
-    float m_tokenCadenceInterval{ 0.25f }; // Stagger delay between attacks for readability
+    float m_tokenCadenceInterval{ 0.85f }; // Post-release stagger delay between attackers for readability
 
-    std::uint32_t m_maxAttackTokens{ 3 }; // Configurable simultaneous attack token pool
-    std::uint32_t m_activeTokens{ 0 };
+    float m_postHitGraceDuration{ 0.70f }; // Anti-stunlock breathing window after light hit reaction
+    float m_wakeUpGraceDuration{ 0.85f };  // Anti-meaty protection window after knockdown GetUp finishes
+    float m_postHitGraceTimer{ 0.0f };
+    float m_wakeUpGraceTimer{ 0.0f };
+
+    bool m_isPlayerActionLocked{ false };
+    bool m_wasPlayerKnockedDown{ false };
+
+    std::uint32_t m_maxAttackTokens{ 1 }; // Default 1 active attacker; multi-token mode serializes active swing frames
+    std::array<AIControllerComponent*, s_maxSupportedTokens> m_tokenHolders{};
+    AIControllerComponent* m_preferredAttacker{ nullptr };
 
     std::array<CombatSlot, s_innerSlotCount> m_innerSlots{};
     std::array<CombatSlot, s_outerSlotCount> m_outerSlots{};

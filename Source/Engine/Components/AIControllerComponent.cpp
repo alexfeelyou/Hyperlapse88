@@ -1239,6 +1239,18 @@ void AIControllerComponent::NotifyPlungeSlam() noexcept
     }
 }
 
+void AIControllerComponent::CancelWindupToChase() noexcept
+{
+    if (m_currentState != EnemyState::attack_windup)
+    {
+        return;
+    }
+
+    // Abort windup cleanly, release attack token via ChangeState, and set a brief yield cooldown
+    m_blackboard.attackCooldownTimer = (std::max)(m_blackboard.attackCooldownTimer, 0.45f);
+    ChangeState(EnemyState::chase);
+}
+
 void AIControllerComponent::TickAirborneJuggle(const float dt) noexcept
 {
     StopMovement();
@@ -1585,7 +1597,15 @@ void AIControllerComponent::TickGrunt(const float dt) noexcept
         const float activeWindup{ m_isExecutingRunAttack ? 0.10f : m_config.attackWindupDuration };
         if (m_blackboard.stateTimer >= activeWindup)
         {
-            ChangeState(EnemyState::attack_active);
+            if (CombatDirector::Instance().CanBeginActiveSwing(this))
+            {
+                ChangeState(EnemyState::attack_active);
+            }
+            else
+            {
+                // Hold ready pose until concurrent active swing concludes
+                m_blackboard.stateTimer = activeWindup;
+            }
         }
         break;
     }
@@ -1644,12 +1664,13 @@ void AIControllerComponent::TickGrunt(const float dt) noexcept
         {
             if (hasNextHit)
             {
-                // Verify target viability before chaining next strike
+                // Verify target viability and ensure player was not knocked down/stagger-locked before chaining next strike
                 const auto* targetHealth{ m_blackboard.target ? m_blackboard.target->GetComponent<HealthComponent>() : nullptr };
                 const bool isTargetDead{ targetHealth && targetHealth->IsDead() };
+                const bool isPlayerGraceActive{ CombatDirector::Instance().IsPlayerSafeFromNewAttacks() };
                 const float comboRetentionRangeSq{ (m_config.attackRange + 1.25f) * (m_config.attackRange + 1.25f) };
                 const bool isTargetInComboRange{ m_blackboard.targetDistanceSq <= comboRetentionRangeSq };
-                const bool canContinueCombo{ !isTargetDead && isTargetInComboRange && !m_blackboard.getFlag(SensoryFlag::is_leashed) };
+                const bool canContinueCombo{ !isTargetDead && !isPlayerGraceActive && isTargetInComboRange && !m_blackboard.getFlag(SensoryFlag::is_leashed) };
 
                 if (canContinueCombo)
                 {

@@ -6,6 +6,8 @@
 #include "GameObject.h"
 #include "HealthComponent.h"
 #include "IComponent.h"
+#include "OrbitCameraDriverComponent.h"
+#include "PlayerControllerComponent.h"
 
 CombatDirector::CombatDirector() noexcept
 {
@@ -56,8 +58,13 @@ void CombatDirector::UnregisterEnemy(AIControllerComponent* enemy) noexcept
 void CombatDirector::Clear() noexcept
 {
     m_enemies.clear();
-    m_activeTokens = 0;
+    m_tokenHolders.fill(nullptr);
+    m_preferredAttacker = nullptr;
     m_tokenDispatchTimer = 0.0f;
+    m_postHitGraceTimer = 0.0f;
+    m_wakeUpGraceTimer = 0.0f;
+    m_isPlayerActionLocked = false;
+    m_wasPlayerKnockedDown = false;
 
     for (auto& slot : m_innerSlots)
     {
@@ -103,6 +110,133 @@ void CombatDirector::UpdateSlotPositions(const GameObject* playerObject, const f
     }
 }
 
+void CombatDirector::SetMaxAttackTokens(const std::uint32_t tokens) noexcept
+{
+    m_maxAttackTokens = std::clamp(tokens, 1u, static_cast<std::uint32_t>(s_maxSupportedTokens));
+}
+
+void CombatDirector::EvaluatePlayerCombatWindow(const float dt, GameObject* playerObject) noexcept
+{
+    if (m_postHitGraceTimer > 0.0f)
+    {
+        m_postHitGraceTimer = (std::max)(0.0f, m_postHitGraceTimer - dt);
+    }
+    if (m_wakeUpGraceTimer > 0.0f)
+    {
+        m_wakeUpGraceTimer = (std::max)(0.0f, m_wakeUpGraceTimer - dt);
+    }
+
+    const auto* playerCtrl{ playerObject ? playerObject->GetComponent<PlayerControllerComponent>() : nullptr };
+    const bool isKnockedDown{ playerCtrl && playerCtrl->IsInKnockdownRecovery() };
+    const bool isInHitReact{ playerCtrl && playerCtrl->IsInHitReact() };
+    const bool isParrying{ playerCtrl && playerCtrl->IsInParryState() };
+
+    if (isKnockedDown)
+    {
+        // Freeze new attacks and cancel unstarted enemy windups while player is knocked down or getting up
+        m_isPlayerActionLocked = true;
+        RevokePendingWindups();
+    }
+    else
+    {
+        // Transition out of Knockdown/GetUp: grant guaranteed wake-up protection window
+        if (m_wasPlayerKnockedDown)
+        {
+            m_wakeUpGraceTimer = (std::max)(m_wakeUpGraceTimer, m_wakeUpGraceDuration);
+        }
+
+        if (isInHitReact)
+        {
+            // Light stagger: prevent immediate follow-up dogpile from surrounding enemies
+            m_isPlayerActionLocked = true;
+            m_postHitGraceTimer = (std::max)(m_postHitGraceTimer, m_postHitGraceDuration);
+            RevokePendingWindups();
+        }
+        else if (isParrying)
+        {
+            // Active parry/counter: abort unstarted windups from other enemies so parry isn't interrupted
+            m_isPlayerActionLocked = true;
+            RevokePendingWindups();
+        }
+        else
+        {
+            m_isPlayerActionLocked = false;
+        }
+    }
+
+    m_wasPlayerKnockedDown = isKnockedDown;
+}
+
+void CombatDirector::RevokePendingWindups() noexcept
+{
+    for (auto* holder : m_tokenHolders)
+    {
+        if (holder && holder->GetCurrentState() == EnemyState::attack_windup)
+        {
+            holder->CancelWindupToChase();
+        }
+    }
+}
+
+void CombatDirector::SelectPreferredAttacker(const DirectX::XMFLOAT3& playerPos) noexcept
+{
+    m_preferredAttacker = nullptr;
+
+    const float camYawRad{ OrbitCameraDriverComponent::GetActiveYawRadians() };
+    const float camFwdX{ std::sin(camYawRad) };
+    const float camFwdZ{ std::cos(camYawRad) };
+
+    float bestScore{ -999999.0f };
+
+    for (const auto& slot : m_innerSlots)
+    {
+        AIControllerComponent* enemy{ slot.occupant };
+        if (!enemy || !enemy->GetOwner() || enemy->GetOwner()->IsDestroyed())
+        {
+            continue;
+        }
+        if (enemy->GetCurrentState() != EnemyState::chase)
+        {
+            continue;
+        }
+        if (enemy->GetBlackboard().attackCooldownTimer > 0.0f)
+        {
+            continue;
+        }
+
+        // Consider enemies at or approaching attack range
+        const float readyRange{ enemy->GetConfig().attackRange + 0.65f };
+        const float distSq{ enemy->GetBlackboard().targetDistanceSq };
+        if (distSq > (readyRange * readyRange))
+        {
+            continue;
+        }
+
+        const DirectX::XMFLOAT4X4 eWorld{ enemy->GetOwner()->transform.GetWorldMatrix() };
+        const float dx{ eWorld._41 - playerPos.x };
+        const float dz{ eWorld._43 - playerPos.z };
+        const float lenSq{ (dx * dx) + (dz * dz) };
+
+        float camDot{ 1.0f };
+        if (lenSq > 0.0001f)
+        {
+            const float invLen{ 1.0f / std::sqrt(lenSq) };
+            camDot = ((dx * invLen) * camFwdX) + ((dz * invLen) * camFwdZ);
+        }
+
+        // Strongly prioritize on-screen enemies in front of the camera over off-screen blindsides
+        const float visibilityScore{ (camDot >= 0.0f) ? (2.0f + camDot) : (camDot * 2.0f) };
+        const float proximityScore{ 1.0f - (std::sqrt(distSq) / (std::max)(0.1f, readyRange)) };
+        const float totalScore{ visibilityScore + proximityScore };
+
+        if (totalScore > bestScore)
+        {
+            bestScore = totalScore;
+            m_preferredAttacker = enemy;
+        }
+    }
+}
+
 void CombatDirector::Update(const float dt, GameObject* playerObject) noexcept
 {
     if (!playerObject)
@@ -110,8 +244,11 @@ void CombatDirector::Update(const float dt, GameObject* playerObject) noexcept
         return;
     }
 
-    // Advance token dispatch cadence timer
-    if (m_tokenDispatchTimer > 0.0f)
+    // Evaluate player vulnerability / parry / wake-up grace before advancing attack cadence
+    EvaluatePlayerCombatWindow(dt, playerObject);
+
+    // Advance token dispatch cadence timer only while player is actionable
+    if (!IsPlayerSafeFromNewAttacks() && m_tokenDispatchTimer > 0.0f)
     {
         m_tokenDispatchTimer -= dt;
     }
@@ -278,11 +415,83 @@ void CombatDirector::Update(const float dt, GameObject* playerObject) noexcept
             m_outerSlots[bestOuterSlotIdx].occupant = cand.enemy;
         }
     }
+
+    // Sanitize stale token holders that are no longer actively attacking
+    for (auto*& holder : m_tokenHolders)
+    {
+        if (!holder) continue;
+        const EnemyState st{ holder->GetCurrentState() };
+        if (isEnemyDeadOrInvalid(holder) || (st != EnemyState::attack_windup && st != EnemyState::attack_active))
+        {
+            holder = nullptr;
+        }
+    }
+
+    // Select the highest-priority visible frontline attacker for deterministic token arbitration
+    SelectPreferredAttacker(playerPos);
+}
+
+bool CombatDirector::HasAttackToken(const AIControllerComponent* enemy) const noexcept
+{
+    if (!enemy) return false;
+
+    for (const auto* holder : m_tokenHolders)
+    {
+        if (holder == enemy)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+std::uint32_t CombatDirector::GetActiveTokenCount() const noexcept
+{
+    std::uint32_t count{ 0 };
+    for (const auto* holder : m_tokenHolders)
+    {
+        if (holder != nullptr)
+        {
+            ++count;
+        }
+    }
+    return count;
+}
+
+bool CombatDirector::IsPlayerSafeFromNewAttacks() const noexcept
+{
+    return m_isPlayerActionLocked || (m_postHitGraceTimer > 0.0f) || (m_wakeUpGraceTimer > 0.0f);
+}
+
+bool CombatDirector::CanBeginActiveSwing(const AIControllerComponent* enemy) const noexcept
+{
+    if (!enemy || IsPlayerSafeFromNewAttacks() || !HasAttackToken(enemy))
+    {
+        return false;
+    }
+
+    // Single-Active-Hitbox Invariant: prevent two enemies from entering active slash frames simultaneously
+    for (const auto* holder : m_tokenHolders)
+    {
+        if (holder && holder != enemy && holder->GetCurrentState() == EnemyState::attack_active)
+        {
+            return false;
+        }
+    }
+    return true;
 }
 
 bool CombatDirector::RequestAttackToken(AIControllerComponent* enemy) noexcept
 {
-    if (!enemy) return false;
+    if (!enemy || IsPlayerSafeFromNewAttacks())
+    {
+        return false;
+    }
+
+    if (HasAttackToken(enemy))
+    {
+        return true;
+    }
 
     // Frontline validation: enemy must be assigned to the inner ring or physically within inner radius combat space
     const SwarmRing ring{ GetAssignedRing(enemy) };
@@ -295,11 +504,24 @@ bool CombatDirector::RequestAttackToken(AIControllerComponent* enemy) noexcept
         }
     }
 
-    if (m_activeTokens < m_maxAttackTokens && m_tokenDispatchTimer <= 0.0f)
+    // Camera-frustum fairness: if a visible preferred attacker is ready, defer off-screen challengers
+    if (m_preferredAttacker && m_preferredAttacker != enemy)
     {
-        ++m_activeTokens;
-        m_tokenDispatchTimer = m_tokenCadenceInterval;
-        return true;
+        return false;
+    }
+
+    const std::uint32_t activeCount{ GetActiveTokenCount() };
+    if (activeCount < m_maxAttackTokens && m_tokenDispatchTimer <= 0.0f)
+    {
+        for (std::size_t i{ 0 }; i < m_maxAttackTokens && i < s_maxSupportedTokens; ++i)
+        {
+            if (!m_tokenHolders[i])
+            {
+                m_tokenHolders[i] = enemy;
+                m_tokenDispatchTimer = m_tokenCadenceInterval;
+                return true;
+            }
+        }
     }
 
     return false;
@@ -329,9 +551,20 @@ void CombatDirector::ReleaseAttackToken(AIControllerComponent* enemy) noexcept
 {
     if (!enemy) return;
 
-    if (m_activeTokens > 0)
+    bool released{ false };
+    for (auto*& holder : m_tokenHolders)
     {
-        --m_activeTokens;
+        if (holder == enemy)
+        {
+            holder = nullptr;
+            released = true;
+        }
+    }
+
+    // Start post-attack cadence timer upon token release so the next attacker waits after the combo finishes
+    if (released)
+    {
+        m_tokenDispatchTimer = (std::max)(m_tokenDispatchTimer, m_tokenCadenceInterval);
     }
 }
 

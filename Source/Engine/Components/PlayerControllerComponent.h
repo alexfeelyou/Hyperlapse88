@@ -130,6 +130,18 @@ public:
     [[nodiscard]] bool IsInvincible() const noexcept { return m_isInvincible; }
     void SetInvincible(bool invincible) noexcept;
 
+    // CombatDirector vulnerability & defensive state queries
+    [[nodiscard]] bool IsInHitReact() const noexcept
+    {
+        return m_stateMachine && m_stateMachine->GetCurrentState() == GetState(PlayerStateType::HitReact);
+    }
+    [[nodiscard]] bool IsInParryState() const noexcept
+    {
+        return m_stateMachine && m_stateMachine->GetCurrentState() == GetState(PlayerStateType::ParryCounter);
+    }
+    [[nodiscard]] bool IsInKnockdownRecovery() const noexcept { return m_isInKnockdownRecovery; }
+    void SetKnockdownRecovery(bool active) noexcept { m_isInKnockdownRecovery = active; }
+
     // Transient Mailbox for State Handoffs (DOD Isolation)
     void SetPendingComboHit(int index) noexcept { m_pendingComboHit = index; }
     [[nodiscard]] int ConsumePendingComboHit() noexcept { const int val = m_pendingComboHit; m_pendingComboHit = -1; return val; }
@@ -145,6 +157,7 @@ private:
     PlayerHitReactionData m_lastHitReaction{};
     bool m_inputEnabled{ true };
     bool m_isInvincible{ false };
+    bool m_isInKnockdownRecovery{ false };
     int m_pendingComboHit{ -1 }; // Transient state token
 
     // Component Caches

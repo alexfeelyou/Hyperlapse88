@@ -3843,6 +3843,7 @@ void PlayerHitReact::Enter(PlayerControllerComponent* controller)
         // Hard Knockdown (Alive): Play Knockdown clip with full wake-up protection, followed by Get_Up
         m_phase = HitReactPhase::Knockdown;
         controller->SetInvincible(true);
+        controller->SetKnockdownRecovery(true);
 
         const int knockdownNode{ isCombat ? 13 : 12 }; // 12: Hit_Large_Knockdown, 13: Hit_Combat_Large_Knockdown
         blackboard.actionIndex = knockdownNode;
@@ -4035,6 +4036,8 @@ void PlayerHitReact::Exit(PlayerControllerComponent* controller)
     {
         return;
     }
+
+    controller->SetKnockdownRecovery(false);
 
     // Clear wake-up invulnerability unless player is dead
     if (m_phase != HitReactPhase::Dead)

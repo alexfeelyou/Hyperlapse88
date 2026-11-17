@@ -32,7 +32,7 @@ struct AIControllerConfig
 
     float attackWindupDuration{ 0.5f };
     float attackActiveDuration{ 0.35f };
-    float attackCooldownDuration{ 1.2f };
+    float attackCooldownDuration{ 1.85f };
     float hitReactDuration{ 0.45f };
     float deaggroDuration{ 2.5f };   // Time enemy remains disinterested after reaching leash limit
     std::uint8_t maxComboHits{ 3 };  // Number of chained strikes in Attack_Primary (Combo_Attack_01 to 03)
@@ -78,6 +78,7 @@ public:
     void NotifyAirDrop() noexcept;
     void NotifySpike(float downwardVelocityY) noexcept;
     void NotifyPlungeSlam() noexcept;
+    void CancelWindupToChase() noexcept;
 
     // State accessors
     [[nodiscard]] EnemyState GetCurrentState() const noexcept { return m_currentState; }

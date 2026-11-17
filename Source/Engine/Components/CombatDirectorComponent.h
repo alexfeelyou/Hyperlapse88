@@ -31,8 +31,10 @@ public:
 private:
     float m_innerRadius{ 2.8f };
     float m_outerRadius{ 5.5f };
-    std::uint32_t m_maxAttackTokens{ 3 };
-    float m_cadenceInterval{ 0.25f };
+    std::uint32_t m_maxAttackTokens{ 1 };
+    float m_cadenceInterval{ 0.85f };
+    float m_postHitGraceDuration{ 0.70f };
+    float m_wakeUpGraceDuration{ 0.85f };
 
     void PushSettingsToDirector() const noexcept;
 };
