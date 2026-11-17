@@ -2,6 +2,7 @@
 #include <cmath>
 #include "System/ShapeRenderer.h"
 #include "AIControllerComponent.h"
+#include "CharacterMovementComponent.h"
 #include "CombatDirector.h"
 #include "GameObject.h"
 #include "HealthComponent.h"
@@ -213,6 +214,12 @@ void CombatDirector::SelectPreferredAttacker(const DirectX::XMFLOAT3& playerPos)
         }
 
         const DirectX::XMFLOAT4X4 eWorld{ enemy->GetOwner()->transform.GetWorldMatrix() };
+        // Reject ground melee candidates when target is out of vertical melee reach (airborne/elevated)
+        if (std::abs(eWorld._42 - playerPos.y) > 1.15f)
+        {
+            continue;
+        }
+
         const float dx{ eWorld._41 - playerPos.x };
         const float dz{ eWorld._43 - playerPos.z };
         const float lenSq{ (dx * dx) + (dz * dz) };
@@ -483,7 +490,15 @@ bool CombatDirector::CanBeginActiveSwing(const AIControllerComponent* enemy) con
 
 bool CombatDirector::RequestAttackToken(AIControllerComponent* enemy) noexcept
 {
-    if (!enemy || IsPlayerSafeFromNewAttacks())
+    if (!enemy || !enemy->GetOwner() || IsPlayerSafeFromNewAttacks())
+    {
+        return false;
+    }
+
+    // Reject ground melee token requests while the player is airborne or vertically out of reach
+    const DirectX::XMFLOAT4X4 eWorld{ enemy->GetOwner()->transform.GetWorldMatrix() };
+    const float verticalGap{ std::abs(enemy->GetBlackboard().targetPosition.y - eWorld._42) };
+    if (verticalGap > 1.15f)
     {
         return false;
     }

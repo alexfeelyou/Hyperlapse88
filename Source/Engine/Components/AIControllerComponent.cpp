@@ -1500,6 +1500,52 @@ void AIControllerComponent::TickGrunt(const float dt) noexcept
             m_blackboard.stateTimer = 0.0f;
         }
 
+        const DirectX::XMFLOAT3 myPos{ GetWorldPosition(m_owner) };
+        const float verticalGap{ std::abs(m_blackboard.targetPosition.y - myPos.y) };
+        const auto* targetMotor{ m_blackboard.target ? m_blackboard.target->GetComponent<CharacterMovementComponent>() : nullptr };
+        const bool isTargetAirborne{ (targetMotor && !targetMotor->isGrounded()) || (verticalGap > 1.15f) };
+
+        // Helper: computes radial perimeter standoff so enemies never walk directly underneath the player's XZ footprint
+        const auto computePerimeterStandoff = [&](const float standoffRadius) noexcept -> DirectX::XMFLOAT3 {
+            const float rx{ myPos.x - m_blackboard.targetPosition.x };
+            const float rz{ myPos.z - m_blackboard.targetPosition.z };
+            const float rLenSq{ (rx * rx) + (rz * rz) };
+            if (rLenSq > 0.0001f)
+            {
+                const float invLen{ 1.0f / std::sqrt(rLenSq) };
+                return {
+                    m_blackboard.targetPosition.x + (rx * invLen * standoffRadius),
+                    myPos.y,
+                    m_blackboard.targetPosition.z + (rz * invLen * standoffRadius)
+                };
+            }
+
+            const float yawRad{ DirectX::XMConvertToRadians(m_owner->transform.rotation.y) };
+            return {
+                m_blackboard.targetPosition.x - (std::sin(yawRad) * standoffRadius),
+                myPos.y,
+                m_blackboard.targetPosition.z - (std::cos(yawRad) * standoffRadius)
+            };
+            };
+
+        // Drop-Zone Protection: while player is launched (Up-Attack) or falling (AirTraversal),
+        // hold assigned ring perimeter around player's XZ shadow so landing space stays clear
+        if (isTargetAirborne)
+        {
+            const SwarmRing assignedRing{ CombatDirector::Instance().GetAssignedRing(this) };
+            if (assignedRing != SwarmRing::none)
+            {
+                const DirectX::XMFLOAT3 slotPos{ CombatDirector::Instance().GetAssignedSlotPosition(this) };
+                SteerTowards(slotPos, dt, &m_blackboard.targetPosition);
+            }
+            else
+            {
+                const DirectX::XMFLOAT3 perimeterPos{ computePerimeterStandoff(CombatDirector::Instance().GetInnerRadius()) };
+                SteerTowards(perimeterPos, dt, &m_blackboard.targetPosition);
+            }
+            break;
+        }
+
         // Swarm Arbiter: Execute direct melee attack as soon as inside attack range
         const float effectiveAttackRange{ (m_isAmbushRunAttackPrimed) ? (m_config.attackRange + 0.8f) : m_config.attackRange };
         const float effectiveAttackRangeSq{ effectiveAttackRange * effectiveAttackRange };
@@ -1523,9 +1569,9 @@ void AIControllerComponent::TickGrunt(const float dt) noexcept
 
             // In melee range but awaiting attack token or on cooldown:
             // Settle smoothly near assigned slot or yield slightly while maintaining focus on player
-            const DirectX::XMFLOAT3 slotPos{ CombatDirector::Instance().GetAssignedSlotPosition(this) };
-            if (slotPos.x != 0.0f || slotPos.z != 0.0f)
+            if (CombatDirector::Instance().GetAssignedRing(this) != SwarmRing::none)
             {
+                const DirectX::XMFLOAT3 slotPos{ CombatDirector::Instance().GetAssignedSlotPosition(this) };
                 SteerTowards(slotPos, dt, &m_blackboard.targetPosition);
             }
             else
@@ -1536,29 +1582,27 @@ void AIControllerComponent::TickGrunt(const float dt) noexcept
         else
         {
             // Dynamic Engagement:
-            // When ready to attack, pursue the player directly from the current approach angle
+            // When ready to attack, advance to optimal strike standoff rather than overlapping player center
             const bool isFrontline{ CombatDirector::Instance().GetAssignedRing(this) == SwarmRing::inner ||
                                     m_blackboard.targetDistanceSq <= (m_config.attackRange + 1.5f) * (m_config.attackRange + 1.5f) };
             const bool isReadyToAttack{ m_blackboard.attackCooldownTimer <= 0.0f &&
+                                        !CombatDirector::Instance().IsPlayerSafeFromNewAttacks() &&
                                         CombatDirector::Instance().GetActiveTokenCount() < CombatDirector::Instance().GetMaxAttackTokens() };
 
             if (isFrontline && isReadyToAttack)
             {
-                // Advance directly on the player to strike from the current approach bearing
-                SteerTowards(m_blackboard.targetPosition, dt, &m_blackboard.targetPosition);
+                const DirectX::XMFLOAT3 strikeApproachPos{ computePerimeterStandoff(m_config.attackRange * 0.85f) };
+                SteerTowards(strikeApproachPos, dt, &m_blackboard.targetPosition);
+            }
+            else if (CombatDirector::Instance().GetAssignedRing(this) != SwarmRing::none)
+            {
+                const DirectX::XMFLOAT3 slotPos{ CombatDirector::Instance().GetAssignedSlotPosition(this) };
+                SteerTowards(slotPos, dt, &m_blackboard.targetPosition);
             }
             else
             {
-                // On cooldown or awaiting turn: navigate to nearest assigned ring slot
-                const DirectX::XMFLOAT3 slotPos{ CombatDirector::Instance().GetAssignedSlotPosition(this) };
-                if (slotPos.x != 0.0f || slotPos.z != 0.0f)
-                {
-                    SteerTowards(slotPos, dt, &m_blackboard.targetPosition);
-                }
-                else
-                {
-                    SteerTowards(m_blackboard.targetPosition, dt, &m_blackboard.targetPosition);
-                }
+                const DirectX::XMFLOAT3 perimeterPos{ computePerimeterStandoff(CombatDirector::Instance().GetInnerRadius()) };
+                SteerTowards(perimeterPos, dt, &m_blackboard.targetPosition);
             }
         }
         break;
