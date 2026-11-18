@@ -396,6 +396,15 @@
     <ClCompile Include="Source\Engine\Components\CombatDirectorComponent.cpp">
       <Filter>Source\Engine\Components</Filter>
     </ClCompile>
+    <ClCompile Include="Source\System\RespawnManager.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Engine\Components\RespawnPointComponent.cpp">
+      <Filter>Source\Engine\Components</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Engine\Components\RespawnTriggerComponent.cpp">
+      <Filter>Source\Engine\Components</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\System\BasicShader.h">
@@ -768,6 +777,15 @@
     </ClInclude>
     <ClInclude Include="Source\System\TimeManager.h">
       <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\System\RespawnManager.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Components\RespawnPointComponent.h">
+      <Filter>Source\Engine\Components</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Components\RespawnTriggerComponent.h">
+      <Filter>Source\Engine\Components</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

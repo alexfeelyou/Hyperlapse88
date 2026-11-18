@@ -1,5 +1,6 @@
 #include <filesystem>
 #include "System/PhysicsManager.h"
+#include "System/RespawnManager.h"
 #include "System/TimeManager.h"
 #include "EditorManager.h"
 #include "SceneGame.h"
@@ -107,12 +108,14 @@ SceneGame::SceneGame()
     // Load the scene exactly as authored in the JSON editor
     SceneSerializer::Load(GetSceneSavePath(), m_sceneRoot.get());
 
+    RespawnManager::Instance().ResetRuntimeState();
     m_playerCtrl = nullptr;
     for (const auto& child : m_sceneRoot->GetChildren())
     {
         if (auto* ctrl = child->GetComponent<PlayerControllerComponent>())
         {
             m_playerCtrl = ctrl;
+            RespawnManager::Instance().SetFallbackSpawn(child->GetPosition(), child->GetRotation().y);
             break;
         }
     }
@@ -180,7 +183,14 @@ void SceneGame::Update(const float elapsedTime)
             SceneSerializer::Save("Data/Scenes/AutoSave_PlayMode.json", m_sceneRoot.get(), false);
 
             CameraController::Instance().SetEnabled(false);
-
+            RespawnManager::Instance().ResetRuntimeState();
+            if (m_playerCtrl && m_playerCtrl->GetOwner())
+            {
+                RespawnManager::Instance().SetFallbackSpawn(
+                    m_playerCtrl->GetOwner()->GetPosition(),
+                    m_playerCtrl->GetOwner()->GetRotation().y
+                );
+            }
             m_bootTimer = 1.1f;
             m_respawnTimer = 0.0f;
             m_isDying = false;
@@ -242,6 +252,7 @@ void SceneGame::Update(const float elapsedTime)
             m_isPaused = false;
             m_isExitingToTitle = false;
             m_exitToTitleTimer = 0.0f;
+            RespawnManager::Instance().ResetRuntimeState();
             m_isDying = false;
             m_respawnTimer = 0.0f;
             m_bootTimer = 0.0f;
@@ -406,6 +417,13 @@ void SceneGame::Update(const float elapsedTime)
             m_postProcess->GetVignette().GetData().intensity = FX_BASE_INTENSITY + (FX_BLACK_INTENSITY - FX_BASE_INTENSITY) * (t * t);
             m_fadeAlpha = t * t;
         }
+        else if (RespawnManager::Instance().IsRespawning())
+        {
+            const float fade{ RespawnManager::Instance().GetFadeAlpha() };
+            m_fadeAlpha = fade;
+            m_postProcess->GetVignette().GetData().smoothness = FX_BASE_SMOOTHNESS + (FX_BLACK_SMOOTHNESS - FX_BASE_SMOOTHNESS) * fade;
+            m_postProcess->GetVignette().GetData().intensity = FX_BASE_INTENSITY + (FX_BLACK_INTENSITY - FX_BASE_INTENSITY) * fade;
+        }
         else
         {
             m_fadeAlpha = 0.0f;
@@ -423,6 +441,8 @@ void SceneGame::Update(const float elapsedTime)
         {
             PhysicsManager::Instance().Simulate(worldDt);
         }
+
+        RespawnManager::Instance().Update(elapsedTime);
     }
 
     CameraController::Instance().Update(elapsedTime);

@@ -165,6 +165,8 @@
     <ClInclude Include="Source\Engine\Components\MeshComponent.h" />
     <ClInclude Include="Source\Engine\Components\OrbitCameraDriverComponent.h" />
     <ClInclude Include="Source\Engine\Components\PlayerControllerComponent.h" />
+    <ClInclude Include="Source\Engine\Components\RespawnPointComponent.h" />
+    <ClInclude Include="Source\Engine\Components\RespawnTriggerComponent.h" />
     <ClInclude Include="Source\Engine\Components\SocketComponent.h" />
     <ClInclude Include="Source\Engine\Components\StaticMeshColliderComponent.h" />
     <ClInclude Include="Source\Engine\Components\VirtualCameraComponent.h" />
@@ -232,6 +234,7 @@
     <ClInclude Include="Source\System\PrimitiveRenderer.h" />
     <ClInclude Include="Source\System\RenderContext.h" />
     <ClInclude Include="Source\System\RenderState.h" />
+    <ClInclude Include="Source\System\RespawnManager.h" />
     <ClInclude Include="Source\System\Shader.h" />
     <ClInclude Include="Source\System\ShadowCasterShader.h" />
     <ClInclude Include="Source\System\ShapeRenderer.h" />
@@ -278,6 +281,8 @@
     <ClCompile Include="Source\Engine\Components\MeshComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\OrbitCameraDriverComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\PlayerControllerComponent.cpp" />
+    <ClCompile Include="Source\Engine\Components\RespawnPointComponent.cpp" />
+    <ClCompile Include="Source\Engine\Components\RespawnTriggerComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\SocketComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\StaticMeshColliderComponent.cpp" />
     <ClCompile Include="Source\Engine\Components\VirtualCameraComponent.cpp" />
@@ -332,6 +337,7 @@
     <ClCompile Include="Source\System\PhysicsManager.cpp" />
     <ClCompile Include="Source\System\PrimitiveRenderer.cpp" />
     <ClCompile Include="Source\System\RenderState.cpp" />
+    <ClCompile Include="Source\System\RespawnManager.cpp" />
     <ClCompile Include="Source\System\ShadowCasterShader.cpp" />
     <ClCompile Include="Source\System\ShapeRenderer.cpp" />
     <ClCompile Include="Source\System\Sprite.cpp" />

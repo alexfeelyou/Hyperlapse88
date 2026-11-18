@@ -7,6 +7,8 @@
 #include "CapsuleColliderComponent.h"
 #include "EditorManager.h"
 #include "LightComponent.h"
+#include "RespawnPointComponent.h"
+#include "RespawnTriggerComponent.h"
 #include "StaticMeshColliderComponent.h"
 #include "VirtualCameraComponent.h"
 
@@ -792,7 +794,7 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
         ImGui::CheckboxFlags("Character Physics", &m_gizmoMask, static_cast<std::uint32_t>(GizmoCategory::DynamicPhysics));
         ImGui::CheckboxFlags("Combat Hitboxes", &m_gizmoMask, static_cast<std::uint32_t>(GizmoCategory::Hitboxes));
         ImGui::CheckboxFlags("AI & Navigation", &m_gizmoMask, static_cast<std::uint32_t>(GizmoCategory::Navigation));
-
+        ImGui::CheckboxFlags("Triggers & Spawns", &m_gizmoMask, static_cast<std::uint32_t>(GizmoCategory::Triggers));
         ImGui::EndPopup();
     }
     ImGui::EndDisabled();
@@ -2173,6 +2175,25 @@ void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
                         lightObj->transform.rotation = { 90.0f, 0.0f, 0.0f };
                         lightObj->AddComponent<SpotLightComponent>();
                         currentScene->GetRootGameObject()->AddChild(std::move(lightObj));
+                    }
+                    ImGui::EndMenu();
+                }
+
+                ImGui::Separator();
+                ImGui::TextDisabled("Gameplay");
+                if (ImGui::BeginMenu("Respawn"))
+                {
+                    if (ImGui::MenuItem("Respawn Point"))
+                    {
+                        auto spawnObj = std::make_unique<GameObject>("Respawn_Point");
+                        spawnObj->AddComponent<RespawnPointComponent>();
+                        currentScene->GetRootGameObject()->AddChild(std::move(spawnObj));
+                    }
+                    if (ImGui::MenuItem("Out-of-Bounds Trigger"))
+                    {
+                        auto triggerObj = std::make_unique<GameObject>("OOB_Trigger");
+                        triggerObj->AddComponent<RespawnTriggerComponent>();
+                        currentScene->GetRootGameObject()->AddChild(std::move(triggerObj));
                     }
                     ImGui::EndMenu();
                 }

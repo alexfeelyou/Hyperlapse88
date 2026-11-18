@@ -191,11 +191,12 @@ private:
     ImGuizmo::OPERATION m_gizmoOperation{ ImGuizmo::TRANSLATE };
     ImGuizmo::MODE      m_gizmoMode{ ImGuizmo::WORLD };
     bool m_showGizmos{ true };
-    // Default to Cameras, Character Physics, and AI Navigation for immediate out-of-the-box debug visibility
+    // Default to Cameras, Character Physics, AI Navigation, and Triggers for immediate out-of-the-box debug visibility
     std::uint32_t m_gizmoMask{
         static_cast<std::uint32_t>(GizmoCategory::Cameras) |
         static_cast<std::uint32_t>(GizmoCategory::DynamicPhysics) |
-        static_cast<std::uint32_t>(GizmoCategory::Navigation)
+        static_cast<std::uint32_t>(GizmoCategory::Navigation) |
+        static_cast<std::uint32_t>(GizmoCategory::Triggers)
     };
 
     // Release vs Editor Boot State

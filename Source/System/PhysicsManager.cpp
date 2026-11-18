@@ -2,8 +2,10 @@
 #include <cassert>
 #include <DirectXMath.h>
 #include "CollisionLayer.h"
+#include "GameObject.h"
 #include "Model.h"
 #include "PhysicsManager.h"
+#include "RespawnTriggerComponent.h"
 
 namespace
 {
@@ -52,6 +54,53 @@ namespace
 
         return physx::PxFilterFlag::eDEFAULT;
     }
+
+    // PhysX trigger event bridge
+    class EngineSimulationEventCallback final : public physx::PxSimulationEventCallback
+    {
+    public:
+        void onConstraintBreak(physx::PxConstraintInfo*, physx::PxU32) override {}
+        void onWake(physx::PxActor**, physx::PxU32) override {}
+        void onSleep(physx::PxActor**, physx::PxU32) override {}
+        void onContact(const physx::PxContactPairHeader&, const physx::PxContactPair*, physx::PxU32) override {}
+        void onAdvance(const physx::PxRigidBody* const*, const physx::PxTransform*, const physx::PxU32) override {}
+
+        void onTrigger(physx::PxTriggerPair* pairs, physx::PxU32 count) override
+        {
+            for (physx::PxU32 i{ 0 }; i < count; ++i)
+            {
+                const physx::PxTriggerPair& pair{ pairs[i] };
+
+                // Ignore removals and only react on initial trigger entry
+                if (pair.flags & (physx::PxTriggerPairFlag::eREMOVED_SHAPE_TRIGGER | physx::PxTriggerPairFlag::eREMOVED_SHAPE_OTHER))
+                {
+                    continue;
+                }
+                if (pair.status != physx::PxPairFlag::eNOTIFY_TOUCH_FOUND)
+                {
+                    continue;
+                }
+                if (!pair.triggerActor || !pair.otherActor)
+                {
+                    continue;
+                }
+
+                auto* triggerObj{ static_cast<GameObject*>(pair.triggerActor->userData) };
+                auto* otherObj{ static_cast<GameObject*>(pair.otherActor->userData) };
+                if (!triggerObj || !otherObj)
+                {
+                    continue;
+                }
+
+                if (const auto* respawnTrigger{ triggerObj->GetComponent<RespawnTriggerComponent>() })
+                {
+                    respawnTrigger->OnPlayerEntered(otherObj);
+                }
+            }
+        }
+    };
+
+    EngineSimulationEventCallback s_simulationEventCallback{};
 }
 
 void PhysicsManager::Initialize()
@@ -72,8 +121,9 @@ void PhysicsManager::Initialize()
     m_dispatcher.reset(physx::PxDefaultCpuDispatcherCreate(2));
     sceneDesc.cpuDispatcher = m_dispatcher.get();
 
-    // Bind our custom bitmask filter 
+    // Bind our custom bitmask filter and trigger event callback
     sceneDesc.filterShader = CustomSimulationFilterShader;
+    sceneDesc.simulationEventCallback = &s_simulationEventCallback;
 
     // Create Scene, Character Controller Manager, and Default Surface Material
     m_scene.reset(m_physics->createScene(sceneDesc));
