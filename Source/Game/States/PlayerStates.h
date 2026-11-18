@@ -247,6 +247,8 @@ private:
     DirectX::XMFLOAT2 m_lungeDirection{ 0.0f, 1.0f };
 };
 
+class AIControllerComponent;
+
 enum class PlungeSubPhase : std::uint8_t
 {
     Start = 0,
@@ -266,10 +268,12 @@ private:
     int m_variation{ 0 };
     float m_stateTimer{ 0.0f };
     bool m_wasGravityEnabled{ true };
+    bool m_isDiving{ false };
     bool m_canCancelCombo{ false };
     bool m_canCancelEvade{ false };
     bool m_canCancelLocomotion{ false };
     bool m_hasAuthoredEvadeCancel{ false };
+    AIControllerComponent* m_lockedTarget{ nullptr };
     DirectX::XMFLOAT2 m_lungeDirection{ 0.0f, 1.0f };
 };
 

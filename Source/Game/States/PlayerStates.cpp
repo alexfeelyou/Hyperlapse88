@@ -428,70 +428,104 @@ namespace
         return dir;
     }
 
-    // Solves ratio-matched horizontal impulse so diagonal drop naturally strikes target capsule center
-    void ApplyPlungeLungeKinematics(
+    // Validates that a soft-locked plunge target is still alive and active in the scene
+    [[nodiscard]] bool IsPlungeTargetValid(const AIControllerComponent* enemy) noexcept
+    {
+        if (!enemy || !enemy->GetOwner() || enemy->GetOwner()->IsDestroyed())
+        {
+            return false;
+        }
+        if (enemy->GetCurrentState() == EnemyState::dead)
+        {
+            return false;
+        }
+        const auto* health{ enemy->GetOwner()->GetComponent<HealthComponent>() };
+        return !health || !health->IsDead();
+    }
+
+    // Closed-loop predictive intercept solver: tracks moving/accelerating targets throughout the dive
+    // and steers the player to land cleanly at the sweet-spot strike perimeter without capsule head-stacking.
+    void UpdatePlungeHomingKinematics(
         PlayerControllerComponent* controller,
         CharacterMovementComponent* motor,
+        AIControllerComponent*& inOutTarget,
         DirectX::XMFLOAT2& inOutFacingDir,
-        const float authoredPayload,
-        const float downwardSpeed) noexcept
+        const float downwardSpeed,
+        const float dt) noexcept
     {
-        if (!controller || !controller->GetOwner() || !motor) return;
-
-        auto* targetEnemy{ FindPlungeSoftLockTarget(controller->GetOwner(), inOutFacingDir) };
-
-        if (targetEnemy && targetEnemy->GetOwner())
+        if (!controller || !controller->GetOwner() || !motor)
         {
-            const DirectX::XMFLOAT3 pPos{ controller->GetOwner()->GetPosition() };
-            const DirectX::XMFLOAT3 ePos{ targetEnemy->GetOwner()->GetPosition() };
-            const float dx{ ePos.x - pPos.x };
-            const float dz{ ePos.z - pPos.z };
-            const float distSq{ (dx * dx) + (dz * dz) };
-
-            const float heightDiff{ (std::max)(0.2f, pPos.y - ePos.y) };
-            const float safeDownSpeed{ (std::max)(5.0f, downwardSpeed) };
-
-            if (distSq > 0.0001f)
-            {
-                const float dist{ std::sqrt(distSq) };
-                const float invDist{ 1.0f / dist };
-                const DirectX::XMFLOAT2 lockDir{ dx * invDist, dz * invDist };
-
-                inOutFacingDir = lockDir;
-                FacingResolver::SnapFaceDirection(controller->GetOwner(), lockDir);
-
-                float playerRadius{ 0.37f };
-                if (const auto* pCapsule{ controller->GetOwner()->GetComponent<CapsuleColliderComponent>() })
-                {
-                    playerRadius = pCapsule->GetConfig().radius;
-                }
-
-                float enemyRadius{ 0.50f };
-                if (const auto* eCapsule{ targetEnemy->GetOwner()->GetComponent<CapsuleColliderComponent>() })
-                {
-                    enemyRadius = eCapsule->GetConfig().radius;
-                }
-
-                // Sweet spot: radius sum + 15cm offset
-                const float sweetSpotDist{ playerRadius + enemyRadius + 0.15f };
-                const float gap{ dist - sweetSpotDist };
-
-                motor->HaltMomentum(1.0f);
-
-                if (gap > 0.0f)
-                {
-                    // Linear diagonal relation: V_xz = gap / (heightDiff / safeDownSpeed)
-                    const float requiredSpeed{ gap * (safeDownSpeed / heightDiff) };
-                    const float appliedSpeed{ std::clamp(requiredSpeed, 0.0f, 35.0f) };
-                    motor->AddImpulse(DirectX::XMFLOAT3{ lockDir.x * appliedSpeed, 0.0f, lockDir.y * appliedSpeed });
-                }
-                return;
-            }
+            return;
         }
 
-        // Whiff / No Target: Maintain authored timeline impulse along current facing vector
-        motor->HaltMomentum(1.0f);
-        motor->AddImpulse(DirectX::XMFLOAT3{ inOutFacingDir.x * authoredPayload, 0.0f, inOutFacingDir.y * authoredPayload });
+        if (!IsPlungeTargetValid(inOutTarget))
+        {
+            inOutTarget = nullptr;
+            return;
+        }
+
+        const DirectX::XMFLOAT3 pPos{ Engine::Combat::GetWorldPosition(controller->GetOwner()) };
+        const DirectX::XMFLOAT3 ePos{ Engine::Combat::GetWorldPosition(inOutTarget->GetOwner()) };
+
+        // Estimate remaining flight time from vertical drop and active downward plunge velocity
+        const float heightDiff{ (std::max)(0.25f, pPos.y - ePos.y) };
+        const float safeDownSpeed{ (std::max)(5.0f, downwardSpeed) };
+        const float timeToImpact{ heightDiff / safeDownSpeed };
+
+        // Lead target position using live motor velocity (adapts automatically to enemy accel/decel changes)
+        DirectX::XMFLOAT3 eVel{ 0.0f, 0.0f, 0.0f };
+        if (const auto* eMotor{ inOutTarget->GetOwner()->GetComponent<CharacterMovementComponent>() })
+        {
+            eVel = eMotor->GetTotalVelocity();
+        }
+
+        const float leadHorizon{ (std::min)(timeToImpact, 0.45f) };
+        const float predX{ ePos.x + (eVel.x * leadHorizon) };
+        const float predZ{ ePos.z + (eVel.z * leadHorizon) };
+
+        const float dx{ predX - pPos.x };
+        const float dz{ predZ - pPos.z };
+        const float distSq{ (dx * dx) + (dz * dz) };
+
+        if (distSq <= 0.0001f)
+        {
+            motor->ApplyKinematicOverride({ 0.0f, 0.0f }, dt * 2.0f);
+            return;
+        }
+
+        const float dist{ std::sqrt(distSq) };
+        const float invDist{ 1.0f / dist };
+        const DirectX::XMFLOAT2 lockDir{ dx * invDist, dz * invDist };
+
+        inOutFacingDir = lockDir;
+        FacingResolver::SnapFaceDirection(controller->GetOwner(), lockDir);
+
+        float playerRadius{ 0.37f };
+        if (const auto* pCapsule{ controller->GetOwner()->GetComponent<CapsuleColliderComponent>() })
+        {
+            playerRadius = pCapsule->GetConfig().radius;
+        }
+
+        float enemyRadius{ 0.50f };
+        if (const auto* eCapsule{ inOutTarget->GetOwner()->GetComponent<CapsuleColliderComponent>() })
+        {
+            enemyRadius = eCapsule->GetConfig().radius;
+        }
+
+        // Land at the melee sweet-spot perimeter so the player plants on world floor directly in front of victim
+        const float sweetSpotDist{ playerRadius + enemyRadius + 0.12f };
+        const float gap{ dist - sweetSpotDist };
+
+        if (gap > 0.02f)
+        {
+            const float requiredSpeed{ std::clamp(gap / timeToImpact, 0.0f, 32.0f) };
+            motor->ApplyKinematicOverride({ lockDir.x * requiredSpeed, lockDir.y * requiredSpeed }, dt * 2.0f);
+        }
+        else
+        {
+            // Already aligned inside strike perimeter: drop straight down without overshooting behind target
+            motor->ApplyKinematicOverride({ 0.0f, 0.0f }, dt * 2.0f);
+        }
     }
 }
 
@@ -3250,8 +3284,11 @@ void PlayerAttackPlunge::Enter(PlayerControllerComponent* controller)
     m_canCancelEvade = false;
     m_canCancelLocomotion = false;
     m_hasAuthoredEvadeCancel = false;
+    m_isDiving = false;
     m_phase = PlungeSubPhase::Start;
 
+    const DirectX::XMFLOAT2 rawDir{ FacingResolver::ResolveDirectionOrCurrentFacing(controller->GetOwner(), intent.worldMoveDirection) };
+    m_lockedTarget = FindPlungeSoftLockTarget(controller->GetOwner(), rawDir);
     m_lungeDirection = ResolvePlungeSoftLockOrFacingDirection(controller->GetOwner(), intent.worldMoveDirection);
     FacingResolver::SnapFaceDirection(controller->GetOwner(), m_lungeDirection);
 
@@ -3265,7 +3302,6 @@ void PlayerAttackPlunge::Enter(PlayerControllerComponent* controller)
     }
 
     blackboard.actionIndex = (m_variation * 3) + 0;
-
     if (anim)
     {
         anim->PlaySlot(Engine::Animation::AnimSlot::Attack_Plunge, true);
@@ -3288,6 +3324,7 @@ void PlayerAttackPlunge::Enter(PlayerControllerComponent* controller)
 void PlayerAttackPlunge::Update(PlayerControllerComponent* controller, float dt)
 {
     m_stateTimer -= dt;
+
     auto* motor{ controller->GetMovement() };
     auto* anim{ controller->GetAnimation() };
     auto& blackboard{ controller->getAnimBlackboard() };
@@ -3312,28 +3349,34 @@ void PlayerAttackPlunge::Update(PlayerControllerComponent* controller, float dt)
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Vertical))
         {
             motor->SetVerticalVelocity(ev.payload);
+            if (ev.payload < -1.0f)
+            {
+                m_isDiving = true;
+            }
         }
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse))
         {
-            float downSpeed{ std::abs(motor->GetVerticalVelocity()) };
-            if (downSpeed < 1.0f)
+            m_isDiving = true;
+            if (!IsPlungeTargetValid(m_lockedTarget))
             {
-                for (const auto& otherEv : anim->GetFiredEvents())
-                {
-                    if (otherEv.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Vertical))
-                    {
-                        downSpeed = std::abs(otherEv.payload);
-                        break;
-                    }
-                }
+                // Empty-air plunge fallback when no target is locked
+                motor->HaltMomentum(1.0f);
+                motor->AddImpulse(DirectX::XMFLOAT3{ m_lungeDirection.x * ev.payload, 0.0f, m_lungeDirection.y * ev.payload });
             }
-            if (downSpeed < 1.0f) downSpeed = 23.0f;
-
-            ApplyPlungeLungeKinematics(controller, motor, m_lungeDirection, ev.payload, downSpeed);
         }
         else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt))
         {
             motor->HaltMomentum(ev.payload);
+        }
+    }
+
+    // Continuous closed-loop tracking during active dive (Start after dive impulse & Loop)
+    if ((m_phase == PlungeSubPhase::Start || m_phase == PlungeSubPhase::Loop) && m_isDiving)
+    {
+        if (IsPlungeTargetValid(m_lockedTarget))
+        {
+            const float downSpeed{ (std::max)(5.0f, std::abs(motor->GetVerticalVelocity())) };
+            UpdatePlungeHomingKinematics(controller, motor, m_lockedTarget, m_lungeDirection, downSpeed, dt);
         }
     }
 
@@ -3345,6 +3388,7 @@ void PlayerAttackPlunge::Update(PlayerControllerComponent* controller, float dt)
             controller->GetStateMachine()->ChangeState(controller, controller->GetState(PlayerStateType::DashEvade));
             return;
         }
+
         if (m_canCancelCombo && intent.bAttackPressed)
         {
             controller->SetPendingComboHit(0);
@@ -3374,17 +3418,53 @@ void PlayerAttackPlunge::Update(PlayerControllerComponent* controller, float dt)
         if (motor->isGrounded())
         {
             m_phase = PlungeSubPhase::End;
+            m_isDiving = false;
+
+            // Strip kinematic override and halt horizontal slide immediately for planted landing pose
+            motor->ClearKinematicOverride();
+            motor->SetFrictionMultiplier(1.0f);
+            motor->HaltMomentum(1.0f);
+
+            const DirectX::XMFLOAT3 pPos{ Engine::Combat::GetWorldPosition(controller->GetOwner()) };
+
+            // Snap player facing cleanly onto locked target so the slam animation aligns frame-for-frame
+            if (IsPlungeTargetValid(m_lockedTarget))
+            {
+                const DirectX::XMFLOAT3 ePos{ Engine::Combat::GetWorldPosition(m_lockedTarget->GetOwner()) };
+                const float dx{ ePos.x - pPos.x };
+                const float dz{ ePos.z - pPos.z };
+                if (((dx * dx) + (dz * dz)) > 0.0001f)
+                {
+                    m_lungeDirection = { dx, dz };
+                    FacingResolver::SnapFaceDirection(controller->GetOwner(), m_lungeDirection);
+                }
+            }
+
             blackboard.actionIndex = (m_variation * 3) + 2;
             anim->PlaySlot(Engine::Animation::AnimSlot::Attack_Plunge, true);
             m_stateTimer = anim->GetSlotDuration(Engine::Animation::AnimSlot::Attack_Plunge);
 
-            motor->SetFrictionMultiplier(1.0f);
-            motor->HaltMomentum(1.0f);
+            // Synchronized Plunge Slam: trigger PlungeImpact knockdown on locked target + shockwave AoE
+            constexpr float slamAoERadiusSq{ 2.6f * 2.6f };
+            constexpr float lockedTargetReachSq{ 3.5f * 3.5f };
 
-            // Ground impact: slam nearby target into Target knockdown
-            if (auto* targetEnemy{ FindPlungeSoftLockTarget(controller->GetOwner(), m_lungeDirection, 4.0f) })
+            for (auto* enemy : CombatDirector::Instance().GetEnemies())
             {
-                targetEnemy->NotifyPlungeSlam();
+                if (!IsPlungeTargetValid(enemy)) continue;
+
+                const DirectX::XMFLOAT3 ePos{ Engine::Combat::GetWorldPosition(enemy->GetOwner()) };
+                const float dy{ std::abs(ePos.y - pPos.y) };
+                if (dy > 2.0f) continue;
+
+                const float dx{ ePos.x - pPos.x };
+                const float dz{ ePos.z - pPos.z };
+                const float distSq{ (dx * dx) + (dz * dz) };
+
+                const float maxReachSq{ (enemy == m_lockedTarget) ? lockedTargetReachSq : slamAoERadiusSq };
+                if (distSq <= maxReachSq)
+                {
+                    enemy->NotifyPlungeSlam();
+                }
             }
         }
     }
@@ -3403,9 +3483,13 @@ void PlayerAttackPlunge::Exit(PlayerControllerComponent* controller)
     // Always restore the baseline physics state securely
     if (auto* motor{ controller->GetMovement() })
     {
+        motor->ClearKinematicOverride();
         motor->GetConfig().useGravity = m_wasGravityEnabled;
         motor->SetFrictionMultiplier(1.0f); // Fail-safe friction restore
     }
+
+    m_lockedTarget = nullptr;
+    m_isDiving = false;
 
     // Round-Robin Deterministic Selection (0 -> 1 -> 2 -> 0)
     // Advanced upon exit so the entire 3-phase attack sequence locks onto the same variation index.
