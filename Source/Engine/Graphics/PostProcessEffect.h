@@ -34,8 +34,13 @@ public:
     // Safely loads this effect's data from a JSON object
     virtual void Deserialize(const nlohmann::json& in) = 0;
 
-    // Instantly reverts the active state to the hardcoded C++ defaults
+    // Instantly reverts the active state to the hardcoded defaults
     virtual void ResetToDefault() noexcept = 0;
 
     virtual void OnResize(ID3D11Device* device, int width, int height) noexcept {}
+
+    void SetManager(class PostProcessManager* manager) noexcept { m_manager = manager; }
+
+protected:
+    class PostProcessManager* m_manager{ nullptr };
 };

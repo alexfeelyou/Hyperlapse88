@@ -122,5 +122,19 @@ private:
     static constexpr float FX_BLACK_SMOOTHNESS{ 7.0f };
     static constexpr float FX_BLACK_INTENSITY{ 5.0f };
 
+    // Cached Vignette baselines so Play-mode fades never force-enable Vignette or clobber live toggles
+    bool  m_editVignetteEnabled{ false };
+    float m_editVignetteIntensity{ FX_BASE_INTENSITY };
+    float m_editVignetteSmoothness{ FX_BASE_SMOOTHNESS };
+
+    bool  m_playVignetteEnabled{ false };
+    float m_playVignetteIntensity{ FX_BASE_INTENSITY };
+    float m_playVignetteSmoothness{ FX_BASE_SMOOTHNESS };
+    bool  m_isVignetteFading{ false };
+
+    void CapturePlayVignetteBaseline() noexcept;
+    void ApplyVignetteFade(float fadeAlpha) noexcept;
+    void EndVignetteFade() noexcept;
+    void RestoreEditVignette() noexcept;
     void StartIntroDialogueTest();
 };
