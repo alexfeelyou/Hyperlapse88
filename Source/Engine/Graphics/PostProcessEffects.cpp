@@ -224,7 +224,7 @@ void ScanlineEffect::Draw(ID3D11DeviceContext* dc, ID3D11ShaderResourceView* src
         CbScanline cb{};
         cb.scanlineStrength = m_data.scanlineStrength;
         cb.scanlineSpeed = m_data.scanlineSpeed;
-        cb.scanlineSize = m_data.scanlineSize;
+        cb.scanlineSize = (std::max)(1.0f, m_data.scanlineSize);
         cb.fineOpacity = m_data.fineOpacity;
         cb.fineDensity = m_data.fineDensity;
         cb.fineRotation = m_data.fineRotation;
@@ -273,11 +273,13 @@ void PSXEffect::Deserialize(const nlohmann::json& in)
     m_data.resHeight = in.value("resHeight", 240.0f);
     m_data.colorDepth = in.value("colorDepth", 32.0f);
     m_data.ditherStrength = in.value("ditherStrength", 1.0f);
+    m_currentData.resWidth = -1.0f;
 }
 
 void PSXEffect::ResetToDefault() noexcept
 {
     m_data = Data{};
+    m_currentData.resWidth = -1.0f;
 }
 
 // LensDistortionEffect Serialization
@@ -304,11 +306,13 @@ void LensDistortionEffect::Deserialize(const nlohmann::json& in)
         m_data.center.x = in["center"][0];
         m_data.center.y = in["center"][1];
     }
+    m_currentData.distortion = -999.0f;
 }
 
 void LensDistortionEffect::ResetToDefault() noexcept
 {
     m_data = Data{};
+    m_currentData.distortion = -999.0f;
 }
 
 // RadialBlurEffect Serialization
@@ -329,11 +333,13 @@ void RadialBlurEffect::Deserialize(const nlohmann::json& in)
         m_data.center.x = in["center"][0];
         m_data.center.y = in["center"][1];
     }
+    m_currentData.blurStrength = -1.0f;
 }
 
 void RadialBlurEffect::ResetToDefault() noexcept
 {
     m_data = Data{};
+    m_currentData.blurStrength = -1.0f;
 }
 
 // VignetteEffect Serialization
@@ -370,11 +376,13 @@ void VignetteEffect::Deserialize(const nlohmann::json& in)
     m_data.smoothness = in.value("smoothness", 0.0f);
     m_data.rounded = in.value("rounded", false);
     m_data.roundness = in.value("roundness", 0.0f);
+    m_currentData.intensity = -1.0f;
 }
 
 void VignetteEffect::ResetToDefault() noexcept
 {
     m_data = Data{};
+    m_currentData.intensity = -1.0f;
 }
 
 // ScanlineEffect Serialization
@@ -395,16 +403,18 @@ void ScanlineEffect::Deserialize(const nlohmann::json& in)
     m_data.enabled = in.value("enabled", false);
     m_data.scanlineStrength = in.value("scanlineStrength", 0.0f);
     m_data.scanlineSpeed = in.value("scanlineSpeed", 0.0f);
-    m_data.scanlineSize = in.value("scanlineSize", 0.0f);
+    m_data.scanlineSize = (std::max)(1.0f, in.value("scanlineSize", 100.0f));
     m_data.fineOpacity = in.value("fineOpacity", 0.0f);
     m_data.fineDensity = in.value("fineDensity", 0.0f);
     m_data.fineRotation = in.value("fineRotation", 0.0f);
     m_data.time = in.value("time", 0.0f);
+    m_currentData.scanlineStrength = -1.0f;
 }
 
 void ScanlineEffect::ResetToDefault() noexcept
 {
     m_data = Data{};
+    m_currentData.scanlineStrength = -1.0f;
 }
 
 // BloomEffect Implementation
@@ -607,11 +617,25 @@ void BloomEffect::DrawGUI() noexcept
     ImGui::Checkbox("Enable Bloom", &m_data.enabled);
     if (!m_data.enabled) return;
 
+    const bool isHarmonized{
+        m_manager != nullptr &&
+        m_manager->IsAtmosphereHarmonizeEnabled() &&
+        m_manager->GetAtmospherePreset() != AtmospherePreset::Custom &&
+        m_manager->IsBloomHarmonizeEnabled()
+    };
+
+    if (isHarmonized)
+    {
+        ImGui::TextDisabled("(Driven by Solar Atmosphere Harmonizer)");
+    }
+
+    ImGui::BeginDisabled(isHarmonized);
     ImGui::ColorEdit3("Bloom Tint", &m_data.tint.x);
     ImGui::SliderFloat("Intensity", &m_data.intensity, 0.0f, 3.0f, "%.2f");
     ImGui::SliderFloat("Threshold (HDR)", &m_data.threshold, 0.1f, 5.0f, "%.2f");
     ImGui::SliderFloat("Soft Knee", &m_data.softKnee, 0.0f, 1.0f, "%.2f");
     ImGui::SliderFloat("Scatter Radius", &m_data.scatter, 0.1f, 0.95f, "%.2f");
+    ImGui::EndDisabled();
 }
 
 void BloomEffect::Serialize(nlohmann::json& out) const
@@ -768,6 +792,19 @@ void ColorGradingEffect::DrawGUI() noexcept
     ImGui::Checkbox("Enable Color Grading", &m_data.enabled);
     if (!m_data.enabled) return;
 
+    const bool isHarmonized{
+        m_manager != nullptr &&
+        m_manager->IsAtmosphereHarmonizeEnabled() &&
+        m_manager->GetAtmospherePreset() != AtmospherePreset::Custom &&
+        m_manager->IsColorGradingHarmonizeEnabled()
+    };
+
+    if (isHarmonized)
+    {
+        ImGui::TextDisabled("(Driven by Solar Atmosphere Harmonizer)");
+    }
+
+    ImGui::BeginDisabled(isHarmonized);
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::TextDisabled("EXPOSURE & WHITE BALANCE");
@@ -784,6 +821,7 @@ void ColorGradingEffect::DrawGUI() noexcept
     ImGui::SliderFloat("Highlight Gain", &m_data.highlightGainColor.w, 0.1f, 2.0f, "%.2f");
     ImGui::SliderFloat("Contrast", &m_data.contrast, 0.5f, 1.8f, "%.2f");
     ImGui::SliderFloat("Saturation", &m_data.saturation, 0.0f, 2.0f, "%.2f");
+    ImGui::EndDisabled();
 
     ImGui::Spacing();
     ImGui::Separator();
@@ -1329,19 +1367,35 @@ void SunShaftEffect::DrawGUI() noexcept
     ImGui::Checkbox("Enable Volumetric Sun & Flare", &m_data.enabled);
     if (!m_data.enabled) return;
 
+    const bool isHarmonized{
+        m_manager != nullptr &&
+        m_manager->IsAtmosphereHarmonizeEnabled() &&
+        m_manager->GetAtmospherePreset() != AtmospherePreset::Custom &&
+        m_manager->IsShaftsHarmonizeEnabled()
+    };
+
+    if (isHarmonized)
+    {
+        ImGui::TextDisabled("(Shafts & Flare Intensity driven by Solar Atmosphere Harmonizer)");
+    }
+
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::TextDisabled("VOLUMETRIC SUN SHAFTS (GOD RAYS)");
+    ImGui::BeginDisabled(isHarmonized);
     ImGui::ColorEdit3("Shaft Tint Color", &m_data.shaftColor.x);
     ImGui::SliderFloat("Shaft Intensity (HDR)", &m_data.shaftIntensity, 0.0f, 4.0f, "%.2f");
     ImGui::SliderFloat("Ray Density (Length)", &m_data.density, 0.1f, 1.4f, "%.2f");
     ImGui::SliderFloat("Ray Decay", &m_data.decay, 0.75f, 0.99f, "%.3f");
+    ImGui::EndDisabled();
     ImGui::SliderFloat("Sun Corona Radius", &m_data.sunRadius, 0.10f, 1.20f, "%.2f");
 
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::TextDisabled("OPTICAL LENS FLARE & ANAMORPHIC GLARE");
+    ImGui::BeginDisabled(isHarmonized);
     ImGui::SliderFloat("Lens Flare Intensity", &m_data.flareIntensity, 0.0f, 3.0f, "%.2f");
+    ImGui::EndDisabled();
     ImGui::SliderFloat("Anamorphic Streak Width", &m_data.glareStreakScale, 0.2f, 2.5f, "%.2f");
 }
 

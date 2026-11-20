@@ -21,6 +21,7 @@ PostProcessManager::PostProcessManager()
     device->CreateSamplerState(&samplerDesc, m_pointSampler.GetAddressOf());
 
     m_temporalAAEffect = std::make_unique<TemporalAAEffect>(device);
+    m_temporalAAEffect->SetManager(this);
     m_colorGradingEffect = std::make_unique<ColorGradingEffect>(device);
     m_colorGradingEffect->SetManager(this);
 
@@ -60,6 +61,11 @@ PostProcessManager::PostProcessManager()
     auto vig = std::make_unique<VignetteEffect>(device);
     m_vignetteEffect = vig.get();
     m_effects.emplace_back(std::move(vig));
+
+    for (auto& effect : m_effects)
+    {
+        effect->SetManager(this);
+    }
 }
 
 void PostProcessManager::Initialize(int screenWidth, int screenHeight)
@@ -528,7 +534,7 @@ void PostProcessManager::Deserialize(const nlohmann::json& in)
     const nlohmann::json& root = (in.is_array() && !in.empty() && in.front().is_object()) ? in.front() : in;
     if (!root.is_object()) return;
 
-    m_isEnabled = root.value("Master_Enabled", m_isEnabled);
+    m_isEnabled = root.value("Master_Enabled", true);
     m_autoHarmonizeAtmosphere = root.value("Atmosphere_AutoHarmonize", true);
     m_harmonizeAmbient = root.value("Atmosphere_HarmonizeAmbient", true);
     m_harmonizeSunLight = root.value("Atmosphere_HarmonizeSunLight", true);
