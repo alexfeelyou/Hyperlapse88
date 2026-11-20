@@ -2,6 +2,7 @@
 #include <cmath>
 #include <imgui.h>
 #include "System/Model.h"
+#include "AIControllerComponent.h"
 #include "ComponentRegistry.h"
 #include "EditorManager.h"
 #include "GameObject.h"
@@ -35,6 +36,12 @@ void SocketComponent::ResolveBoneIndex() noexcept
 
 [[nodiscard]] std::size_t SocketComponent::GetActiveProfileIndex() const noexcept
 {
+    // AI Invariant: Enemies hold their weapons in Combat Profile (1) across every state, node, and editor mode
+    if (m_owner && m_owner->GetParent() && m_owner->GetParent()->GetComponent<AIControllerComponent>())
+    {
+        return 1;
+    }
+
     // Highest Priority: Live Blackboard Contract.
     // This allows the Combat Stance UI checkbox to instantly draw the weapon in the Editor.
     if (m_targetAnim)
@@ -71,12 +78,22 @@ void SocketComponent::ResolveBoneIndex() noexcept
 
 void SocketComponent::Update(float dt)
 {
-    // Fast-fail if the hierarchy isn't valid or the model hasn't loaded yet
-    if (!m_targetAnim || !m_owner) return;
+    if (!m_owner) return;
+
+    // Self-healing hierarchy resolve: handles scene deserialization and parent attachment
+    if (!m_targetAnim && m_owner->GetParent())
+    {
+        m_targetAnim = m_owner->GetParent()->GetComponent<AnimationComponent>();
+        ResolveBoneIndex();
+    }
+    if (!m_targetAnim) return;
 
     const std::size_t activeProfile{ GetActiveProfileIndex() };
+    if (m_targetBoneIndex[activeProfile] < 0)
+    {
+        ResolveBoneIndex();
+    }
     const int targetBone{ m_targetBoneIndex[activeProfile] };
-
     if (targetBone < 0) return;
 
     const auto& globals{ m_targetAnim->GetCurrentNodeGlobals() };

@@ -3,10 +3,12 @@
 #include <imgui.h>
 #include "System/CollisionLayer.h"
 #include "System/PhysicsManager.h"
+#include "AnimationComponent.h"
 #include "CapsuleColliderComponent.h"
 #include "CharacterMovementComponent.h"
 #include "ComponentRegistry.h"
 #include "GameObject.h"
+#include "HealthComponent.h"
 
 CharacterMovementComponent::CharacterMovementComponent(const CharacterMovementConfig& config) noexcept
     : m_config{ config }
@@ -99,7 +101,7 @@ DirectX::XMFLOAT3 CharacterMovementComponent::GetTotalVelocity() const noexcept
     };
 }
 
-bool CharacterMovementComponent::DetectFlankingWall(DirectX::XMFLOAT3& outNormal, int& outSide) const noexcept
+bool CharacterMovementComponent::DetectFlankingWall(DirectX::XMFLOAT3& outNormal, int& outSide, const float verticalOffset) const noexcept
 {
     auto* scene{ PhysicsManager::Instance().GetScene() };
     if (!m_capsule || !scene) return false;
@@ -110,8 +112,9 @@ bool CharacterMovementComponent::DetectFlankingWall(DirectX::XMFLOAT3& outNormal
     // Anti-Knee-High Geometry Gate (Shoulder-Height Probe):
     // Shift the ray origin up from the capsule center so we explicitly overshoot 
     // and ignore obstacles shorter than the player (e.g., crates, low fences).
+    // verticalOffset allows predictive queries along ballistic trajectories.
     const float shoulderOffsetY{ m_capsule->GetConfig().height * 0.4f };
-    const physx::PxVec3 pxPos{ center.x, center.y + shoulderOffsetY, center.z };
+    const physx::PxVec3 pxPos{ center.x, center.y + shoulderOffsetY + verticalOffset, center.z };
 
     const physx::PxVec3 right{ std::cos(yaw), 0.0f, -std::sin(yaw) };
 
@@ -166,6 +169,21 @@ void CharacterMovementComponent::Update(const float dt)
         if (!m_capsule) return;
     }
 
+    // Suspend kinematic displacement and impulse decay during hit-stop
+    if (m_owner)
+    {
+        const auto* health{ m_owner->GetComponent<HealthComponent>() };
+        if (health && health->IsHitStopped())
+        {
+            return;
+        }
+        const auto* anim{ m_owner->GetComponent<AnimationComponent>() };
+        if (anim && anim->IsHitStopped())
+        {
+            return;
+        }
+    }
+
     // Process Input Locomotion (Accelerate towards desired direction)
     if (m_overrideTimer > 0.0f)
     {
@@ -210,7 +228,7 @@ void CharacterMovementComponent::Update(const float dt)
 
     if (m_config.useGravity && !m_capsule->IsGrounded())
     {
-        m_verticalVelocity += m_config.gravity * dt;
+        m_verticalVelocity += m_config.gravity * m_gravityScale * dt;
     }
     else if (m_config.useGravity && m_capsule->IsGrounded() && m_verticalVelocity <= 0.0f)
     {

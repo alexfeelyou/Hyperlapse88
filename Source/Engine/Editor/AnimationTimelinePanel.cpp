@@ -4,6 +4,7 @@
 #include <imgui.h>
 #include <imgui_internal.h>
 #include <string>
+#include "AIControllerComponent.h"
 #include "AnimationTimelinePanel.h"
 #include "AnimationComponent.h"
 #include "CapsuleColliderComponent.h"
@@ -14,18 +15,21 @@
 namespace
 {
     inline constexpr const char* s_eventNames[] = {
-         "None", "Hitbox_Active", "Hitbox_Inactive",
-         "CancelWindow_Open", "Invincible_Start", "Invincible_End",
+         "None", "Hitbox_Window",
+         "Cancel_Combo", "Invincible_Start", "Invincible_End",
          "Play_SFX", "Play_VFX", "Lunge_Impulse", "Lunge_Vertical", "Movement_Halt",
-         "Pose_HoldMarker"
+         "Pose_HoldMarker", "Cancel_Evade", "Cancel_Locomotion", "Parry_Window"
     };
 
     [[nodiscard]] ImU32 GetColorForEvent(std::uint32_t eventId) noexcept
     {
         switch (static_cast<CombatEventId>(eventId))
         {
-        case CombatEventId::Hitbox_Active:     return IM_COL32(250, 80, 80, 255);
-        case CombatEventId::CancelWindow_Open: return IM_COL32(250, 200, 50, 255);
+        case CombatEventId::Hitbox_Window:     return IM_COL32(250, 80, 80, 255);
+        case CombatEventId::Cancel_Combo:      return IM_COL32(250, 200, 50, 255); // Gold
+        case CombatEventId::Cancel_Evade:      return IM_COL32(50, 220, 250, 255); // Cyan
+        case CombatEventId::Cancel_Locomotion: return IM_COL32(80, 250, 80, 255);  // Green
+        case CombatEventId::Parry_Window:      return IM_COL32(255, 180, 60, 255); // Amber
         case CombatEventId::Lunge_Impulse:     return IM_COL32(50, 150, 250, 255);
         case CombatEventId::Lunge_Vertical:    return IM_COL32(50, 250, 150, 255);
         case CombatEventId::Movement_Halt:     return IM_COL32(250, 120, 50, 255);
@@ -43,6 +47,7 @@ namespace
     // File-scope (not function-local) so EndPreview() can also reach it from outside Draw().
     DirectX::XMFLOAT3 s_previewAnchor{ 0.0f, 0.0f, 0.0f };
     bool s_hasPreviewAnchor{ false };
+    int s_draggedCurveKeyIdx{ -1 };
 
     // Puts the owner (Transform AND PhysX capsule) back on the saved anchor, then clears it.
     // The capsule is teleported explicitly because CapsuleColliderComponent::Update() only syncs
@@ -72,6 +77,7 @@ void AnimationTimelinePanel::EndPreview() noexcept
     // Drop the isolated scrub pose first, then undo the positional side effects of previewing.
     m_targetComponent->StopPreview();
     RestorePreviewAnchor(m_targetComponent->GetOwner());
+    s_draggedCurveKeyIdx = -1;
 }
 
 void AnimationTimelinePanel::SetTarget(AnimationComponent* target, std::size_t stateIndex) noexcept
@@ -80,17 +86,20 @@ void AnimationTimelinePanel::SetTarget(AnimationComponent* target, std::size_t s
     m_selectedStateIndex = stateIndex;
     m_selectedNodeIndex = 0;
     m_selectedEventIndex = -1;
+    m_selectedCurveKeyIndex = -1;
+    m_isDraggingCurveKey = false;
+    s_draggedCurveKeyIdx = -1;
 }
 
 void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
 {
-    if (!ImGui::Begin("AnimEvent Timeline", pOpen, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse))
+    if (!ImGui::Begin("AnimEvent Timeline", pOpen))
     {
         ImGui::End();
         return;
     }
 
-    // PREVENTIVE BUG FIX: Directional Mode Safety
+    // PREVENTIVE BUG: Directional Mode Safety
     static bool s_wasGameLive = EditorManager::Instance().GetEditorMode() != EditorMode::Edit;
     const bool isGameLive = EditorManager::Instance().GetEditorMode() != EditorMode::Edit;
 
@@ -142,16 +151,19 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
     if (isGameLive)
     {
         const std::size_t runtimeState = m_targetComponent->GetCurrentStateIndex();
+        const std::size_t runtimeNode = m_targetComponent->GetCurrentNodeIndex();
         if (runtimeState < states.size() && runtimeState != m_selectedStateIndex)
         {
             m_selectedStateIndex = runtimeState;
-            m_selectedNodeIndex = 0;
+            m_selectedNodeIndex = (runtimeNode < states[runtimeState].nodes.size()) ? runtimeNode : 0;
             m_selectedEventIndex = -1;
+            m_selectedCurveKeyIndex = -1;
+            m_isDraggingCurveKey = false;
         }
     }
 
-    // Move Dynamic Sync OUTSIDE the play check
-    if (m_targetComponent->GetIsolatedNodeIndex() == -1)
+    // Keep timeline node synchronized with the active runtime node during Play Mode or non-isolated preview
+    if (isGameLive || m_targetComponent->GetIsolatedNodeIndex() == -1)
     {
         const std::size_t runtimeState = m_targetComponent->GetCurrentStateIndex();
         const std::size_t runtimeNode = m_targetComponent->GetCurrentNodeIndex();
@@ -160,6 +172,8 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
         {
             m_selectedNodeIndex = runtimeNode;
             m_selectedEventIndex = -1;
+            m_selectedCurveKeyIndex = -1;
+            m_isDraggingCurveKey = false;
         }
     }
 
@@ -186,6 +200,7 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
                 m_selectedStateIndex = i;
                 m_selectedNodeIndex = 0;
                 m_selectedEventIndex = -1;
+                m_selectedCurveKeyIndex = -1;
 
                 // Force the 3D viewport to instantly pose to the newly selected state, 
                 // regardless of whether the preview harness was previously running or stopped.
@@ -232,6 +247,8 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
                 {
                     m_selectedNodeIndex = n;
                     m_selectedEventIndex = -1;
+                    m_selectedCurveKeyIndex = -1;
+                    m_isDraggingCurveKey = false;
                     m_targetComponent->ScrubNodeToTime(m_selectedStateIndex, m_selectedNodeIndex, 0.0f);
                 }
             }
@@ -241,6 +258,17 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
     else
     {
         m_selectedNodeIndex = 0;
+    }
+
+    // Defensive bounds check on active selections upon entering the frame
+    if (m_selectedEventIndex >= static_cast<int>(state.nodes[m_selectedNodeIndex].events.size()))
+    {
+        m_selectedEventIndex = -1;
+    }
+    if (m_selectedCurveKeyIndex >= static_cast<int>(state.nodes[m_selectedNodeIndex].speedCurve.size()))
+    {
+        m_selectedCurveKeyIndex = -1;
+        m_isDraggingCurveKey = false;
     }
 
     AnimNode& targetNode{ state.nodes[m_selectedNodeIndex] };
@@ -305,6 +333,7 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
     {
         targetNode.events.push_back(AnimationEvent{ 0.0f, 0, 0.0f, false, 0.1f });
         m_selectedEventIndex = static_cast<int>(targetNode.events.size() - 1);
+        m_selectedCurveKeyIndex = -1;
     }
 
     ImGui::SameLine();
@@ -316,7 +345,16 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
     ImGui::SameLine();
     if (ImGui::Button("Stop"))
     {
-        m_targetComponent->StopPreview();
+        if (m_targetComponent->IsPreviewing() && !m_targetComponent->IsPreviewPaused())
+        {
+            // Halt playback on the current frame without resetting the timeline to 0
+            m_targetComponent->PausePreview();
+        }
+        else
+        {
+            // Second click while paused rewinds to 0.0s of the selected state and node
+            m_targetComponent->ScrubNodeToTime(m_selectedStateIndex, m_selectedNodeIndex, 0.0f);
+        }
     }
     ImGui::EndDisabled();
 
@@ -354,7 +392,9 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
             }
             };
 
-        const bool requiresCombatStance{ EvaluatesToCombat(state.slot, m_selectedNodeIndex) };
+        // AI actors keep weapons drawn across all states and nodes
+        const bool isAiActor{ targetOwner != nullptr && targetOwner->GetComponent<AIControllerComponent>() != nullptr };
+        const bool requiresCombatStance{ isAiActor || EvaluatesToCombat(state.slot, m_selectedNodeIndex) };
 
         // Edge-triggered auto-sync ensures unified defaults while keeping the checkbox interactive
         static std::size_t s_lastTimelineState = SIZE_MAX;
@@ -386,21 +426,45 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
         }
     }
 
+    // Clean drop-down toggle button for the Speed Curve sub-track
+    ImGui::SameLine();
+    if (ImGui::Button(m_showSpeedCurve ? "Speed Curve [-]" : "Speed Curve [+]"))
+    {
+        m_showSpeedCurve = !m_showSpeedCurve;
+        if (!m_showSpeedCurve)
+        {
+            m_selectedCurveKeyIndex = -1;
+            m_isDraggingCurveKey = false;
+        }
+    }
+    if (ImGui::IsItemHovered())
+    {
+        ImGui::SetTooltip("Toggle non-linear playback speed curve editor");
+    }
+
     char speedBuf[64];
-    snprintf(speedBuf, sizeof(speedBuf), "Base: %.2fs | Speed: %.1fx", baseDuration, targetNode.speedMultiplier);
+    if (targetNode.speedCurve.empty())
+    {
+        snprintf(speedBuf, sizeof(speedBuf), "Base: %.2fs | Speed: %.1fx", baseDuration, targetNode.speedMultiplier);
+    }
+    else
+    {
+        snprintf(speedBuf, sizeof(speedBuf), "Base: %.2fs | Master: %.1fx | Curve: %zu pts", baseDuration, targetNode.speedMultiplier, targetNode.speedCurve.size());
+    }
     const float textWidth{ ImGui::CalcTextSize(speedBuf).x };
 
     ImGui::SameLine();
     const float currentX = ImGui::GetCursorPosX();
     const float targetX = ImGui::GetWindowWidth() - textWidth - 16.0f;
 
-    // Dynamically shift the text to avoid overlapping the Combat Stance checkbox
     if (targetX > currentX + 10.0f) ImGui::SetCursorPosX(targetX);
     ImGui::TextDisabled("%s", speedBuf);
 
     ImGui::Separator();
 
-    const bool showProperties{ m_selectedEventIndex >= 0 && static_cast<std::size_t>(m_selectedEventIndex) < targetNode.events.size() };
+    const bool hasValidEventSelection{ m_selectedEventIndex >= 0 && static_cast<std::size_t>(m_selectedEventIndex) < targetNode.events.size() };
+    const bool hasValidCurveSelection{ m_showSpeedCurve && m_selectedCurveKeyIndex >= 0 && static_cast<std::size_t>(m_selectedCurveKeyIndex) < targetNode.speedCurve.size() };
+    const bool showProperties{ hasValidEventSelection || hasValidCurveSelection };
 
     float canvasWidth{ ImGui::GetContentRegionAvail().x };
     if (showProperties) canvasWidth -= 320.0f;
@@ -412,9 +476,14 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
     constexpr float headerHeight{ 36.0f };
     constexpr float trackHeight{ 30.0f };
     const float trackStartY{ canvasPos.y + headerHeight };
+    const float eventsHeight{ targetNode.events.size() * trackHeight };
+
+    constexpr float curveHeaderHeight{ 34.0f };
+    constexpr float curveCanvasHeight{ 110.0f };
+    const float curveTotalHeight{ m_showSpeedCurve ? (curveHeaderHeight + curveCanvasHeight + 14.0f) : 0.0f };
 
     const float availableY{ ImGui::GetContentRegionAvail().y };
-    const float minimumContentHeight{ headerHeight + (targetNode.events.size() * trackHeight) + 20.0f };
+    const float minimumContentHeight{ headerHeight + eventsHeight + curveTotalHeight + 20.0f };
     const float requiredHeight{ (std::max)(availableY, minimumContentHeight) };
 
     ImGui::BeginGroup();
@@ -526,7 +595,12 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
 
             ImGui::SetCursorScreenPos(rectBox.Min);
             ImGui::InvisibleButton((std::string("##Range") + std::to_string(i)).c_str(), rectBox.GetSize());
-            if (ImGui::IsItemClicked()) m_selectedEventIndex = static_cast<int>(i);
+            if (ImGui::IsItemClicked())
+            {
+                m_selectedEventIndex = static_cast<int>(i);
+                m_selectedCurveKeyIndex = -1; // Enforce mutual exclusion
+                m_isDraggingCurveKey = false;
+            }
 
             drawList->AddRectFilled(rectBox.Min, rectBox.Max, renderColor);
             if (isSelected) drawList->AddRect(rectBox.Min, rectBox.Max, IM_COL32(255, 255, 255, 255), 0.0f, 0, 2.0f);
@@ -549,7 +623,12 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
 
             ImGui::SetCursorScreenPos(ImVec2(xStartPixel - 8.0f, yTop + 4.0f));
             ImGui::InvisibleButton((std::string("##Point") + std::to_string(i)).c_str(), ImVec2(16.0f, trackHeight - 8.0f));
-            if (ImGui::IsItemClicked()) m_selectedEventIndex = static_cast<int>(i);
+            if (ImGui::IsItemClicked())
+            {
+                m_selectedEventIndex = static_cast<int>(i);
+                m_selectedCurveKeyIndex = -1; // Enforce mutual exclusion
+                m_isDraggingCurveKey = false;
+            }
 
             drawList->AddQuadFilled(p1, p2, p3, p4, renderColor);
             if (isSelected) drawList->AddQuad(p1, p2, p3, p4, IM_COL32(255, 255, 255, 255), 2.0f);
@@ -560,10 +639,240 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
                 ev.normalizedTime = std::clamp<float>(ev.normalizedTime + deltaNorm, 0.0f, 1.0f);
             }
         }
-
-        drawList->AddText(ImVec2(canvasPos.x + 10.0f, yTop + 6.0f), IM_COL32(200, 200, 200, 255), s_eventNames[ev.eventId]);
+        const char* eventLabel{ (ev.eventId < std::size(s_eventNames)) ? s_eventNames[ev.eventId] : "Unknown" };
+        drawList->AddText(ImVec2(canvasPos.x + 10.0f, yTop + 6.0f), IM_COL32(200, 200, 200, 255), eventLabel);
     }
 
+    // SPEED CURVE TRACK (Rhythm & Pacing Modulator)
+    const float curveAreaStartY{ trackStartY + eventsHeight + 8.0f };
+    const float curvePlotStartY{ curveAreaStartY + curveHeaderHeight };
+    const float curvePlotEndY{ curvePlotStartY + curveCanvasHeight };
+
+    if (m_showSpeedCurve)
+    {
+        // Dedicated header bar styling with distinct background
+        drawList->AddRectFilled(
+            ImVec2(canvasPos.x, curveAreaStartY),
+            ImVec2(canvasPos.x + canvasWidth, curveAreaStartY + curveHeaderHeight),
+            IM_COL32(26, 26, 32, 255)
+        );
+        drawList->AddLine(
+            ImVec2(canvasPos.x, curveAreaStartY),
+            ImVec2(canvasPos.x + canvasWidth, curveAreaStartY),
+            IM_COL32(50, 50, 62, 255), 1.0f
+        );
+
+        // Position toolbar widgets using standard padding
+        const float headerContentY{ curveAreaStartY + ((curveHeaderHeight - ImGui::GetFrameHeight()) * 0.5f) };
+        ImGui::SetCursorScreenPos(ImVec2(canvasPos.x + 12.0f, headerContentY));
+        ImGui::AlignTextToFramePadding();
+        ImGui::Text("SPEED CURVE");
+        ImGui::SameLine(0.0f, 14.0f);
+
+        if (ImGui::Button("+ Key##AddCurveKeyBtn"))
+        {
+            const float addTime{ std::clamp<float>(m_targetComponent->GetCurrentTimer() / baseDuration, 0.0f, 1.0f) };
+            targetNode.speedCurve.push_back(AnimCurveKey{ addTime, 1.0f });
+            std::sort(targetNode.speedCurve.begin(), targetNode.speedCurve.end(),
+                [](const AnimCurveKey& a, const AnimCurveKey& b) noexcept { return a.normalizedTime < b.normalizedTime; });
+
+            for (std::size_t k{ 0 }; k < targetNode.speedCurve.size(); ++k)
+            {
+                if (targetNode.speedCurve[k].normalizedTime == addTime)
+                {
+                    m_selectedCurveKeyIndex = static_cast<int>(k);
+                    m_selectedEventIndex = -1;
+                    m_isDraggingCurveKey = false;
+                    break;
+                }
+            }
+        }
+        ImGui::SameLine();
+
+        if (ImGui::Button("Reset Flat##PresetFlat"))
+        {
+            targetNode.speedCurve.clear();
+            m_selectedCurveKeyIndex = -1;
+            m_isDraggingCurveKey = false;
+        }
+        if (ImGui::IsItemHovered())
+        {
+            ImGui::SetTooltip("Clear custom curve and restore uniform 1.0x playback speed");
+        }
+
+        // Curve Plot Area
+        const float plotX0{ canvasPos.x };
+        const float plotX1{ canvasPos.x + canvasWidth };
+        const float plotY0{ curvePlotStartY };
+        const float plotY1{ curvePlotEndY };
+        const float plotH{ curveCanvasHeight };
+
+        auto SpeedToY = [&](float speed) noexcept -> float {
+            const float norm{ std::clamp(speed / 4.0f, 0.0f, 1.0f) };
+            return plotY1 - (norm * plotH);
+            };
+
+        auto YToSpeed = [&](float y) noexcept -> float {
+            const float norm{ std::clamp((plotY1 - y) / plotH, 0.0f, 1.25f) };
+            return std::clamp(norm * 4.0f, 0.05f, 5.0f);
+            };
+
+        auto TimeToX = [&](float normT) noexcept -> float {
+            return plotX0 + (std::clamp(normT, 0.0f, 1.0f) * canvasWidth);
+            };
+
+        auto XToTime = [&](float x) noexcept -> float {
+            return std::clamp((x - plotX0) / canvasWidth, 0.0f, 1.0f);
+            };
+
+        drawList->AddRectFilled(ImVec2(plotX0, plotY0), ImVec2(plotX1, plotY1), IM_COL32(16, 16, 20, 255));
+        drawList->AddRect(ImVec2(plotX0, plotY0), ImVec2(plotX1, plotY1), IM_COL32(40, 40, 48, 255));
+
+        // Reference Grid Lines
+        const float y1x{ SpeedToY(1.0f) };
+        drawList->AddLine(ImVec2(plotX0, y1x), ImVec2(plotX1, y1x), IM_COL32(70, 140, 200, 130), 1.5f);
+        drawList->AddText(ImVec2(plotX0 + 8.0f, y1x - 14.0f), IM_COL32(90, 160, 230, 180), "1.0x (Normal)");
+
+        const float y2x{ SpeedToY(2.0f) };
+        drawList->AddLine(ImVec2(plotX0, y2x), ImVec2(plotX1, y2x), IM_COL32(60, 60, 70, 90), 1.0f);
+        drawList->AddText(ImVec2(plotX0 + 8.0f, y2x - 14.0f), IM_COL32(130, 130, 130, 120), "2.0x (Fast)");
+
+        const float yHalf{ SpeedToY(0.5f) };
+        drawList->AddLine(ImVec2(plotX0, yHalf), ImVec2(plotX1, yHalf), IM_COL32(60, 60, 70, 90), 1.0f);
+        drawList->AddText(ImVec2(plotX0 + 8.0f, yHalf - 14.0f), IM_COL32(130, 130, 130, 120), "0.5x (Slow)");
+
+        // Curve Rendering
+        if (targetNode.speedCurve.empty())
+        {
+            const float flatY{ SpeedToY(1.0f) };
+            drawList->AddLine(ImVec2(plotX0, flatY), ImVec2(plotX1, flatY), IM_COL32(150, 150, 150, 180), 2.0f);
+            drawList->AddText(ImVec2(plotX0 + (canvasWidth * 0.5f) - 60.0f, plotY0 + (plotH * 0.5f) - 6.0f), IM_COL32(130, 130, 130, 150), "Flat Speed Multiplier");
+        }
+        else
+        {
+            constexpr int kSampleCount{ 128 };
+            ImVec2 curvePoints[kSampleCount];
+            for (int s{ 0 }; s < kSampleCount; ++s)
+            {
+                const float sampleNormT{ static_cast<float>(s) / static_cast<float>(kSampleCount - 1) };
+                const float speedVal{ targetNode.EvaluateSpeedMultiplier(sampleNormT) / (targetNode.speedMultiplier > 0.001f ? targetNode.speedMultiplier : 1.0f) };
+                curvePoints[s] = ImVec2{ TimeToX(sampleNormT), SpeedToY(speedVal) };
+            }
+
+            for (int s{ 0 }; s < kSampleCount - 1; ++s)
+            {
+                const ImVec2 p1{ curvePoints[s] };
+                const ImVec2 p2{ curvePoints[s + 1] };
+                drawList->AddQuadFilled(p1, p2, ImVec2(p2.x, plotY1), ImVec2(p1.x, plotY1), IM_COL32(40, 150, 220, 30));
+            }
+            drawList->AddPolyline(curvePoints, kSampleCount, IM_COL32(50, 190, 255, 255), ImDrawFlags_None, 2.5f);
+
+            // Control Node Handles
+            const ImVec2 mousePos{ ImGui::GetIO().MousePos };
+            bool isAnyHandleHovered{ false };
+
+            for (std::size_t kIdx{ 0 }; kIdx < targetNode.speedCurve.size(); ++kIdx)
+            {
+                auto& key{ targetNode.speedCurve[kIdx] };
+                const ImVec2 nodeCenter{ TimeToX(key.normalizedTime), SpeedToY(key.speedMult) };
+                const float distSq{ ((mousePos.x - nodeCenter.x) * (mousePos.x - nodeCenter.x)) + ((mousePos.y - nodeCenter.y) * (mousePos.y - nodeCenter.y)) };
+                const bool isHovered{ distSq <= 64.0f };
+                if (isHovered) isAnyHandleHovered = true;
+                const bool isSelected{ m_selectedCurveKeyIndex == static_cast<int>(kIdx) };
+
+                // Tap to select: selection occurs without warping coordinates
+                if (isHovered && ImGui::IsMouseClicked(ImGuiMouseButton_Left))
+                {
+                    m_selectedCurveKeyIndex = static_cast<int>(kIdx);
+                    m_selectedEventIndex = -1;
+                    s_draggedCurveKeyIdx = static_cast<int>(kIdx);
+                    m_isDraggingCurveKey = false;
+                }
+
+                // Dragging strictly requires initial left-click origin on this specific handle
+                if (isSelected && s_draggedCurveKeyIdx == static_cast<int>(kIdx) && ImGui::IsMouseDown(ImGuiMouseButton_Left))
+                {
+                    if (!m_isDraggingCurveKey && ImGui::IsMouseDragging(ImGuiMouseButton_Left, 3.0f))
+                    {
+                        m_isDraggingCurveKey = true;
+                    }
+
+                    if (m_isDraggingCurveKey)
+                    {
+                        key.normalizedTime = XToTime(mousePos.x);
+                        key.speedMult = YToSpeed(mousePos.y);
+
+                        char tipBuf[64];
+                        snprintf(tipBuf, sizeof(tipBuf), "Time: %.2fs (%df) | Speed: %.2fx",
+                            key.normalizedTime * baseDuration,
+                            static_cast<int>(std::round(key.normalizedTime * baseDuration * 60.0f)),
+                            key.speedMult);
+                        ImGui::SetTooltip("%s", tipBuf);
+                    }
+                }
+
+                const ImU32 nodeColor{ isSelected ? IM_COL32(255, 255, 255, 255) : (isHovered ? IM_COL32(255, 240, 100, 255) : IM_COL32(255, 195, 30, 255)) };
+                drawList->AddCircleFilled(nodeCenter, isSelected ? 6.5f : 5.0f, nodeColor);
+                if (isSelected)
+                {
+                    drawList->AddCircle(nodeCenter, 8.5f, IM_COL32(255, 255, 255, 220), 0, 1.8f);
+                }
+            }
+
+            // Re-sort keys upon drag completion and update active index tracking
+            if (m_isDraggingCurveKey && ImGui::IsMouseReleased(ImGuiMouseButton_Left))
+            {
+                m_isDraggingCurveKey = false;
+                s_draggedCurveKeyIdx = -1;
+                if (m_selectedCurveKeyIndex >= 0 && static_cast<std::size_t>(m_selectedCurveKeyIndex) < targetNode.speedCurve.size())
+                {
+                    const float draggedTime{ targetNode.speedCurve[m_selectedCurveKeyIndex].normalizedTime };
+                    const float draggedSpeed{ targetNode.speedCurve[m_selectedCurveKeyIndex].speedMult };
+
+                    std::sort(targetNode.speedCurve.begin(), targetNode.speedCurve.end(),
+                        [](const AnimCurveKey& a, const AnimCurveKey& b) noexcept { return a.normalizedTime < b.normalizedTime; });
+
+                    for (std::size_t k{ 0 }; k < targetNode.speedCurve.size(); ++k)
+                    {
+                        if (targetNode.speedCurve[k].normalizedTime == draggedTime && targetNode.speedCurve[k].speedMult == draggedSpeed)
+                        {
+                            m_selectedCurveKeyIndex = static_cast<int>(k);
+                            break;
+                        }
+                    }
+                }
+            }
+            else if (!ImGui::IsMouseDown(ImGuiMouseButton_Left))
+            {
+                m_isDraggingCurveKey = false;
+                s_draggedCurveKeyIdx = -1;
+            }
+
+            // Insert key on double-clicking empty canvas
+            const bool isMouseInPlot{ mousePos.x >= plotX0 && mousePos.x <= plotX1 && mousePos.y >= plotY0 && mousePos.y <= plotY1 };
+            if (!isAnyHandleHovered && isMouseInPlot && ImGui::IsMouseDoubleClicked(ImGuiMouseButton_Left) && !m_isDraggingCurveKey)
+            {
+                const float newT{ XToTime(mousePos.x) };
+                const float newSpeed{ YToSpeed(mousePos.y) };
+                targetNode.speedCurve.push_back(AnimCurveKey{ newT, newSpeed });
+                std::sort(targetNode.speedCurve.begin(), targetNode.speedCurve.end(),
+                    [](const AnimCurveKey& a, const AnimCurveKey& b) noexcept { return a.normalizedTime < b.normalizedTime; });
+
+                for (std::size_t k{ 0 }; k < targetNode.speedCurve.size(); ++k)
+                {
+                    if (targetNode.speedCurve[k].normalizedTime == newT)
+                    {
+                        m_selectedCurveKeyIndex = static_cast<int>(k);
+                        m_selectedEventIndex = -1;
+                        m_isDraggingCurveKey = false;
+                        break;
+                    }
+                }
+            }
+        }
+    } // End if (m_showSpeedCurve)
+
+    // Playhead Line (Spans across Event Tracks & Speed Curve)
     const float currentNorm{ std::clamp<float>(m_targetComponent->GetCurrentTimer() / baseDuration, 0.0f, 1.0f) };
     const float playheadPixel{ canvasPos.x + (currentNorm * canvasWidth) };
 
@@ -575,48 +884,131 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
         IM_COL32(250, 50, 50, 255)
     );
 
+    // Timeline Scrubbing: Scoped strictly to the upper tracks so curve handle manipulation is decoupled
+    const float scrubAreaHeight{ m_showSpeedCurve ? (curveAreaStartY - canvasPos.y) : requiredHeight };
     ImGui::SetCursorScreenPos(canvasPos);
-    ImGui::InvisibleButton("##ScrubPlane", ImVec2(canvasWidth, requiredHeight));
+    ImGui::InvisibleButton("##ScrubPlane", ImVec2(canvasWidth, (std::max)(10.0f, scrubAreaHeight)));
 
-    // Allow instant clicking anywhere on the track (IsItemActive), not just dragging
-    if (!isGameLive && ImGui::IsItemActive())
+    if (!isGameLive && !m_isDraggingCurveKey && s_draggedCurveKeyIdx == -1 && ImGui::IsItemActive())
     {
         const float mouseLocalX{ ImGui::GetIO().MousePos.x - canvasPos.x };
-
-        // PREVENTIVE BUG: Clamp slightly below 1.0f. If the time hits 1.0f perfectly, 
-        // the underlying AnimationComponent evaluates it as finished and fires StopPreview(), 
-        // breaking the pose and resetting the character back to Idle.
         const float newNorm{ std::clamp<float>(mouseLocalX / canvasWidth, 0.0f, 0.999f) };
-
         m_targetComponent->ScrubNodeToTime(m_selectedStateIndex, m_selectedNodeIndex, newNorm * baseDuration);
     }
 
     ImGui::EndGroup();
 
-    if (showProperties)
+    // Point-of-access validation: evaluate live indices at render time, preventing out-of-range crashes
+    const bool isCurveKeyValid{
+        m_showSpeedCurve &&
+        m_selectedCurveKeyIndex >= 0 &&
+        static_cast<std::size_t>(m_selectedCurveKeyIndex) < targetNode.speedCurve.size()
+    };
+    const bool isEventValid{
+        !isCurveKeyValid &&
+        m_selectedEventIndex >= 0 &&
+        static_cast<std::size_t>(m_selectedEventIndex) < targetNode.events.size()
+    };
+
+    if (isCurveKeyValid || isEventValid)
     {
         ImGui::SameLine();
         ImGui::PushStyleColor(ImGuiCol_ChildBg, IM_COL32(25, 25, 30, 255));
-        ImGui::BeginChild("EventPropertiesPane", ImVec2(310.0f, requiredHeight), true, ImGuiWindowFlags_NoScrollbar);
+        ImGui::BeginChild("PropertiesPane", ImVec2(310.0f, requiredHeight), true);
 
-        ImGui::TextDisabled("EVENT PROPERTIES");
-        ImGui::SameLine(ImGui::GetWindowWidth() - 30.0f);
-
-        if (ImGui::Button("X")) m_selectedEventIndex = -1;
-
-        ImGui::Separator();
-
-        if (m_selectedEventIndex != -1 && m_selectedEventIndex < targetNode.events.size())
+        if (isCurveKeyValid)
         {
-            auto& ev{ targetNode.events[m_selectedEventIndex] };
+            bool closeRequested{ false };
+            ImGui::TextDisabled("CURVE KEY PROPERTIES");
+            ImGui::SameLine(ImGui::GetWindowWidth() - 30.0f);
+            if (ImGui::Button("X##CloseCurveKeyProps"))
+            {
+                m_selectedCurveKeyIndex = -1;
+                m_isDraggingCurveKey = false;
+                closeRequested = true;
+            }
+            ImGui::Separator();
+
+            if (!closeRequested && m_selectedCurveKeyIndex >= 0 && static_cast<std::size_t>(m_selectedCurveKeyIndex) < targetNode.speedCurve.size())
+            {
+                auto& key{ targetNode.speedCurve[static_cast<std::size_t>(m_selectedCurveKeyIndex)] };
+                const float sec{ key.normalizedTime * baseDuration };
+                const int frame{ static_cast<int>(std::round(sec * 60.0f)) };
+
+                ImGui::TextColored(ImVec4{ 0.7f, 0.7f, 0.7f, 1.0f }, "Timestamp: %df (%.2fs)", frame, sec);
+                if (ImGui::SliderFloat("Normalized Time", &key.normalizedTime, 0.0f, 1.0f, "Norm: %.3f"))
+                {
+                    key.normalizedTime = std::clamp(key.normalizedTime, 0.0f, 1.0f);
+                    const float curTime{ key.normalizedTime };
+                    const float curSpeed{ key.speedMult };
+                    std::sort(targetNode.speedCurve.begin(), targetNode.speedCurve.end(),
+                        [](const AnimCurveKey& a, const AnimCurveKey& b) noexcept { return a.normalizedTime < b.normalizedTime; });
+                    for (std::size_t k{ 0 }; k < targetNode.speedCurve.size(); ++k)
+                    {
+                        if (targetNode.speedCurve[k].normalizedTime == curTime && targetNode.speedCurve[k].speedMult == curSpeed)
+                        {
+                            m_selectedCurveKeyIndex = static_cast<int>(k);
+                            break;
+                        }
+                    }
+                }
+
+                ImGui::Spacing();
+                ImGui::DragFloat("Speed Multiplier", &key.speedMult, 0.05f, 0.05f, 5.0f, "%.2fx");
+                if (key.speedMult < 0.05f) key.speedMult = 0.05f;
+
+                ImGui::Spacing();
+                ImGui::Separator();
+                ImGui::Spacing();
+
+                ImGui::PushStyleColor(ImGuiCol_Button, IM_COL32(180, 40, 40, 255));
+                ImGui::PushStyleColor(ImGuiCol_ButtonHovered, IM_COL32(220, 50, 50, 255));
+                ImGui::PushStyleColor(ImGuiCol_ButtonActive, IM_COL32(250, 60, 60, 255));
+                if (ImGui::Button("Delete Key", ImVec2(-1.0f, 30.0f)))
+                {
+                    targetNode.speedCurve.erase(targetNode.speedCurve.begin() + m_selectedCurveKeyIndex);
+                    m_selectedCurveKeyIndex = -1;
+                    m_isDraggingCurveKey = false;
+                }
+                ImGui::PopStyleColor(3);
+            }
+        }
+        else if (isEventValid)
+        {
+            bool closeRequested{ false };
+            ImGui::TextDisabled("EVENT PROPERTIES");
+            ImGui::SameLine(ImGui::GetWindowWidth() - 30.0f);
+            if (ImGui::Button("X##CloseEventProps"))
+            {
+                m_selectedEventIndex = -1;
+                closeRequested = true;
+            }
+            ImGui::Separator();
+
+            if (!closeRequested && m_selectedEventIndex >= 0 && static_cast<std::size_t>(m_selectedEventIndex) < targetNode.events.size())
+            {
+                auto& ev{ targetNode.events[static_cast<std::size_t>(m_selectedEventIndex)] };
 
             int currentEventId{ static_cast<int>(ev.eventId) };
             ImGui::SetNextItemWidth(180.0f);
             if (ImGui::Combo("Type", &currentEventId, s_eventNames, static_cast<int>(std::size(s_eventNames))))
             {
                 ev.eventId = static_cast<std::uint32_t>(currentEventId);
+                // UX: Auto-configure Hitbox_Window as range with sensible defaults
+                if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Hitbox_Window))
+                {
+                    ev.isRange = true;
+                    if (ev.normalizedEndTime <= ev.normalizedTime)
+                    {
+                        ev.normalizedEndTime = (std::min)(1.0f, ev.normalizedTime + 0.15f);
+                    }
+                    if (ev.payload == 0.0f)
+                    {
+                        ev.payload = 1.0f;
+                    }
+                }
                 // UX: Default to 1.0 (Full Stop) when newly selecting the Halt event so it works immediately
-                if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt) && ev.payload == 0.0f)
+                else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt) && ev.payload == 0.0f)
                 {
                     ev.payload = 1.0f;
                 }
@@ -652,6 +1044,7 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
             if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse) ||
                 ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Vertical) ||
                 ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt) ||
+                ev.eventId == static_cast<std::uint32_t>(CombatEventId::Hitbox_Window) ||
                 ev.eventId == static_cast<std::uint32_t>(CombatEventId::Play_SFX) ||
                 ev.eventId == static_cast<std::uint32_t>(CombatEventId::Play_VFX))
             {
@@ -659,6 +1052,7 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
                 if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Impulse)) ImGui::DragFloat("Horizontal Lunge", &ev.payload, 0.5f, -200.0f, 200.0f);
                 else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Lunge_Vertical)) ImGui::DragFloat("Vertical Lift (m/s)", &ev.payload, 0.5f, -50.0f, 50.0f);
                 else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Movement_Halt)) ImGui::DragFloat("Braking Factor", &ev.payload, 0.05f, 0.0f, 1.0f, "%.2f (1 = Stop)");
+                else if (ev.eventId == static_cast<std::uint32_t>(CombatEventId::Hitbox_Window)) ImGui::DragFloat("Damage Multiplier", &ev.payload, 0.05f, 0.1f, 10.0f, "%.2fx (0 = 1.0x)");
                 else ImGui::DragFloat("Asset ID", &ev.payload, 1.0f, 0.0f, 100.0f);
                 ImGui::Spacing();
             }
@@ -676,6 +1070,7 @@ void AnimationTimelinePanel::Draw(bool* pOpen) noexcept
                 m_selectedEventIndex = -1;
             }
             ImGui::PopStyleColor(3);
+            }
         }
 
         ImGui::EndChild();

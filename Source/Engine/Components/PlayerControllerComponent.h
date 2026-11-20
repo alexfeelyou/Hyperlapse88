@@ -2,10 +2,11 @@
 
 #include <array>           
 #include <DirectXMath.h>
+#include <json.hpp>
 #include <memory>
 #include "AnimBlackboard.h"
 #include "IComponent.h"
-#include "StateMachine.h" 
+#include "StateMachine.h"
 
 // Strongly typed enum representing discrete gameplay logic layers
 enum class PlayerStateType : std::uint8_t
@@ -37,6 +38,15 @@ class CharacterMovementComponent;
 class AnimationComponent;
 class PlayerState;
 
+// Flat POD payload passed from incoming combat sweeps into PlayerHitReact
+struct PlayerHitReactionData
+{
+    DirectX::XMFLOAT3 attackerPos{ 0.0f, 0.0f, 0.0f };
+    std::uint8_t directionIndex{ 0 }; // 0 = Front, 1 = Back, 2 = Left, 3 = Right
+    bool isHeavyKnockdown{ false };
+    bool isLethal{ false };
+};
+
 struct InputIntent
 {
     DirectX::XMFLOAT2 moveVector{ 0.0f, 0.0f }; // Raw input space: x = strafe (D/A, stick X), y = forward (W/S, stick Y)
@@ -52,7 +62,17 @@ struct InputIntent
     bool bJumpTriggered{ false };
     bool bSkillTriggered{ false };
     bool bSprintHeld{ false };
+    bool bParryPressed{ false };
     float forwardIntentTimer{ 0.0f }; // Tracks input freshness for command normals
+};
+
+// Data-driven tuning parameters for post-parry temporal dilation
+struct ParrySlowMoConfig
+{
+    bool enabled{ true };
+    float timeScale{ 0.22f };        // Target world time scale during parry slow-mo (0.22 = 22% speed)
+    float holdDuration{ 0.18f };     // Real-time duration held at target timeScale
+    float recoveryDuration{ 0.15f }; // Real-time C1 smooth ease-out duration back to 1.0x
 };
 
 // Translates hardware input into InputIntent and evaluates the State Machine
@@ -69,7 +89,12 @@ public:
     void Update(float dt) override;
     void DrawInspector() override;
 
+    void Serialize(nlohmann::json& outJson) const override;
+    void Deserialize(const nlohmann::json& inJson) override;
+
     [[nodiscard]] const char* GetTypeName() const noexcept override { return "PlayerControllerComponent"; }
+    [[nodiscard]] ParrySlowMoConfig& GetParrySlowMoConfig() noexcept { return m_parrySlowMo; }
+    [[nodiscard]] const ParrySlowMoConfig& GetParrySlowMoConfig() const noexcept { return m_parrySlowMo; }
 
     // Core Component Accessors
     [[nodiscard]] const InputIntent& GetIntent() const noexcept { return m_intent; }
@@ -90,6 +115,33 @@ public:
         return m_states[static_cast<std::size_t>(type)].get();
     }
 
+    // Combat hit reception interface (invoked by MeleeHitboxComponent on valid enemy contact)
+    void NotifyHitReaction(
+        const DirectX::XMFLOAT3& attackerPos,
+        const DirectX::XMFLOAT3& slashDir,
+        bool isHeavyKnockdown) noexcept;
+
+    // Evaluates whether the player is currently in an active parry window and consumes the deflect
+    [[nodiscard]] bool TryConsumeParry(
+        const DirectX::XMFLOAT3& attackerPos,
+        const DirectX::XMFLOAT3& slashDir) noexcept;
+
+    [[nodiscard]] const PlayerHitReactionData& GetLastHitReaction() const noexcept { return m_lastHitReaction; }
+    [[nodiscard]] bool IsInvincible() const noexcept { return m_isInvincible; }
+    void SetInvincible(bool invincible) noexcept;
+
+    // CombatDirector vulnerability & defensive state queries
+    [[nodiscard]] bool IsInHitReact() const noexcept
+    {
+        return m_stateMachine && m_stateMachine->GetCurrentState() == GetState(PlayerStateType::HitReact);
+    }
+    [[nodiscard]] bool IsInParryState() const noexcept
+    {
+        return m_stateMachine && m_stateMachine->GetCurrentState() == GetState(PlayerStateType::ParryCounter);
+    }
+    [[nodiscard]] bool IsInKnockdownRecovery() const noexcept { return m_isInKnockdownRecovery; }
+    void SetKnockdownRecovery(bool active) noexcept { m_isInKnockdownRecovery = active; }
+
     // Transient Mailbox for State Handoffs (DOD Isolation)
     void SetPendingComboHit(int index) noexcept { m_pendingComboHit = index; }
     [[nodiscard]] int ConsumePendingComboHit() noexcept { const int val = m_pendingComboHit; m_pendingComboHit = -1; return val; }
@@ -100,12 +152,13 @@ private:
     void GatherHardwareInput(float dt) noexcept;
     void ResolveIntentToWorldSpace() noexcept;
 
+    ParrySlowMoConfig m_parrySlowMo{};
     InputIntent m_intent{};
+    PlayerHitReactionData m_lastHitReaction{};
     bool m_inputEnabled{ true };
+    bool m_isInvincible{ false };
+    bool m_isInKnockdownRecovery{ false };
     int m_pendingComboHit{ -1 }; // Transient state token
-
-    float m_shiftHoldTimer{ 0.0f };   // Accumulates continuous press duration for the Shift key
-    bool  m_wasShiftPressed{ false }; // Tracks the previous frame's press state to detect key release
 
     // Component Caches
     CharacterMovementComponent* m_movement{ nullptr };

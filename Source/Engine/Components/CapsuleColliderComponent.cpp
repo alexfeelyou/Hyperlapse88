@@ -3,6 +3,7 @@
 #include "System/PhysicsManager.h"
 #include "System/ShapeRenderer.h"
 #include "CapsuleColliderComponent.h"
+#include "CharacterMovementComponent.h"
 #include "ComponentRegistry.h"
 #include "EditorManager.h"
 #include "GameObject.h"
@@ -94,8 +95,29 @@ physx::PxControllerCollisionFlags CapsuleColliderComponent::Move(const DirectX::
         m_controller->move(pxDisplacement, minStepDistance, dt, filters)
     };
 
-    // Use PhysX's explicit isSet() method to avoid ambiguous implicit conversions
-    m_isGrounded = flags.isSet(physx::PxControllerCollisionFlag::eCOLLISION_DOWN);
+    const bool collisionDown{ flags.isSet(physx::PxControllerCollisionFlag::eCOLLISION_DOWN) };
+    if (collisionDown)
+    {
+        // Enforce Ground Invariant: A character can only be grounded on walkable WorldStatic level geometry.
+        // If collision down was triggered by landing on another character capsule (Player or Enemy),
+        // they are not grounded and must deflect laterally off the head dome.
+        constexpr float groundProbeCushion{ 0.15f };
+        const bool onWorldGround{ HasGroundBelow(m_config.stepOffset + groundProbeCushion) };
+
+        if (onWorldGround)
+        {
+            m_isGrounded = true;
+        }
+        else
+        {
+            m_isGrounded = false;
+            ResolveHeadStackingDeflection(dt);
+        }
+    }
+    else
+    {
+        m_isGrounded = false;
+    }
 
     // Read back solved position directly into GameObject Transform
     const DirectX::XMFLOAT3 footPos{ GetFootPosition() };
@@ -103,6 +125,117 @@ physx::PxControllerCollisionFlags CapsuleColliderComponent::Move(const DirectX::
     m_lastFramePos = footPos;
 
     return flags;
+}
+
+void CapsuleColliderComponent::ResolveHeadStackingDeflection(const float dt) noexcept
+{
+    if (!m_controller || !m_owner) return;
+
+    auto* scene{ PhysicsManager::Instance().GetScene() };
+    if (!scene) return;
+
+    const DirectX::XMFLOAT3 footPos{ GetFootPosition() };
+    const physx::PxExtendedVec3 centerPos{ m_controller->getPosition() };
+
+    // Query for dynamic character shapes beneath the capsule feet
+    const physx::PxSphereGeometry probeSphere{ m_config.radius * 1.1f };
+    const physx::PxTransform probePose{ physx::PxVec3{
+        static_cast<float>(centerPos.x),
+        footPos.y + (m_config.radius * 0.5f),
+        static_cast<float>(centerPos.z)
+    } };
+
+    physx::PxOverlapBufferN<8> overlapBuffer{};
+    physx::PxQueryFilterData filterData{};
+    filterData.flags = physx::PxQueryFlag::eDYNAMIC | physx::PxQueryFlag::eNO_BLOCK;
+
+    float pushX{ 0.0f };
+    float pushZ{ 0.0f };
+    bool foundObstacle{ false };
+
+    const physx::PxActor* myActor{ m_controller->getActor() };
+
+    if (scene->overlap(probeSphere, probePose, overlapBuffer, filterData))
+    {
+        const physx::PxU32 hitCount{ overlapBuffer.getNbAnyHits() };
+        float accumPushX{ 0.0f };
+        float accumPushZ{ 0.0f };
+
+        // Crowd Centroid Solver: Accumulate repulsion across all underlying characters instead of breaking early
+        for (physx::PxU32 i{ 0 }; i < hitCount; ++i)
+        {
+            const auto& hit{ overlapBuffer.getAnyHit(i) };
+            if (!hit.actor || hit.actor == myActor) continue;
+
+            void* rawUserData{ hit.actor->userData };
+            if (!rawUserData && hit.shape) rawUserData = hit.shape->userData;
+            if (!rawUserData) continue;
+
+            auto* otherObj{ static_cast<GameObject*>(rawUserData) };
+            if (!otherObj || otherObj == m_owner) continue;
+
+            // Only deflect against other character entities (Player or Enemy capsules)
+            if (!otherObj->GetComponent<CapsuleColliderComponent>() && !otherObj->GetComponent<CharacterMovementComponent>())
+            {
+                continue;
+            }
+
+            const physx::PxVec3 otherPos{ hit.actor->getGlobalPose().p };
+            const float dx{ static_cast<float>(centerPos.x) - otherPos.x };
+            const float dz{ static_cast<float>(centerPos.z) - otherPos.z };
+            const float distSq{ (dx * dx) + (dz * dz) };
+
+            if (distSq > 0.0001f)
+            {
+                const float invDist{ 1.0f / std::sqrt(distSq) };
+                accumPushX += dx * invDist;
+                accumPushZ += dz * invDist;
+            }
+            foundObstacle = true;
+        }
+
+        const float accumLenSq{ (accumPushX * accumPushX) + (accumPushZ * accumPushZ) };
+        if (accumLenSq > 0.0001f)
+        {
+            const float invAccumLen{ 1.0f / std::sqrt(accumLenSq) };
+            pushX = accumPushX * invAccumLen;
+            pushZ = accumPushZ * invAccumLen;
+        }
+    }
+
+    // Fallback: If perfectly centered on obstacle or net repulsion cancelled out, push along character facing
+    if (!foundObstacle || ((pushX * pushX) + (pushZ * pushZ) < 0.001f))
+    {
+        const float yawRad{ DirectX::XMConvertToRadians(m_owner->transform.rotation.y) };
+        pushX = std::sin(yawRad);
+        pushZ = std::cos(yawRad);
+        if ((pushX * pushX) + (pushZ * pushZ) < 0.001f)
+        {
+            pushZ = 1.0f;
+        }
+    }
+
+    constexpr float minStepDistance{ 0.001f };
+    constexpr float lateralSlideSpeed{ 5.5f }; // Clamped natural slide speed (m/s)
+    const float lateralStep{ lateralSlideSpeed * dt };
+    physx::PxControllerFilters cctFilters{};
+
+    // Immediate kinematic micro-step off the apex with downward slope adhesion
+    m_controller->move(physx::PxVec3{ pushX * lateralStep, -0.75f * dt, pushZ * lateralStep }, minStepDistance, dt, cctFilters);
+
+    // Deficit Clamping: Bound the slide speed ceiling to prevent compounding impulse explosions
+    if (auto* motor{ m_owner->GetComponent<CharacterMovementComponent>() })
+    {
+        const DirectX::XMFLOAT3 currentVel{ motor->GetTotalVelocity() };
+        const float currentSpeedAlongPush{ (currentVel.x * pushX) + (currentVel.z * pushZ) };
+
+        // Only inject deficit impulse if velocity along the escape direction is below the target slide speed
+        if (currentSpeedAlongPush < lateralSlideSpeed)
+        {
+            const float speedDeficit{ lateralSlideSpeed - (std::max)(0.0f, currentSpeedAlongPush) };
+            motor->AddImpulse(DirectX::XMFLOAT3{ pushX * speedDeficit, 0.0f, pushZ * speedDeficit });
+        }
+    }
 }
 
 void CapsuleColliderComponent::Teleport(const DirectX::XMFLOAT3& worldPos) noexcept
@@ -275,6 +408,19 @@ void CapsuleColliderComponent::CreateController() noexcept
 
     if (m_controller)
     {
+        m_controller->setUserData(m_owner);
+
+        // 検索クエリ用にアクターおよびシェイプ双方へ m_owner を確実にバインド
+        if (physx::PxRigidDynamic * actor{ m_controller->getActor() })
+        {
+            actor->userData = m_owner;
+            physx::PxShape* shapes[1]{ nullptr };
+            if (actor->getShapes(shapes, 1) > 0 && shapes[0])
+            {
+                shapes[0]->userData = m_owner;
+            }
+        }
+
         ApplyFilterData();
     }
 }
@@ -283,9 +429,21 @@ void CapsuleColliderComponent::DestroyController() noexcept
 {
     if (m_controller)
     {
-        m_controller->release();
+        // PhysX 所有権ルール: PxControllerManager が生存している場合のみ release() を呼ぶ。
+        // シャットダウン時にマネージャが先行破棄されている場合は既に内部解放されているため二重解放を防ぐ。
+        if (auto* manager{ PhysicsManager::Instance().GetControllerManager() })
+        {
+            m_controller->release();
+        }
         m_controller = nullptr;
     }
+}
+
+void CapsuleColliderComponent::SetCollisionLayer(const std::uint32_t layer, const std::uint32_t collidesWith) noexcept
+{
+    m_config.layer = layer;
+    m_config.collidesWith = collidesWith;
+    ApplyFilterData();
 }
 
 void CapsuleColliderComponent::ApplyFilterData() const noexcept
@@ -295,11 +453,19 @@ void CapsuleColliderComponent::ApplyFilterData() const noexcept
     physx::PxRigidDynamic* actor{ m_controller->getActor() };
     if (!actor) return;
 
+    actor->userData = m_owner;
+
     physx::PxShape* shapes[1]{ nullptr };
     const physx::PxU32 shapeCount{ actor->getShapes(shapes, 1) };
 
     if (shapeCount > 0 && shapes[0])
     {
+        shapes[0]->userData = m_owner;
+
+        // シーンクエリおよび物理シミュレーションの双方を明示的にアクティブ化
+        shapes[0]->setFlag(physx::PxShapeFlag::eSIMULATION_SHAPE, true);
+        shapes[0]->setFlag(physx::PxShapeFlag::eSCENE_QUERY_SHAPE, true);
+
         physx::PxFilterData filterData{};
         filterData.word0 = m_config.layer;
         filterData.word1 = m_config.collidesWith;
@@ -346,6 +512,26 @@ void CapsuleColliderComponent::DrawInspector()
     ImGui::Separator();
 
     bool configChanged{ false };
+
+    static constexpr const char* s_layerNames[] = { "None", "WorldStatic", "WorldDynamic", "Player", "Enemy" };
+    int currentLayerIndex = 3; // Default Player
+    if (m_config.layer == CollisionLayer::Enemy) currentLayerIndex = 4;
+    else if (m_config.layer == CollisionLayer::WorldDynamic) currentLayerIndex = 2;
+    else if (m_config.layer == CollisionLayer::WorldStatic) currentLayerIndex = 1;
+    else if (m_config.layer == CollisionLayer::None) currentLayerIndex = 0;
+
+    if (ImGui::Combo("Collision Layer", &currentLayerIndex, s_layerNames, 5))
+    {
+        switch (currentLayerIndex)
+        {
+        case 0: SetCollisionLayer(CollisionLayer::None, 0); break;
+        case 1: SetCollisionLayer(CollisionLayer::WorldStatic, CollisionLayer::Mask::WorldStatic); break;
+        case 2: SetCollisionLayer(CollisionLayer::WorldDynamic, CollisionLayer::Mask::Player); break;
+        case 3: SetCollisionLayer(CollisionLayer::Player, CollisionLayer::Mask::Player); break;
+        case 4: SetCollisionLayer(CollisionLayer::Enemy, CollisionLayer::Mask::Enemy); break;
+        default: break;
+        }
+    }
 
     configChanged |= ImGui::DragFloat("Radius", &m_config.radius, 0.01f, 0.05f, 10.0f, "%.2f m");
     configChanged |= ImGui::DragFloat("Height", &m_config.height, 0.01f, 0.05f, 20.0f, "%.2f m");
@@ -443,6 +629,104 @@ bool CapsuleColliderComponent::HasGroundBelow(float distance) const noexcept
     filterData.flags = physx::PxQueryFlag::eSTATIC;
 
     return scene->sweep(sphereGeom, startPose, sweepDir, distance, hitBuffer, physx::PxHitFlag::eDEFAULT, filterData);
+}
+
+bool CapsuleColliderComponent::HasGroundAhead(const DirectX::XMFLOAT2& directionXZ, const float distance, const float maxDropDepth) const noexcept
+{
+    if (!m_controller || distance <= 0.001f)
+    {
+        return false;
+    }
+
+    const float dirSq{ (directionXZ.x * directionXZ.x) + (directionXZ.y * directionXZ.y) };
+    float dirX{ 0.0f };
+    float dirZ{ 0.0f };
+
+    if (dirSq > 0.0001f)
+    {
+        const float invLen{ 1.0f / std::sqrt(dirSq) };
+        dirX = directionXZ.x * invLen;
+        dirZ = directionXZ.y * invLen;
+    }
+    else if (m_owner)
+    {
+        // Fall back to current physical character facing when direction vector is zero
+        const float yawRad{ DirectX::XMConvertToRadians(m_owner->GetRotation().y) };
+        dirX = std::sin(yawRad);
+        dirZ = std::cos(yawRad);
+    }
+    else
+    {
+        return false;
+    }
+
+    auto* scene{ PhysicsManager::Instance().GetScene() };
+    if (!scene)
+    {
+        return false;
+    }
+
+    const DirectX::XMFLOAT3 footPos{ GetFootPosition() };
+    const float rayStartOffsetY{ m_config.stepOffset + 0.1f };
+    const float maxAllowedDrop{ maxDropDepth > 0.0f ? maxDropDepth : (m_config.stepOffset + 0.15f) };
+    const float rayMaxDist{ rayStartOffsetY + maxAllowedDrop };
+    const float minWalkableNormalY{ std::cos(DirectX::XMConvertToRadians(m_config.slopeLimitDeg)) };
+
+    physx::PxQueryFilterData filterData{};
+    filterData.data.word0 = CollisionLayer::WorldStatic;
+    filterData.flags = physx::PxQueryFlag::eSTATIC;
+
+    const physx::PxVec3 downDir{ 0.0f, -1.0f, 0.0f };
+
+    // Multi-Ray Fan (Center + Left Flank + Right Flank):
+    // Verifies full capsule width (radius * 0.85) to catch corners where center ray hits but flank hangs in air
+    const float flankOffset{ m_config.radius * 0.85f };
+    const float perpX{ -dirZ * flankOffset };
+    const float perpZ{ dirX * flankOffset };
+
+    const struct ColumnOffset { float x; float z; } columns[3]{
+        { 0.0f,    0.0f },    // Center
+        { -perpX, -perpZ },   // Left Flank
+        {  perpX,  perpZ }    // Right Flank
+    };
+
+    // Dense equidistant forward stepping prevents overshooting narrow gaps on high-speed probes
+    const float nearDist{ m_config.radius + 0.10f };
+    const float farDist{ (std::max)(nearDist + 0.15f, distance) };
+    constexpr float stepInterval{ 0.90f };
+    const int stepCount{ std::clamp(static_cast<int>(std::ceil((farDist - nearDist) / stepInterval)) + 1, 2, 6) };
+
+    for (const auto& col : columns)
+    {
+        for (int i{ 0 }; i < stepCount; ++i)
+        {
+            const float t{ static_cast<float>(i) / static_cast<float>(stepCount - 1) };
+            const float distOffset{ nearDist + (t * (farDist - nearDist)) };
+
+            const physx::PxVec3 rayOrigin{
+                footPos.x + col.x + (dirX * distOffset),
+                footPos.y + rayStartOffsetY,
+                footPos.z + col.z + (dirZ * distOffset)
+            };
+
+            physx::PxRaycastBuffer hitBuffer{};
+            const bool hit{ scene->raycast(rayOrigin, downDir, rayMaxDist, hitBuffer, physx::PxHitFlag::eNORMAL, filterData) };
+
+            // Ray missed entirely (open chasm) or hit an unwalkable steep wall
+            if (!hit || hitBuffer.block.normal.y < minWalkableNormalY)
+            {
+                return false;
+            }
+
+            const float dropBelowFoot{ hitBuffer.block.distance - rayStartOffsetY };
+            if (dropBelowFoot > maxAllowedDrop)
+            {
+                return false;
+            }
+        }
+    }
+
+    return true;
 }
 
 // Automatically register component with dynamic Inspector factory

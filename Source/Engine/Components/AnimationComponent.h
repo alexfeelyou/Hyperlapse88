@@ -14,17 +14,19 @@
 enum class CombatEventId : std::uint32_t
 {
     None = 0,
-    Hitbox_Active,
-    Hitbox_Inactive,
-    CancelWindow_Open,
-    Invincible_Start,
-    Invincible_End,
-    Play_SFX,
-    Play_VFX,
-    Lunge_Impulse,
-    Lunge_Vertical,
-    Movement_Halt,
-    Pose_HoldMarker
+    Hitbox_Window = 1,
+    Cancel_Combo = 2,      
+    Invincible_Start = 3,
+    Invincible_End = 4,
+    Play_SFX = 5,
+    Play_VFX = 6,
+    Lunge_Impulse = 7,
+    Lunge_Vertical = 8,
+    Movement_Halt = 9,
+    Pose_HoldMarker = 10,
+    Cancel_Evade = 11,
+    Cancel_Locomotion = 12,
+    Parry_Window = 13
 };
 
 enum class AnimStateType : std::uint8_t {
@@ -51,6 +53,13 @@ struct TransitionRule
     float targetStartOffset{ 0.0f };
 };
 
+// Represents an instantaneous playback rate keyframe along the normalized animation timeline
+struct AnimCurveKey
+{
+    float normalizedTime{ 0.0f }; // Normalized timeline position [0.0f, 1.0f]
+    float speedMult{ 1.0f };      // Instantaneous speed multiplier (e.g., 0.1x to 4.0x)
+};
+
 // The Node is the absolute source of truth.
 struct AnimNode
 {
@@ -75,6 +84,13 @@ struct AnimNode
 
     std::vector<AnimationEvent> events{};
     std::vector<TransitionRule> transitionRules{};
+    std::vector<AnimCurveKey> speedCurve{};
+
+    // Evaluates the continuous instantaneous speed multiplier at the given normalized phase
+    [[nodiscard]] float EvaluateSpeedMultiplier(float normalizedPhase) const noexcept;
+
+    // Calculates the integrated average playback speed across the entire animation cycle
+    [[nodiscard]] float GetAverageSpeedMultiplier() const noexcept;
 };
 
 enum class BlendParamType : std::uint8_t {
@@ -124,6 +140,7 @@ public:
 
     void TestPlayState(std::size_t stateIndex, int isolatedNodeIndex = -1) noexcept;
     void StopPreview() noexcept;
+    void PausePreview() noexcept { m_previewPaused = true; }
     void JumpToPreviewTime(float time) noexcept { m_currentTimer = time; }
 
     // Called on Deserialize and when Editor Graph changes
@@ -164,11 +181,16 @@ public:
     [[nodiscard]] std::size_t GetCurrentStateIndex() const noexcept { return m_currentStateIndex; }
     [[nodiscard]] std::size_t GetCurrentNodeIndex() const noexcept { return m_currentNodeIndex; }
     [[nodiscard]] bool IsPreviewing() const noexcept { return m_editorPreview; }
+    [[nodiscard]] bool IsPreviewPaused() const noexcept { return m_previewPaused; }
     [[nodiscard]] int GetIsolatedNodeIndex() const noexcept { return m_isolatedNodeIndex; }
     [[nodiscard]] const AnimNode* GetActiveAnimNode() const noexcept;
 
     void SetPlaybackSpeed(float speed) noexcept { m_playbackSpeed = speed; }
     [[nodiscard]] float GetPlaybackSpeed() const noexcept { return m_playbackSpeed; }
+
+    // Temporal frame suspension (Hit-stop impact freeze)
+    void ApplyHitStop(float duration) noexcept { m_hitStopTimer = (std::max)(m_hitStopTimer, duration); }
+    [[nodiscard]] bool IsHitStopped() const noexcept { return m_hitStopTimer > 0.0f; }
 
 private:
     // Flat mapping array: maps AnimSlot directly to the m_states index.
@@ -228,4 +250,5 @@ private:
     int m_isolatedNodeIndex{ -1 };
 
     float m_playbackSpeed{ 1.0f };
+    float m_hitStopTimer{ 0.0f };
 };

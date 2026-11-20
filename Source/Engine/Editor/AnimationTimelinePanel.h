@@ -26,6 +26,9 @@ public:
 private:
     AnimationComponent* m_targetComponent{ nullptr };
     std::size_t m_selectedStateIndex{ 0 };
-    std::size_t m_selectedNodeIndex{ 0 }; 
+    std::size_t m_selectedNodeIndex{ 0 };
     int m_selectedEventIndex{ -1 };
+    int m_selectedCurveKeyIndex{ -1 };
+    bool m_isDraggingCurveKey{ false };
+    bool m_showSpeedCurve{ false }; // Collapsed by default
 };

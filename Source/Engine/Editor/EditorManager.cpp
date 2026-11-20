@@ -1,11 +1,14 @@
 #include <filesystem>
 #include <fstream>
 #include <json.hpp>
+#include "System/TimeManager.h"
 #include "Camera.h"
 #include "CameraComponent.h"
 #include "CapsuleColliderComponent.h"
 #include "EditorManager.h"
 #include "LightComponent.h"
+#include "RespawnPointComponent.h"
+#include "RespawnTriggerComponent.h"
 #include "StaticMeshColliderComponent.h"
 #include "VirtualCameraComponent.h"
 
@@ -790,7 +793,8 @@ void EditorManager::DrawSceneView(Scene* currentScene, Camera* activeCamera) noe
         ImGui::CheckboxFlags("Static Physics", &m_gizmoMask, static_cast<std::uint32_t>(GizmoCategory::StaticPhysics));
         ImGui::CheckboxFlags("Character Physics", &m_gizmoMask, static_cast<std::uint32_t>(GizmoCategory::DynamicPhysics));
         ImGui::CheckboxFlags("Combat Hitboxes", &m_gizmoMask, static_cast<std::uint32_t>(GizmoCategory::Hitboxes));
-
+        ImGui::CheckboxFlags("AI & Navigation", &m_gizmoMask, static_cast<std::uint32_t>(GizmoCategory::Navigation));
+        ImGui::CheckboxFlags("Triggers & Spawns", &m_gizmoMask, static_cast<std::uint32_t>(GizmoCategory::Triggers));
         ImGui::EndPopup();
     }
     ImGui::EndDisabled();
@@ -1157,9 +1161,42 @@ void EditorManager::DrawMenuBar(Scene* currentScene) noexcept
 
             ImGui::EndMenu();
         }
-        if (ImGui::BeginMenu("Time")) { ImGui::EndMenu(); }
-        if (ImGui::BeginMenu("Curve Manager")) { ImGui::EndMenu(); }
+        if (ImGui::BeginMenu("Time"))
+        {
+            auto& timeMgr{ Engine::Time::TimeManager::Instance() };
+            ImGui::TextDisabled("QA / DEBUG TIME SCALE");
+            ImGui::Separator();
 
+            float debugScale{ timeMgr.GetDebugTimeScale() };
+            if (ImGui::SliderFloat("Debug Speed", &debugScale, 0.10f, 2.0f, "%.2fx"))
+            {
+                timeMgr.SetDebugTimeScale(debugScale);
+            }
+
+            if (ImGui::MenuItem("0.10x (Frame Step Inspection)", nullptr, std::abs(debugScale - 0.10f) < 0.01f))
+            {
+                timeMgr.SetDebugTimeScale(0.10f);
+            }
+            if (ImGui::MenuItem("0.25x (Slow-Mo QA)", nullptr, std::abs(debugScale - 0.25f) < 0.01f))
+            {
+                timeMgr.SetDebugTimeScale(0.25f);
+            }
+            if (ImGui::MenuItem("0.50x (Half Speed)", nullptr, std::abs(debugScale - 0.50f) < 0.01f))
+            {
+                timeMgr.SetDebugTimeScale(0.50f);
+            }
+            if (ImGui::MenuItem("1.00x (Normal)", nullptr, std::abs(debugScale - 1.0f) < 0.01f))
+            {
+                timeMgr.ResetDebugTimeScale();
+            }
+
+            ImGui::Separator();
+            ImGui::TextDisabled("LIVE TELEMETRY");
+            ImGui::Text("Gameplay Dilation: %.2fx", timeMgr.GetGameplayTimeScale());
+            ImGui::Text("Effective World Scale: %.2fx", timeMgr.GetWorldTimeScale());
+            ImGui::EndMenu();
+        }
+        if (ImGui::BeginMenu("Curve Manager")) { ImGui::EndMenu(); }
         ImGui::EndMenuBar();
     }
 }
@@ -2138,6 +2175,25 @@ void EditorManager::DrawHierarchy(Scene* currentScene) noexcept
                         lightObj->transform.rotation = { 90.0f, 0.0f, 0.0f };
                         lightObj->AddComponent<SpotLightComponent>();
                         currentScene->GetRootGameObject()->AddChild(std::move(lightObj));
+                    }
+                    ImGui::EndMenu();
+                }
+
+                ImGui::Separator();
+                ImGui::TextDisabled("Gameplay");
+                if (ImGui::BeginMenu("Respawn"))
+                {
+                    if (ImGui::MenuItem("Respawn Point"))
+                    {
+                        auto spawnObj = std::make_unique<GameObject>("Respawn_Point");
+                        spawnObj->AddComponent<RespawnPointComponent>();
+                        currentScene->GetRootGameObject()->AddChild(std::move(spawnObj));
+                    }
+                    if (ImGui::MenuItem("Out-of-Bounds Trigger"))
+                    {
+                        auto triggerObj = std::make_unique<GameObject>("OOB_Trigger");
+                        triggerObj->AddComponent<RespawnTriggerComponent>();
+                        currentScene->GetRootGameObject()->AddChild(std::move(triggerObj));
                     }
                     ImGui::EndMenu();
                 }

@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+#include <cstdint>
 #include <DirectXMath.h>
 #include <json.hpp>
 #include <memory>
@@ -8,6 +10,31 @@
 #include <vector>
 #include "System/Sprite.h"
 #include "IComponent.h"
+
+// Discrete gameplay camera profiles
+enum class CameraProfileType : std::uint8_t
+{
+    locomotion = 0, // Default exploratory third-person view
+    sprint,         // Low, tight zoom with widened FOV for speed parallax
+    dash,           // High-speed inertia trail, looser damping (pulls camera back)
+    slide,          // Ground-skimming, compact vantage point
+    wall_run,       // Lateral shoulder offset with diagonal Dutch roll tilt
+    roll_landing,   // Ground impact compression dipping low before rebound
+    count
+};
+
+// POD container holding target lens and framing parameters
+struct CameraProfile
+{
+    float orbitDistance{ 3.3f };
+    float fovDegrees{ 48.0f };
+    DirectX::XMFLOAT3 pivotOffset{ 0.0f, 1.15f, 0.0f };
+    float shoulderOffset{ 0.5f };
+    float rollDegrees{ 0.0f };
+    float positionDamping{ 5.0f };
+    float rotationDamping{ 20.0f };
+    float blendSpeed{ 6.0f }; // Exponential convergence rate (1/s)
+};
 
 class VirtualCameraComponent final : public IComponent
 {
@@ -73,6 +100,13 @@ public:
     void SetCameraCollisionRadius(float radius) noexcept { m_cameraCollisionRadius = radius; }
     [[nodiscard]] float GetCameraCollisionRadius() const noexcept { return m_cameraCollisionRadius; }
 
+    // Profile Injection Interface
+    void SetTargetProfile(CameraProfileType type, int wallSide = 0) noexcept;
+    [[nodiscard]] CameraProfileType GetTargetProfile() const noexcept { return m_targetProfileType; }
+    [[nodiscard]] CameraProfile& GetProfile(CameraProfileType type) noexcept { return m_profiles[static_cast<std::size_t>(type)]; }
+    [[nodiscard]] const CameraProfile& GetProfile(CameraProfileType type) const noexcept { return m_profiles[static_cast<std::size_t>(type)]; }
+    [[nodiscard]] const CameraProfile& GetCurrentProfile() const noexcept { return m_currentProfile; }
+
     [[nodiscard]] static const std::vector<VirtualCameraComponent*>& GetRegistry() noexcept { return s_registry; }
 
     // Shared Batch Pipeline
@@ -132,10 +166,23 @@ private:
     static inline std::uint32_t s_globalDirtyFrame{ 0 };
     bool m_isDirty{ false };
 
+    // Contiguous profile table and live interpolated blend state
+    std::array<CameraProfile, static_cast<std::size_t>(CameraProfileType::count)> m_profiles{};
+    CameraProfile m_currentProfile{};
+    CameraProfileType m_targetProfileType{ CameraProfileType::locomotion };
+    int m_wallSide{ 0 }; // -1 = Wall to left, +1 = Wall to right, 0 = Neutral
+
     [[nodiscard]] class GameObject* FindTargetByName(const std::string& name) const noexcept;
     void ResolveTargets() noexcept;
 
-    // Computes the desired world-space eye position and pitch/yaw rotation (radians) for
-    // the current orbit yaw/pitch/distance around the follow target's pivot.
-    [[nodiscard]] std::pair<DirectX::XMFLOAT3, DirectX::XMFLOAT3> ResolveOrbitTransform() const noexcept;
+    struct OrbitTransformResult
+    {
+        DirectX::XMFLOAT3 eyePos{ 0.0f, 0.0f, 0.0f };
+        DirectX::XMFLOAT3 rotationRadians{ 0.0f, 0.0f, 0.0f };
+        DirectX::XMFLOAT3 pivotPos{ 0.0f, 0.0f, 0.0f };
+    };
+
+    // Computes the desired world-space eye position, pitch/yaw/roll rotation (radians),
+    // and camera-oriented pivot position around the follow target.
+    [[nodiscard]] OrbitTransformResult ResolveOrbitTransform() const noexcept;
 };

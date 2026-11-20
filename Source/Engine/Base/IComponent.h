@@ -19,6 +19,7 @@ enum class GizmoCategory : std::uint32_t
     DynamicPhysics = 1 << 2, // Bit 2: Player/Enemy Capsules
     Hitboxes = 1 << 3, // Bit 3: Swords, Attack Sweeps
     Navigation = 1 << 4, // Bit 4: NavMesh / Waypoints
+    Triggers = 1 << 5, // Bit 5: Respawn Points & Trigger Volumes
     All = ~0u     // All bits set to 1
 };
 

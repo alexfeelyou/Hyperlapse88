@@ -1,4 +1,33 @@
 {
+    "Atmosphere_AutoHarmonize": true,
+    "Atmosphere_BloomIntensityTrim": 1.0,
+    "Atmosphere_ExposureTrim": 0.0,
+    "Atmosphere_FlareIntensityTrim": 1.0,
+    "Atmosphere_FogDistanceTrim": 1.0,
+    "Atmosphere_HarmonizeAmbient": true,
+    "Atmosphere_HarmonizeBloom": true,
+    "Atmosphere_HarmonizeColorGrading": true,
+    "Atmosphere_HarmonizeFog": false,
+    "Atmosphere_HarmonizeShafts": true,
+    "Atmosphere_HarmonizeSunLight": true,
+    "Atmosphere_MieInscatterTrim": 1.0,
+    "Atmosphere_Preset": 0,
+    "Atmosphere_SaturationTrim": 1.1100000143051147,
+    "Atmosphere_ShaftIntensityTrim": 0.8299999833106995,
+    "Atmosphere_SunIntensityTrim": 0.5199999809265137,
+    "Bloom": {
+        "enabled": true,
+        "intensity": 0.817355751991272,
+        "scatter": 0.8134711384773254,
+        "softKnee": 0.5,
+        "threshold": 0.8081610798835754,
+        "tint": [
+            1.0,
+            0.8195865750312805,
+            0.5875409245491028,
+            1.0
+        ]
+    },
     "CRT_&_Scanlines": {
         "enabled": false,
         "fineDensity": 0.0,
@@ -7,19 +36,51 @@
         "scanlineSize": 0.0,
         "scanlineSpeed": 0.0,
         "scanlineStrength": 0.0,
-        "time": 11.761008262634277
+        "time": 15.935169219970703
+    },
+    "Color_Grading": {
+        "contrast": 1.0967355966567993,
+        "enabled": true,
+        "exposure": 0.08652886003255844,
+        "highlightGainColor": [
+            1.0,
+            0.8663221597671509,
+            0.7244831919670105,
+            1.1418389081954956
+        ],
+        "lutFilePath": "",
+        "lutIntensity": 1.0,
+        "saturation": 1.3247530460357666,
+        "shadowLiftColor": [
+            0.15347114205360413,
+            0.16142550110816956,
+            0.2865288555622101,
+            0.15836778283119202
+        ],
+        "temperature": 0.24041341245174408,
+        "tint": 0.013471140526235104
     },
     "Depth_Fog": {
         "color": [
-            0.15000000596046448,
-            0.019999999552965164,
-            0.25,
+            0.8751033544540405,
+            0.6461154222488403,
+            0.5744832158088684,
             1.0
         ],
-        "enabled": false,
-        "endDistance": 80.0,
+        "enabled": true,
+        "endDistance": 1500.0,
         "excludeSkybox": true,
-        "startDistance": 10.0
+        "heightFalloff": 0.010326443240046501,
+        "heightOffset": 0.0,
+        "startDistance": 0.8899999856948853,
+        "sunInscatterColor": [
+            1.0,
+            0.6777476072311401,
+            0.3244832158088684,
+            1.0
+        ],
+        "sunInscatterExponent": 24.100000381469727,
+        "sunInscatterIntensity": 2.930000066757202
     },
     "Lens_&_Distortion": {
         "center": [
@@ -30,8 +91,9 @@
         "distortion": 0.0,
         "enabled": false,
         "glitchStrength": 0.0,
-        "time": 11.761008262634277
+        "time": 15.935169219970703
     },
+    "Master_Enabled": true,
     "PSX_Retro": {
         "colorDepth": 32.0,
         "ditherStrength": 1.0,
@@ -47,9 +109,23 @@
         ],
         "enabled": false
     },
+    "Screen-Space_AO": {
+        "aoColor": [
+            0.07999999821186066,
+            0.10000000149011612,
+            0.1599999964237213,
+            1.0
+        ],
+        "bias": 0.02500000037252903,
+        "directLightPreservation": 0.8500000238418579,
+        "enabled": true,
+        "fadeDistance": 120.0,
+        "intensity": 0.5600000023841858,
+        "radius": 0.23000000417232513
+    },
     "Temporal_AA": {
-        "enabled": false,
-        "historyWeight": 0.8999999761581421,
+        "enabled": true,
+        "historyWeight": 0.800000011920929,
         "sharpenAmount": 0.02500000037252903
     },
     "Vignette": {
@@ -68,5 +144,20 @@
         "rounded": false,
         "roundness": 0.0,
         "smoothness": 0.20000000298023224
+    },
+    "Volumetric_Sun_&_Flare": {
+        "decay": 0.9567355513572693,
+        "density": 0.938574492931366,
+        "enabled": true,
+        "flareIntensity": 0.8010335564613342,
+        "glareStreakScale": 1.0,
+        "shaftColor": [
+            1.0,
+            0.739586591720581,
+            0.41958656907081604,
+            1.0
+        ],
+        "shaftIntensity": 1.3085367679595947,
+        "sunRadius": 0.3799999952316284
     }
 }

@@ -57,7 +57,9 @@ public:
 private:
     SlideSubPhase m_phase{ SlideSubPhase::Entry_Drop };
     DirectX::XMFLOAT2 m_slideDir{ 0.0f, 0.0f };
-    bool m_canCancel{ false };
+    bool m_canCancelEvade{ false };
+    bool m_canCancelLocomotion{ false };
+    bool m_hasAuthoredEvadeCancel{ false };
     float m_standingHeight{ 1.0f };
     float m_standingRadius{ 0.5f };
 };
@@ -73,7 +75,8 @@ public:
 private:
     float m_airTimer{ 0.0f }; // Tracks how long we've been in the air
     bool m_isAcrobatic{ false };
-    bool m_canCancelAcrobatic{ true };
+    bool m_canCancelAcrobaticEvade{ true };
+    bool m_canCancelAcrobaticCombo{ true };
 };
 
 class PlayerLanding final : public PlayerState
@@ -85,7 +88,13 @@ public:
 
 private:
     float m_timer{ 0.0f };
-    bool m_canCancel{ false };
+    bool m_canCancelCombo{ false };
+    bool m_canCancelEvade{ false };
+    bool m_canCancelLocomotion{ false };
+    bool m_hasAuthoredLocomotionCancel{ false };
+    bool m_isEdgeBraked{ false };
+    DirectX::XMFLOAT2 m_edgeDirection{ 0.0f, 0.0f };
+    DirectX::XMFLOAT2 m_rollDirection{ 0.0f, 0.0f };
 };
 
 class PlayerParkourWall final : public PlayerState
@@ -115,7 +124,10 @@ private:
 
     float m_timer{ 0.0f };
     DirectX::XMFLOAT2 m_dashDir{ 0.0f, 0.0f };
-    bool m_canCancel{ false };
+    bool m_canCancelCombo{ false };
+    bool m_canCancelEvade{ false };
+    bool m_canCancelLocomotion{ false };
+    bool m_hasAuthoredLocomotionCancel{ false };
 };
 
 // COMBAT (GROUND)
@@ -141,7 +153,10 @@ private:
     BufferedAttackIntent m_bufferedAttack{};
     float m_exitTimer{ 0.0f };
     int m_cancelDeferFrames{ 0 };
-    bool m_canCancel{ false };
+    bool m_canCancelCombo{ false };
+    bool m_canCancelEvade{ false };
+    bool m_canCancelLocomotion{ false };
+    bool m_hasAuthoredEvadeCancel{ false };
     DirectX::XMFLOAT2 m_lungeDirection{ 0.0f, 1.0f };
 };
 
@@ -159,7 +174,10 @@ private:
     BufferedAttackIntent m_bufferedAttack{};
     float m_exitTimer{ 0.0f };
     int m_cancelDeferFrames{ 0 };
-    bool m_canCancel{ false };
+    bool m_canCancelCombo{ false };
+    bool m_canCancelEvade{ false };
+    bool m_canCancelLocomotion{ false };
+    bool m_hasAuthoredEvadeCancel{ false };
     DirectX::XMFLOAT2 m_lungeDirection{ 0.0f, 1.0f };
 };
 
@@ -174,7 +192,10 @@ private:
     BufferedAttackIntent m_bufferedAttack{};
     float m_exitTimer{ 0.0f };
     int m_activeNode{ 0 };
-    bool m_canCancel{ false };
+    bool m_canCancelCombo{ false };
+    bool m_canCancelEvade{ false };
+    bool m_canCancelLocomotion{ false };
+    bool m_hasAuthoredEvadeCancel{ false };
     DirectX::XMFLOAT2 m_lungeDirection{ 0.0f, 1.0f };
 };
 
@@ -197,8 +218,11 @@ private:
     ChargeSubPhase m_phase{ ChargeSubPhase::Anticipation };
     DirectX::XMFLOAT2 m_lungeDirection{ 0.0f, 1.0f };
     float m_chargeTimer{ 0.0f };
-    float m_chargeRatio{ 0.40f }; // Tier 1 (Tap) default multiplier
-    bool m_canCancel{ false };
+    float m_chargeRatio{ 0.40f }; 
+    bool m_canCancelCombo{ false };
+    bool m_canCancelEvade{ false };
+    bool m_canCancelLocomotion{ false };
+    bool m_hasAuthoredEvadeCancel{ false };
     bool m_earlyRelease{ false };
 };
 
@@ -216,10 +240,14 @@ private:
     int m_comboIndex{ 0 };
     BufferedAttackIntent m_bufferedAttack{};
     float m_exitTimer{ 0.0f };
-    bool m_canCancel{ false };
+    bool m_canCancelCombo{ false };
+    bool m_canCancelEvade{ false };
+    bool m_hasAuthoredEvadeCancel{ false };
     bool m_wasGravityEnabled{ true };
     DirectX::XMFLOAT2 m_lungeDirection{ 0.0f, 1.0f };
 };
+
+class AIControllerComponent;
 
 enum class PlungeSubPhase : std::uint8_t
 {
@@ -240,7 +268,12 @@ private:
     int m_variation{ 0 };
     float m_stateTimer{ 0.0f };
     bool m_wasGravityEnabled{ true };
-    bool m_canCancel{ false };
+    bool m_isDiving{ false };
+    bool m_canCancelCombo{ false };
+    bool m_canCancelEvade{ false };
+    bool m_canCancelLocomotion{ false };
+    bool m_hasAuthoredEvadeCancel{ false };
+    AIControllerComponent* m_lockedTarget{ nullptr };
     DirectX::XMFLOAT2 m_lungeDirection{ 0.0f, 1.0f };
 };
 
@@ -251,6 +284,38 @@ public:
     void Enter(PlayerControllerComponent* controller) override;
     void Update(PlayerControllerComponent* controller, float dt) override;
     void Exit(PlayerControllerComponent* controller) override;
+
+    [[nodiscard]] bool IsParryWindowActive() const noexcept { return m_isParryWindowOpen; }
+    void NotifyParrySuccess(PlayerControllerComponent* controller, const DirectX::XMFLOAT3& attackerPos) noexcept;
+    void SetTargetAttackerPos(const DirectX::XMFLOAT3& attackerPos) noexcept
+    {
+        m_targetAttackerPos = attackerPos;
+        m_hasTargetAttacker = true;
+    }
+
+private:
+    std::uint8_t m_nextParryNode{ 0 }; // Alternates 0 (Parry_01) <-> 1 (Parry_02)
+    DirectX::XMFLOAT3 m_targetAttackerPos{ 0.0f, 0.0f, 0.0f };
+    bool m_hasTargetAttacker{ false };
+    float m_stateTimer{ 0.0f };
+    float m_exitTimer{ 0.0f };
+    BufferedAttackIntent m_bufferedAttack{};
+    bool m_isParryWindowOpen{ false };
+    bool m_hasAuthoredParryWindow{ false };
+    bool m_parrySucceeded{ false };
+    bool m_canCancelCombo{ false };
+    bool m_canCancelEvade{ false };
+    bool m_canCancelLocomotion{ false };
+    bool m_hasAuthoredEvadeCancel{ false };
+};
+
+enum class HitReactPhase : std::uint8_t
+{
+    GroundedFlinch = 0, // 4-way Hit_Large / Hit_Combat_Large (F/B/L/R)
+    AirFlinch,          // 4-way Hit_Combat_Air (F/B/L/R, no L/R inversion) -> hands off to normal air/landing
+    Knockdown,          // Hit_Large_Knockdown / Hit_Combat_Large_Knockdown
+    GetUp,              // Get_Up / Get_up_Combat with wake-up invulnerability
+    Dead                // Terminal HP == 0 state (clamped at end of Knockdown clip, never gets up)
 };
 
 class PlayerHitReact final : public PlayerState
@@ -259,6 +324,14 @@ public:
     void Enter(PlayerControllerComponent* controller) override;
     void Update(PlayerControllerComponent* controller, float dt) override;
     void Exit(PlayerControllerComponent* controller) override;
+
+private:
+    void TransitionToGetUp(PlayerControllerComponent* controller) noexcept;
+
+    HitReactPhase m_phase{ HitReactPhase::GroundedFlinch };
+    float m_stateTimer{ 0.0f };
+    bool m_canCancelEvade{ false };
+    bool m_canCancelLocomotion{ false };
 };
 
 class PlayerSkillBuff final : public PlayerState
@@ -290,7 +363,10 @@ private:
     float m_loopTimer{ 0.0f };
     float m_mashGraceTimer{ 0.0f }; // Supports button mashing
     bool m_isAerial{ false };
-    bool m_canCancel{ false };
+    bool m_canCancelCombo{ false };
+    bool m_canCancelEvade{ false };
+    bool m_canCancelLocomotion{ false };
+    bool m_hasAuthoredEvadeCancel{ false };
     bool m_wasGravityEnabled{ true };
     DirectX::XMFLOAT2 m_facingDir{ 0.0f, 1.0f };
 };

@@ -77,15 +77,20 @@ public:
     // Sweeps a sphere downward to detect stairs/slopes, preventing false fall animations.
     [[nodiscard]] bool HasGroundBelow(float distance) const noexcept;
 
+    // Predictively probes along a horizontal vector to verify continuous walkable ground before edge drop-offs
+    [[nodiscard]] bool HasGroundAhead(const DirectX::XMFLOAT2& directionXZ, float distance, float maxDropDepth = 0.45f) const noexcept;
+
     // Inspector & Editor Interop
     [[nodiscard]] CapsuleColliderConfig& GetConfig() noexcept { return m_config; }
     [[nodiscard]] const CapsuleColliderConfig& GetConfig() const noexcept { return m_config; }
     void MarkDirty() noexcept;
+    void ApplyFilterData() const noexcept;
+    void SetCollisionLayer(std::uint32_t layer, std::uint32_t collidesWith) noexcept;
 
 private:
     void CreateController() noexcept;
     void DestroyController() noexcept;
-    void ApplyFilterData() const noexcept;
+    void ResolveHeadStackingDeflection(float dt) noexcept;
 
     [[nodiscard]] static constexpr bool IsFloatEqual(float a, float b, float epsilon = 0.0001f) noexcept
     {

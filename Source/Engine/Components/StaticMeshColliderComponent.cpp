@@ -221,6 +221,10 @@ void StaticMeshColliderComponent::RebuildPhysics() noexcept
         physx::PxVec3{ worldPos.x, worldPos.y, worldPos.z },
         physx::PxQuat{ worldRotQuat.x, worldRotQuat.y, worldRotQuat.z, worldRotQuat.w }
         });
+    if (m_physxActor)
+    {
+        m_physxActor->userData = m_owner;
+    }
 
     // Identify if this is a Triangle Mesh
     const bool isTriangleMesh{ m_config.shapeType == ColliderShapeType::TriangleMesh };

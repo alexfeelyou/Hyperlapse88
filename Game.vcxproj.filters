@@ -381,6 +381,30 @@
     <ClCompile Include="Source\Engine\Components\SocketComponent.cpp">
       <Filter>Source\Engine\Components</Filter>
     </ClCompile>
+    <ClCompile Include="Source\Engine\Components\HealthComponent.cpp">
+      <Filter>Source\Engine\Components</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Engine\Components\AIControllerComponent.cpp">
+      <Filter>Source\Engine\Components</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Engine\Combat\CombatDirector.cpp">
+      <Filter>Source\Engine\Combat</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Engine\Components\MeleeHitboxComponent.cpp">
+      <Filter>Source\Engine\Components</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Engine\Components\CombatDirectorComponent.cpp">
+      <Filter>Source\Engine\Components</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\System\RespawnManager.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Engine\Components\RespawnPointComponent.cpp">
+      <Filter>Source\Engine\Components</Filter>
+    </ClCompile>
+    <ClCompile Include="Source\Engine\Components\RespawnTriggerComponent.cpp">
+      <Filter>Source\Engine\Components</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Source\System\BasicShader.h">
@@ -730,6 +754,39 @@
     <ClInclude Include="Source\Engine\Graphics\AtmosphereProfile.h">
       <Filter>Source\Engine\Graphics</Filter>
     </ClInclude>
+    <ClInclude Include="Source\Engine\Components\AIBlackboard.h">
+      <Filter>Source\Engine\Components</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Components\HealthComponent.h">
+      <Filter>Source\Engine\Components</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Components\AIControllerComponent.h">
+      <Filter>Source\Engine\Components</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Combat\CombatDirector.h">
+      <Filter>Source\Engine\Combat</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Components\MeleeHitboxComponent.h">
+      <Filter>Source\Engine\Components</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Components\CombatDirectorComponent.h">
+      <Filter>Source\Engine\Components</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Combat\CombatMath.h">
+      <Filter>Source\Engine\Combat</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\System\TimeManager.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\System\RespawnManager.h">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Components\RespawnPointComponent.h">
+      <Filter>Source\Engine\Components</Filter>
+    </ClInclude>
+    <ClInclude Include="Source\Engine\Components\RespawnTriggerComponent.h">
+      <Filter>Source\Engine\Components</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="Shader\Basic.hlsli">
@@ -835,6 +892,9 @@
     </Filter>
     <Filter Include="Source\Engine\Skybox">
       <UniqueIdentifier>{8de82fc2-2dea-496a-a242-1795e4480595}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Engine\Combat">
+      <UniqueIdentifier>{c8420137-5e61-4747-b775-353fd866051f}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
