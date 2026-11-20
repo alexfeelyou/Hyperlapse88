@@ -5812,6 +5812,346 @@
                     "ScaleX": 1.0,
                     "ScaleY": 1.0,
                     "ScaleZ": 1.0
+                },
+                {
+                    "Children": [
+                        {
+                            "Children": [],
+                            "Components": [
+                                {
+                                    "CollidesWith": 4,
+                                    "IsTrigger": true,
+                                    "Layer": 64,
+                                    "LocalOffsetX": 0.0,
+                                    "LocalOffsetY": 0.0,
+                                    "LocalOffsetZ": 0.0,
+                                    "LocalRotX": 0.0,
+                                    "LocalRotY": 0.0,
+                                    "LocalRotZ": 0.0,
+                                    "ProxyExtX": 56.900001525878906,
+                                    "ProxyExtY": 2.0,
+                                    "ProxyExtZ": 125.0,
+                                    "ShapeType": 0,
+                                    "Type": "StaticMeshColliderComponent"
+                                },
+                                {
+                                    "ApplyHazardDamage": false,
+                                    "FadeInDuration": 2.0,
+                                    "FadeOutDuration": 0.8500000238418579,
+                                    "HazardDamage": 15.0,
+                                    "ShowGizmo": true,
+                                    "TargetSpawnName": "Respawn_Point_Entrance",
+                                    "Type": "RespawnTriggerComponent"
+                                }
+                            ],
+                            "IsActive": true,
+                            "Name": "OOB_Trigger",
+                            "PosX": 37.83118438720703,
+                            "PosY": 0.0,
+                            "PosZ": -55.52234649658203,
+                            "RotX": -0.0,
+                            "RotY": 0.0,
+                            "RotZ": -0.0,
+                            "ScaleX": 1.0,
+                            "ScaleY": 1.0,
+                            "ScaleZ": 1.0
+                        },
+                        {
+                            "Children": [],
+                            "Components": [
+                                {
+                                    "CollidesWith": 4,
+                                    "IsTrigger": true,
+                                    "Layer": 64,
+                                    "LocalOffsetX": 0.0,
+                                    "LocalOffsetY": 0.0,
+                                    "LocalOffsetZ": 0.0,
+                                    "LocalRotX": 0.0,
+                                    "LocalRotY": 0.0,
+                                    "LocalRotZ": 0.0,
+                                    "ProxyExtX": 56.900001525878906,
+                                    "ProxyExtY": 2.0,
+                                    "ProxyExtZ": 74.4000015258789,
+                                    "ShapeType": 0,
+                                    "Type": "StaticMeshColliderComponent"
+                                },
+                                {
+                                    "ApplyHazardDamage": false,
+                                    "FadeInDuration": 2.0,
+                                    "FadeOutDuration": 0.8500000238418579,
+                                    "HazardDamage": 15.0,
+                                    "ShowGizmo": true,
+                                    "TargetSpawnName": "Respawn_Point_Entrance",
+                                    "Type": "RespawnTriggerComponent"
+                                }
+                            ],
+                            "IsActive": true,
+                            "Name": "OOB_Trigger_02",
+                            "PosX": -37.90773010253906,
+                            "PosY": 0.0,
+                            "PosZ": -30.515731811523438,
+                            "RotX": -0.0,
+                            "RotY": 0.0,
+                            "RotZ": -0.0,
+                            "ScaleX": 1.0,
+                            "ScaleY": 1.0,
+                            "ScaleZ": 1.0
+                        },
+                        {
+                            "Children": [],
+                            "Components": [
+                                {
+                                    "CollidesWith": 4,
+                                    "IsTrigger": true,
+                                    "Layer": 64,
+                                    "LocalOffsetX": 0.0,
+                                    "LocalOffsetY": 0.0,
+                                    "LocalOffsetZ": 0.0,
+                                    "LocalRotX": 0.0,
+                                    "LocalRotY": 0.0,
+                                    "LocalRotZ": 0.0,
+                                    "ProxyExtX": 130.0,
+                                    "ProxyExtY": 2.0,
+                                    "ProxyExtZ": 74.4000015258789,
+                                    "ShapeType": 0,
+                                    "Type": "StaticMeshColliderComponent"
+                                },
+                                {
+                                    "ApplyHazardDamage": false,
+                                    "FadeInDuration": 2.0,
+                                    "FadeOutDuration": 0.8500000238418579,
+                                    "HazardDamage": 15.0,
+                                    "ShowGizmo": true,
+                                    "TargetSpawnName": "Respawn_Point_Entrance",
+                                    "Type": "RespawnTriggerComponent"
+                                }
+                            ],
+                            "IsActive": true,
+                            "Name": "OOB_Trigger_03",
+                            "PosX": -0.06595373153686523,
+                            "PosY": 0.0,
+                            "PosZ": 44.0592155456543,
+                            "RotX": -0.0,
+                            "RotY": 0.0,
+                            "RotZ": -0.0,
+                            "ScaleX": 1.0,
+                            "ScaleY": 1.0,
+                            "ScaleZ": 1.0
+                        },
+                        {
+                            "Children": [],
+                            "Components": [
+                                {
+                                    "CollidesWith": 4,
+                                    "IsTrigger": true,
+                                    "Layer": 64,
+                                    "LocalOffsetX": 0.0,
+                                    "LocalOffsetY": 0.0,
+                                    "LocalOffsetZ": 0.0,
+                                    "LocalRotX": 0.0,
+                                    "LocalRotY": 0.0,
+                                    "LocalRotZ": 0.0,
+                                    "ProxyExtX": 56.900001525878906,
+                                    "ProxyExtY": 2.0,
+                                    "ProxyExtZ": 52.79999923706055,
+                                    "ShapeType": 0,
+                                    "Type": "StaticMeshColliderComponent"
+                                },
+                                {
+                                    "ApplyHazardDamage": false,
+                                    "FadeInDuration": 2.0,
+                                    "FadeOutDuration": 0.8500000238418579,
+                                    "HazardDamage": 15.0,
+                                    "ShowGizmo": true,
+                                    "TargetSpawnName": "Respawn_Point_Entrance",
+                                    "Type": "RespawnTriggerComponent"
+                                }
+                            ],
+                            "IsActive": true,
+                            "Name": "OOB_Trigger_04",
+                            "PosX": -47.049461364746094,
+                            "PosY": 0.0,
+                            "PosZ": -101.8251724243164,
+                            "RotX": -0.0,
+                            "RotY": -18.000003814697266,
+                            "RotZ": 0.0,
+                            "ScaleX": 0.9999993443489075,
+                            "ScaleY": 1.0,
+                            "ScaleZ": 0.9999993443489075
+                        },
+                        {
+                            "Children": [],
+                            "Components": [
+                                {
+                                    "CollidesWith": 4,
+                                    "IsTrigger": true,
+                                    "Layer": 64,
+                                    "LocalOffsetX": 0.0,
+                                    "LocalOffsetY": 0.0,
+                                    "LocalOffsetZ": 0.0,
+                                    "LocalRotX": 0.0,
+                                    "LocalRotY": 0.0,
+                                    "LocalRotZ": 0.0,
+                                    "ProxyExtX": 62.5,
+                                    "ProxyExtY": 2.0,
+                                    "ProxyExtZ": 39.29999923706055,
+                                    "ShapeType": 0,
+                                    "Type": "StaticMeshColliderComponent"
+                                },
+                                {
+                                    "ApplyHazardDamage": false,
+                                    "FadeInDuration": 2.0,
+                                    "FadeOutDuration": 0.8500000238418579,
+                                    "HazardDamage": 15.0,
+                                    "ShowGizmo": true,
+                                    "TargetSpawnName": "Respawn_Point_Entrance",
+                                    "Type": "RespawnTriggerComponent"
+                                }
+                            ],
+                            "IsActive": true,
+                            "Name": "OOB_Trigger_05",
+                            "PosX": -26.558853149414063,
+                            "PosY": 0.0,
+                            "PosZ": -151.1517333984375,
+                            "RotX": -0.0,
+                            "RotY": -34.99996566772461,
+                            "RotZ": 0.0,
+                            "ScaleX": 0.9999993443489075,
+                            "ScaleY": 1.0,
+                            "ScaleZ": 0.9999993443489075
+                        },
+                        {
+                            "Children": [],
+                            "Components": [
+                                {
+                                    "CollidesWith": 4,
+                                    "IsTrigger": true,
+                                    "Layer": 64,
+                                    "LocalOffsetX": 0.0,
+                                    "LocalOffsetY": 0.0,
+                                    "LocalOffsetZ": 0.0,
+                                    "LocalRotX": 0.0,
+                                    "LocalRotY": 0.0,
+                                    "LocalRotZ": 0.0,
+                                    "ProxyExtX": 62.5,
+                                    "ProxyExtY": 2.0,
+                                    "ProxyExtZ": 27.299999237060547,
+                                    "ShapeType": 0,
+                                    "Type": "StaticMeshColliderComponent"
+                                },
+                                {
+                                    "ApplyHazardDamage": false,
+                                    "FadeInDuration": 2.0,
+                                    "FadeOutDuration": 0.8500000238418579,
+                                    "HazardDamage": 15.0,
+                                    "ShowGizmo": true,
+                                    "TargetSpawnName": "Respawn_Point_Entrance",
+                                    "Type": "RespawnTriggerComponent"
+                                }
+                            ],
+                            "IsActive": true,
+                            "Name": "OOB_Trigger_06",
+                            "PosX": 43.42925262451172,
+                            "PosY": 0.0,
+                            "PosZ": -110.99681854248047,
+                            "RotX": -0.0,
+                            "RotY": -34.99996566772461,
+                            "RotZ": 0.0,
+                            "ScaleX": 0.9999993443489075,
+                            "ScaleY": 1.0,
+                            "ScaleZ": 0.9999993443489075
+                        },
+                        {
+                            "Children": [],
+                            "Components": [
+                                {
+                                    "CollidesWith": 4,
+                                    "IsTrigger": true,
+                                    "Layer": 64,
+                                    "LocalOffsetX": 0.0,
+                                    "LocalOffsetY": 0.0,
+                                    "LocalOffsetZ": 0.0,
+                                    "LocalRotX": 0.0,
+                                    "LocalRotY": 0.0,
+                                    "LocalRotZ": 0.0,
+                                    "ProxyExtX": 56.900001525878906,
+                                    "ProxyExtY": 2.0,
+                                    "ProxyExtZ": 81.19999694824219,
+                                    "ShapeType": 0,
+                                    "Type": "StaticMeshColliderComponent"
+                                },
+                                {
+                                    "ApplyHazardDamage": false,
+                                    "FadeInDuration": 2.0,
+                                    "FadeOutDuration": 0.3499999940395355,
+                                    "HazardDamage": 15.0,
+                                    "ShowGizmo": true,
+                                    "TargetSpawnName": "Respawn_Point_Entrance",
+                                    "Type": "RespawnTriggerComponent"
+                                }
+                            ],
+                            "IsActive": true,
+                            "Name": "OOB_Trigger_07",
+                            "PosX": 2.2731800079345703,
+                            "PosY": -13.948126792907715,
+                            "PosZ": -109.15653228759766,
+                            "RotX": -0.0,
+                            "RotY": 0.0,
+                            "RotZ": -0.0,
+                            "ScaleX": 1.0,
+                            "ScaleY": 1.0,
+                            "ScaleZ": 1.0
+                        }
+                    ],
+                    "Components": [],
+                    "IsActive": true,
+                    "Name": "OOB",
+                    "PosX": 0.0,
+                    "PosY": 0.0,
+                    "PosZ": 0.0,
+                    "RotX": -0.0,
+                    "RotY": 0.0,
+                    "RotZ": -0.0,
+                    "ScaleX": 1.0,
+                    "ScaleY": 1.0,
+                    "ScaleZ": 1.0
+                },
+                {
+                    "Children": [
+                        {
+                            "Children": [],
+                            "Components": [
+                                {
+                                    "GroundSnapOffset": 0.05000000074505806,
+                                    "ShowGizmo": true,
+                                    "Type": "RespawnPointComponent"
+                                }
+                            ],
+                            "IsActive": true,
+                            "Name": "Respawn_Point_Entrance",
+                            "PosX": 0.0,
+                            "PosY": 0.0,
+                            "PosZ": -61.23722457885742,
+                            "RotX": -0.0,
+                            "RotY": 180.0,
+                            "RotZ": 0.0,
+                            "ScaleX": 1.0,
+                            "ScaleY": 1.0,
+                            "ScaleZ": 1.0
+                        }
+                    ],
+                    "Components": [],
+                    "IsActive": true,
+                    "Name": "Respawn_Point",
+                    "PosX": 0.0,
+                    "PosY": 0.0,
+                    "PosZ": 0.0,
+                    "RotX": 0.0,
+                    "RotY": 0.0,
+                    "RotZ": 0.0,
+                    "ScaleX": 1.0,
+                    "ScaleY": 1.0,
+                    "ScaleZ": 1.0
                 }
             ],
             "Components": [],
@@ -6654,6 +6994,389 @@
                             "ScaleX": 1.0,
                             "ScaleY": 1.0,
                             "ScaleZ": 1.0
+                        },
+                        {
+                            "Children": [
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "CollidesWith": 4,
+                                            "IsTrigger": true,
+                                            "Layer": 64,
+                                            "LocalOffsetX": 0.0,
+                                            "LocalOffsetY": 0.0,
+                                            "LocalOffsetZ": 0.0,
+                                            "LocalRotX": 0.0,
+                                            "LocalRotY": 0.0,
+                                            "LocalRotZ": 0.0,
+                                            "ProxyExtX": 150.0,
+                                            "ProxyExtY": 2.0,
+                                            "ProxyExtZ": 33.20000076293945,
+                                            "ShapeType": 0,
+                                            "Type": "StaticMeshColliderComponent"
+                                        },
+                                        {
+                                            "ApplyHazardDamage": false,
+                                            "FadeInDuration": 2.0,
+                                            "FadeOutDuration": 0.8500000238418579,
+                                            "HazardDamage": 15.0,
+                                            "ShowGizmo": true,
+                                            "TargetSpawnName": "Respawn_Point_Act_1",
+                                            "Type": "RespawnTriggerComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "OOB_Trigger",
+                                    "PosX": 29.185714721679688,
+                                    "PosY": -9.934351921081543,
+                                    "PosZ": -158.78390502929688,
+                                    "RotX": -0.0,
+                                    "RotY": -34.0,
+                                    "RotZ": 0.0,
+                                    "ScaleX": 0.9999993443489075,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999993443489075
+                                },
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "CollidesWith": 4,
+                                            "IsTrigger": true,
+                                            "Layer": 64,
+                                            "LocalOffsetX": 0.0,
+                                            "LocalOffsetY": 0.0,
+                                            "LocalOffsetZ": 0.0,
+                                            "LocalRotX": 0.0,
+                                            "LocalRotY": 0.0,
+                                            "LocalRotZ": 0.0,
+                                            "ProxyExtX": 170.0,
+                                            "ProxyExtY": 2.0,
+                                            "ProxyExtZ": 33.20000076293945,
+                                            "ShapeType": 0,
+                                            "Type": "StaticMeshColliderComponent"
+                                        },
+                                        {
+                                            "ApplyHazardDamage": false,
+                                            "FadeInDuration": 2.0,
+                                            "FadeOutDuration": 0.8500000238418579,
+                                            "HazardDamage": 15.0,
+                                            "ShowGizmo": true,
+                                            "TargetSpawnName": "Respawn_Point_Act_1_02",
+                                            "Type": "RespawnTriggerComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "OOB_Trigger_02",
+                                    "PosX": 48.33549118041992,
+                                    "PosY": -20.413818359375,
+                                    "PosZ": -187.07315063476563,
+                                    "RotX": -0.0,
+                                    "RotY": -33.0,
+                                    "RotZ": 0.0,
+                                    "ScaleX": 0.9999993443489075,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999993443489075
+                                },
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "CollidesWith": 4,
+                                            "IsTrigger": true,
+                                            "Layer": 64,
+                                            "LocalOffsetX": 0.0,
+                                            "LocalOffsetY": 0.0,
+                                            "LocalOffsetZ": 0.0,
+                                            "LocalRotX": 0.0,
+                                            "LocalRotY": 0.0,
+                                            "LocalRotZ": 0.0,
+                                            "ProxyExtX": 170.0,
+                                            "ProxyExtY": 2.0,
+                                            "ProxyExtZ": 33.20000076293945,
+                                            "ShapeType": 0,
+                                            "Type": "StaticMeshColliderComponent"
+                                        },
+                                        {
+                                            "ApplyHazardDamage": false,
+                                            "FadeInDuration": 2.0,
+                                            "FadeOutDuration": 0.8500000238418579,
+                                            "HazardDamage": 15.0,
+                                            "ShowGizmo": true,
+                                            "TargetSpawnName": "Respawn_Point_Act_1_03",
+                                            "Type": "RespawnTriggerComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "OOB_Trigger_03",
+                                    "PosX": 68.6944808959961,
+                                    "PosY": -27.165496826171875,
+                                    "PosZ": -213.67529296875,
+                                    "RotX": -0.0,
+                                    "RotY": -33.0,
+                                    "RotZ": 0.0,
+                                    "ScaleX": 0.9999993443489075,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999993443489075
+                                },
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "CollidesWith": 4,
+                                            "IsTrigger": true,
+                                            "Layer": 64,
+                                            "LocalOffsetX": 0.0,
+                                            "LocalOffsetY": 0.0,
+                                            "LocalOffsetZ": 0.0,
+                                            "LocalRotX": 0.0,
+                                            "LocalRotY": 0.0,
+                                            "LocalRotZ": 0.0,
+                                            "ProxyExtX": 170.0,
+                                            "ProxyExtY": 2.0,
+                                            "ProxyExtZ": 81.9000015258789,
+                                            "ShapeType": 0,
+                                            "Type": "StaticMeshColliderComponent"
+                                        },
+                                        {
+                                            "ApplyHazardDamage": false,
+                                            "FadeInDuration": 2.0,
+                                            "FadeOutDuration": 0.8500000238418579,
+                                            "HazardDamage": 15.0,
+                                            "ShowGizmo": true,
+                                            "TargetSpawnName": "Respawn_Point_Act_1_03",
+                                            "Type": "RespawnTriggerComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "OOB_Trigger_04",
+                                    "PosX": 100.93156433105469,
+                                    "PosY": -27.165496826171875,
+                                    "PosZ": -237.01498413085938,
+                                    "RotX": -0.0,
+                                    "RotY": 0.0,
+                                    "RotZ": -0.0,
+                                    "ScaleX": 0.9999993443489075,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999993443489075
+                                },
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "CollidesWith": 4,
+                                            "IsTrigger": true,
+                                            "Layer": 64,
+                                            "LocalOffsetX": 0.0,
+                                            "LocalOffsetY": 0.0,
+                                            "LocalOffsetZ": 0.0,
+                                            "LocalRotX": 0.0,
+                                            "LocalRotY": 0.0,
+                                            "LocalRotZ": 0.0,
+                                            "ProxyExtX": 170.0,
+                                            "ProxyExtY": 2.0,
+                                            "ProxyExtZ": 61.099998474121094,
+                                            "ShapeType": 0,
+                                            "Type": "StaticMeshColliderComponent"
+                                        },
+                                        {
+                                            "ApplyHazardDamage": false,
+                                            "FadeInDuration": 2.0,
+                                            "FadeOutDuration": 0.8500000238418579,
+                                            "HazardDamage": 15.0,
+                                            "ShowGizmo": true,
+                                            "TargetSpawnName": "Respawn_Point_Act_1_04",
+                                            "Type": "RespawnTriggerComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "OOB_Trigger_05",
+                                    "PosX": 82.31507110595703,
+                                    "PosY": -33.58600997924805,
+                                    "PosZ": -302.9416809082031,
+                                    "RotX": -0.0,
+                                    "RotY": 0.0,
+                                    "RotZ": -0.0,
+                                    "ScaleX": 0.9999993443489075,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999993443489075
+                                },
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "CollidesWith": 4,
+                                            "IsTrigger": true,
+                                            "Layer": 64,
+                                            "LocalOffsetX": 0.0,
+                                            "LocalOffsetY": 0.0,
+                                            "LocalOffsetZ": 0.0,
+                                            "LocalRotX": 0.0,
+                                            "LocalRotY": 0.0,
+                                            "LocalRotZ": 0.0,
+                                            "ProxyExtX": 170.0,
+                                            "ProxyExtY": 2.0,
+                                            "ProxyExtZ": 68.5999984741211,
+                                            "ShapeType": 0,
+                                            "Type": "StaticMeshColliderComponent"
+                                        },
+                                        {
+                                            "ApplyHazardDamage": false,
+                                            "FadeInDuration": 2.0,
+                                            "FadeOutDuration": 0.8500000238418579,
+                                            "HazardDamage": 15.0,
+                                            "ShowGizmo": true,
+                                            "TargetSpawnName": "Respawn_Point_Act_1_05",
+                                            "Type": "RespawnTriggerComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "OOB_Trigger_06",
+                                    "PosX": 100.05408477783203,
+                                    "PosY": -41.05759811401367,
+                                    "PosZ": -364.3457946777344,
+                                    "RotX": -0.0,
+                                    "RotY": 0.0,
+                                    "RotZ": -0.0,
+                                    "ScaleX": 0.9999993443489075,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999993443489075
+                                }
+                            ],
+                            "Components": [],
+                            "IsActive": true,
+                            "Name": "OOB",
+                            "PosX": 0.0,
+                            "PosY": 0.0,
+                            "PosZ": 0.0,
+                            "RotX": 0.0,
+                            "RotY": 0.0,
+                            "RotZ": 0.0,
+                            "ScaleX": 1.0,
+                            "ScaleY": 1.0,
+                            "ScaleZ": 1.0
+                        },
+                        {
+                            "Children": [
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "GroundSnapOffset": 0.05000000074505806,
+                                            "ShowGizmo": true,
+                                            "Type": "RespawnPointComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "Respawn_Point_Act_1",
+                                    "PosX": 21.26602554321289,
+                                    "PosY": 11.424381256103516,
+                                    "PosZ": -147.9529266357422,
+                                    "RotX": -0.0,
+                                    "RotY": 145.99978637695313,
+                                    "RotZ": 0.0,
+                                    "ScaleX": 0.9999997615814209,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999997615814209
+                                },
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "GroundSnapOffset": 0.05000000074505806,
+                                            "ShowGizmo": true,
+                                            "Type": "RespawnPointComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "Respawn_Point_Act_1_02",
+                                    "PosX": 38.56795120239258,
+                                    "PosY": 3.0485024452209473,
+                                    "PosZ": -174.91294860839844,
+                                    "RotX": -0.0,
+                                    "RotY": 145.99978637695313,
+                                    "RotZ": 0.0,
+                                    "ScaleX": 0.9999997615814209,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999997615814209
+                                },
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "GroundSnapOffset": 0.05000000074505806,
+                                            "ShowGizmo": true,
+                                            "Type": "RespawnPointComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "Respawn_Point_Act_1_03",
+                                    "PosX": 57.960044860839844,
+                                    "PosY": -5.50763463973999,
+                                    "PosZ": -201.9068145751953,
+                                    "RotX": -0.0,
+                                    "RotY": 145.99978637695313,
+                                    "RotZ": 0.0,
+                                    "ScaleX": 0.9999997615814209,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999997615814209
+                                },
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "GroundSnapOffset": 0.05000000074505806,
+                                            "ShowGizmo": true,
+                                            "Type": "RespawnPointComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "Respawn_Point_Act_1_04",
+                                    "PosX": 84.03777313232422,
+                                    "PosY": -15.094024658203125,
+                                    "PosZ": -279.95458984375,
+                                    "RotX": -0.0,
+                                    "RotY": 180.0,
+                                    "RotZ": 0.0,
+                                    "ScaleX": 0.9999997615814209,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999997615814209
+                                },
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "GroundSnapOffset": 0.05000000074505806,
+                                            "ShowGizmo": true,
+                                            "Type": "RespawnPointComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "Respawn_Point_Act_1_05",
+                                    "PosX": 103.39868927001953,
+                                    "PosY": -22.2742919921875,
+                                    "PosZ": -334.1539001464844,
+                                    "RotX": -0.0,
+                                    "RotY": 180.0,
+                                    "RotZ": 0.0,
+                                    "ScaleX": 0.9999997615814209,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999997615814209
+                                }
+                            ],
+                            "Components": [],
+                            "IsActive": true,
+                            "Name": "Respawn_Point",
+                            "PosX": 0.0,
+                            "PosY": 0.0,
+                            "PosZ": 0.0,
+                            "RotX": 0.0,
+                            "RotY": 0.0,
+                            "RotZ": 0.0,
+                            "ScaleX": 1.0,
+                            "ScaleY": 1.0,
+                            "ScaleZ": 1.0
                         }
                     ],
                     "Components": [],
@@ -7299,6 +8022,305 @@
                             "RotX": -0.0,
                             "RotY": 0.0,
                             "RotZ": -0.0,
+                            "ScaleX": 1.0,
+                            "ScaleY": 1.0,
+                            "ScaleZ": 1.0
+                        },
+                        {
+                            "Children": [
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "CollidesWith": 4,
+                                            "IsTrigger": true,
+                                            "Layer": 64,
+                                            "LocalOffsetX": 0.0,
+                                            "LocalOffsetY": 0.0,
+                                            "LocalOffsetZ": 0.0,
+                                            "LocalRotX": 0.0,
+                                            "LocalRotY": 0.0,
+                                            "LocalRotZ": 0.0,
+                                            "ProxyExtX": 28.700000762939453,
+                                            "ProxyExtY": 2.0,
+                                            "ProxyExtZ": 40.29999923706055,
+                                            "ShapeType": 0,
+                                            "Type": "StaticMeshColliderComponent"
+                                        },
+                                        {
+                                            "ApplyHazardDamage": false,
+                                            "FadeInDuration": 2.0,
+                                            "FadeOutDuration": 0.8500000238418579,
+                                            "HazardDamage": 15.0,
+                                            "ShowGizmo": true,
+                                            "TargetSpawnName": "Respawn_Point_Act_2",
+                                            "Type": "RespawnTriggerComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "OOB_Trigger",
+                                    "PosX": 142.3507537841797,
+                                    "PosY": -24.783851623535156,
+                                    "PosZ": -393.5674133300781,
+                                    "RotX": -0.0,
+                                    "RotY": 45.000003814697266,
+                                    "RotZ": -0.0,
+                                    "ScaleX": 0.9999989867210388,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999989867210388
+                                },
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "CollidesWith": 4,
+                                            "IsTrigger": true,
+                                            "Layer": 64,
+                                            "LocalOffsetX": 0.0,
+                                            "LocalOffsetY": 0.0,
+                                            "LocalOffsetZ": 0.0,
+                                            "LocalRotX": 0.0,
+                                            "LocalRotY": 0.0,
+                                            "LocalRotZ": 0.0,
+                                            "ProxyExtX": 28.700000762939453,
+                                            "ProxyExtY": 2.0,
+                                            "ProxyExtZ": 40.29999923706055,
+                                            "ShapeType": 0,
+                                            "Type": "StaticMeshColliderComponent"
+                                        },
+                                        {
+                                            "ApplyHazardDamage": false,
+                                            "FadeInDuration": 2.0,
+                                            "FadeOutDuration": 0.8500000238418579,
+                                            "HazardDamage": 15.0,
+                                            "ShowGizmo": true,
+                                            "TargetSpawnName": "Respawn_Point_Act_2",
+                                            "Type": "RespawnTriggerComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "OOB_Trigger_02",
+                                    "PosX": 69.7779769897461,
+                                    "PosY": -24.783851623535156,
+                                    "PosZ": -390.4158020019531,
+                                    "RotX": -0.0,
+                                    "RotY": -37.99995803833008,
+                                    "RotZ": 0.0,
+                                    "ScaleX": 0.9999987483024597,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999987483024597
+                                },
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "CollidesWith": 4,
+                                            "IsTrigger": true,
+                                            "Layer": 64,
+                                            "LocalOffsetX": 0.0,
+                                            "LocalOffsetY": 0.0,
+                                            "LocalOffsetZ": 0.0,
+                                            "LocalRotX": 0.0,
+                                            "LocalRotY": 0.0,
+                                            "LocalRotZ": 0.0,
+                                            "ProxyExtX": 79.9000015258789,
+                                            "ProxyExtY": 2.0,
+                                            "ProxyExtZ": 40.29999923706055,
+                                            "ShapeType": 0,
+                                            "Type": "StaticMeshColliderComponent"
+                                        },
+                                        {
+                                            "ApplyHazardDamage": false,
+                                            "FadeInDuration": 2.0,
+                                            "FadeOutDuration": 0.8500000238418579,
+                                            "HazardDamage": 15.0,
+                                            "ShowGizmo": true,
+                                            "TargetSpawnName": "Respawn_Point_Act_2",
+                                            "Type": "RespawnTriggerComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "OOB_Trigger_03",
+                                    "PosX": 163.13705444335938,
+                                    "PosY": -24.783851623535156,
+                                    "PosZ": -429.5830993652344,
+                                    "RotX": -0.0,
+                                    "RotY": 74.9999771118164,
+                                    "RotZ": -0.0,
+                                    "ScaleX": 0.9999988675117493,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999988675117493
+                                },
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "CollidesWith": 4,
+                                            "IsTrigger": true,
+                                            "Layer": 64,
+                                            "LocalOffsetX": 0.0,
+                                            "LocalOffsetY": 0.0,
+                                            "LocalOffsetZ": 0.0,
+                                            "LocalRotX": 0.0,
+                                            "LocalRotY": 0.0,
+                                            "LocalRotZ": 0.0,
+                                            "ProxyExtX": 79.9000015258789,
+                                            "ProxyExtY": 2.0,
+                                            "ProxyExtZ": 40.29999923706055,
+                                            "ShapeType": 0,
+                                            "Type": "StaticMeshColliderComponent"
+                                        },
+                                        {
+                                            "ApplyHazardDamage": false,
+                                            "FadeInDuration": 2.0,
+                                            "FadeOutDuration": 0.8500000238418579,
+                                            "HazardDamage": 15.0,
+                                            "ShowGizmo": true,
+                                            "TargetSpawnName": "Respawn_Point_Act_2",
+                                            "Type": "RespawnTriggerComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "OOB_Trigger_04",
+                                    "PosX": 41.814388275146484,
+                                    "PosY": -24.783851623535156,
+                                    "PosZ": -436.6343688964844,
+                                    "RotX": -0.0,
+                                    "RotY": -74.9999771118164,
+                                    "RotZ": 0.0,
+                                    "ScaleX": 0.9999988675117493,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999988675117493
+                                },
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "CollidesWith": 4,
+                                            "IsTrigger": true,
+                                            "Layer": 64,
+                                            "LocalOffsetX": 0.0,
+                                            "LocalOffsetY": 0.0,
+                                            "LocalOffsetZ": 0.0,
+                                            "LocalRotX": 0.0,
+                                            "LocalRotY": 0.0,
+                                            "LocalRotZ": 0.0,
+                                            "ProxyExtX": 79.9000015258789,
+                                            "ProxyExtY": 2.0,
+                                            "ProxyExtZ": 40.29999923706055,
+                                            "ShapeType": 0,
+                                            "Type": "StaticMeshColliderComponent"
+                                        },
+                                        {
+                                            "ApplyHazardDamage": false,
+                                            "FadeInDuration": 2.0,
+                                            "FadeOutDuration": 0.8500000238418579,
+                                            "HazardDamage": 15.0,
+                                            "ShowGizmo": true,
+                                            "TargetSpawnName": "Respawn_Point_Act_2",
+                                            "Type": "RespawnTriggerComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "OOB_Trigger_05",
+                                    "PosX": 152.64935302734375,
+                                    "PosY": -20.61587142944336,
+                                    "PosZ": -498.43792724609375,
+                                    "RotX": -0.0,
+                                    "RotY": 133.99990844726563,
+                                    "RotZ": 0.0,
+                                    "ScaleX": 0.9999985694885254,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999985694885254
+                                },
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "CollidesWith": 4,
+                                            "IsTrigger": true,
+                                            "Layer": 64,
+                                            "LocalOffsetX": 0.0,
+                                            "LocalOffsetY": 0.0,
+                                            "LocalOffsetZ": 0.0,
+                                            "LocalRotX": 0.0,
+                                            "LocalRotY": 0.0,
+                                            "LocalRotZ": 0.0,
+                                            "ProxyExtX": 79.9000015258789,
+                                            "ProxyExtY": 2.0,
+                                            "ProxyExtZ": 40.29999923706055,
+                                            "ShapeType": 0,
+                                            "Type": "StaticMeshColliderComponent"
+                                        },
+                                        {
+                                            "ApplyHazardDamage": false,
+                                            "FadeInDuration": 2.0,
+                                            "FadeOutDuration": 0.8500000238418579,
+                                            "HazardDamage": 15.0,
+                                            "ShowGizmo": true,
+                                            "TargetSpawnName": "Respawn_Point_Act_2",
+                                            "Type": "RespawnTriggerComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "OOB_Trigger_06",
+                                    "PosX": 50.94515609741211,
+                                    "PosY": -20.61587142944336,
+                                    "PosZ": -500.81365966796875,
+                                    "RotX": -0.0,
+                                    "RotY": -133.99990844726563,
+                                    "RotZ": 0.0,
+                                    "ScaleX": 0.9999985694885254,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999985694885254
+                                }
+                            ],
+                            "Components": [],
+                            "IsActive": true,
+                            "Name": "OOB",
+                            "PosX": 0.0,
+                            "PosY": 0.0,
+                            "PosZ": 0.0,
+                            "RotX": 0.0,
+                            "RotY": 0.0,
+                            "RotZ": 0.0,
+                            "ScaleX": 1.0,
+                            "ScaleY": 1.0,
+                            "ScaleZ": 1.0
+                        },
+                        {
+                            "Children": [
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "GroundSnapOffset": 0.05000000074505806,
+                                            "ShowGizmo": true,
+                                            "Type": "RespawnPointComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "Respawn_Point_Act_2",
+                                    "PosX": 105.3791732788086,
+                                    "PosY": -54.4820556640625,
+                                    "PosZ": -406.1522216796875,
+                                    "RotX": -0.0,
+                                    "RotY": 180.0,
+                                    "RotZ": 0.0,
+                                    "ScaleX": 0.9999997615814209,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999997615814209
+                                }
+                            ],
+                            "Components": [],
+                            "IsActive": true,
+                            "Name": "Respawn_Point",
+                            "PosX": 0.0,
+                            "PosY": 0.0,
+                            "PosZ": 0.0,
+                            "RotX": 0.0,
+                            "RotY": 0.0,
+                            "RotZ": 0.0,
                             "ScaleX": 1.0,
                             "ScaleY": 1.0,
                             "ScaleZ": 1.0
@@ -8243,6 +9265,182 @@
                             "RotX": -0.0,
                             "RotY": 0.0,
                             "RotZ": -0.0,
+                            "ScaleX": 1.0,
+                            "ScaleY": 1.0,
+                            "ScaleZ": 1.0
+                        },
+                        {
+                            "Children": [
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "CollidesWith": 4,
+                                            "IsTrigger": true,
+                                            "Layer": 64,
+                                            "LocalOffsetX": 0.0,
+                                            "LocalOffsetY": 0.0,
+                                            "LocalOffsetZ": 0.0,
+                                            "LocalRotX": 0.0,
+                                            "LocalRotY": 0.0,
+                                            "LocalRotZ": 0.0,
+                                            "ProxyExtX": 150.0,
+                                            "ProxyExtY": 2.0,
+                                            "ProxyExtZ": 71.0,
+                                            "ShapeType": 0,
+                                            "Type": "StaticMeshColliderComponent"
+                                        },
+                                        {
+                                            "ApplyHazardDamage": false,
+                                            "FadeInDuration": 2.0,
+                                            "FadeOutDuration": 0.3499999940395355,
+                                            "HazardDamage": 15.0,
+                                            "ShowGizmo": true,
+                                            "TargetSpawnName": "Respawn_Point_Act_3",
+                                            "Type": "RespawnTriggerComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "OOB_Trigger",
+                                    "PosX": 105.2152099609375,
+                                    "PosY": -53.325706481933594,
+                                    "PosZ": -551.6988525390625,
+                                    "RotX": -0.0,
+                                    "RotY": 0.0,
+                                    "RotZ": -0.0,
+                                    "ScaleX": 0.9999985694885254,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999985694885254
+                                },
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "CollidesWith": 4,
+                                            "IsTrigger": true,
+                                            "Layer": 64,
+                                            "LocalOffsetX": 0.0,
+                                            "LocalOffsetY": 0.0,
+                                            "LocalOffsetZ": 0.0,
+                                            "LocalRotX": 0.0,
+                                            "LocalRotY": 0.0,
+                                            "LocalRotZ": 0.0,
+                                            "ProxyExtX": 78.30000305175781,
+                                            "ProxyExtY": 2.0,
+                                            "ProxyExtZ": 55.599998474121094,
+                                            "ShapeType": 0,
+                                            "Type": "StaticMeshColliderComponent"
+                                        },
+                                        {
+                                            "ApplyHazardDamage": false,
+                                            "FadeInDuration": 2.0,
+                                            "FadeOutDuration": 0.3499999940395355,
+                                            "HazardDamage": 15.0,
+                                            "ShowGizmo": true,
+                                            "TargetSpawnName": "Respawn_Point_Act_3",
+                                            "Type": "RespawnTriggerComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "OOB_Trigger_02",
+                                    "PosX": 45.460548400878906,
+                                    "PosY": -53.325706481933594,
+                                    "PosZ": -523.1122436523438,
+                                    "RotX": -0.0,
+                                    "RotY": -44.0,
+                                    "RotZ": 0.0,
+                                    "ScaleX": 0.9999985098838806,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999985098838806
+                                },
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "CollidesWith": 4,
+                                            "IsTrigger": true,
+                                            "Layer": 64,
+                                            "LocalOffsetX": 0.0,
+                                            "LocalOffsetY": 0.0,
+                                            "LocalOffsetZ": 0.0,
+                                            "LocalRotX": 0.0,
+                                            "LocalRotY": 0.0,
+                                            "LocalRotZ": 0.0,
+                                            "ProxyExtX": 78.30000305175781,
+                                            "ProxyExtY": 2.0,
+                                            "ProxyExtZ": 55.599998474121094,
+                                            "ShapeType": 0,
+                                            "Type": "StaticMeshColliderComponent"
+                                        },
+                                        {
+                                            "ApplyHazardDamage": false,
+                                            "FadeInDuration": 2.0,
+                                            "FadeOutDuration": 0.3499999940395355,
+                                            "HazardDamage": 15.0,
+                                            "ShowGizmo": true,
+                                            "TargetSpawnName": "Respawn_Point_Act_3",
+                                            "Type": "RespawnTriggerComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "OOB_Trigger_03",
+                                    "PosX": 161.3769989013672,
+                                    "PosY": -53.325706481933594,
+                                    "PosZ": -523.1122436523438,
+                                    "RotX": -0.0,
+                                    "RotY": 43.99999237060547,
+                                    "RotZ": -0.0,
+                                    "ScaleX": 0.9999983906745911,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999983906745911
+                                }
+                            ],
+                            "Components": [],
+                            "IsActive": true,
+                            "Name": "OOB",
+                            "PosX": 0.0,
+                            "PosY": 0.0,
+                            "PosZ": 0.0,
+                            "RotX": 0.0,
+                            "RotY": 0.0,
+                            "RotZ": 0.0,
+                            "ScaleX": 1.0,
+                            "ScaleY": 1.0,
+                            "ScaleZ": 1.0
+                        },
+                        {
+                            "Children": [
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "GroundSnapOffset": 0.05000000074505806,
+                                            "ShowGizmo": true,
+                                            "Type": "RespawnPointComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "Respawn_Point_Act_3",
+                                    "PosX": 103.82908630371094,
+                                    "PosY": -46.52244567871094,
+                                    "PosZ": -525.697021484375,
+                                    "RotX": -0.0,
+                                    "RotY": 180.0,
+                                    "RotZ": 0.0,
+                                    "ScaleX": 0.9999997615814209,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999997615814209
+                                }
+                            ],
+                            "Components": [],
+                            "IsActive": true,
+                            "Name": "Respawn_Point",
+                            "PosX": 0.0,
+                            "PosY": 0.0,
+                            "PosZ": 0.0,
+                            "RotX": 0.0,
+                            "RotY": 0.0,
+                            "RotZ": 0.0,
                             "ScaleX": 1.0,
                             "ScaleY": 1.0,
                             "ScaleZ": 1.0
@@ -11174,6 +12372,162 @@
                             "ScaleX": 1.0,
                             "ScaleY": 1.0,
                             "ScaleZ": 1.0
+                        },
+                        {
+                            "Children": [
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "CollidesWith": 4,
+                                            "IsTrigger": true,
+                                            "Layer": 64,
+                                            "LocalOffsetX": 0.0,
+                                            "LocalOffsetY": 0.0,
+                                            "LocalOffsetZ": 0.0,
+                                            "LocalRotX": 0.0,
+                                            "LocalRotY": 0.0,
+                                            "LocalRotZ": 0.0,
+                                            "ProxyExtX": 150.0,
+                                            "ProxyExtY": 2.0,
+                                            "ProxyExtZ": 61.900001525878906,
+                                            "ShapeType": 0,
+                                            "Type": "StaticMeshColliderComponent"
+                                        },
+                                        {
+                                            "ApplyHazardDamage": false,
+                                            "FadeInDuration": 2.0,
+                                            "FadeOutDuration": 0.3499999940395355,
+                                            "HazardDamage": 15.0,
+                                            "ShowGizmo": true,
+                                            "TargetSpawnName": "Respawn_Point_Act_4",
+                                            "Type": "RespawnTriggerComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "OOB_Trigger",
+                                    "PosX": 105.2152099609375,
+                                    "PosY": -53.325706481933594,
+                                    "PosZ": -618.3380126953125,
+                                    "RotX": -0.0,
+                                    "RotY": 0.0,
+                                    "RotZ": -0.0,
+                                    "ScaleX": 0.9999985694885254,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999985694885254
+                                },
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "CollidesWith": 4,
+                                            "IsTrigger": true,
+                                            "Layer": 64,
+                                            "LocalOffsetX": 0.0,
+                                            "LocalOffsetY": 0.0,
+                                            "LocalOffsetZ": 0.0,
+                                            "LocalRotX": 0.0,
+                                            "LocalRotY": 0.0,
+                                            "LocalRotZ": 0.0,
+                                            "ProxyExtX": 200.0,
+                                            "ProxyExtY": 2.0,
+                                            "ProxyExtZ": 101.0,
+                                            "ShapeType": 0,
+                                            "Type": "StaticMeshColliderComponent"
+                                        },
+                                        {
+                                            "ApplyHazardDamage": false,
+                                            "FadeInDuration": 2.0,
+                                            "FadeOutDuration": 0.3499999940395355,
+                                            "HazardDamage": 15.0,
+                                            "ShowGizmo": true,
+                                            "TargetSpawnName": "Respawn_Point_Act_4_02",
+                                            "Type": "RespawnTriggerComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "OOB_Trigger_02",
+                                    "PosX": 105.2152099609375,
+                                    "PosY": -53.325706481933594,
+                                    "PosZ": -700.6094970703125,
+                                    "RotX": -0.0,
+                                    "RotY": 0.0,
+                                    "RotZ": -0.0,
+                                    "ScaleX": 0.9999985694885254,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999985694885254
+                                }
+                            ],
+                            "Components": [],
+                            "IsActive": true,
+                            "Name": "OOB",
+                            "PosX": 0.0,
+                            "PosY": 0.0,
+                            "PosZ": 0.0,
+                            "RotX": 0.0,
+                            "RotY": 0.0,
+                            "RotZ": 0.0,
+                            "ScaleX": 1.0,
+                            "ScaleY": 1.0,
+                            "ScaleZ": 1.0
+                        },
+                        {
+                            "Children": [
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "GroundSnapOffset": 0.05000000074505806,
+                                            "ShowGizmo": true,
+                                            "Type": "RespawnPointComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "Respawn_Point_Act_4",
+                                    "PosX": 103.23064422607422,
+                                    "PosY": -46.52244567871094,
+                                    "PosZ": -587.3006591796875,
+                                    "RotX": -0.0,
+                                    "RotY": 180.0,
+                                    "RotZ": 0.0,
+                                    "ScaleX": 0.9999997615814209,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999997615814209
+                                },
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "GroundSnapOffset": 0.05000000074505806,
+                                            "ShowGizmo": true,
+                                            "Type": "RespawnPointComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "Respawn_Point_Act_4_02",
+                                    "PosX": 102.75932312011719,
+                                    "PosY": -46.52244567871094,
+                                    "PosZ": -653.9270629882813,
+                                    "RotX": -0.0,
+                                    "RotY": 180.0,
+                                    "RotZ": 0.0,
+                                    "ScaleX": 0.9999997615814209,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999997615814209
+                                }
+                            ],
+                            "Components": [],
+                            "IsActive": true,
+                            "Name": "Respawn_Point",
+                            "PosX": 0.0,
+                            "PosY": 0.0,
+                            "PosZ": 0.0,
+                            "RotX": 0.0,
+                            "RotY": 0.0,
+                            "RotZ": 0.0,
+                            "ScaleX": 1.0,
+                            "ScaleY": 1.0,
+                            "ScaleZ": 1.0
                         }
                     ],
                     "Components": [],
@@ -11648,94 +13002,6 @@
                                     "ScaleX": 2.999976873397827,
                                     "ScaleY": 10.170989990234375,
                                     "ScaleZ": 2.99997878074646
-                                },
-                                {
-                                    "Children": [],
-                                    "Components": [
-                                        {
-                                            "Color": [
-                                                1.0,
-                                                1.0,
-                                                1.0,
-                                                1.0
-                                            ],
-                                            "Materials": [
-                                                {
-                                                    "AlphaCutoff": 0.5,
-                                                    "AlphaMode": 0,
-                                                    "BaseColor": [
-                                                        1.0,
-                                                        1.0,
-                                                        1.0,
-                                                        1.0
-                                                    ],
-                                                    "Emissive": [
-                                                        0.0,
-                                                        0.0,
-                                                        0.0
-                                                    ],
-                                                    "EnableOutline": true,
-                                                    "IsOccludable": true,
-                                                    "IsOccluder": false,
-                                                    "Metalness": 0.0,
-                                                    "Name": "Base_Material.001",
-                                                    "OccluderScale": 0.949999988079071,
-                                                    "OutlineColor": [
-                                                        0.05000000074505806,
-                                                        0.05000000074505806,
-                                                        0.05000000074505806,
-                                                        1.0
-                                                    ],
-                                                    "OutlineFadeEnd": 28.0,
-                                                    "OutlineFadeStart": 12.0,
-                                                    "OutlineWidth": 0.014999999664723873,
-                                                    "Roughness": 1.0,
-                                                    "ShaderId": 2,
-                                                    "SubsurfaceStrength": 0.0,
-                                                    "TexBase": "",
-                                                    "TexNormal": "",
-                                                    "UVOffset": [
-                                                        0.0,
-                                                        0.0
-                                                    ],
-                                                    "UVProjectionMode": 0,
-                                                    "UVTiling": [
-                                                        1.0,
-                                                        1.0
-                                                    ]
-                                                }
-                                            ],
-                                            "ModelPath": "C:\\Users\\2240823\\Documents\\School\\GameDev\\Hyperlapse 88\\Data\\Model\\Weapon\\WPN_AXE_ENEMY.glb",
-                                            "Type": "MeshComponent"
-                                        },
-                                        {
-                                            "CollidesWith": 4294967295,
-                                            "IsTrigger": false,
-                                            "Layer": 1,
-                                            "LocalOffsetX": -0.10000212490558624,
-                                            "LocalOffsetY": 0.6000000238418579,
-                                            "LocalOffsetZ": 2.902001142501831e-06,
-                                            "LocalRotX": 0.0,
-                                            "LocalRotY": 0.0,
-                                            "LocalRotZ": 0.0,
-                                            "ProxyExtX": 1.7320507764816284,
-                                            "ProxyExtY": 1.7320507764816284,
-                                            "ProxyExtZ": 1.7320507764816284,
-                                            "ShapeType": 3,
-                                            "Type": "StaticMeshColliderComponent"
-                                        }
-                                    ],
-                                    "IsActive": true,
-                                    "Name": "Socket_Anchor",
-                                    "PosX": 0.2905732989311218,
-                                    "PosY": 0.5107147097587585,
-                                    "PosZ": -0.6524379849433899,
-                                    "RotX": -5.765129089355469,
-                                    "RotY": 108.86414337158203,
-                                    "RotZ": 71.75638580322266,
-                                    "ScaleX": 1.0,
-                                    "ScaleY": 1.0,
-                                    "ScaleZ": 0.9999998211860657
                                 },
                                 {
                                     "Children": [],
@@ -12275,6 +13541,100 @@
                             "RotX": -0.0,
                             "RotY": 0.0,
                             "RotZ": -0.0,
+                            "ScaleX": 1.0,
+                            "ScaleY": 1.0,
+                            "ScaleZ": 1.0
+                        },
+                        {
+                            "Children": [
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "CollidesWith": 4,
+                                            "IsTrigger": true,
+                                            "Layer": 64,
+                                            "LocalOffsetX": 0.0,
+                                            "LocalOffsetY": 0.0,
+                                            "LocalOffsetZ": 0.0,
+                                            "LocalRotX": 0.0,
+                                            "LocalRotY": 0.0,
+                                            "LocalRotZ": 0.0,
+                                            "ProxyExtX": 200.0,
+                                            "ProxyExtY": 2.0,
+                                            "ProxyExtZ": 153.0,
+                                            "ShapeType": 0,
+                                            "Type": "StaticMeshColliderComponent"
+                                        },
+                                        {
+                                            "ApplyHazardDamage": false,
+                                            "FadeInDuration": 2.0,
+                                            "FadeOutDuration": 0.3499999940395355,
+                                            "HazardDamage": 15.0,
+                                            "ShowGizmo": true,
+                                            "TargetSpawnName": "Respawn_Point_Act_5",
+                                            "Type": "RespawnTriggerComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "OOB_Trigger",
+                                    "PosX": 105.2152099609375,
+                                    "PosY": -53.325706481933594,
+                                    "PosZ": -828.749267578125,
+                                    "RotX": -0.0,
+                                    "RotY": 0.0,
+                                    "RotZ": -0.0,
+                                    "ScaleX": 0.9999985694885254,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999985694885254
+                                }
+                            ],
+                            "Components": [],
+                            "IsActive": true,
+                            "Name": "OOB",
+                            "PosX": 0.0,
+                            "PosY": 0.0,
+                            "PosZ": 0.0,
+                            "RotX": 0.0,
+                            "RotY": 0.0,
+                            "RotZ": 0.0,
+                            "ScaleX": 1.0,
+                            "ScaleY": 1.0,
+                            "ScaleZ": 1.0
+                        },
+                        {
+                            "Children": [
+                                {
+                                    "Children": [],
+                                    "Components": [
+                                        {
+                                            "GroundSnapOffset": 0.05000000074505806,
+                                            "ShowGizmo": true,
+                                            "Type": "RespawnPointComponent"
+                                        }
+                                    ],
+                                    "IsActive": true,
+                                    "Name": "Respawn_Point_Act_5",
+                                    "PosX": 103.62516784667969,
+                                    "PosY": -46.52244567871094,
+                                    "PosZ": -751.8651123046875,
+                                    "RotX": -0.0,
+                                    "RotY": 180.0,
+                                    "RotZ": 0.0,
+                                    "ScaleX": 0.9999997615814209,
+                                    "ScaleY": 1.0,
+                                    "ScaleZ": 0.9999997615814209
+                                }
+                            ],
+                            "Components": [],
+                            "IsActive": true,
+                            "Name": "Respawn_Point",
+                            "PosX": 0.0,
+                            "PosY": 0.0,
+                            "PosZ": 0.0,
+                            "RotX": 0.0,
+                            "RotY": 0.0,
+                            "RotZ": 0.0,
                             "ScaleX": 1.0,
                             "ScaleY": 1.0,
                             "ScaleZ": 1.0
